@@ -8,11 +8,15 @@
 
 mod content;
 mod contracts;
+mod flow;
 mod fragment;
+mod ir;
 
 pub use content::TableContentPlan;
 pub use contracts::{
-    CellInput, CellPlacement, ComposedCell, GeometryError, Insets, LineBox, LineOwner,
-    LinePlacement, PageArea, Rect, RowInput, SplitPolicy, TablePlacement,
+    CellInput, CellPlacement, ComposedCell, ControlOwner, FlowBlock, FlowCellInput, FlowRowInput,
+    GeometryError, Insets, LineBox, LineOwner, LinePlacement, NestedTablePlacement, PageArea, Rect,
+    RowInput, SplitPolicy, TablePlacement,
 };
 pub use fragment::{FragmentFit, TableCursor, TableFragmentPlan};
+pub use ir::{CellParagraphComposer, ParagraphItem};

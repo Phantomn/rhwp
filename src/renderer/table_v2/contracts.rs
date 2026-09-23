@@ -57,6 +57,39 @@ pub struct RowInput {
     pub cells: Vec<CellInput>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ControlOwner {
+    pub paragraph: usize,
+    pub control: usize,
+}
+
+/// Composition owns atomic line groups; pagination never infers them from ink.
+#[derive(Debug)]
+pub enum FlowBlock {
+    Space(f64),
+    Lines {
+        height: f64,
+        lines: Vec<LineBox>,
+    },
+    Table {
+        owner: ControlOwner,
+        plan: std::sync::Arc<super::TableContentPlan>,
+    },
+}
+
+#[derive(Debug)]
+pub struct FlowCellInput {
+    pub padding: Insets,
+    pub minimum_height: f64,
+    pub width: f64,
+    pub blocks: Vec<FlowBlock>,
+}
+
+#[derive(Debug)]
+pub struct FlowRowInput {
+    pub cells: Vec<FlowCellInput>,
+}
+
 /// Deliberately independent of TAC/wrap/anchor selection in the paragraph flow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SplitPolicy {
@@ -85,6 +118,13 @@ pub struct CellPlacement {
     pub bounds: Rect,
     pub content_origin: (f64, f64),
     pub lines: Vec<LinePlacement>,
+    pub tables: Vec<NestedTablePlacement>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NestedTablePlacement {
+    pub owner: ControlOwner,
+    pub placement: Box<TablePlacement>,
 }
 
 /// Final geometry, consumed verbatim by placement; no second height calculation.
@@ -103,6 +143,8 @@ pub enum GeometryError {
     ContentBounds { row: usize, column: usize },
     DuplicateLineOwner { row: usize, column: usize },
     UnsupportedCellSplit,
+    InconsistentAtomicPlan,
+    Unsupported(&'static str),
 }
 
 impl std::fmt::Display for GeometryError {

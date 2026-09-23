@@ -2,21 +2,35 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use super::contracts::nonnegative;
-use super::{GeometryError, RowInput, SplitPolicy, TableCursor};
+use super::{
+    FlowBlock, FlowCellInput, FlowRowInput, GeometryError, RowInput, SplitPolicy, TableCursor,
+};
 
-/// Immutable, width-bound content and physical row geometry. No pointer-key cache.
-/// Recomposition creates a new plan; an old cursor can only resume its own plan.
+/// Immutable width-bound cell content. Child tables retain their own plans.
 #[derive(Debug)]
 pub struct TableContentPlan {
     pub(super) column_widths: Vec<f64>,
-    pub(super) rows: Vec<RowInput>,
+    pub(super) rows: Vec<FlowRowInput>,
     pub(super) row_heights: Vec<f64>,
     pub(super) row_spacing: f64,
     pub(super) width: f64,
     pub(super) policy: SplitPolicy,
+    pub(super) height: f64,
+    depth: usize,
+}
+
+impl FlowBlock {
+    pub(super) fn height(&self) -> f64 {
+        match self {
+            Self::Space(height) | Self::Lines { height, .. } => *height,
+            Self::Table { plan, .. } => plan.height,
+        }
+    }
 }
 
 impl TableContentPlan {
+    /// Compatibility entry for already composed cells. A whole composed cell is
+    /// atomic: this entry does not invent line-break units from overlapping boxes.
     pub fn new(
         column_widths: Vec<f64>,
         rows: Vec<RowInput>,
@@ -26,6 +40,38 @@ impl TableContentPlan {
         if policy == SplitPolicy::WithinCells {
             return Err(GeometryError::UnsupportedCellSplit);
         }
+        Self::from_flow_rows(
+            column_widths,
+            rows.into_iter()
+                .map(|row| FlowRowInput {
+                    cells: row
+                        .cells
+                        .into_iter()
+                        .map(|cell| FlowCellInput {
+                            padding: cell.padding,
+                            minimum_height: cell.minimum_height,
+                            width: cell.content.width,
+                            blocks: vec![FlowBlock::Lines {
+                                height: cell.content.height,
+                                lines: cell.content.lines,
+                            }],
+                        })
+                        .collect(),
+                })
+                .collect(),
+            row_spacing,
+            policy,
+        )
+    }
+
+    /// Composition explicitly supplies atomic line groups and nested tables.
+    /// Padding is physical space and is inserted once, not once per page.
+    pub fn from_flow_rows(
+        column_widths: Vec<f64>,
+        mut rows: Vec<FlowRowInput>,
+        row_spacing: f64,
+        policy: SplitPolicy,
+    ) -> Result<Self, GeometryError> {
         if column_widths.is_empty() || rows.is_empty() {
             return Err(GeometryError::EmptyTable);
         }
@@ -39,52 +85,74 @@ impl TableContentPlan {
         let width = column_widths.iter().sum();
         nonnegative(width, "table width")?;
         let mut row_heights = Vec::with_capacity(rows.len());
-        for (row, input) in rows.iter().enumerate() {
+        let mut depth: usize = 1;
+        for (row, input) in rows.iter_mut().enumerate() {
             if input.cells.len() != column_widths.len() {
                 return Err(GeometryError::CellCount { row });
             }
             let mut height: f64 = 0.0;
-            for (column, cell) in input.cells.iter().enumerate() {
+            for (column, cell) in input.cells.iter_mut().enumerate() {
                 let p = cell.padding;
-                for value in [p.left, p.right, p.top, p.bottom] {
-                    nonnegative(value, "padding")?;
+                for v in [p.left, p.right, p.top, p.bottom] {
+                    nonnegative(v, "padding")?;
                 }
                 nonnegative(cell.minimum_height, "minimum cell height")?;
-                nonnegative(cell.content.width, "content width")?;
-                nonnegative(cell.content.height, "content height")?;
-                // Do not reuse lines composed for another width or silently squeeze them.
+                nonnegative(cell.width, "content width")?;
                 let inner_width = column_widths[column] - p.left - p.right;
-                if inner_width < 0.0 || inner_width != cell.content.width {
+                if inner_width < 0.0 || inner_width != cell.width {
                     return Err(GeometryError::ContentWidth { row, column });
                 }
                 let mut owners = HashSet::new();
-                for line in &cell.content.lines {
-                    let b = line.bounds;
-                    for value in [b.x, b.y, b.width, b.height] {
-                        nonnegative(value, "line bounds")?;
-                    }
-                    let right = b.x + b.width;
-                    let bottom = b.y + b.height;
-                    if !right.is_finite()
-                        || !bottom.is_finite()
-                        || right > inner_width
-                        || bottom > cell.content.height
-                    {
-                        return Err(GeometryError::ContentBounds { row, column });
-                    }
-                    if !owners.insert(line.owner) {
-                        return Err(GeometryError::DuplicateLineOwner { row, column });
+                let mut controls = HashSet::new();
+                for block in &cell.blocks {
+                    nonnegative(block.height(), "block height")?;
+                    match block {
+                        FlowBlock::Lines { height, lines } => {
+                            for line in lines {
+                                let b = line.bounds;
+                                for v in [b.x, b.y, b.width, b.height] {
+                                    nonnegative(v, "line bounds")?;
+                                }
+                                if !((b.x + b.width).is_finite() && (b.y + b.height).is_finite())
+                                    || b.x + b.width > inner_width
+                                    || b.y + b.height > *height
+                                {
+                                    return Err(GeometryError::ContentBounds { row, column });
+                                }
+                                if !owners.insert(line.owner) {
+                                    return Err(GeometryError::DuplicateLineOwner { row, column });
+                                }
+                            }
+                        }
+                        FlowBlock::Table { owner, plan } => {
+                            depth = depth.max(plan.depth + 1);
+                            if depth > 64 {
+                                return Err(GeometryError::Unsupported(
+                                    "table nesting resource limit",
+                                ));
+                            }
+                            if plan.width > inner_width {
+                                return Err(GeometryError::ContentWidth { row, column });
+                            }
+                            if !controls.insert(*owner) {
+                                return Err(GeometryError::Unsupported("duplicate child owner"));
+                            }
+                        }
+                        FlowBlock::Space(_) => {}
                     }
                 }
-                // Overlapping line boxes are allowed: they do not imply page breaks.
-                let physical = p.top + cell.content.height + p.bottom;
+                cell.blocks.insert(0, FlowBlock::Space(p.top));
+                cell.blocks.push(FlowBlock::Space(p.bottom));
+                let physical = cell.blocks.iter().map(FlowBlock::height).sum::<f64>();
                 nonnegative(physical, "physical cell height")?;
                 height = height.max(physical).max(cell.minimum_height);
             }
             row_heights.push(height);
         }
-        let total = row_heights.iter().sum::<f64>() + row_spacing * (rows.len() - 1) as f64;
-        nonnegative(total, "physical table height")?;
+        let height = row_heights.iter().enumerate().fold(0.0, |h, (row, v)| {
+            h + if row == 0 { 0.0 } else { row_spacing } + v
+        });
+        nonnegative(height, "physical table height")?;
         Ok(Self {
             column_widths,
             rows,
@@ -92,14 +160,12 @@ impl TableContentPlan {
             row_spacing,
             width,
             policy,
+            height,
+            depth,
         })
     }
 
-    /// Explicit opt-in to V2 geometry. Does not change any document engine setting.
     pub fn start(self) -> TableCursor {
-        TableCursor {
-            plan: Arc::new(self),
-            next_row: 0,
-        }
+        TableCursor::new(Arc::new(self))
     }
 }

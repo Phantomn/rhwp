@@ -2,23 +2,24 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use super::contracts::{finite, nonnegative};
+use super::flow::FlowCursor;
 use super::{
-    CellPlacement, GeometryError, LinePlacement, PageArea, Rect, SplitPolicy, TableContentPlan,
-    TablePlacement,
+    CellPlacement, GeometryError, PageArea, Rect, SplitPolicy, TableContentPlan, TablePlacement,
 };
 
-/// Continuation is bound to one immutable content plan, not a free row integer.
+/// A continuation is inseparable from its immutable content plan and child cuts.
 #[derive(Debug, Clone)]
 pub struct TableCursor {
-    pub(super) plan: Arc<TableContentPlan>,
-    pub(super) next_row: usize,
+    plan: Arc<TableContentPlan>,
+    row: usize,
+    cells: Vec<FlowCursor>,
+    minimum_left: f64,
 }
 
 #[derive(Debug)]
 pub enum FragmentFit {
     Placed(TableFragmentPlan),
-    /// The caller decides whether to retry on another page or report oversize.
-    /// No clipping, no forced fit and no implicit Legacy fallback.
+    /// Explicit non-fit. The caller decides about another page or an oversize error.
     DoesNotFit {
         required_width: f64,
         required_height: f64,
@@ -37,29 +38,48 @@ impl TableFragmentPlan {
     pub fn placement(&self) -> &TablePlacement {
         &self.placement
     }
-
     pub fn rows(&self) -> Range<usize> {
         self.rows.clone()
     }
-
-    /// Height to reserve is the *same field* used for the final table bounds.
-    /// External captions/footnotes and paragraph anchoring are not yet supported.
     pub fn reserved_height(&self) -> f64 {
         self.placement.bounds.height
     }
-
     pub fn continuation(&self) -> TableCursor {
         self.continuation.clone()
     }
 }
 
 impl TableCursor {
-    pub fn is_complete(&self) -> bool {
-        self.next_row == self.plan.rows.len()
+    pub(super) fn new(plan: Arc<TableContentPlan>) -> Self {
+        let mut cursor = Self {
+            plan,
+            row: 0,
+            cells: Vec::new(),
+            minimum_left: 0.0,
+        };
+        cursor.reset_row();
+        cursor
     }
 
-    /// Pure fit query. A rejected or uncommitted query consumes neither content
-    /// nor page space; advance only with the chosen fragment's continuation.
+    fn reset_row(&mut self) {
+        if let Some(row) = self.plan.rows.get(self.row) {
+            self.cells = row.cells.iter().map(|_| FlowCursor::default()).collect();
+            self.minimum_left = row
+                .cells
+                .iter()
+                .map(|cell| cell.minimum_height)
+                .fold(0.0, f64::max);
+        } else {
+            self.cells.clear();
+            self.minimum_left = 0.0;
+        }
+    }
+
+    pub fn is_complete(&self) -> bool {
+        self.row == self.plan.rows.len()
+    }
+
+    /// Pure query. Only a returned continuation advances accepted content.
     pub fn fit(&self, area: PageArea) -> Result<FragmentFit, GeometryError> {
         let b = area.bounds;
         finite(b.x, "page x")?;
@@ -71,78 +91,114 @@ impl TableCursor {
         if self.is_complete() {
             return Ok(FragmentFit::Complete);
         }
+        let mut next = self.clone();
         let plan = &self.plan;
-        let required_height = if plan.policy == SplitPolicy::Never {
-            // Same accumulation order as the fit loop, including floating point
-            // rounding: an atomic table must not accidentally become a prefix.
-            plan.row_heights
-                .iter()
-                .enumerate()
-                .fold(0.0, |height, (row, h)| {
-                    height + if row == 0 { 0.0 } else { plan.row_spacing } + h
-                })
-        } else {
-            plan.row_heights[self.next_row]
+        let required = match plan.policy {
+            SplitPolicy::Never => plan.height,
+            SplitPolicy::BetweenRows => plan.row_heights[self.row],
+            SplitPolicy::WithinCells => 0.0,
         };
-        if b.width < plan.width || b.height < required_height {
+        if b.x + plan.width > b.x + b.width || b.y + required > b.y + b.height {
             return Ok(FragmentFit::DoesNotFit {
                 required_width: plan.width,
-                required_height,
+                required_height: required,
             });
         }
+        let mut cells = Vec::new();
         let mut height = 0.0;
-        let mut end = self.next_row;
-        let mut row_offsets = Vec::new();
-        for &row_height in &plan.row_heights[self.next_row..] {
-            let gap = if end == self.next_row {
-                0.0
-            } else {
-                plan.row_spacing
-            };
+        let mut end = self.row;
+        let mut progressed = false;
+        let mut blocked: f64 = 0.0;
+        while !next.is_complete() {
+            let gap = if progressed { plan.row_spacing } else { 0.0 };
             let offset = height + gap;
-            let candidate = offset + row_height;
-            if candidate > b.height {
+            if b.y + offset > b.y + b.height {
                 break;
             }
-            height = candidate;
-            row_offsets.push(offset);
-            end += 1;
-        }
-        let mut cells = Vec::new();
-        for (index, offset) in row_offsets.into_iter().enumerate() {
-            let row = self.next_row + index;
-            let y = b.y + offset;
+            let available = (b.height - offset).max(0.0);
+            if plan.policy != SplitPolicy::WithinCells
+                && b.y + offset + plan.row_heights[next.row] > b.y + b.height
+            {
+                break;
+            }
+            let row = &plan.rows[next.row];
+            let mut fit_cells = Vec::new();
+            let mut used: f64 = 0.0;
+            let mut changed = false;
+            let mut all_done = true;
             let mut x = b.x;
-            for (column, cell) in plan.rows[row].cells.iter().enumerate() {
-                let content_origin = (x + cell.padding.left, y + cell.padding.top);
-                let lines = cell
-                    .content
-                    .lines
-                    .iter()
-                    .map(|line| LinePlacement {
-                        owner: line.owner,
-                        bounds: Rect {
-                            x: content_origin.0 + line.bounds.x,
-                            y: content_origin.1 + line.bounds.y,
-                            width: line.bounds.width,
-                            height: line.bounds.height,
-                        },
-                    })
-                    .collect();
+            for (column, cell) in row.cells.iter().enumerate() {
+                let fit = next.cells[column].fit(
+                    cell,
+                    Rect {
+                        x: x + cell.padding.left,
+                        y: b.y + offset,
+                        width: cell.width,
+                        height: available,
+                    },
+                )?;
+                used = used.max(fit.height);
+                changed |= fit.progressed;
+                blocked = blocked.max(fit.required);
+                all_done &= fit.next.block == cell.blocks.len();
+                fit_cells.push((x, fit));
+                x += plan.column_widths[column];
+            }
+            // Minimum height is a remaining physical band, not already consumed
+            // text. Do not manufacture blank progress in front of a blocked unit.
+            if all_done {
+                used = used.max(next.minimum_left.min(available));
+            }
+            if plan.policy != SplitPolicy::WithinCells
+                && (!all_done || b.y + offset + used < b.y + offset + next.minimum_left)
+            {
+                return Err(GeometryError::InconsistentAtomicPlan);
+            }
+            changed |= used > 0.0;
+            if !changed && !(all_done && next.minimum_left == 0.0) {
+                break;
+            }
+            for (column, (x, fit)) in fit_cells.into_iter().enumerate() {
+                let cell = &row.cells[column];
+                let origin_y = if next.cells[column].block == 0 {
+                    b.y + offset + cell.padding.top
+                } else {
+                    b.y + offset
+                };
                 cells.push(CellPlacement {
-                    row,
+                    row: next.row,
                     column,
                     bounds: Rect {
                         x,
-                        y,
+                        y: b.y + offset,
                         width: plan.column_widths[column],
-                        height: plan.row_heights[row],
+                        height: used,
                     },
-                    content_origin,
-                    lines,
+                    content_origin: (x + cell.padding.left, origin_y),
+                    lines: fit.lines,
+                    tables: fit.tables,
                 });
-                x += plan.column_widths[column];
+                next.cells[column] = fit.next;
             }
+            height = offset + used;
+            next.minimum_left = if b.y + offset + used >= b.y + offset + next.minimum_left {
+                0.0
+            } else {
+                next.minimum_left - used
+            };
+            end = next.row + 1;
+            progressed = true;
+            if !all_done || next.minimum_left > 0.0 {
+                break;
+            }
+            next.row += 1;
+            next.reset_row();
+        }
+        if !progressed {
+            return Ok(FragmentFit::DoesNotFit {
+                required_width: plan.width,
+                required_height: blocked,
+            });
         }
         Ok(FragmentFit::Placed(TableFragmentPlan {
             placement: TablePlacement {
@@ -154,11 +210,8 @@ impl TableCursor {
                 },
                 cells,
             },
-            rows: self.next_row..end,
-            continuation: TableCursor {
-                plan: Arc::clone(plan),
-                next_row: end,
-            },
+            rows: self.row..end,
+            continuation: next,
         }))
     }
 }
