@@ -73,6 +73,9 @@ pub mod supplemental_metrics;
 pub mod svg;
 pub mod svg_fragment;
 pub mod svg_layer;
+/// Experimental table geometry contracts; not selected by document rendering.
+#[doc(hidden)]
+pub mod table_v2;
 pub(crate) mod text_decoration;
 pub mod typeset;
 #[cfg(target_arch = "wasm32")]
