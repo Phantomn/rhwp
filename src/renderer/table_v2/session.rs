@@ -151,8 +151,9 @@ impl TablePreviewSession {
     /// Resolve source styles and snapshot one selected table's *contents*.
     /// The caller supplies a preview viewport: the outer host paragraph/anchor,
     /// section headers/footers/columns and document pagination are not rendered.
-    /// Current IR admission is fresh plain text only; saved rows/controls produce
-    /// an error, not a cache purge, silent reflow, or fallback to Legacy.
+    /// IR admission includes fresh text and supported zero-offset TopAndBottom
+    /// children. Saved rows/unsupported controls produce an error, not a cache
+    /// purge, silent reflow, or fallback to Legacy.
     pub fn from_document(
         document: &Document,
         selection: TableSelection,

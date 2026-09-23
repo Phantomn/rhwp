@@ -66,61 +66,15 @@ pub struct TextFragment {
 
 impl PreparedTextTable {
     /// Compose once at the declared cell width. Coordinates and style dimensions
-    /// are pixels at `dpi`; IR cell sizes remain HWP units. Only fresh plain text
-    /// is currently admitted. Saved rows, controls, borders and keep constraints
-    /// need their own qualified contracts before this preview can accept them.
+    /// are pixels at `dpi`; IR cell sizes remain HWP units. Fresh plain text and
+    /// one zero-offset paragraph-relative TopAndBottom child per host are admitted.
+    /// TAC, wrap, saved rows, borders and keep constraints remain unsupported.
     pub fn prepare(
         table: &Table,
         styles: &ResolvedStyleSet,
         dpi: f64,
     ) -> Result<Self, GeometryError> {
-        validate_text_context(styles, dpi)?;
-        if table.border_fill_id != 0
-            || table.cells.iter().any(|c| c.border_fill_id != 0)
-            || !table.zones.is_empty()
-        {
-            return Err(GeometryError::Unsupported("text preview table borders"));
-        }
-        let composer = TextComposer {
-            styles,
-            dpi,
-            payloads: RefCell::new(Vec::new()),
-        };
-        let plan = TableContentPlan::from_ir_contents(table, dpi / 7200.0, &composer)?;
-        let mut paragraphs = composer.payloads.into_inner().into_iter();
-        let mut cells: Vec<_> = table.cells.iter().collect();
-        cells.sort_by_key(|c| (c.row, c.col));
-        let mut lines = HashMap::new();
-        for cell in cells {
-            let mut order = 0;
-            for pi in 0..cell.paragraphs.len() {
-                for (li, node) in paragraphs
-                    .next()
-                    .ok_or(GeometryError::InconsistentAtomicPlan)?
-                    .into_iter()
-                    .enumerate()
-                {
-                    lines.insert(
-                        (cell.row as usize, cell.col as usize, pi, li),
-                        OrderedPaint { order, value: node },
-                    );
-                    order += 1;
-                }
-            }
-        }
-        if paragraphs.next().is_some() {
-            return Err(GeometryError::InconsistentAtomicPlan);
-        }
-        Ok(Self {
-            plan: Arc::new(plan),
-            dpi,
-            paint: Arc::new(TextPaint {
-                rows: table.row_count,
-                columns: table.col_count,
-                lines,
-                tables: HashMap::new(),
-            }),
-        })
+        super::text_ir::prepare(table, styles, dpi)
     }
 
     pub fn start(&self) -> TextTableCursor {

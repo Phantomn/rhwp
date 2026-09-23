@@ -16,6 +16,7 @@ mod ir;
 mod session;
 mod text;
 mod text_flow;
+mod text_ir;
 
 pub use content::TableContentPlan;
 pub use contracts::{
