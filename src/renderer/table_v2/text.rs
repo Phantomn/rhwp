@@ -17,23 +17,30 @@ use crate::renderer::{
 
 use super::{
     CellParagraphComposer, FragmentFit, GeometryError, PageArea, ParagraphItem, Rect,
-    TableContentPlan, TableCursor, TableFragmentPlan,
+    TableContentPlan, TableCursor, TableFragmentPlan, TablePlacement,
 };
 
-type PayloadKey = (usize, usize, usize, usize); // row, column, paragraph, line
+pub(super) type PayloadKey = (usize, usize, usize, usize); // row, column, paragraph, line/control
 
-/// An immutable text-only, borderless table preview. This is not an editable
+/// An immutable borderless text/table-flow preview. This is not an editable
 /// document session: source hit testing, anchors and backend sidecars are not bound.
 /// Unsupported input is rejected, never sent to the Legacy table engine.
 pub struct PreparedTextTable {
-    cursor: TableCursor,
-    paint: Arc<TextPaint>,
+    pub(super) plan: Arc<TableContentPlan>,
+    pub(super) paint: Arc<TextPaint>,
+    pub(super) dpi: f64,
 }
 
-struct TextPaint {
-    rows: u16,
-    columns: u16,
-    lines: HashMap<PayloadKey, RenderNode>,
+pub(super) struct OrderedPaint<T> {
+    pub order: usize,
+    pub value: T,
+}
+
+pub(super) struct TextPaint {
+    pub rows: u16,
+    pub columns: u16,
+    pub lines: HashMap<PayloadKey, OrderedPaint<RenderNode>>,
+    pub tables: HashMap<PayloadKey, OrderedPaint<Arc<TextPaint>>>,
 }
 
 /// The payload snapshot cannot be exchanged independently of its geometry cursor.
@@ -67,22 +74,12 @@ impl PreparedTextTable {
         styles: &ResolvedStyleSet,
         dpi: f64,
     ) -> Result<Self, GeometryError> {
-        if !dpi.is_finite() || dpi <= 0.0 {
-            return Err(GeometryError::InvalidNumber("text DPI"));
-        }
+        validate_text_context(styles, dpi)?;
         if table.border_fill_id != 0
             || table.cells.iter().any(|c| c.border_fill_id != 0)
             || !table.zones.is_empty()
         {
             return Err(GeometryError::Unsupported("text preview table borders"));
-        }
-        if styles.hwp3_variant
-            || styles.kerning_measurement_context.is_some()
-            || styles.supplemental_metrics.is_some()
-        {
-            return Err(GeometryError::Unsupported(
-                "text preview document metric context",
-            ));
         }
         let composer = TextComposer {
             styles,
@@ -95,6 +92,7 @@ impl PreparedTextTable {
         cells.sort_by_key(|c| (c.row, c.col));
         let mut lines = HashMap::new();
         for cell in cells {
+            let mut order = 0;
             for pi in 0..cell.paragraphs.len() {
                 for (li, node) in paragraphs
                     .next()
@@ -102,7 +100,11 @@ impl PreparedTextTable {
                     .into_iter()
                     .enumerate()
                 {
-                    lines.insert((cell.row as usize, cell.col as usize, pi, li), node);
+                    lines.insert(
+                        (cell.row as usize, cell.col as usize, pi, li),
+                        OrderedPaint { order, value: node },
+                    );
+                    order += 1;
                 }
             }
         }
@@ -110,18 +112,20 @@ impl PreparedTextTable {
             return Err(GeometryError::InconsistentAtomicPlan);
         }
         Ok(Self {
-            cursor: plan.start(),
+            plan: Arc::new(plan),
+            dpi,
             paint: Arc::new(TextPaint {
                 rows: table.row_count,
                 columns: table.col_count,
                 lines,
+                tables: HashMap::new(),
             }),
         })
     }
 
     pub fn start(&self) -> TextTableCursor {
         TextTableCursor {
-            cursor: self.cursor.clone(),
+            cursor: TableCursor::new(self.plan.clone()),
             paint: self.paint.clone(),
         }
     }
@@ -162,12 +166,21 @@ impl TextFragment {
     /// clipping, or post-layout height correction occurs here. Page coordinates
     /// come exclusively from fit; the caller owns page dimensions and flow advance.
     pub fn append_to(&self, page: &mut PageRenderTree) -> Result<(), GeometryError> {
-        let placement = self.geometry.placement();
+        // Build completely before mutating the page, including ID allocation.
+        let mut table = self.paint.build_node(self.geometry.placement())?;
+        assign_ids(&mut table, page.frame_mut());
+        page.root.children.push(table);
+        Ok(())
+    }
+}
+
+impl TextPaint {
+    fn build_node(&self, placement: &TablePlacement) -> Result<RenderNode, GeometryError> {
         let mut table = RenderNode::new(
             0,
             RenderNodeType::Table(TableNode {
-                row_count: self.paint.rows,
-                col_count: self.paint.columns,
+                row_count: self.rows,
+                col_count: self.columns,
                 border_fill_id: 0,
                 section_index: None,
                 para_index: None,
@@ -192,24 +205,40 @@ impl TextFragment {
                 }),
                 bbox(cell.bounds),
             );
+            let mut ordered = Vec::new();
             for line in &cell.lines {
                 let key = (cell.row, cell.column, line.owner.paragraph, line.owner.line);
-                let mut payload = self
-                    .paint
+                let entry = self
                     .lines
                     .get(&key)
-                    .ok_or(GeometryError::InconsistentAtomicPlan)?
-                    .clone();
+                    .ok_or(GeometryError::InconsistentAtomicPlan)?;
+                let mut payload = entry.value.clone();
                 let dx = line.bounds.x - payload.bbox.x;
                 let dy = line.bounds.y - payload.bbox.y;
                 translate(&mut payload, dx, dy);
-                node.children.push(payload);
+                ordered.push((entry.order, payload));
             }
+            for child in &cell.tables {
+                let key = (
+                    cell.row,
+                    cell.column,
+                    child.owner.paragraph,
+                    child.owner.control,
+                );
+                let entry = self
+                    .tables
+                    .get(&key)
+                    .ok_or(GeometryError::InconsistentAtomicPlan)?;
+                // Recursive fit already returned page coordinates. Do not add the
+                // parent origin again or recompute the child's reserved height.
+                ordered.push((entry.order, entry.value.build_node(&child.placement)?));
+            }
+            ordered.sort_by_key(|(order, _)| *order);
+            node.children
+                .extend(ordered.into_iter().map(|(_, child)| child));
             table.children.push(node);
         }
-        assign_ids(&mut table, page.frame_mut());
-        page.root.children.push(table);
-        Ok(())
+        Ok(table)
     }
 }
 
@@ -232,15 +261,34 @@ fn assign_ids(node: &mut RenderNode, page: &mut PageLayoutContext) {
     }
 }
 
-struct TextComposer<'a> {
-    styles: &'a ResolvedStyleSet,
+pub(super) fn validate_text_context(
+    styles: &ResolvedStyleSet,
     dpi: f64,
-    payloads: RefCell<Vec<Vec<RenderNode>>>,
+) -> Result<(), GeometryError> {
+    if !dpi.is_finite() || dpi <= 0.0 {
+        return Err(GeometryError::InvalidNumber("text DPI"));
+    }
+    if styles.hwp3_variant
+        || styles.kerning_measurement_context.is_some()
+        || styles.supplemental_metrics.is_some()
+    {
+        return Err(GeometryError::Unsupported(
+            "text preview document metric context",
+        ));
+    }
+    Ok(())
+}
+
+pub(super) struct TextComposer<'a> {
+    pub styles: &'a ResolvedStyleSet,
+    pub dpi: f64,
+    pub payloads: RefCell<Vec<Vec<RenderNode>>>,
 }
 
 impl CellParagraphComposer for TextComposer<'_> {
     fn compose(&self, para: &Paragraph, width: f64) -> Result<Vec<ParagraphItem>, GeometryError> {
-        if !para.controls.is_empty()
+        if para.column_type != crate::model::paragraph::ColumnBreakType::None
+            || !para.controls.is_empty()
             || !para.line_segs.is_empty()
             || para.source_line_seg_vertical_pos.is_some()
             || para.layout_only_fill_lines != 0

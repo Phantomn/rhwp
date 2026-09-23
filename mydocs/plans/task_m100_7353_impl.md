@@ -179,3 +179,8 @@ R3 기하/IR 구현은 `e50d85da6`에 기록했다. 작업지시자의 기존 `t
 문단 구성기와 연결하고, 확정된 fragment로 동일 TextLine/TextRun을 출력하는 표 내부 미리보기를
 추가한다. 문서 전체의 V2 선택·저장 LineSeg 수용·중첩 개체 paint·WASM 세션 연결은 아직 남아 있다.
 이 부분 구현을 R3 전체 완료나 한컴 시각 일치로 보고하지 않는다.
+
+[stage6](../working/task_m100_7353_stage6.md)에서는 명시적으로 구성된 셀 흐름에 한해
+부모·자식의 동일 fragment를 실제 재귀 RenderTree/SVG 출력에 연결한다. 자식의 계획과 paint는
+분리할 수 없는 snapshot으로 유지한다. 이는 문서 IR의 TAC/어울림 앵커를 해석하는 경로가 아니며,
+문서 전체 엔진 선택·저장 정보 수용·실물 Native/fresh WASM 검증은 여전히 R3 잔여 범위다.

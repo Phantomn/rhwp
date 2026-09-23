@@ -14,6 +14,7 @@ mod flow;
 mod fragment;
 mod ir;
 mod text;
+mod text_flow;
 
 pub use content::TableContentPlan;
 pub use contracts::{
@@ -24,3 +25,4 @@ pub use contracts::{
 pub use fragment::{FragmentFit, TableCursor, TableFragmentPlan};
 pub use ir::{CellParagraphComposer, ParagraphItem};
 pub use text::{PreparedTextTable, TextFragment, TextFragmentFit, TextTableCursor};
+pub use text_flow::{TextFlowBlock, TextFlowCell, TextFlowRow};
