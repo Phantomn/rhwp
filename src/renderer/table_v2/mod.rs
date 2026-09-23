@@ -13,6 +13,7 @@ mod contracts;
 mod flow;
 mod fragment;
 mod ir;
+mod session;
 mod text;
 mod text_flow;
 
@@ -24,5 +25,8 @@ pub use contracts::{
 };
 pub use fragment::{FragmentFit, TableCursor, TableFragmentPlan};
 pub use ir::{CellParagraphComposer, ParagraphItem};
+pub use session::{
+    TablePreviewError, TablePreviewPage, TablePreviewPages, TablePreviewSession, TableSelection,
+};
 pub use text::{PreparedTextTable, TextFragment, TextFragmentFit, TextTableCursor};
 pub use text_flow::{TextFlowBlock, TextFlowCell, TextFlowRow};

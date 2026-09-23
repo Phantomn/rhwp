@@ -132,6 +132,10 @@ impl PreparedTextTable {
 }
 
 impl TextTableCursor {
+    pub(super) fn is_complete(&self) -> bool {
+        self.cursor.is_complete()
+    }
+
     pub fn fit(&self, area: PageArea) -> Result<TextFragmentFit, GeometryError> {
         Ok(match self.cursor.fit(area)? {
             FragmentFit::Placed(geometry) => TextFragmentFit::Placed(TextFragment {
