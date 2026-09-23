@@ -81,6 +81,86 @@ impl TableCursor {
 
     /// Pure query. Only a returned continuation advances accepted content.
     pub fn fit(&self, area: PageArea) -> Result<FragmentFit, GeometryError> {
+        if self.plan.header_rows == 0
+            || self.plan.policy == SplitPolicy::Never
+            || self.is_complete()
+        {
+            return self.fit_rows(area, self.plan.rows.len(), false);
+        }
+        self.fit_with_header(area)
+    }
+
+    /// The header and body are one transaction. A fitting header alone cannot
+    /// publish a fragment or advance the body cursor. Both use the SAME row fit
+    /// and final placements, including recursive child output and physical bands.
+    fn fit_with_header(&self, area: PageArea) -> Result<FragmentFit, GeometryError> {
+        let prefix = Self::new(Arc::clone(&self.plan));
+        let FragmentFit::Placed(header) = prefix.fit_rows(area, self.plan.header_rows, true)?
+        else {
+            return Ok(FragmentFit::DoesNotFit {
+                required_width: self.plan.width,
+                required_height: self.header_height(),
+            });
+        };
+        let body = if self.row == 0 {
+            header.continuation()
+        } else {
+            self.clone()
+        };
+        if body.is_complete() {
+            return Ok(FragmentFit::Placed(header));
+        }
+        let overhead = header.reserved_height() + self.plan.row_spacing;
+        let b = area.bounds;
+        // Query at zero remaining height too: a non-fit must report the first
+        // body unit's requirement, not merely the prefix height that already fit.
+        let body_area = PageArea {
+            bounds: Rect {
+                y: b.y + overhead,
+                height: (b.height - overhead).max(0.0),
+                ..b
+            },
+        };
+        match body.fit_rows(body_area, self.plan.rows.len(), false)? {
+            FragmentFit::Placed(mut fragment) if overhead <= b.height => {
+                let height = overhead + fragment.reserved_height();
+                let mut cells = header.placement.cells;
+                cells.append(&mut fragment.placement.cells);
+                fragment.placement = TablePlacement {
+                    bounds: Rect { height, ..b },
+                    cells,
+                };
+                fragment.placement.bounds.width = self.plan.width;
+                fragment.rows.start = self.row;
+                Ok(FragmentFit::Placed(fragment))
+            }
+            FragmentFit::DoesNotFit {
+                required_height, ..
+            } => Ok(FragmentFit::DoesNotFit {
+                required_width: self.plan.width,
+                required_height: overhead + required_height,
+            }),
+            FragmentFit::Placed(_) => Ok(FragmentFit::DoesNotFit {
+                required_width: self.plan.width,
+                required_height: overhead,
+            }),
+            FragmentFit::Complete => Err(GeometryError::InconsistentAtomicPlan),
+        }
+    }
+
+    fn header_height(&self) -> f64 {
+        self.plan.row_heights[..self.plan.header_rows]
+            .iter()
+            .sum::<f64>()
+            + self.plan.row_spacing * self.plan.header_rows.saturating_sub(1) as f64
+    }
+
+    fn fit_rows(
+        &self,
+        area: PageArea,
+        end_row: usize,
+        atomic: bool,
+    ) -> Result<FragmentFit, GeometryError> {
         let b = area.bounds;
         finite(b.x, "page x")?;
         finite(b.y, "page y")?;
@@ -93,10 +173,14 @@ impl TableCursor {
         }
         let mut next = self.clone();
         let plan = &self.plan;
-        let required = match plan.policy {
-            SplitPolicy::Never => plan.height,
-            SplitPolicy::BetweenRows => plan.row_heights[self.row],
-            SplitPolicy::WithinCells => 0.0,
+        let required = if atomic {
+            self.header_height()
+        } else {
+            match plan.policy {
+                SplitPolicy::Never => plan.height,
+                SplitPolicy::BetweenRows => plan.row_heights[self.row],
+                SplitPolicy::WithinCells => 0.0,
+            }
         };
         if b.x + plan.width > b.x + b.width || b.y + required > b.y + b.height {
             return Ok(FragmentFit::DoesNotFit {
@@ -109,14 +193,14 @@ impl TableCursor {
         let mut end = self.row;
         let mut progressed = false;
         let mut blocked: f64 = 0.0;
-        while !next.is_complete() {
+        while next.row < end_row {
             let gap = if progressed { plan.row_spacing } else { 0.0 };
             let offset = height + gap;
             if b.y + offset > b.y + b.height {
                 break;
             }
             let available = (b.height - offset).max(0.0);
-            if plan.policy != SplitPolicy::WithinCells
+            if (atomic || plan.policy != SplitPolicy::WithinCells)
                 && b.y + offset + plan.row_heights[next.row] > b.y + b.height
             {
                 break;
@@ -149,7 +233,7 @@ impl TableCursor {
             if all_done {
                 used = used.max(next.minimum_left.min(available));
             }
-            if plan.policy != SplitPolicy::WithinCells
+            if (atomic || plan.policy != SplitPolicy::WithinCells)
                 && (!all_done || b.y + offset + used < b.y + offset + next.minimum_left)
             {
                 return Err(GeometryError::InconsistentAtomicPlan);

@@ -16,6 +16,9 @@ pub struct TableContentPlan {
     pub(super) width: f64,
     pub(super) policy: SplitPolicy,
     pub(super) height: f64,
+    /// Atomic leading prefix, replayed in physical space without advancing the
+    /// body cursor. Qualified by the IR adapter; zero for caller-composed flows.
+    pub(super) header_rows: usize,
     depth: usize,
 }
 
@@ -161,6 +164,7 @@ impl TableContentPlan {
             width,
             policy,
             height,
+            header_rows: 0,
             depth,
         })
     }

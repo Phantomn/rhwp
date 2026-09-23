@@ -60,10 +60,8 @@ fn bind_table(
     if depth >= 64 {
         return Err(GeometryError::Unsupported("table nesting resource limit"));
     }
-    if table.repeat_header || table.caption.is_some() || table.cell_spacing != 0 {
-        return Err(GeometryError::Unsupported(
-            "header, caption or cell spacing",
-        ));
+    if table.caption.is_some() || table.cell_spacing != 0 {
+        return Err(GeometryError::Unsupported("caption or cell spacing"));
     }
     if table.common.width_criterion != SizeCriterion::Absolute
         || table.common.height_criterion != SizeCriterion::Absolute
@@ -97,6 +95,26 @@ fn bind_table(
         }
     }
     let mut widths = Vec::with_capacity(nc);
+    // The preview admits only whole, contiguous leading header rows. Partial
+    // header cells, spans, or scattered markers need a separate qualification;
+    // do not infer their repetition from a row's incidental content.
+    let mut header_rows = 0;
+    if table.repeat_header {
+        for r in 0..nr {
+            let count = grid[r * nc..(r + 1) * nc]
+                .iter()
+                .filter(|c| c.is_some_and(|c| c.is_header))
+                .count();
+            if count != 0 {
+                if count != nc || r != header_rows {
+                    return Err(GeometryError::Unsupported(
+                        "partial or non-leading header rows",
+                    ));
+                }
+                header_rows += 1;
+            }
+        }
+    }
     for c in 0..nc {
         let width = grid[c]
             .ok_or(GeometryError::Unsupported("missing cell"))?
@@ -221,5 +239,7 @@ fn bind_table(
         TablePageBreak::RowBreak => SplitPolicy::BetweenRows,
         TablePageBreak::CellBreak => SplitPolicy::WithinCells,
     };
-    TableContentPlan::from_flow_rows(widths, rows, 0.0, policy)
+    let mut plan = TableContentPlan::from_flow_rows(widths, rows, 0.0, policy)?;
+    plan.header_rows = header_rows;
+    Ok(plan)
 }
