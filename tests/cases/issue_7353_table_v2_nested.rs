@@ -480,3 +480,105 @@ fn unsupported_ir_and_missing_child_slots_do_not_silently_fallback() {
     root.cells[0].row_span = 2;
     assert!(TableContentPlan::from_ir_contents(&root, 1.0, &SyntheticComposer).is_err());
 }
+
+/// #5301's table-vs-cell margin contract at V2's actual geometry boundary.
+/// The 36572 HU cell has inactive 510 HU side margins; table side margins are 0.
+/// This is synthetic IR, not the original document's glyph/RenderTree test.
+#[test]
+fn ir_zero_table_horizontal_margin_keeps_full_nested_cell_width() {
+    let mut child = ir_leaf();
+    child.cells[0].width = 36572;
+    child.cells[0].padding = Padding {
+        left: 510,
+        right: 510,
+        top: 141,
+        bottom: 141,
+    };
+    child.padding = Padding {
+        left: 0,
+        right: 0,
+        top: 141,
+        bottom: 141,
+    };
+    let mut root = ir_leaf();
+    root.cells[0].width = 40000;
+    root.cells[0].paragraphs[0]
+        .controls
+        .push(Control::Table(Box::new(child)));
+    let plan = TableContentPlan::from_ir_contents(&root, 1.0, &SyntheticComposer).unwrap();
+    let FragmentFit::Placed(fragment) = plan
+        .start()
+        .fit(PageArea {
+            bounds: Rect {
+                x: 50.0,
+                y: 60.0,
+                width: 40000.0,
+                height: 302.0,
+            },
+        })
+        .unwrap()
+    else {
+        panic!("20 line units + 282 padding units fit exactly")
+    };
+    let nested = &fragment.placement().cells[0].tables[0].placement;
+    let line = &nested.cells[0].lines[0].bounds;
+    assert_eq!(line.x, 50.0);
+    assert_eq!(line.width, 36572.0);
+    assert_eq!(line.y, 211.0); // page60 + host10 + child top141
+    assert_eq!(nested.bounds.height, 292.0); // top141 + line10 + bottom141
+    assert_eq!(fragment.reserved_height(), 302.0);
+    assert!(fragment.continuation().is_complete());
+}
+
+/// #5301/#2070: explicitly selected zero margins are values, not missing fields.
+#[test]
+fn ir_explicit_zero_cell_padding_does_not_fall_back_to_table() {
+    let mut table = ir_leaf();
+    table.padding = Padding {
+        left: 5,
+        right: 15,
+        top: 3,
+        bottom: 7,
+    };
+    table.cells[0].apply_inner_margin = true;
+    table.cells[0].padding = Padding::default();
+    let plan = TableContentPlan::from_ir_contents(&table, 1.0, &SyntheticComposer).unwrap();
+    let fragment = fit(&plan.start(), 10.0);
+    assert_eq!(
+        fragment.placement().cells[0].lines[0].bounds,
+        Rect {
+            x: 10.0,
+            y: 20.0,
+            width: 60.0,
+            height: 10.0,
+        }
+    );
+    assert_eq!(fragment.reserved_height(), 10.0);
+    assert!(fragment.continuation().is_complete());
+}
+
+/// Legacy's malformed-input recovery (#6358) is not silently adopted as a V2 rule.
+#[test]
+fn ir_selected_negative_padding_is_rejected_without_legacy_repair() {
+    let mut table = ir_leaf();
+    table.padding = Padding {
+        left: 5,
+        right: 5,
+        top: 3,
+        bottom: 7,
+    };
+    table.cells[0].padding.left = -1;
+    table.cells[0].apply_inner_margin = true;
+    assert!(matches!(
+        TableContentPlan::from_ir_contents(&table, 1.0, &SyntheticComposer),
+        Err(GeometryError::InvalidNumber("resolved IR padding"))
+    ));
+    // The same unused field must not invalidate a valid table-default selection.
+    table.cells[0].apply_inner_margin = false;
+    let plan = TableContentPlan::from_ir_contents(&table, 1.0, &SyntheticComposer).unwrap();
+    let fragment = fit(&plan.start(), 20.0);
+    assert_eq!(fragment.placement().cells[0].lines[0].bounds.x, 15.0);
+    assert_eq!(fragment.placement().cells[0].lines[0].bounds.width, 50.0);
+    assert_eq!(fragment.reserved_height(), 20.0);
+    assert!(fragment.continuation().is_complete());
+}
