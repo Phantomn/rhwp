@@ -1,7 +1,9 @@
 //! Experimental table layout, developed alongside the unchanged Legacy path.
 //!
-//! This entry point accepts **already composed**, width-bound cell content. It
-//! does not parse stored LineSeg, shape text, or select an engine in DocumentCore.
+//! The geometry boundary accepts **already composed**, width-bound cell content.
+//! `PreparedTextTable` also supplies a narrow fresh-text preview adapter using
+//! the shared paragraph composer. Neither path admits stored LineSeg or selects
+//! an engine in DocumentCore.
 //! All coordinates use one caller-chosen unit (normally layout pixels). Querying
 //! a fragment does not mutate a document, a page, or its continuation cursor.
 //! Public only as an experimental consumer boundary, not a stable document API.
@@ -11,6 +13,7 @@ mod contracts;
 mod flow;
 mod fragment;
 mod ir;
+mod text;
 
 pub use content::TableContentPlan;
 pub use contracts::{
@@ -20,3 +23,4 @@ pub use contracts::{
 };
 pub use fragment::{FragmentFit, TableCursor, TableFragmentPlan};
 pub use ir::{CellParagraphComposer, ParagraphItem};
+pub use text::{PreparedTextTable, TextFragment, TextFragmentFit, TextTableCursor};

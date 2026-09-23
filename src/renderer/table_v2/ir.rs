@@ -25,7 +25,8 @@ pub enum ParagraphItem {
 
 /// The implementation must include paragraph spacing, empty lines, explicit
 /// breaks and text layout. This adapter does not qualify saved LineSeg caches.
-/// R3 does not yet supply a production text-composer implementation of this trait.
+/// The text preview adapter supplies only a fresh, plain-text subset. Production
+/// document composition and stored-LineSeg qualification are still separate work.
 pub trait CellParagraphComposer {
     fn compose(
         &self,
