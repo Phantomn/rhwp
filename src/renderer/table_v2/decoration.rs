@@ -5,7 +5,7 @@ use crate::{
     model::{
         control::Control,
         document::DocInfo,
-        style::{BorderLineType, CenterLine, FillType},
+        style::{CenterLine, FillType},
         table::Table,
         ColorRef,
     },
@@ -24,19 +24,14 @@ pub(super) struct Background {
 
 impl Background {
     pub fn resolve(id: u16, styles: &ResolvedStyleSet) -> Result<Self, GeometryError> {
-        Self::resolve_inner(id, styles, false)
+        Self::resolve_inner(id, styles)
     }
 
     pub fn resolve_cell(id: u16, styles: &ResolvedStyleSet) -> Result<Self, GeometryError> {
-        // CellBorders qualifies and owns the edge styles separately.
-        Self::resolve_inner(id, styles, true)
+        Self::resolve_inner(id, styles)
     }
 
-    fn resolve_inner(
-        id: u16,
-        styles: &ResolvedStyleSet,
-        cell: bool,
-    ) -> Result<Self, GeometryError> {
+    fn resolve_inner(id: u16, styles: &ResolvedStyleSet) -> Result<Self, GeometryError> {
         if id == 0 {
             return Ok(Self::default());
         }
@@ -50,12 +45,9 @@ impl Background {
         if style.break_cell_separate_line {
             return Err(GeometryError::Unsupported("V2 separate split-cell border"));
         }
-        if (!cell
-            && style
-                .borders
-                .iter()
-                .any(|b| b.line_type != BorderLineType::None))
-            || style.diagonal_attr != 0
+        // CellBorders qualifies both table and cell edge declarations; this
+        // resolver owns backgrounds/effects, not edge precedence.
+        if style.diagonal_attr != 0
             || style.diagonal.diagonal_type != 0
             || style.center_line != CenterLine::None
             || style.pattern.is_some()

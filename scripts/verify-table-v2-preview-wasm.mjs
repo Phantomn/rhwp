@@ -44,6 +44,11 @@ async function main() {
   if (process.argv.includes('--split-borders')) {
     positive.push('cut-lines', 'cut-tail', 'cut-siblings', 'cut-header', 'cut-nested', 'cut-padding');
   }
+  if (process.argv.includes('--matching-table-borders')) {
+    positive.push('outer-border-grid', 'outer-border-header', 'outer-border-nested', 'outer-border-one-sided',
+      'outer-cut-lines', 'outer-cut-tail', 'outer-cut-nested');
+    paintFailures.push('outer-missing', 'outer-conflict', 'outer-continuation');
+  }
   const names = [...positive, ...negative, ...paintFailures];
   const js = readFileSync(join(pkg, 'rhwp.js')), wasm = readFileSync(join(pkg, 'rhwp_bg.wasm'));
   const files = new Map([
@@ -98,9 +103,12 @@ async function main() {
       for (const name of paintFailures) {
         const session = open(name);
         try {
+          const accepted = name === 'outer-continuation' ? 1 : 0;
+          if (accepted) check(session.nextPage() !== undefined, 'accepted fragment before outline conflict');
           for (let i = 0; i < 2; i++) {
-            throws(() => session.nextPage(), 'conflicting shared V2 cell borders');
-            check(session.emittedPages() === 0, 'paint failure rollback');
+            throws(() => session.nextPage(), name.startsWith('outer-')
+              ? 'V2 table/cell outline disagreement' : 'conflicting shared V2 cell borders');
+            check(session.emittedPages() === accepted, 'paint failure rollback');
           }
         } finally { session.free(); }
       }
@@ -145,9 +153,12 @@ async function main() {
     expected['cut-padding'] = [['A'], ['B']];
     const raster = await browser.newPage();
     const artifacts = [];
-    for (const [name, pages] of Object.entries(result.pages)) {
-      const native = JSON.parse(readFileSync(join(fixtures, `${name}.native.json`)));
-      writeFileSync(join(out, `${name}.wasm.json`), JSON.stringify(pages, null, 2));
+    for (const [fixtureName, pages] of Object.entries(result.pages)) {
+      // Matching table outlines must have the same independently specified
+      // geometry/content as their cell-only counterparts, not extra paint.
+      const name = fixtureName.replace(/^outer-/, '');
+      const native = JSON.parse(readFileSync(join(fixtures, `${fixtureName}.native.json`)));
+      writeFileSync(join(out, `${fixtureName}.wasm.json`), JSON.stringify(pages, null, 2));
       assert.equal(pages.length, expected[name].length);
       for (const [index, output] of pages.entries()) {
         assert.equal(output.engine, 'table_v2'); assert.equal(output.scope, 'selected_table');
@@ -231,7 +242,7 @@ async function main() {
           verify(rootNode);
           if (name === 'fill-band') assert.equal(collect(rootNode, 'TableCell')[0].bbox.height, index < 2 ? 36 : 18);
         }
-        const stem = `${name}-${index}`;
+        const stem = `${fixtureName}-${index}`;
         writeFileSync(join(out, `${stem}.svg`), output.svg);
         // Preserve evidence even if a backend comparison fails below.
         await raster.setViewport({ width: 400, height: 400, deviceScaleFactor: 1 });

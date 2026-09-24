@@ -1,6 +1,6 @@
-//! Solid edges of accepted cell fragments, including cell-internal page cuts.
+//! Solid edges of accepted table/cell fragments, including cell-internal cuts.
 //! Each physical fragment uses its source cell's four edges (None stays absent).
-//! Conflicting-edge priority and special split-line effects are not supported.
+//! Matching table outlines share those edges; override/priority is unsupported.
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{GeometryError, TablePlacement};
@@ -19,6 +19,7 @@ use crate::{
 
 pub(super) struct CellBorders {
     cells: BTreeMap<(usize, usize), [BorderLine; 4]>,
+    outline: Option<[BorderLine; 4]>,
     dpi: f64,
 }
 
@@ -35,41 +36,21 @@ impl CellBorders {
         styles: &ResolvedStyleSet,
         dpi: f64,
     ) -> Result<Option<Self>, GeometryError> {
+        let outline = resolve_edges(table.border_fill_id, styles)?;
         let mut cells = BTreeMap::new();
         for cell in &table.cells {
-            if cell.border_fill_id == 0 {
-                continue;
-            }
-            let style = styles
-                .border_styles
-                .get(usize::from(cell.border_fill_id) - 1)
-                .ok_or(GeometryError::Unsupported(
-                    "missing table borderFill reference",
-                ))?;
-            let mut visible = false;
-            for edge in &style.borders {
-                match edge.line_type {
-                    BorderLineType::None => continue,
-                    BorderLineType::Solid
-                        if usize::from(edge.width) < BORDER_WIDTHS.len()
-                            && edge.color >> 24 == 0 =>
-                    {
-                        visible = true
-                    }
-                    _ => return Err(GeometryError::Unsupported("V2 cell border style")),
-                }
-            }
-            if visible {
-                cells.insert(
-                    (usize::from(cell.row), usize::from(cell.col)),
-                    style.borders,
-                );
+            if let Some(edges) = resolve_edges(cell.border_fill_id, styles)? {
+                cells.insert((usize::from(cell.row), usize::from(cell.col)), edges);
             }
         }
-        if cells.is_empty() {
+        if cells.is_empty() && outline.is_none() {
             return Ok(None);
         }
-        Ok(Some(Self { cells, dpi }))
+        Ok(Some(Self {
+            cells,
+            outline,
+            dpi,
+        }))
     }
 
     pub fn append(
@@ -138,9 +119,49 @@ impl CellBorders {
                 }
             }
         }
+        let edges: BTreeMap<_, _> = groups
+            .into_iter()
+            .map(|(key, spans)| Ok((key, union(&spans)?)))
+            .collect::<Result<_, GeometryError>>()?;
+        if let Some(outline) = &self.outline {
+            // Table/None precedence is not established (#6311/KTX counterexample).
+            // Admit only an outline already fully represented by identical cell
+            // edges. Check each ACCEPTED fragment, including header/body cuts:
+            // agreement on the unsplit source alone does not prove agreement here.
+            let last_column = xs
+                .keys()
+                .next_back()
+                .copied()
+                .ok_or(GeometryError::InconsistentAtomicPlan)?;
+            let last_row = slots.len();
+            for (key, end, style) in [
+                ((false, 0), last_row, outline[0]),
+                ((false, last_column), last_row, outline[1]),
+                ((true, 0), last_column, outline[2]),
+                ((true, last_row), last_column, outline[3]),
+            ] {
+                if style.line_type == BorderLineType::None {
+                    continue;
+                }
+                let mut covered = 0;
+                for span in edges.get(&key).into_iter().flatten() {
+                    if span.start != covered || span.style != style {
+                        break;
+                    }
+                    covered = span.end;
+                }
+                if covered != end {
+                    return Err(GeometryError::Unsupported(
+                        "V2 table/cell outline disagreement",
+                    ));
+                }
+            }
+            // The outline is the same geometric set, not another paint layer.
+            // Drawing it again would change coverage/opacity at coincident edges.
+        }
         let mut nodes = Vec::new();
-        for ((horizontal, boundary), spans) in groups {
-            for span in union(&spans)? {
+        for ((horizontal, boundary), spans) in edges {
+            for span in spans {
                 let (x1, y1, x2, y2) = if horizontal {
                     (xs[&span.start], ys[&boundary], xs[&span.end], ys[&boundary])
                 } else {
@@ -166,6 +187,34 @@ impl CellBorders {
         node.children.extend(nodes);
         Ok(())
     }
+}
+
+fn resolve_edges(
+    id: u16,
+    styles: &ResolvedStyleSet,
+) -> Result<Option<[BorderLine; 4]>, GeometryError> {
+    if id == 0 {
+        return Ok(None);
+    }
+    let style = styles
+        .border_styles
+        .get(usize::from(id) - 1)
+        .ok_or(GeometryError::Unsupported(
+            "missing table borderFill reference",
+        ))?;
+    let mut visible = false;
+    for edge in &style.borders {
+        match edge.line_type {
+            BorderLineType::None => {}
+            BorderLineType::Solid
+                if usize::from(edge.width) < BORDER_WIDTHS.len() && edge.color >> 24 == 0 =>
+            {
+                visible = true
+            }
+            _ => return Err(GeometryError::Unsupported("V2 cell border style")),
+        }
+    }
+    Ok(visible.then_some(style.borders))
 }
 
 fn union(spans: &[Span]) -> Result<Vec<Span>, GeometryError> {

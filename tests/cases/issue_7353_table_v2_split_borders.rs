@@ -209,6 +209,77 @@ fn physical_tail_has_edges_after_last_unit_without_repeating_text_or_extra_page(
 }
 
 #[test]
+fn matching_table_outline_follows_content_cuts_and_empty_physical_tail() {
+    for tail in [false, true] {
+        let mut c = cell(0, 0, 2, if tail { &["A"] } else { &["A", "", "B", "C"] });
+        if tail {
+            c.height = 6750;
+        }
+        let mut t = table(vec![c], 1);
+        t.border_fill_id = 1;
+        if !tail {
+            t.padding.left = 750;
+            t.padding.right = 750;
+        }
+        let p = run(
+            if tail {
+                "outer-cut-tail"
+            } else {
+                "outer-cut-lines"
+            },
+            &doc(t),
+        );
+        assert_eq!(p.len(), if tail { 3 } else { 2 });
+        for (i, page) in p.iter().enumerate() {
+            assert_eq!(
+                labels(page),
+                if tail {
+                    if i == 0 {
+                        vec!["A"]
+                    } else {
+                        vec![]
+                    }
+                } else if i == 0 {
+                    vec!["A", ""]
+                } else {
+                    vec!["B", "C"]
+                }
+            );
+            assert_eq!(
+                edges(root(page)),
+                box_edges(20., 30., 200., if tail && i == 2 { 18. } else { 36. })
+            );
+        }
+        bounds(&p);
+    }
+}
+
+#[test]
+fn matching_parent_and_child_outlines_use_their_own_final_heights() {
+    let mut child = table(vec![cell(0, 0, 2, &["A", "B", "C"])], 1);
+    child.border_fill_id = 1;
+    let mut c = cell(0, 0, 2, &[]);
+    c.paragraphs = vec![host("host", child), para("after")];
+    let mut parent = table(vec![c], 1);
+    parent.border_fill_id = 1;
+    let p = run("outer-cut-nested", &doc(parent));
+    assert_eq!(p.len(), 3);
+    assert_eq!(labels(&p[0]), ["A", "B"]);
+    assert_eq!(labels(&p[1]), ["C", "host"]);
+    assert_eq!(labels(&p[2]), ["after"]);
+    for (i, page) in p.iter().enumerate() {
+        let mut expected = if i < 2 {
+            box_edges(20., 30., 200., if i == 0 { 36. } else { 18. })
+        } else {
+            vec![]
+        };
+        expected.extend(box_edges(20., 30., 200., if i < 2 { 36. } else { 18. }));
+        assert_eq!(edges(root(page)), expected);
+    }
+    bounds(&p);
+}
+
+#[test]
 fn completed_sibling_keeps_physical_frame_and_shared_edge_only_once() {
     let t = table(
         vec![cell(0, 0, 1, &["L"]), cell(0, 1, 1, &["A", "B", "C", "D"])],

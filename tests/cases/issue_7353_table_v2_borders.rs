@@ -231,6 +231,165 @@ fn whole_colspan_grid_unions_shared_edges_after_backgrounds() {
 }
 
 #[test]
+fn matching_table_outline_is_unioned_with_cells_and_repeated_headers() {
+    for (rows, name) in [(2, "outer-border-grid"), (3, "outer-border-header")] {
+        let mut t = grid(rows);
+        t.border_fill_id = 1;
+        let result = pages(name, &doc(t));
+        assert_eq!(result.len(), usize::from(rows - 1));
+        for (i, page) in result.iter().enumerate() {
+            verify_grid(page);
+            let labels: Vec<_> = collect(root(page), "TextRun")
+                .iter()
+                .map(|n| n["node_type"]["TextRun"]["text"].as_str().unwrap())
+                .collect();
+            assert_eq!(
+                labels,
+                ["title".into(), format!("L{}", i + 1), format!("R{}", i + 1)]
+            );
+        }
+    }
+}
+
+#[test]
+fn nested_matching_outline_keeps_host_and_following_paragraph() {
+    let mut child = grid(3);
+    child.border_fill_id = 1;
+    let mut parent = grid(1);
+    parent.repeat_header = false;
+    parent.page_break = TablePageBreak::CellBreak;
+    parent.cells[0].is_header = false;
+    parent.cells[0].border_fill_id = 0;
+    parent.cells[0].paragraphs = vec![host("host", child), para("after")];
+    let result = pages("outer-border-nested", &doc(parent));
+    assert_eq!(result.len(), 3);
+    verify_grid(&result[0]);
+    verify_grid(&result[1]);
+    assert!(collect(root(&result[2]), "Line").is_empty());
+    let labels: Vec<_> = collect(root(&result[2]), "TextRun")
+        .iter()
+        .map(|n| n["node_type"]["TextRun"]["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(labels, ["host", "after"]);
+}
+
+#[test]
+fn table_outline_does_not_override_absent_or_different_cell_edges() {
+    for (name, absent) in [("outer-missing", true), ("outer-conflict", false)] {
+        let mut t = one_row();
+        t.border_fill_id = 1;
+        t.cells[0].border_fill_id = 2;
+        let mut d = doc(t);
+        let mut b = border();
+        if absent {
+            b.borders[0].line_type = BorderLineType::None;
+        } else {
+            b.borders[0].width = 8;
+        }
+        d.doc_info.border_fills.push(b);
+        let (data, config) = source(&d);
+        capture(name, &data, &config, &[]);
+        let mut session =
+            TablePreviewExportSession::from_bytes(&data, &config.to_string()).unwrap();
+        for _ in 0..2 {
+            assert!(session
+                .next_page_json()
+                .unwrap_err()
+                .to_string()
+                .contains("V2 table/cell outline disagreement"));
+            assert_eq!(session.emitted_pages(), 0);
+        }
+    }
+}
+
+#[test]
+fn table_only_outline_is_explicitly_unresolved_not_silently_drawn() {
+    let mut t = one_row();
+    t.border_fill_id = 1;
+    for c in &mut t.cells {
+        c.border_fill_id = 0;
+    }
+    let mut s = direct(&doc(t), 96.).unwrap();
+    for _ in 0..2 {
+        assert!(s
+            .next_page()
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("V2 table/cell outline disagreement"));
+        assert_eq!(s.emitted_pages(), 0);
+    }
+}
+
+#[test]
+fn outline_agreement_is_checked_again_at_each_physical_cut() {
+    let mut t = grid(3);
+    t.border_fill_id = 1;
+    t.repeat_header = false;
+    for c in &mut t.cells {
+        c.is_header = false;
+        if c.row == 2 {
+            c.border_fill_id = 2;
+        }
+    }
+    let mut d = doc(t);
+    let mut b = border();
+    b.borders[2].line_type = BorderLineType::None;
+    d.doc_info.border_fills.push(b);
+    // Full source outer top/bottom agree, but the second fragment's top does not.
+    let (data, config) = source(&d);
+    capture("outer-continuation", &data, &config, &[]);
+    let mut s = TablePreviewExportSession::from_bytes(&data, &config.to_string()).unwrap();
+    let p: Value = serde_json::from_str(&s.next_page_json().unwrap().unwrap()).unwrap();
+    verify_grid(&p);
+    for _ in 0..2 {
+        assert!(s
+            .next_page_json()
+            .unwrap_err()
+            .to_string()
+            .contains("V2 table/cell outline disagreement"));
+        assert_eq!(s.emitted_pages(), 1);
+    }
+}
+
+#[test]
+fn none_table_outline_does_not_suppress_explicit_cell_lines() {
+    let mut t = one_row();
+    t.border_fill_id = 2;
+    t.cells[0].border_fill_id = 0;
+    let mut d = doc(t);
+    // BorderLineType::default() is Solid, so None must be explicit in this input.
+    d.doc_info.border_fills.push(BorderFill {
+        borders: [BorderLine {
+            line_type: BorderLineType::None,
+            ..Default::default()
+        }; 4],
+        ..Default::default()
+    });
+    let (data, _) = source(&d);
+    assert!(
+        rhwp::parse_document(&data).unwrap().doc_info.border_fills[1]
+            .borders
+            .iter()
+            .all(|edge| edge.line_type == BorderLineType::None)
+    );
+    let p = pages("outer-border-one-sided", &d);
+    assert_eq!(p.len(), 1);
+    assert_eq!(
+        collect(root(&p[0]), "Line")
+            .iter()
+            .map(|n| coords(n))
+            .collect::<Vec<_>>(),
+        [
+            [120., 30., 120., 48.],
+            [220., 30., 220., 48.],
+            [120., 30., 220., 30.],
+            [120., 48., 220., 48.]
+        ]
+    );
+}
+
+#[test]
 fn repeated_headers_use_fragment_row_order_and_preserve_body_units() {
     let result = pages("border-header", &doc(grid(3)));
     assert_eq!(result.len(), 2);
@@ -412,18 +571,11 @@ fn conflicting_edges_reject_before_commit_and_remain_retryable() {
 }
 
 #[test]
-fn unsupported_table_and_complex_edges_are_explicit_even_when_geometry_fits() {
+fn unsupported_complex_edges_are_explicit_even_when_geometry_fits() {
     let mut t = grid(1);
     t.repeat_header = false;
     t.cells[0].is_header = false;
     t.page_break = TablePageBreak::RowBreak;
-    let mut table_border = t.clone();
-    table_border.border_fill_id = 1;
-    assert!(direct(&doc(table_border), 96.)
-        .err()
-        .unwrap()
-        .to_string()
-        .contains("Unsupported"));
     for edge in [
         BorderLine {
             line_type: BorderLineType::Dash,
@@ -443,6 +595,16 @@ fn unsupported_table_and_complex_edges_are_explicit_even_when_geometry_fits() {
     ] {
         let mut d = doc(t.clone());
         d.doc_info.border_fills[0].borders[0] = edge;
+        assert!(direct(&d, 96.)
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("Unsupported"));
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            unreachable!()
+        };
+        t.border_fill_id = 1;
+        t.cells[0].border_fill_id = 0;
         assert!(direct(&d, 96.)
             .err()
             .unwrap()

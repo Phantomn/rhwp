@@ -168,7 +168,7 @@ renderer/
 [stage14](../working/task_m100_7353_stage14.md)에서 셀 내부 컷의 실선 경계를 확장했다.
 분할 기하·Legacy 측정/분할은 바꾸지 않는다. 중첩·제목 반복·colspan의 확정
 셀 조각 경계를 소비하고 동일 공유선을 합친다. 별도 분할선 속성, 충돌하는 서식의 우선순위,
-표 자체 선·zone·복합 채움은 명시적 미지원으로 유지한다.
+표 자체 선·zone·복합 채움은 이 시점에는 명시적 미지원이다.
 이 개발 절편의 검증은 합성 입력의 경계/점유 계약과 Native/fresh WASM 출력 대조이며,
 실물 한컴 피델리티·문서 전체 V2 전환·R3 전체 완료를 뜻하지 않는다.
 
@@ -176,6 +176,12 @@ renderer/
 HWPX `breakCellSeparateLine`을 parser→IR→writer/resolved style에서 보존하고,
 V2의 source/resolved 양쪽 진입에서 활성 속성을 명시적 미지원으로 거부한다.
 별도 분할선 paint와 HWP5 대응 비트를 추측해 구현하지 않으며 Legacy 기하를 바꾸지 않는다.
+
+[stage16](../working/task_m100_7353_stage16.md)은 표와 셀이 동일 외곽선을 선언한 경우를
+동일 fragment edge 집합으로 처리한다. 표/셀 None의 우선순위가 불분명한 #6311/KTX 반례에
+따라 무조건 외곽을 보충하지 않는다. 각 실제 분할 조각에서 일치를 검사하고, 누락·충돌은
+cursor commit 전에 명시적 미지원으로 남긴다. 제목 반복·중첩·빈 물리 밴드도 같은 경로다.
+상이한 서식의 우선순위·셀 None 보충·별도 분할선 paint·rowspan 등은 여전히 후속 범위다.
 
 R1 정적 조사 뒤 개정 계획을 승인받아 R2 신규 기하·분할 계약 구현에 착수했다.
 [R2 진행 기록](../working/task_m100_7353_stage2.md)에 지원 경계와 검증 결과를 기록한다.
