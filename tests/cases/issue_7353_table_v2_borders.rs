@@ -412,16 +412,10 @@ fn conflicting_edges_reject_before_commit_and_remain_retryable() {
 }
 
 #[test]
-fn unsupported_cut_table_and_complex_edges_are_explicit_even_when_geometry_fits() {
+fn unsupported_table_and_complex_edges_are_explicit_even_when_geometry_fits() {
     let mut t = grid(1);
     t.repeat_header = false;
     t.cells[0].is_header = false;
-    t.page_break = TablePageBreak::CellBreak;
-    assert!(direct(&doc(t.clone()), 96.)
-        .err()
-        .unwrap()
-        .to_string()
-        .contains("Unsupported"));
     t.page_break = TablePageBreak::RowBreak;
     let mut table_border = t.clone();
     table_border.border_fill_id = 1;

@@ -38,6 +38,9 @@ async function main() {
     positive.push('border-grid', 'border-header', 'border-nested', 'border-one-sided');
     paintFailures.push('border-conflict');
   }
+  if (process.argv.includes('--split-borders')) {
+    positive.push('cut-lines', 'cut-tail', 'cut-siblings', 'cut-header', 'cut-nested', 'cut-padding');
+  }
   const names = [...positive, ...negative, ...paintFailures];
   const js = readFileSync(join(pkg, 'rhwp.js')), wasm = readFileSync(join(pkg, 'rhwp_bg.wasm'));
   const files = new Map([
@@ -130,6 +133,12 @@ async function main() {
     expected['border-header'] = [['title', 'L1', 'R1'], ['title', 'L2', 'R2']];
     expected['border-nested'] = [...expected['border-header'], ['host', 'after']];
     expected['border-one-sided'] = [['L1', 'R1']];
+    expected['cut-lines'] = [['A', ''], ['B', 'C']];
+    expected['cut-tail'] = [['A'], [], []];
+    expected['cut-siblings'] = [['L','A','B'], ['C','D']];
+    expected['cut-header'] = [['title','L','A'], ['title','B'], ['title','C']];
+    expected['cut-nested'] = [['A','B'], ['C','host'], ['after']];
+    expected['cut-padding'] = [['A'], ['B']];
     const raster = await browser.newPage();
     const artifacts = [];
     for (const [name, pages] of Object.entries(result.pages)) {
@@ -143,22 +152,48 @@ async function main() {
         assert.deepEqual(collect(rootNode, 'TextRun').map(n => n.node_type.TextRun.text), expected[name][index]);
         const lines = collect(rootNode, 'TextLine');
         const bordered = name.startsWith('border-');
+        const cut = name.startsWith('cut-');
         const borderTail = name === 'border-nested' && index === 2;
-        const ys = name === 'fill-band' ? (index === 0 ? [30] : [])
+        const cutYs = name === 'cut-tail' ? (index === 0 ? [30] : [])
+          : name === 'cut-siblings' ? (index === 0 ? [30,30,48] : [30,48])
+          : name === 'cut-header' ? (index === 0 ? [30,48,48] : [30,48])
+          : name === 'cut-padding' ? (index === 0 ? [48] : [30])
+          : name === 'cut-nested' && index === 2 ? [30] : [30,48];
+        const ys = cut ? cutYs : name === 'fill-band' ? (index === 0 ? [30] : [])
           : bordered && !borderTail ? (name === 'border-one-sided' ? [30,30] : [30,48,48]) : [30,48];
         assert.deepEqual(lines.map(n => n.bbox.y), ys);
-        const xs = bordered && !borderTail ? (name === 'border-one-sided' ? [20,120] : [20,20,120])
+        const cutXs = name === 'cut-siblings' ? (index === 0 ? [20,120,120] : [120,120])
+          : name === 'cut-header' ? (index === 0 ? [20,20,120] : [20,120])
+          : lines.map(() => name === 'cut-lines' ? 30 : 20);
+        const xs = cut ? cutXs : bordered && !borderTail ? (name === 'border-one-sided' ? [20,120] : [20,20,120])
           : lines.map(() => name === 'fill-split' ? 30 : 20);
         assert.deepEqual(lines.map(n => n.bbox.x), xs);
         assert.ok(lines.every(n => n.bbox.y + n.bbox.height <= 66));
         for (const c of collect(rootNode, 'TableCell')) {
           const span = c.node_type.TableCell.col_span;
-          if (bordered) {
+          if (bordered || cut) {
             assert.ok(span === 1 || span === 2);
             assert.equal(c.bbox.x, 20 + c.node_type.TableCell.col * 100);
           } else { assert.equal(span, 2); assert.equal(c.bbox.x, 20); }
           assert.equal(c.bbox.width, span * 100);
           assert.ok(c.bbox.y >= 30 && c.bbox.y + c.bbox.height <= 66);
+        }
+        if (cut) {
+          const box = height => [[20,30,20,30+height],[220,30,220,30+height],[20,30,220,30],[20,30+height,220,30+height]];
+          let geometry = box((name === 'cut-tail' || name === 'cut-nested') && index === 2 ? 18 : 36);
+          if (name === 'cut-siblings') geometry.splice(1,0,[120,30,120,66]);
+          if (name === 'cut-header') {
+            geometry.splice(1,0,[120,48,120,66]);
+            geometry.splice(4,0,[20,48,220,48]);
+          }
+          if (name === 'cut-nested' && index < 2) geometry = [...box(index === 0 ? 36 : 18), ...geometry];
+          if (name === 'cut-padding') geometry.splice(2,1); // None source top edge remains absent.
+          const edges = collect(rootNode, 'Line');
+          assert.deepEqual(edges.map(n => ['x1','y1','x2','y2'].map(k => n.node_type.Line[k])), geometry);
+          for (const edge of edges) {
+            assert.equal(edge.node_type.Line.style.color, 0x332211);
+            assert.ok(Math.abs(edge.node_type.Line.style.width - 1.92) < 1e-9);
+          }
         }
         if (bordered) {
           const edges = collect(rootNode, 'Line');
@@ -203,8 +238,10 @@ async function main() {
         }
         // Same Chrome raster environment; RGB overlay reference is Native, NOT Hancom.
         const imgs = ['native', 'wasm'].map(b => `data:image/png;base64,${readFileSync(join(out, `${stem}.${b}.png`)).toString('base64')}`);
-        if (bordered && !borderTail) {
-          const points = name === 'border-one-sided'
+        if ((bordered && !borderTail) || cut) {
+          const bottom = (name === 'cut-tail' || name === 'cut-nested') && index === 2 ? 48 : 66;
+          const points = cut ? [[20,40],[220,40],[150,bottom],[17,40],[150,bottom+3]]
+            : name === 'border-one-sided'
             ? [[150,30],[120,40],[150,48],[117,40],[150,51]]
             : [[150,30],[120,55],[150,48],[17,40],[150,69]];
           const samples = await raster.evaluate(async ({ imgs, points }) => Promise.all(imgs.map(async url => {

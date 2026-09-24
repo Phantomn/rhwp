@@ -1,11 +1,13 @@
-//! Whole-cell solid edges. No page-cut closure rule or conflicting-edge priority.
+//! Solid edges of accepted cell fragments, including cell-internal page cuts.
+//! Each physical fragment uses its source cell's four edges (None stays absent).
+//! Conflicting-edge priority and special split-line effects are not supported.
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{GeometryError, TablePlacement};
 use crate::{
     model::{
         style::{BorderLine, BorderLineType, BORDER_WIDTHS},
-        table::{Table, TablePageBreak},
+        table::Table,
     },
     renderer::{
         layout::border_width_to_px,
@@ -67,9 +69,6 @@ impl CellBorders {
         if cells.is_empty() {
             return Ok(None);
         }
-        if table.page_break == TablePageBreak::CellBreak {
-            return Err(GeometryError::Unsupported("V2 borders across cell cuts"));
-        }
         Ok(Some(Self { cells, dpi }))
     }
 
@@ -81,6 +80,12 @@ impl CellBorders {
         // The IR adapter guarantees a contiguous complete grid, row_span=1 and
         // zero row spacing. Use the fragment's visible row order, NOT source row
         // adjacency: a repeated header may be followed by a later body row.
+        // WithinCells supplies the same physical rectangles for partial cells,
+        // completed siblings and remaining minimum-height bands. Close those
+        // rectangles, not the source cell's full height or its remaining text.
+        // Independent closure evidence: task3236 Hancom PDF p1/p2 (CELL,
+        // breakCellSeparateLine=0). Represented special effects are rejected
+        // upstream; unmodeled format attributes are outside this IR contract.
         let mut slots = BTreeMap::new();
         let mut xs = BTreeMap::new();
         let mut ys = BTreeMap::new();

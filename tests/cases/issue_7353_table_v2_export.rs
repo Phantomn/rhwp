@@ -381,7 +381,8 @@ fn unsupported_or_missing_decoration_is_not_silently_dropped() {
         let mut d = base.clone();
         let b = &mut d.doc_info.border_fills[0];
         match index {
-            0 => b.borders[0].line_type = BorderLineType::Solid,
+            // Solid CellBreak edges are now supported; dashed edges are not.
+            0 => b.borders[0].line_type = BorderLineType::Dash,
             1 => b.fill.alpha = 127,
             2 => b.fill.fill_type = FillType::Gradient,
             3 => b.fill.fill_type = FillType::Image,
@@ -405,7 +406,7 @@ fn unsupported_or_missing_decoration_is_not_silently_dropped() {
             if index == 0 {
                 assert_eq!(
                     parsed.doc_info.border_fills[0].borders[0].line_type,
-                    BorderLineType::Solid
+                    BorderLineType::Dash
                 );
             } else {
                 assert_eq!(

@@ -73,7 +73,7 @@ impl PreparedTextTable {
     /// one zero-offset paragraph-relative TopAndBottom child per host are admitted.
     /// Solid backgrounds use the supplied resolved styles. Source-only effects
     /// are qualified by TablePreviewSession::from_document before resolution.
-    /// Solid cell edges require whole-cell (Never/BetweenRows) pagination.
+    /// Solid cell edges follow accepted fragments for all three split policies.
     /// TAC, wrap, saved rows, complex borders and keep constraints remain unsupported.
     pub fn prepare(
         table: &Table,
