@@ -8,6 +8,7 @@
 //! a fragment does not mutate a document, a page, or its continuation cursor.
 //! Public only as an experimental consumer boundary, not a stable document API.
 
+mod borders;
 mod content;
 mod contracts;
 mod decoration;

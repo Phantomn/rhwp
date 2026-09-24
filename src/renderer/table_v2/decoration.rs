@@ -24,6 +24,19 @@ pub(super) struct Background {
 
 impl Background {
     pub fn resolve(id: u16, styles: &ResolvedStyleSet) -> Result<Self, GeometryError> {
+        Self::resolve_inner(id, styles, false)
+    }
+
+    pub fn resolve_cell(id: u16, styles: &ResolvedStyleSet) -> Result<Self, GeometryError> {
+        // CellBorders qualifies and owns the edge styles separately.
+        Self::resolve_inner(id, styles, true)
+    }
+
+    fn resolve_inner(
+        id: u16,
+        styles: &ResolvedStyleSet,
+        cell: bool,
+    ) -> Result<Self, GeometryError> {
         if id == 0 {
             return Ok(Self::default());
         }
@@ -34,10 +47,11 @@ impl Background {
                 .ok_or(GeometryError::Unsupported(
                     "missing table borderFill reference",
                 ))?;
-        if style
-            .borders
-            .iter()
-            .any(|b| b.line_type != BorderLineType::None)
+        if (!cell
+            && style
+                .borders
+                .iter()
+                .any(|b| b.line_type != BorderLineType::None))
             || style.diagonal_attr != 0
             || style.diagonal.diagonal_type != 0
             || style.center_line != CenterLine::None

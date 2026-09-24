@@ -31,7 +31,7 @@ pub(super) fn prepare(
     // each compose call. Composition records host payloads before child payloads.
     let plan = TableContentPlan::from_ir_contents(table, dpi / 7200.0, &composer)?;
     let mut payloads = composer.paragraphs.into_inner().into_iter();
-    let paint = bind_paint(table, styles, &mut payloads)?;
+    let paint = bind_paint(table, styles, dpi, &mut payloads)?;
     if payloads.next().is_some() {
         return Err(GeometryError::InconsistentAtomicPlan);
     }
@@ -136,6 +136,7 @@ impl IrTextComposer<'_> {
 fn bind_paint(
     table: &Table,
     styles: &ResolvedStyleSet,
+    dpi: f64,
     payloads: &mut impl Iterator<Item = ParagraphPaint>,
 ) -> Result<TextPaint, GeometryError> {
     // Depth/grid/one-control admission has already succeeded in from_ir_contents.
@@ -149,13 +150,14 @@ fn bind_paint(
         tables: HashMap::new(),
         background: super::decoration::Background::resolve(table.border_fill_id, styles)?,
         cells: HashMap::new(),
+        borders: super::borders::CellBorders::prepare(table, styles, dpi)?,
     };
     let mut cells: Vec<_> = table.cells.iter().collect();
     cells.sort_by_key(|c| (c.row, c.col));
     for cell in cells {
         paint.cells.insert(
             (usize::from(cell.row), usize::from(cell.col)),
-            super::decoration::Background::resolve(cell.border_fill_id, styles)?,
+            super::decoration::Background::resolve_cell(cell.border_fill_id, styles)?,
         );
         let mut order = 0;
         for (pi, para) in cell.paragraphs.iter().enumerate() {
@@ -173,7 +175,7 @@ fn bind_paint(
                             (cell.row as usize, cell.col as usize, pi, ci),
                             OrderedPaint {
                                 order,
-                                value: Arc::new(bind_paint(child, styles, payloads)?),
+                                value: Arc::new(bind_paint(child, styles, dpi, payloads)?),
                             },
                         );
                     }

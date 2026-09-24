@@ -33,7 +33,12 @@ async function main() {
     positive.push('fill-merged', 'fill-nested', 'fill-split', 'fill-band', 'fill-transparent');
     negative.push('fill-border', 'fill-pattern');
   }
-  const names = [...positive, ...negative];
+  const paintFailures = [];
+  if (process.argv.includes('--solid-borders')) {
+    positive.push('border-grid', 'border-header', 'border-nested', 'border-one-sided');
+    paintFailures.push('border-conflict');
+  }
+  const names = [...positive, ...negative, ...paintFailures];
   const js = readFileSync(join(pkg, 'rhwp.js')), wasm = readFileSync(join(pkg, 'rhwp_bg.wasm'));
   const files = new Map([
     ['/rhwp.js', ['application/javascript', js]],
@@ -53,7 +58,7 @@ async function main() {
     browser = await require('puppeteer-core').launch({ executablePath: findChrome(process.env.VISUAL_SWEEP_CHROME), headless: true });
     const page = await browser.newPage();
     await page.goto(`http://127.0.0.1:${server.address().port}`);
-    const result = await page.evaluate(async ({ configs, positive, negative }) => {
+    const result = await page.evaluate(async ({ configs, positive, negative, paintFailures }) => {
       const m = await import('/rhwp.js');
       await m.default({ module_or_path: '/rhwp_bg.wasm' });
       const check = (ok, text) => { if (!ok) throw Error(text); };
@@ -83,6 +88,15 @@ async function main() {
         } finally { a.free(); b.free(); }
       }
       for (const name of negative) throws(() => open(name), 'Unsupported');
+      for (const name of paintFailures) {
+        const session = open(name);
+        try {
+          for (let i = 0; i < 2; i++) {
+            throws(() => session.nextPage(), 'conflicting shared V2 cell borders');
+            check(session.emittedPages() === 0, 'paint failure rollback');
+          }
+        } finally { session.free(); }
+      }
       throws(() => new m.TableV2Preview(input.merged, '{}'), 'Options');
       throws(() => new m.TableV2Preview(new Uint8Array([0]), JSON.stringify(configs.merged)), 'Parse');
       for (const change of [c => { c.engine = 'legacy'; }, c => { c.pages.body.widht = 1; }, c => { c.max_pages = 4294967296; }, c => { c.selection.control = -1; }]) {
@@ -102,7 +116,7 @@ async function main() {
         for (let i = 0; i < 2; i++) { throws(() => blocked.nextPage(), 'DoesNotFit'); check(blocked.emittedPages() === 0, 'fit rollback'); }
       } finally { blocked.free(); }
       return { pages, version: m.version() };
-    }, { configs, positive, negative });
+    }, { configs, positive, negative, paintFailures });
     mkdirSync(out, { recursive: true });
     const collect = (node, kind) => [ ...(node.node_type[kind] ? [node] : []), ...node.children.flatMap(n => collect(n, kind)) ];
     // Expectations independent of Native output: 18px lines, 36px body, repeated title.
@@ -112,6 +126,10 @@ async function main() {
     expected['fill-split'] = [['A', ''], ['B', 'C']];
     expected['fill-band'] = [['A'], [], []];
     expected['fill-transparent'] = expected.merged;
+    expected['border-grid'] = [['title', 'L1', 'R1']];
+    expected['border-header'] = [['title', 'L1', 'R1'], ['title', 'L2', 'R2']];
+    expected['border-nested'] = [...expected['border-header'], ['host', 'after']];
+    expected['border-one-sided'] = [['L1', 'R1']];
     const raster = await browser.newPage();
     const artifacts = [];
     for (const [name, pages] of Object.entries(result.pages)) {
@@ -124,12 +142,34 @@ async function main() {
         const rootNode = output.render_tree.root;
         assert.deepEqual(collect(rootNode, 'TextRun').map(n => n.node_type.TextRun.text), expected[name][index]);
         const lines = collect(rootNode, 'TextLine');
-        assert.deepEqual(lines.map(n => n.bbox.y), name === 'fill-band' ? (index === 0 ? [30] : []) : [30, 48]);
-        assert.ok(lines.every(n => n.bbox.x === (name === 'fill-split' ? 30 : 20) && n.bbox.y + n.bbox.height <= 66));
+        const bordered = name.startsWith('border-');
+        const borderTail = name === 'border-nested' && index === 2;
+        const ys = name === 'fill-band' ? (index === 0 ? [30] : [])
+          : bordered && !borderTail ? (name === 'border-one-sided' ? [30,30] : [30,48,48]) : [30,48];
+        assert.deepEqual(lines.map(n => n.bbox.y), ys);
+        const xs = bordered && !borderTail ? (name === 'border-one-sided' ? [20,120] : [20,20,120])
+          : lines.map(() => name === 'fill-split' ? 30 : 20);
+        assert.deepEqual(lines.map(n => n.bbox.x), xs);
+        assert.ok(lines.every(n => n.bbox.y + n.bbox.height <= 66));
         for (const c of collect(rootNode, 'TableCell')) {
-          assert.equal(c.node_type.TableCell.col_span, 2);
-          assert.equal(c.bbox.x, 20); assert.equal(c.bbox.width, 200);
+          const span = c.node_type.TableCell.col_span;
+          if (bordered) {
+            assert.ok(span === 1 || span === 2);
+            assert.equal(c.bbox.x, 20 + c.node_type.TableCell.col * 100);
+          } else { assert.equal(span, 2); assert.equal(c.bbox.x, 20); }
+          assert.equal(c.bbox.width, span * 100);
           assert.ok(c.bbox.y >= 30 && c.bbox.y + c.bbox.height <= 66);
+        }
+        if (bordered) {
+          const edges = collect(rootNode, 'Line');
+          const geometry = borderTail ? [] : name === 'border-one-sided'
+            ? [[120,30,120,48],[220,30,220,48],[120,30,220,30],[120,48,220,48]]
+            : [[20,30,20,66],[120,48,120,66],[220,30,220,66],[20,30,220,30],[20,48,220,48],[20,66,220,66]];
+          assert.deepEqual(edges.map(n => ['x1','y1','x2','y2'].map(k => n.node_type.Line[k])), geometry);
+          for (const edge of edges) {
+            assert.equal(edge.node_type.Line.style.color, 0x332211);
+            assert.ok(Math.abs(edge.node_type.Line.style.width - 1.92) < 1e-9);
+          }
         }
         if (name.startsWith('fill-')) {
           const colors = name === 'fill-merged' ? [0xFFEEEE, 0xEEEEFF, 0xEEFFEE]
@@ -163,6 +203,21 @@ async function main() {
         }
         // Same Chrome raster environment; RGB overlay reference is Native, NOT Hancom.
         const imgs = ['native', 'wasm'].map(b => `data:image/png;base64,${readFileSync(join(out, `${stem}.${b}.png`)).toString('base64')}`);
+        if (bordered && !borderTail) {
+          const points = name === 'border-one-sided'
+            ? [[150,30],[120,40],[150,48],[117,40],[150,51]]
+            : [[150,30],[120,55],[150,48],[17,40],[150,69]];
+          const samples = await raster.evaluate(async ({ imgs, points }) => Promise.all(imgs.map(async url => {
+            const image = new Image(); image.src = url; await image.decode();
+            const c = document.createElement('canvas'); c.width = 400; c.height = 400;
+            const ctx = c.getContext('2d'); ctx.drawImage(image, 0, 0);
+            return points.map(([x,y]) => [...ctx.getImageData(x,y,1,1).data]);
+          })), { imgs, points });
+          for (const sample of samples) {
+            assert.ok(sample.slice(0,3).every(rgba => rgba.slice(0,3).every(v => v < 80)), `${stem}: visible dark edges including shared edge`);
+            assert.ok(sample.slice(3).every(rgba => rgba.every(v => v === 255)), `${stem}: no ink beyond half-stroke envelope`);
+          }
+        }
         if (name.startsWith('fill-')) {
           const rgb = color => [color & 255, (color >> 8) & 255, (color >> 16) & 255, 255];
           const rowColors = name === 'fill-merged' ? [0xEEEEFF, 0xEEFFEE]
