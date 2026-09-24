@@ -64,6 +64,16 @@ pub struct ControlOwner {
     pub control: usize,
 }
 
+/// One complete table on an atomic inline row. Offsets are resolved by the
+/// paragraph composer, not inferred again by pagination or paint.
+#[derive(Debug)]
+pub struct InlineTableInput {
+    pub owner: ControlOwner,
+    pub x: f64,
+    pub y: f64,
+    pub plan: std::sync::Arc<super::TableContentPlan>,
+}
+
 /// Composition owns atomic line groups; pagination never infers them from ink.
 #[derive(Debug)]
 pub enum FlowBlock {
@@ -71,6 +81,10 @@ pub enum FlowBlock {
     Lines {
         height: f64,
         lines: Vec<LineBox>,
+    },
+    InlineTables {
+        height: f64,
+        tables: Vec<InlineTableInput>,
     },
     Table {
         owner: ControlOwner,

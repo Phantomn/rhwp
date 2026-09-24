@@ -362,6 +362,28 @@ fn real_6923_remains_unmodified_and_explicitly_unqualified() {
         .join("tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp");
     let data = std::fs::read(path).expect("required original fixture");
     let d = rhwp::parse_document(&data).unwrap();
+    // Original HWP control carrier, not a rewritten synthetic table. Query only:
+    // children still contain features the experimental engine does not admit.
+    let carrier = &d.sections[0].paragraphs[24];
+    let rows = rhwp::renderer::table_v2::stored_tac_rows(
+        carrier,
+        48188.0,
+        rhwp::model::style::Alignment::Right,
+    )
+    .unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].height, 23793.0);
+    assert_eq!(rows[0].tables.len(), 1);
+    assert_eq!(rows[0].tables[0].0, 0);
+    assert_eq!(
+        rows[0].tables[0].1,
+        rhwp::renderer::table_v2::Rect {
+            x: 1898.0,
+            y: 141.0,
+            width: 46149.0,
+            height: 23511.0,
+        }
+    );
     let mut counts = [0usize; 6]; //paragraphs,stored,table,rowspan,TAC,picture
     fn visit(paragraphs: &[Paragraph], counts: &mut [usize; 6]) {
         for p in paragraphs {
@@ -400,5 +422,152 @@ fn real_6923_remains_unmodified_and_explicitly_unqualified() {
             "paragraphs":counts[0],"stored_paragraphs":counts[1],"tables":counts[2],
             "rowspan_cells":counts[3],"tac_tables":counts[4],"pictures":counts[5],"rejection":reason,
             "result":"UNSUPPORTED - not a fidelity pass"})).unwrap()).unwrap();
+    }
+}
+
+fn inline_carrier(separate: bool) -> Paragraph {
+    use rhwp::model::paragraph::LineSeg;
+    let mut para = p("");
+    para.char_count = 17; // two eight-unit controls and paragraph terminator
+    for texts in [["A", "a"], ["B", "b"]] {
+        let mut t = table(&texts, TablePageBreak::CellBreak);
+        t.common.treat_as_char = true;
+        t.common.width = 6000;
+        t.common.height = 2700;
+        t.cells[0].width = 6000;
+        t.outer_margin_left = 150;
+        t.outer_margin_right = 150;
+        t.outer_margin_top = 150;
+        t.outer_margin_bottom = 150;
+        para.controls.push(Control::Table(Box::new(t)));
+    }
+    para.line_segs = (0..if separate { 2 } else { 1 })
+        .map(|i| LineSeg {
+            text_start: i * 8,
+            vertical_pos: 1000 + i as i32 * 3300,
+            line_height: 3000,
+            text_height: 3000,
+            baseline_distance: 2550,
+            line_spacing: 300,
+            segment_width: 22500,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            ..Default::default()
+        })
+        .collect();
+    para
+}
+
+#[test]
+fn stored_inline_row_is_reserved_once_and_defers_all_siblings() {
+    let mut d = source(vec![
+        p("before"),
+        p("lead"),
+        inline_carrier(false),
+        p("after"),
+    ]);
+    d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Center;
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), ["before", "lead"]);
+    assert!(nodes(&pages[0], "Table").is_empty());
+    assert_eq!(labels(&pages[1]), ["A", "a", "B", "b", "after"]);
+    let ts = nodes(&pages[1], "Table");
+    assert_eq!(ts.len(), 2);
+    // 80px tables + four 2px horizontal margins: center a168px row in300px.
+    for (t, x) in ts.iter().zip([88.0, 172.0]) {
+        near(&t["bbox"]["x"], x);
+        near(&t["bbox"]["y"], 32.0);
+        near(&t["bbox"]["width"], 80.0);
+        near(&t["bbox"]["height"], 36.0);
+    }
+    // Saved occupied row40px, then4px spacing; no ghost host line or sum80px.
+    near(&nodes(&pages[1], "TextLine")[4]["bbox"]["y"], 74.0);
+    capture("document-inline", &d, &pages);
+}
+
+#[test]
+fn stored_inline_distinct_rows_and_nested_path_preserve_source_ownership() {
+    let structural = bytes(&source(vec![inline_carrier(true)]));
+    assert!(matches!(
+        DocumentV2Session::from_bytes(&structural, r#"{"dpi":96,"max_pages":20}"#),
+        Err(DocumentV2Error::Paragraph {
+            index: 0,
+            reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
+                "body control or multiple anchors"
+            )
+        })
+    ));
+    if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(format!("{dir}/unsupported-structural-tac.hwpx"), structural).unwrap();
+    }
+    // Keep structural SectionDef/ColumnDef outside the TAC carrier. Their saved
+    // character-axis mapping is a separate, still unsupported source boundary.
+    let mut d = source(vec![p("before"), inline_carrier(true)]);
+    d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Center;
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), ["before", "A", "a"]);
+    assert_eq!(labels(&pages[1]), ["B", "b"]);
+    for (i, page) in pages.iter().enumerate() {
+        let ts = nodes(page, "Table");
+        assert_eq!(ts.len(), 1);
+        near(&ts[0]["bbox"]["x"], 130.0);
+        near(&ts[0]["bbox"]["y"], if i == 0 { 50.0 } else { 32.0 });
+    }
+    capture("document-inline-rows", &d, &pages);
+    let mut outer = table(&[], TablePageBreak::CellBreak);
+    outer.cells[0].width = 22500;
+    outer.cells[0].paragraphs = vec![inline_carrier(false)];
+    d.sections[0].paragraphs = vec![host("tail", outer)];
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 1);
+    assert_eq!(labels(&pages[0]), ["A", "a", "B", "b", "tail"]);
+    let ts = nodes(&pages[0], "Table");
+    assert_eq!(ts.len(), 3);
+    near(&ts[0]["bbox"]["height"], 44.0);
+    for (t, x) in ts[1..].iter().zip([88.0, 172.0]) {
+        near(&t["bbox"]["x"], x);
+        near(&t["bbox"]["y"], 32.0);
+    }
+    near(&nodes(&pages[0], "TextLine")[4]["bbox"]["y"], 74.0);
+    capture("document-inline-nested", &d, &pages);
+}
+
+#[test]
+fn stored_inline_rejects_incomplete_ownership_and_changed_content_boxes() {
+    use rhwp::{model::style::Alignment, renderer::table_v2::stored_tac_rows};
+    let source_para = inline_carrier(false);
+    assert_eq!(
+        stored_tac_rows(&source_para, 22500.0, Alignment::Center).unwrap()[0]
+            .tables
+            .len(),
+        2
+    );
+    let mut invalid = source_para.clone();
+    invalid.char_count -= 1;
+    assert!(stored_tac_rows(&invalid, 22500.0, Alignment::Center).is_err());
+    let mut invalid = inline_carrier(true);
+    invalid.line_segs[1].text_start = 7;
+    assert!(stored_tac_rows(&invalid, 22500.0, Alignment::Center).is_err());
+    invalid.line_segs[1].text_start = 8;
+    invalid.line_segs[1].vertical_pos = 2000;
+    assert!(stored_tac_rows(&invalid, 22500.0, Alignment::Center).is_err());
+    assert!(stored_tac_rows(&source_para, 22499.0, Alignment::Center).is_err());
+    let mut d = source(vec![p("before"), source_para]);
+    d.doc_info.para_shapes[0].alignment = Alignment::Center;
+    if let Control::Table(t) = &mut d.sections[0].paragraphs[1].controls[0] {
+        let extra = t.cells[0].paragraphs[0].clone();
+        t.cells[0].paragraphs.push(extra);
+    }
+    match DocumentV2Session::from_bytes(&bytes(&d), r#"{"dpi":96,"max_pages":20}"#) {
+        Err(DocumentV2Error::Paragraph {
+            index: 1,
+            reason:
+                rhwp::renderer::table_v2::GeometryError::Unsupported(
+                    "TAC content changed stored occupied box",
+                ),
+        }) => {}
+        _ => panic!("changed child content must reject its stale stored box"),
     }
 }

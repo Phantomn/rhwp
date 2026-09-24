@@ -46,7 +46,9 @@ pub(super) struct CellTrack {
 impl FlowBlock {
     pub(super) fn height(&self) -> f64 {
         match self {
-            Self::Space(height) | Self::Lines { height, .. } => *height,
+            Self::Space(height)
+            | Self::Lines { height, .. }
+            | Self::InlineTables { height, .. } => *height,
             Self::Table { plan, .. } => plan.height,
         }
     }
@@ -199,6 +201,26 @@ impl TableContentPlan {
                             }
                             if !controls.insert(*owner) {
                                 return Err(GeometryError::Unsupported("duplicate child owner"));
+                            }
+                        }
+                        FlowBlock::InlineTables { height, tables } => {
+                            if tables.is_empty() {
+                                return Err(GeometryError::Unsupported("empty inline group"));
+                            }
+                            for child in tables {
+                                nonnegative(child.x, "inline table x")?;
+                                nonnegative(child.y, "inline table y")?;
+                                if child.x + child.plan.width > inner_width
+                                    || child.y + child.plan.height > *height
+                                {
+                                    return Err(GeometryError::ContentBounds { row, column });
+                                }
+                                depth = depth.max(child.plan.depth + 1);
+                                if depth > 64 || !controls.insert(child.owner) {
+                                    return Err(GeometryError::Unsupported(
+                                        "inline depth or duplicate owner",
+                                    ));
+                                }
                             }
                         }
                         FlowBlock::Space(_) => {}

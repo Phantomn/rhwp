@@ -233,3 +233,101 @@ fixtures/out을 이 증적 루트로 지정했다. Chrome146에서94쪽의 Nativ
 
 다음 의존 범위는 저장 컨트롤 host의 TAC 줄 소속과 rowspan/section/그림 등이다.
 일반 저장 줄의 제한적 수용을 이유로 원본 #6923의 미지원 guard를 제거하지 않는다.
+
+## A 진행: 저장 TAC 줄의 공동 점유와 본문·중첩 셀 연결
+
+2026-09-25 다음 절편 승인에 따라 같은 A 기록에서 계속한다. Legacy, Studio 기본 경로,
+기존 baseline/ignore는 변경하지 않는다. 전체 PR CI나 원격 게시를 실행하는 단계가 아니다.
+
+### 근거·적용 범위와 소비 경로
+
+- 원본 #6923의 본문 문단24(0-based)는 문자 없는 TAC 제어 스트림이다. 저장 줄 폭48,188HU,
+  높이23,793HU와 실제 표46,149×23,511HU, 바깥여백 각141HU를 원본에서 직접 검사한다.
+  표 높이+위/아래 여백=저장 점유 높이이며 오른쪽 정렬 표 원점은 x=1,898HU다.
+  이는 원본 메타데이터의 query 계약이지 자식 내용/원본 전체 조판 통과가 아니다.
+- `tac::stored_tac_rows`가 완전한8-unit 제어 스트림과 저장 줄 시작 위치로 소속을 정한다.
+  TAC라는 이유로 모든 표를 한 줄로 합치지 않는다. dirty/겹침/불완전 축/변경 폭은 거부한다.
+  현재는 문자 없는 줄과 동일 점유 envelope를 가진 표들을 수용한다. 혼합 텍스트,
+  서로 다른 ascent/descent의 기준선 합성, 재조판 줄 나누기는 미지원으로 남긴다.
+- `tac::compose → ParagraphItem::InlineTables → ir::bind_table 또는 document_input::prepare →
+  FlowBlock::InlineTables → FlowCursor::fit → TextPaint/BodyPlan`이 실제 호출 경로다.
+  측정과 배치는 같은 줄 높이·표 원점·실제 ControlOwner를 소비한다. 자식 plan이 저장 크기와
+  달라지면 `tac::bind`가 거부하며, shrink/clamp/Legacy fallback으로 맞추지 않는다.
+- `content::from_grid_rows`는 셀 내부 경계·중복 소유·깊이를 검증한다. `FlowCursor`는 줄 전체
+  높이를 한 번 예약하고 모든 자식의 완결된 조각을 지역 결과에 모은 후 함께 수용한다.
+  예산이 모자라면 모든 형제를 이월한다. 시작/끝 내용 컷과 자식 continuation은 이 원자적
+  줄 경로에 비해당이다. 줄 사이 빈 물리 밴드와 마지막 줄 간격은 별도 Space로 소비한다.
+  한 쪽보다 큰 TAC 줄의 내부 분할은 이 제한된 경로에 포함하지 않는다.
+
+### 독립 계약과 미지원 경계
+
+`tests/cases/issue_7353_table_v2_document_flow.rs`에 다음3건을 추가했다.
+
+1. 폭80px·높이36px 표2개, 네 방향 여백2px: 같은 줄 점유는40px이며80px 합산이 아니다.
+   남은36px에는 표만 fit해도 여백 포함 줄은 fit하지 않는다. 두 표 모두 다음 쪽
+   (x=88/172,y=32)에 배치하고4px 후행 줄간격 뒤 문단은 y=74에 둔다.
+2. 별도 저장 줄의 두 표는 서로 다른 쪽에서 해당 소유를 유지한다. 같은 줄을 중첩 셀에
+   넣은 경로도 부모 높이44px, 자식 원점과 뒤 문단 y=74를 실제 RenderTree에서 검사한다.
+3. 불완전 stream, 제어 내부를 가리키는 줄 시작, 겹친 줄, 변경 폭과 실제 자식 내용 증가를
+   거부한다. 마지막 사례는 초기 section guard가 아니라 `TAC content changed stored
+   occupied box`라는 정확한 원인으로 실패해야 한다.
+
+위 수동 작성 HWPX는 경계 계약이며 한컴 생성본/피델리티 증거가 아니다. 첫 시도에서
+첫 문단에 TAC carrier를 둔 합성 입력은 직렬화기가 넣은 SectionDef/ColumnDef와 섞여
+거부됐다(`structural-carrier-unsupported.log`). 이 축은 아직 미지원임을 명시하고,
+서로 다른 줄 계약에서는 구조 컨트롤이 있는 선행 일반 문단과 TAC carrier를 분리했다.
+원본 #6923의 구조 컨트롤이나 저장 정보를 삭제하여 수용한 것은 아니다.
+
+변경 전035713433의 WASM에서 동일3개 시각 입력은 각각 multiple anchors/nested TAC guard로
+거부됐다(`before-wasm.log`, `before-pkg.sha256`). 이는 신규 지원의 거부→수용 증거이며
+기존 Legacy 결함 재현이나 한컴 일치를 의미하지 않는다.
+
+증적 루트는 `output/7353/r19/stored-tac/`이다. 최종 검증 결과는 아래에 이어 기록한다.
+
+최종 소스 선택 회귀는168건(V2 151 + Legacy17) PASS다(`selected-final.log`).
+Native/WASM library Clippy, 변경 integration target Clippy, fmt와 고정 base
+`7a95e46e025470a4d7a7b59ad68ec02958bda738` manifest 정책 검사도 PASS다.
+`clippy-{native,wasm,tests}.log`, `fmt.log`, `policy.log`에 명령 결과가 남아 있다.
+review overlay의 Rust 입력/manifest/변경 테스트1,068개가 제품 worktree와 일치한다
+(`review-source-match.log`). 소스 해시는 `source-final.sha256`/`source-check.log`로 고정한다.
+source-side test, golden/ignore 변경은 없다. 전체 PR CI·제출용 workspace all-target lint와
+전체 release 회귀를 실행한 것으로 확대하지 않는다.
+
+첫 lint에서 나머지 연산 표현의 `manual_is_multiple_of`가 검출되어 같은 의미의 표준
+메서드로 고쳤다. 진행 중인 이전 Docker 빌드를 중단하고 최종 소스로 다시 시작했으며,
+이후 선택 회귀·두 library lint를 다시 통과시켰다. 중단 빌드는 성공 증적으로 세지 않는다.
+
+### fresh WASM와 직접 시각 확인
+
+Docker 표준 빌드(`docker compose --env-file .env.docker -p rhwp run --rm wasm`)가7분42초에
+완료됐다. 최종 WASM SHA256:
+`05eef3074e47501691ad18c74bc7d2efc17c18b47b8053a516a04bc5753b63f8`.
+`docker-wasm.log`, `pkg.sha256`, `browser/manifest.json`에 연결했다.
+
+```bash
+VISUAL_SWEEP_CHROME=/home/edward/.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome \
+node scripts/verify-table-v2-preview-wasm.mjs --pkg pkg \
+  --fixtures output/7353/r19/stored-tac/fixtures --out output/7353/r19/stored-tac/browser \
+  --dependencies-root /home/edward/mygithub/rhwp \
+  --solid-backgrounds --solid-borders --split-borders --split-line-property \
+  --matching-table-borders --nested-alignment --cell-vertical-align \
+  --document-flow --stored-body --stored-tac
+```
+
+99쪽의 Native/fresh WASM RenderTree·SVG 동일성 및 독립 좌표 검사가 PASS다.
+기존94쪽 Native JSON과 review PNG는 이전 stored-text 결과와 모두 동일하다
+(`prior-native-compare.log`, `visual-compare.log`). 새5쪽의 review PNG를 전부 직접 열었고,
+표가 있는4쪽은 standalone overlay도 직접 확인했다. 형제 표 전체 이월, 별도 줄의 두 쪽
+분배, 부모/자식 외곽, 뒤 문단과 종료에서 누락·중복·backend 차이를 보지 못했다.
+대표 증적은 `browser/document-inline-1.{review,overlay}.png`,
+`browser/document-inline-rows-{0,1}.{review,overlay}.png`,
+`browser/document-inline-nested-0.{review,overlay}.png`다.
+
+미지원 첫 문단 TAC 입력을 `fixtures/unsupported-structural-tac.hwpx`로 보존하고 정확한
+거부 원인의 회귀 assertion도 추가했다. 이 마지막 테스트 변경 후 문서11건과 해당 target
+Clippy를 재실행하여 PASS(`document-final.log`, `clippy-tests.log`), 파생 suite를 다시 준비해
+최종 fmt/고정 base 정책 검사도 통과했다. 제품 source/시각 fixture는 변하지 않았다.
+
+**A는 계속 진행 중이다.** 이 결과는 합성 경계의 제한적 지원과 backend 대조이며 한컴 PDF와
+#6923 원본 전체 일치가 아니다. 저장 구조 컨트롤 혼재 축, rowspan/그림·section 속성,
+일반 TAC 줄 합성과 큰 표 분할이 다음 의존 범위다. Studio 기본값/Legacy/편집 경로는 유지한다.

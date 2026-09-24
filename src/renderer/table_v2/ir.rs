@@ -21,12 +21,16 @@ pub enum ParagraphItem {
         lines: Vec<(usize, Rect)>,
     },
     TableControl(usize),
+    InlineTables {
+        height: f64,
+        tables: Vec<(usize, Rect)>,
+    },
 }
 
 /// The implementation must include paragraph spacing, empty lines, explicit
 /// breaks and text layout. This adapter does not qualify saved LineSeg caches.
-/// The text preview adapter supplies only a fresh, plain-text subset. Production
-/// document composition and stored-LineSeg qualification are still separate work.
+/// The text adapter qualifies plain stored text and control-only stored TAC rows;
+/// other stored ownership and general inline recomposition remain unsupported.
 pub trait CellParagraphComposer {
     fn compose(
         &self,
@@ -38,8 +42,8 @@ pub trait CellParagraphComposer {
 impl TableContentPlan {
     /// Build *local* table content from Document IR. The outer paragraph anchor
     /// and document engine selection remain the caller's responsibility.
-    /// Horizontal spans and zero-offset TopAndBottom nested controls are admitted;
-    /// row spans remain unsupported.
+    /// Horizontal spans, zero-offset TopAndBottom and composed inline rows are
+    /// admitted; row spans remain unsupported.
     pub fn from_ir_contents(
         table: &Table,
         units_per_hwp: f64,
@@ -159,7 +163,9 @@ fn bind_table(
                     let Control::Table(child) = ctrl else {
                         return Err(GeometryError::Unsupported("non-table cell control"));
                     };
-                    validate_anchor(child)?;
+                    if !child.common.treat_as_char {
+                        validate_anchor(child)?;
+                    }
                 }
                 let mut seen = vec![false; para.controls.len()];
                 for item in composer.compose(para, inner_width)? {
@@ -187,6 +193,7 @@ fn bind_table(
                             let Control::Table(child) = &para.controls[ci] else {
                                 unreachable!()
                             };
+                            validate_anchor(child)?;
                             let plan = bind_table(child, scale, composer, depth + 1)?;
                             // Resolve against the same padded content width used by
                             // paragraph composition, not the page or outer cell.
@@ -212,6 +219,38 @@ fn bind_table(
                                 plan: Arc::new(plan),
                             });
                             seen[ci] = true;
+                        }
+                        ParagraphItem::InlineTables { height, tables } => {
+                            let mut bound = Vec::new();
+                            for (ci, rect) in tables {
+                                if seen.get(ci).copied() != Some(false) {
+                                    return Err(GeometryError::Unsupported(
+                                        "invalid or repeated inline slot",
+                                    ));
+                                }
+                                let Control::Table(child) = &para.controls[ci] else {
+                                    unreachable!()
+                                };
+                                if !child.common.treat_as_char {
+                                    return Err(GeometryError::Unsupported(
+                                        "non-inline table in inline row",
+                                    ));
+                                }
+                                let plan = bind_table(child, scale, composer, depth + 1)?;
+                                bound.push(super::tac::bind(
+                                    ControlOwner {
+                                        paragraph: pi,
+                                        control: ci,
+                                    },
+                                    rect,
+                                    Arc::new(plan),
+                                )?);
+                                seen[ci] = true;
+                            }
+                            blocks.push(FlowBlock::InlineTables {
+                                height,
+                                tables: bound,
+                            });
                         }
                     }
                 }

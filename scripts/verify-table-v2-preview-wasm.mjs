@@ -96,6 +96,7 @@ async function main() {
     positive.push('document-split','document-atomic','document-nested','document-hwp');
   }
   if (process.argv.includes('--stored-body')) positive.push('document-stored');
+  if (process.argv.includes('--stored-tac')) positive.push('document-inline', 'document-inline-rows', 'document-inline-nested');
   if (process.argv.includes('--solid-borders')) {
     positive.push('border-grid', 'border-header', 'border-nested', 'border-one-sided');
     paintFailures.push('border-conflict');
@@ -242,6 +243,9 @@ async function main() {
     expected['document-atomic'] = [['before1','before2'],['A','B','C','host'],['after']];
     expected['document-nested'] = [['before','','A','B'],['C','D','inner','tail'],['host','after']];
     expected['document-stored'] = [['before','one','two','after'],['next']];
+    expected['document-inline'] = [['before','lead'],['A','a','B','b','after']];
+    expected['document-inline-rows'] = [['before','A','a'],['B','b']];
+    expected['document-inline-nested'] = [['A','a','B','b','tail']];
     const raster = await browser.newPage();
     const artifacts = [];
     for (const [fixtureName, pages] of Object.entries(result.pages)) {
@@ -265,8 +269,15 @@ async function main() {
         const borderTail = name === 'border-nested' && index === 2;
         if (name.startsWith('document-')) {
           assertDocumentGeometry(collect(rootNode,'Body').map(n=>n.bbox),[{x:20,y:30,width:300,height:72}]);
-          assertDocumentGeometry(lines.map(n=>n.bbox.y),expected[name][index].map((_,i)=>30+18*i));
-          const tableBoxes = name === 'document-stored' ? [] : name === 'document-split'
+          const inline = name.startsWith('document-inline');
+          const inlineYs = name === 'document-inline-rows' ? (index===0 ? [30,50,68] : [32,50])
+            : name === 'document-inline' && index===0 ? [30,48] : [32,50,32,50,74];
+          assertDocumentGeometry(lines.map(n=>n.bbox.y),inline ? inlineYs : expected[name][index].map((_,i)=>30+18*i));
+          const inlineBoxes = name === 'document-inline-rows' ? [{x:130,y:index===0?50:32,width:80,height:36}]
+            : name === 'document-inline' && index===0 ? []
+            : [...(name === 'document-inline-nested' ? [{x:20,y:30,width:300,height:44}] : []),
+              {x:88,y:32,width:80,height:36},{x:172,y:32,width:80,height:36}];
+          const tableBoxes = inline ? inlineBoxes : name === 'document-stored' ? [] : name === 'document-split'
             ? [{x:70,y:index===0?48:30,width:200,height:index===0?54:36}]
             : name === 'document-atomic'
             ? (index===1 ? [{x:70,y:30,width:200,height:54}] : [])
@@ -283,7 +294,9 @@ async function main() {
             const match=remainingEdges.findIndex(candidate=>candidate.every((v,i)=>sameCoordinate(v,edge[i])));
             assert.ok(match>=0,`missing document edge ${edge}`); remainingEdges.splice(match,1);
           }
-          const xs = name === 'document-stored' ? expected[name][index].map(()=>20)
+          const inlineXs = name === 'document-inline-rows' ? (index===0 ? [20,130,130] : [130,130])
+            : name === 'document-inline' && index===0 ? [20,20] : [88,88,172,172,20];
+          const xs = inline ? inlineXs : name === 'document-stored' ? expected[name][index].map(()=>20)
             : name === 'document-split' ? (index===0 ? [20,70,70,70] : [70,70,20,20])
             : name === 'document-atomic' ? (index===1 ? [70,70,70,20] : expected[name][index].map(()=>20))
             : index===0 ? [20,70,120,120] : index===1 ? [120,120,70,70] : [20,20];

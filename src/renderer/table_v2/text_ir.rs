@@ -1,6 +1,7 @@
 //! Fresh IR content binding for V2 previews. An anchored TopAndBottom
 //! child excludes the whole host width; at paragraph-top + zero offset the host
-//! lines therefore start below the child. This is NOT the TAC/side-wrap rule.
+//! lines therefore start below the child. Qualified stored TAC carriers use a
+//! separate row composition; side-wrap and fresh inline composition are unsupported.
 use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use crate::{
@@ -69,6 +70,9 @@ impl CellParagraphComposer for IrTextComposer<'_> {
                     slots.extend(lines.iter().map(|(line, _)| PaintSlot::Line(*line)))
                 }
                 ParagraphItem::TableControl(ci) => slots.push(PaintSlot::Table(*ci)),
+                ParagraphItem::InlineTables { tables, .. } => {
+                    slots.extend(tables.iter().map(|(ci, _)| PaintSlot::Table(*ci)));
+                }
                 ParagraphItem::Space(_) => {}
             }
         }
@@ -93,6 +97,15 @@ impl IrTextComposer<'_> {
     ) -> Result<Vec<ParagraphItem>, GeometryError> {
         if para.controls.is_empty() {
             return self.text.compose(para, width);
+        }
+        if para
+            .controls
+            .iter()
+            .all(|c| matches!(c, Control::Table(t) if t.common.treat_as_char))
+        {
+            let items = super::tac::compose(para, width, self.text.styles, self.text.dpi)?;
+            self.text.payloads.borrow_mut().push(Vec::new());
+            return Ok(items);
         }
         if !para.line_segs.is_empty() {
             return Err(GeometryError::Unsupported("stored child anchor ownership"));

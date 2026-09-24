@@ -2,7 +2,9 @@
 //!
 //! The geometry boundary accepts **already composed**, width-bound cell content.
 //! `PreparedTextTable` supplies fresh text and qualified plain stored rows using
-//! the shared paragraph composer. DocumentV2Session is explicitly selected;
+//! the shared paragraph composer. Qualified control-only stored TAC rows retain
+//! source ownership and reserve their occupied envelope once, atomically.
+//! DocumentV2Session is explicitly selected;
 //! neither path switches the engine in DocumentCore.
 //! All coordinates use one caller-chosen unit (normally layout pixels). Querying
 //! a fragment does not mutate a document, a page, or its continuation cursor.
@@ -21,6 +23,7 @@ mod grid;
 mod ir;
 mod session;
 mod stored_text;
+mod tac;
 mod text;
 mod text_flow;
 mod text_ir;
@@ -28,8 +31,8 @@ mod text_ir;
 pub use content::TableContentPlan;
 pub use contracts::{
     CellInput, CellPlacement, ComposedCell, ControlOwner, FlowBlock, FlowCellInput, FlowRowInput,
-    GeometryError, Insets, LineBox, LineOwner, LinePlacement, NestedTablePlacement, PageArea, Rect,
-    RowInput, SplitPolicy, TablePlacement,
+    GeometryError, InlineTableInput, Insets, LineBox, LineOwner, LinePlacement,
+    NestedTablePlacement, PageArea, Rect, RowInput, SplitPolicy, TablePlacement,
 };
 pub use document::{DocumentV2Error, DocumentV2Session};
 pub use export::{TablePreviewExportError, TablePreviewExportSession};
@@ -38,5 +41,6 @@ pub use ir::{CellParagraphComposer, ParagraphItem};
 pub use session::{
     TablePreviewError, TablePreviewPage, TablePreviewPages, TablePreviewSession, TableSelection,
 };
+pub use tac::{stored_tac_rows, StoredTacRow};
 pub use text::{PreparedTextTable, TextFragment, TextFragmentFit, TextTableCursor};
 pub use text_flow::{TextFlowBlock, TextFlowCell, TextFlowRow};

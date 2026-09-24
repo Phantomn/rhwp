@@ -105,6 +105,46 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
                 "explicit body page/column break",
             )));
         }
+        if !source.controls.is_empty()
+            && source
+                .controls
+                .iter()
+                .all(|c| matches!(c, Control::Table(t) if t.common.treat_as_char))
+        {
+            for item in super::tac::compose(source, body.width, &styles, dpi).map_err(fail)? {
+                match item {
+                    ParagraphItem::Space(h) => blocks.push(FlowBlock::Space(h)),
+                    ParagraphItem::InlineTables {
+                        height,
+                        tables: owned,
+                    } => {
+                        let mut bound = Vec::new();
+                        for (ci, rect) in owned {
+                            let Control::Table(table) = &source.controls[ci] else {
+                                unreachable!()
+                            };
+                            super::decoration::validate_source(table, &document.doc_info)
+                                .map_err(fail)?;
+                            let prepared =
+                                PreparedTextTable::prepare(table, &styles, dpi).map_err(fail)?;
+                            let owner = ControlOwner {
+                                paragraph: pi,
+                                control: ci,
+                            };
+                            bound.push(super::tac::bind(owner, rect, prepared.plan).map_err(fail)?);
+                            tables.insert(owner, (order, prepared.paint));
+                            order += 1;
+                        }
+                        blocks.push(FlowBlock::InlineTables {
+                            height,
+                            tables: bound,
+                        });
+                    }
+                    _ => return Err(fail(GeometryError::InconsistentAtomicPlan)),
+                }
+            }
+            continue;
+        }
         let mut table_control = None;
         for (ci, control) in source.controls.iter().enumerate() {
             match control {
@@ -208,7 +248,7 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
                         })
                         .collect(),
                 }),
-                ParagraphItem::TableControl(_) => {
+                ParagraphItem::TableControl(_) | ParagraphItem::InlineTables { .. } => {
                     return Err(fail(GeometryError::InconsistentAtomicPlan))
                 }
             }

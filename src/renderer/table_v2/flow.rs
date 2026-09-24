@@ -67,6 +67,37 @@ impl FlowCursor {
                     }));
                     result.height += height;
                 }
+                FlowBlock::InlineTables { height, tables } => {
+                    if area.y + result.height + height > area.y + area.height {
+                        result.required = *height;
+                        break;
+                    }
+                    // Fit the entire group transactionally. No child cursor is
+                    // committed if any sibling cannot preserve its complete box.
+                    let mut placed = Vec::with_capacity(tables.len());
+                    for child in tables {
+                        let fit = TableCursor::new(child.plan.clone()).fit(PageArea {
+                            bounds: Rect {
+                                x: area.x + child.x,
+                                y: area.y + result.height + child.y,
+                                width: child.plan.width,
+                                height: child.plan.height,
+                            },
+                        })?;
+                        let FragmentFit::Placed(fragment) = fit else {
+                            return Err(GeometryError::InconsistentAtomicPlan);
+                        };
+                        if !fragment.continuation().is_complete() {
+                            return Err(GeometryError::InconsistentAtomicPlan);
+                        }
+                        placed.push(NestedTablePlacement {
+                            owner: child.owner,
+                            placement: Box::new(fragment.placement().clone()),
+                        });
+                    }
+                    result.tables.extend(placed);
+                    result.height += height;
+                }
                 FlowBlock::Table {
                     owner,
                     offset_x,

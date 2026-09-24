@@ -68,7 +68,8 @@ struct Output {
 
 /// Experimental snapshot, NOT a switch on a live Studio document. Initially
 /// supports one uniform horizontal section, fresh/qualified stored text and the V2
-/// zero-offset TopAndBottom tables. No edits, hidden fallback or saved-row purge.
+/// zero-offset TopAndBottom tables plus qualified atomic stored TAC rows.
+/// No edits, hidden fallback or saved-row purge.
 #[derive(Clone)]
 pub struct DocumentV2Session {
     plan: Arc<BodyPlan>,
