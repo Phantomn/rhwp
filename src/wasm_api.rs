@@ -46,7 +46,9 @@ mod canvas_metrics;
 mod hyperlink;
 /// 어떤 렌더 export가 교체 가능한 경계 뒤에 있는지 선언하는 곳 (#4577, #4642).
 mod render_patch_boundary;
+mod table_v2_preview;
 mod template_automation;
+pub use table_v2_preview::TableV2Preview;
 
 impl From<HwpError> for JsValue {
     fn from(err: HwpError) -> Self {

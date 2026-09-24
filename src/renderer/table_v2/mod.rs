@@ -10,6 +10,7 @@
 
 mod content;
 mod contracts;
+mod export;
 mod flow;
 mod fragment;
 mod grid;
@@ -25,6 +26,7 @@ pub use contracts::{
     GeometryError, Insets, LineBox, LineOwner, LinePlacement, NestedTablePlacement, PageArea, Rect,
     RowInput, SplitPolicy, TablePlacement,
 };
+pub use export::{TablePreviewExportError, TablePreviewExportSession};
 pub use fragment::{FragmentFit, TableCursor, TableFragmentPlan};
 pub use ir::{CellParagraphComposer, ParagraphItem};
 pub use session::{

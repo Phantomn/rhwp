@@ -205,3 +205,9 @@ R3 기하/IR 구현은 `e50d85da6`에 기록했다. 작업지시자의 기존 `t
 fresh IR → 문단 구성 → 재귀 분할/제목 반복 → 실제 셀 노드에 연결한다. 병합 전체 폭에서
 여백을 뺀 값으로 구성하고 최종 출력도 동일 셀 주소·colspan·폭을 소비한다. 정수 원본 단위에서
 공유 열 경계의 모순을 거부하며 숨겨진 내부 열 폭은 추정하지 않는다. rowspan은 미지원 유지다.
+
+[stage11](../working/task_m100_7353_stage11.md)은 선택 표 미리보기의 파일 bytes/JSON 경계를
+Native와 WASM에서 공통 사용한다. 독립 `TableV2Preview` JS 세션은 페이지별 SVG와 실제
+WASM 렌더 트리를 함께 반환하며 오류 시 cursor를 보존한다. 기존 `HwpDocument`·Studio의
+문서 엔진은 바꾸지 않는다. Docker fresh WASM/Chrome 검증을 문서 전체 전환이나 한컴
+피델리티 검증으로 확대 해석하지 않는다.

@@ -1,7 +1,8 @@
 //! Input at the composition boundary and output at the reservation/placement boundary.
 
 /// A rectangle in the same coordinate system as its enclosing input/output.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Rect {
     pub x: f64,
     pub y: f64,

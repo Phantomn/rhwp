@@ -12,7 +12,8 @@ use super::{
 
 /// Root table selection; descendants remain owned by the prepared table plan.
 /// This address is not a cursor/hit-test binding or a document anchor position.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TableSelection {
     pub section: usize,
     pub paragraph: usize,
@@ -21,7 +22,8 @@ pub struct TableSelection {
 
 /// Caller-resolved preview page geometry, in pixels. The first page can have a
 /// partly occupied body. Following pages use the full body, at the same width.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TablePreviewPages {
     pub width: f64,
     pub height: f64,
@@ -70,6 +72,7 @@ pub struct TablePreviewPage {
 /// Each successful step owns a fresh page; errors leave cursor/index unchanged.
 /// Sessions cannot change engine, width, or DPI midway. Preparing again from the
 /// original Document is explicit; editing a Document never changes this snapshot.
+#[derive(Clone)]
 pub struct TablePreviewSession {
     cursor: TextTableCursor,
     pages: TablePreviewPages,
