@@ -22,6 +22,38 @@ function option(name, fallback) {
 }
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 
+// Independent intact-cell oracle:18px lines,6/12px padding and declared row
+// minima. These are not derived from Native output or from the WASM algorithm.
+function verticalContract(name, page) {
+  const box = (x,y,width,height) => ({x,y,width,height});
+  const edges = ({x,y,width:w,height:h}) => [[x,y,x,y+h],[x+w,y,x+w,y+h],[x,y,x+w,y],[x,y+h,x+w,y+h]];
+  if (name === 'valign-rows' && page === 1) {
+    const b=box(20,30,300,36);
+    return {xs:[20],ys:[36],cells:[b],tables:[b],edges:edges(b)};
+  }
+  if (name === 'valign-rows' || name === 'valign-whole') {
+    const whole=name === 'valign-whole', bottom=whole ? 156 : 120;
+    const cells=[box(20,30,100,90),box(120,30,100,90),box(220,30,100,90)];
+    const xs=[20,20,120,120,220,220],ys=[36,54,54,72,72,90];
+    if (whole) { cells.push(box(20,120,300,36)); xs.push(20); ys.push(126); }
+    const lines=[[20,30,20,bottom],[120,30,120,120],[220,30,220,120],[320,30,320,bottom],[20,30,320,30],[20,120,320,120]];
+    if (whole) lines.push([20,156,320,156]);
+    return {xs,ys,cells,tables:[box(20,30,300,bottom-30)],edges:lines};
+  }
+  if (name === 'valign-header') {
+    return {xs:[20,20],ys:[45,90],cells:[box(20,30,200,54),box(20,84,200,36)],
+      tables:[box(20,30,200,90)],edges:[[20,30,20,120],[220,30,220,120],[20,30,220,30],[20,84,220,84],[20,120,220,120]]};
+  }
+  if (name === 'valign-nested') {
+    const parent=box(20,30,200,108),child=box(90,page===0 ? 48 : 30,100,page===0 ? 90 : 72);
+    return {xs:page===0 ? [30,90,90] : [90,30,30],ys:page===0 ? [30,72,90] : [72,102,120],
+      cells:[parent,child],tables:[parent,child],edges:[...edges(child),...edges(parent)]};
+  }
+  assert.equal(name,'valign-parent');
+  const parent=box(20,30,200,90),child=box(120,45,100,18);
+  return {xs:[120,20,20],ys:[45,63,81],cells:[parent,child],tables:[parent,child],edges:[...edges(child),...edges(parent)]};
+}
+
 async function main() {
   const pkg = option('--pkg'), fixtures = option('--fixtures'), out = option('--out');
   const require = createRequire(join(option('--dependencies-root', root), 'rhwp-studio/package.json'));
@@ -39,6 +71,9 @@ async function main() {
   const paintFailures = [];
   if (process.argv.includes('--nested-alignment')) {
     positive.push('align-left', 'align-center', 'align-right', 'align-cell-padding', 'align-deep', 'align-header');
+  }
+  if (process.argv.includes('--cell-vertical-align')) {
+    positive.push('valign-rows','valign-whole','valign-header','valign-nested','valign-parent');
   }
   if (process.argv.includes('--solid-borders')) {
     positive.push('border-grid', 'border-header', 'border-nested', 'border-one-sided');
@@ -159,6 +194,11 @@ async function main() {
     }
     expected['align-deep'] = [['A','B'], ['C','middle'], ['host','after']];
     expected['align-header'] = [['title','A'], ['title','B'], ['host','after']];
+    expected['valign-rows'] = [['T','','','C','','B'],['after']];
+    expected['valign-whole'] = [['T','','','C','','B','after']];
+    expected['valign-header'] = [['title','A'],['title','B']];
+    expected['valign-nested'] = [['before','','C'],['D','host','after']];
+    expected['valign-parent'] = [['A','host','after']];
     const raster = await browser.newPage();
     const artifacts = [];
     for (const [fixtureName, pages] of Object.entries(result.pages)) {
@@ -180,6 +220,18 @@ async function main() {
         const bordered = name.startsWith('border-');
         const cut = name.startsWith('cut-');
         const borderTail = name === 'border-nested' && index === 2;
+        if (name.startsWith('valign-')) {
+          const contract=verticalContract(name,index);
+          assert.deepEqual(lines.map(n=>n.bbox.x),contract.xs);
+          assert.deepEqual(lines.map(n=>n.bbox.y),contract.ys);
+          //9pt at96DPI gives12px text boxes; fixed18px flow pitch is separate.
+          assert.ok(lines.every(n=>n.bbox.height===12));
+          assert.deepEqual(collect(rootNode,'TableCell').map(n=>n.bbox),contract.cells);
+          assert.deepEqual(collect(rootNode,'Table').map(n=>n.bbox),contract.tables);
+          assert.deepEqual(collect(rootNode,'Line').map(n=>['x1','y1','x2','y2'].map(k=>n.node_type.Line[k])),contract.edges);
+          const body=configs[fixtureName].pages.body;
+          assert.ok(contract.cells.every(b=>b.y>=body.y && b.y+b.height<=body.y+body.height));
+        } else {
         const cutYs = name === 'cut-tail' ? (index === 0 ? [30] : [])
           : name === 'cut-siblings' ? (index === 0 ? [30,30,48] : [30,48])
           : name === 'cut-header' ? (index === 0 ? [30,48,48] : [30,48])
@@ -274,6 +326,7 @@ async function main() {
           };
           verify(rootNode);
           if (name === 'fill-band') assert.equal(collect(rootNode, 'TableCell')[0].bbox.height, index < 2 ? 36 : 18);
+        }
         }
         const stem = `${fixtureName}-${index}`;
         writeFileSync(join(out, `${stem}.svg`), output.svg);

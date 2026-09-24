@@ -213,16 +213,17 @@ impl TableCursor {
             for (column, cell) in row.cells.iter().enumerate() {
                 let track = &plan.grid[next.row][column];
                 let x = b.x + track.left;
+                let content_offset = track.content_offset_y;
                 let fit = next.cells[column].fit(
                     cell,
                     Rect {
                         x: x + cell.padding.left,
-                        y: b.y + offset,
+                        y: b.y + offset + content_offset,
                         width: cell.width,
-                        height: available,
+                        height: available - content_offset,
                     },
                 )?;
-                used = used.max(fit.height);
+                used = used.max(content_offset + fit.height);
                 changed |= fit.progressed;
                 blocked = blocked.max(fit.required);
                 all_done &= fit.next.block == cell.blocks.len();
@@ -245,7 +246,7 @@ impl TableCursor {
             for (column, (x, fit)) in fit_cells.into_iter().enumerate() {
                 let cell = &row.cells[column];
                 let origin_y = if next.cells[column].block == 0 {
-                    b.y + offset + cell.padding.top
+                    b.y + offset + plan.grid[next.row][column].content_offset_y + cell.padding.top
                 } else {
                     b.y + offset
                 };

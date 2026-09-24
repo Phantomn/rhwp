@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::model::control::Control;
 use crate::model::paragraph::{ColumnBreakType, Paragraph};
 use crate::model::shape::{HorzAlign, HorzRelTo, SizeCriterion, TextWrap, VertAlign, VertRelTo};
-use crate::model::table::{Table, TablePageBreak, VerticalAlign};
+use crate::model::table::{Table, TablePageBreak};
 
 use super::{
     ControlOwner, FlowBlock, FlowCellInput, FlowRowInput, GeometryError, Insets, LineBox,
@@ -71,13 +71,8 @@ fn bind_table(
     }
     let resolved = super::grid::resolve(table, scale)?;
     for cell in &table.cells {
-        if cell.vertical_align != VerticalAlign::Top
-            || cell.text_direction != 0
-            || cell.line_wrap != 0
-        {
-            return Err(GeometryError::Unsupported(
-                "cell alignment, direction or line wrap",
-            ));
+        if cell.text_direction != 0 || cell.line_wrap != 0 {
+            return Err(GeometryError::Unsupported("cell direction or line wrap"));
         }
     }
     // The preview admits only whole, contiguous leading header rows. Partial

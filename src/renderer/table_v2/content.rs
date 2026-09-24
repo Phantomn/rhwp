@@ -22,6 +22,14 @@ pub struct TableContentPlan {
     depth: usize,
 }
 
+/// Alignment of complete cell content; internal cell cuts are not qualified.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum VerticalAlignment {
+    Top,
+    Center,
+    Bottom,
+}
+
 /// One physical cell, even when it covers several logical columns. Produced at
 /// grid binding and consumed unchanged for composition width and final placement.
 #[derive(Debug, Clone)]
@@ -30,6 +38,9 @@ pub(super) struct CellTrack {
     pub span: usize,
     pub left: f64,
     pub width: f64,
+    pub alignment: VerticalAlignment,
+    /// Leading space resolved from the intact row's final physical height.
+    pub content_offset_y: f64,
 }
 
 impl FlowBlock {
@@ -105,6 +116,8 @@ impl TableContentPlan {
                     span: 1,
                     left,
                     width,
+                    alignment: VerticalAlignment::Top,
+                    content_offset_y: 0.0,
                 };
                 left += width;
                 cell
@@ -114,7 +127,7 @@ impl TableContentPlan {
     }
 
     pub(super) fn from_grid_rows(
-        grid: Vec<Vec<CellTrack>>,
+        mut grid: Vec<Vec<CellTrack>>,
         width: f64,
         mut rows: Vec<FlowRowInput>,
         row_spacing: f64,
@@ -131,6 +144,9 @@ impl TableContentPlan {
             let mut height: f64 = 0.0;
             for (slot, cell) in input.cells.iter_mut().enumerate() {
                 let track = &grid[row][slot];
+                if policy == SplitPolicy::WithinCells && track.alignment != VerticalAlignment::Top {
+                    return Err(GeometryError::Unsupported("split-cell vertical alignment"));
+                }
                 let column = track.column;
                 let p = cell.padding;
                 for v in [p.left, p.right, p.top, p.bottom] {
@@ -195,6 +211,19 @@ impl TableContentPlan {
                 height = height.max(physical).max(cell.minimum_height);
             }
             row_heights.push(height);
+            // The whole row height is known only after EVERY cell was measured.
+            // Empty line boxes and nested tables are physical content, not ink.
+            // Do not center each page fragment or change declared minimum height.
+            for (slot, cell) in input.cells.iter().enumerate() {
+                let physical = cell.blocks.iter().map(FlowBlock::height).sum::<f64>();
+                let slack = height - physical;
+                let track = &mut grid[row][slot];
+                track.content_offset_y = match track.alignment {
+                    VerticalAlignment::Top => 0.0,
+                    VerticalAlignment::Center => slack / 2.0,
+                    VerticalAlignment::Bottom => slack,
+                };
+            }
         }
         let height = row_heights.iter().enumerate().fold(0.0, |h, (row, v)| {
             h + if row == 0 { 0.0 } else { row_spacing } + v

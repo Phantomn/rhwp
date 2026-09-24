@@ -1,7 +1,10 @@
 //! Resolve cell topology in integer HWP units before composing any paragraphs.
 //! A merged cell's width is not divided between invented hidden columns.
-use super::{content::CellTrack, GeometryError};
-use crate::model::table::{Cell, Table};
+use super::{
+    content::{CellTrack, VerticalAlignment},
+    GeometryError,
+};
+use crate::model::table::{Cell, Table, VerticalAlign};
 
 pub(super) struct ResolvedGrid<'a> {
     pub rows: Vec<Vec<&'a Cell>>,
@@ -54,6 +57,12 @@ pub(super) fn resolve(table: &Table, scale: f64) -> Result<ResolvedGrid<'_>, Geo
                 span: cell.col_span as usize,
                 left: left as f64 * scale,
                 width: cell.width as f64 * scale,
+                alignment: match cell.vertical_align {
+                    VerticalAlign::Top => VerticalAlignment::Top,
+                    VerticalAlign::Center => VerticalAlignment::Center,
+                    VerticalAlign::Bottom => VerticalAlignment::Bottom,
+                },
+                content_offset_y: 0.0,
             });
             left = right;
             column = end;
