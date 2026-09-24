@@ -29,6 +29,9 @@ async function main() {
   // Opt-in keeps the stage11 command/fixtures valid without silently skipping
   // missing stage12 evidence. Every requested fixture is mandatory.
   const negative = ['stored', 'rowspan'];
+  if (process.argv.includes('--split-line-property')) {
+    negative.push('separate-cell', 'separate-table', 'separate-child');
+  }
   if (process.argv.includes('--solid-backgrounds')) {
     positive.push('fill-merged', 'fill-nested', 'fill-split', 'fill-band', 'fill-transparent');
     negative.push('fill-border', 'fill-pattern');
@@ -90,7 +93,8 @@ async function main() {
           check(JSON.stringify(JSON.parse(b.nextPage())) === JSON.stringify(pages[name][0]), 'independent first page');
         } finally { a.free(); b.free(); }
       }
-      for (const name of negative) throws(() => open(name), 'Unsupported');
+      for (const name of negative) throws(() => open(name),
+        name.startsWith('separate-') ? 'V2 separate split-cell border' : 'Unsupported');
       for (const name of paintFailures) {
         const session = open(name);
         try {

@@ -281,6 +281,8 @@ impl Default for ResolvedParaStyle {
 /// 해소된 테두리/배경 스타일 (BorderFill → 렌더링용)
 #[derive(Debug, Clone)]
 pub struct ResolvedBorderStyle {
+    /// HWPX separate split-cell boundary flag; consumers must qualify support.
+    pub break_cell_separate_line: bool,
     /// 4방향 테두리선 (좌, 우, 상, 하)
     pub borders: [BorderLine; 4],
     /// 배경 채우기 색상 (None이면 채우기 없음)
@@ -327,6 +329,7 @@ impl ResolvedImageFill {
 impl Default for ResolvedBorderStyle {
     fn default() -> Self {
         Self {
+            break_cell_separate_line: false,
             borders: [BorderLine::default(); 4],
             fill_color: None,
             pattern: None,
@@ -1082,6 +1085,7 @@ fn resolve_single_border_style(bf: &BorderFill) -> ResolvedBorderStyle {
     };
 
     ResolvedBorderStyle {
+        break_cell_separate_line: bf.break_cell_separate_line,
         borders: bf.borders,
         fill_color,
         pattern,

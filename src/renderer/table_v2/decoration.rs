@@ -47,6 +47,9 @@ impl Background {
                 .ok_or(GeometryError::Unsupported(
                     "missing table borderFill reference",
                 ))?;
+        if style.break_cell_separate_line {
+            return Err(GeometryError::Unsupported("V2 separate split-cell border"));
+        }
         if (!cell
             && style
                 .borders
@@ -111,6 +114,9 @@ pub(super) fn validate_source(table: &Table, info: &DocInfo) -> Result<(), Geome
                     .ok_or(GeometryError::Unsupported(
                         "missing table borderFill reference",
                     ))?;
+            if b.break_cell_separate_line {
+                return Err(GeometryError::Unsupported("V2 separate split-cell border"));
+            }
             if b.three_d
                 || b.attr != 0
                 || !matches!(b.fill.alpha, 0 | 255)

@@ -165,12 +165,17 @@ renderer/
 
 [stage12](../working/task_m100_7353_stage12.md)의 단색 배경과
 [stage13](../working/task_m100_7353_stage13.md)의 온전한 셀 실선에 이어
-[stage14](../working/task_m100_7353_stage14.md)에서 셀 내부 컷의 실선 경계를 확장한다.
+[stage14](../working/task_m100_7353_stage14.md)에서 셀 내부 컷의 실선 경계를 확장했다.
 분할 기하·Legacy 측정/분할은 바꾸지 않는다. 중첩·제목 반복·colspan의 확정
 셀 조각 경계를 소비하고 동일 공유선을 합친다. 별도 분할선 속성, 충돌하는 서식의 우선순위,
 표 자체 선·zone·복합 채움은 명시적 미지원으로 유지한다.
 이 개발 절편의 검증은 합성 입력의 경계/점유 계약과 Native/fresh WASM 출력 대조이며,
 실물 한컴 피델리티·문서 전체 V2 전환·R3 전체 완료를 뜻하지 않는다.
+
+[stage15](../working/task_m100_7353_stage15.md)는 실물 입력 수용 전 지원 경계를 보강한다.
+HWPX `breakCellSeparateLine`을 parser→IR→writer/resolved style에서 보존하고,
+V2의 source/resolved 양쪽 진입에서 활성 속성을 명시적 미지원으로 거부한다.
+별도 분할선 paint와 HWP5 대응 비트를 추측해 구현하지 않으며 Legacy 기하를 바꾸지 않는다.
 
 R1 정적 조사 뒤 개정 계획을 승인받아 R2 신규 기하·분할 계약 구현에 착수했다.
 [R2 진행 기록](../working/task_m100_7353_stage2.md)에 지원 경계와 검증 결과를 기록한다.

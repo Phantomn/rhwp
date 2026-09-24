@@ -391,6 +391,8 @@ fn parse_border_fill(data: &[u8]) -> Result<BorderFill, DocInfoError> {
         center_line: CenterLine::from_hwp_attr(attr),
         fill,
         three_d: false,
+        // The published HWP5 BorderFill bit table does not define this HWPX flag.
+        break_cell_separate_line: false,
     })
 }
 

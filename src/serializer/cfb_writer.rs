@@ -67,6 +67,18 @@ fn serialize_hwp_inner(
     password: Option<&[u8]>,
     warning_mode: ContentLossWarningMode,
 ) -> Result<SerializedDocument, SerializeError> {
+    // No verified HWP5 bit mapping exists for this HWPX attribute. Reject before
+    // raw DocInfo reuse as well as reconstruction, instead of silently losing it.
+    if doc
+        .doc_info
+        .border_fills
+        .iter()
+        .any(|b| b.break_cell_separate_line)
+    {
+        return Err(SerializeError::UnsupportedInput(
+            "HWP5 export of breakCellSeparateLine is not implemented".into(),
+        ));
+    }
     // 1. FileHeader 직렬화
     // [Task #1768] 배포용/암호화 문서 강하: IR 은 이미 복호화된 평문이고 본 직렬화는
     // ViewText/DISTRIBUTE_DOC_DATA 를 생성하지 않으므로, 플래그를 유지하면 산출물

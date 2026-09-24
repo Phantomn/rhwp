@@ -93,6 +93,7 @@ mod tests {
                 diagonal_attr: 0,
                 diagonal: Default::default(),
                 center_line: Default::default(),
+                break_cell_separate_line: false,
             }],
             numberings: Vec::new(),
             bullets: Vec::new(),

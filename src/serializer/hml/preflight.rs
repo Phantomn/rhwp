@@ -239,6 +239,7 @@ fn validate_para_shape(shape: &ParaShape, path: &str, blockers: &mut Vec<HmlSave
 fn validate_border_fill(fill: &BorderFill, index: usize, blockers: &mut Vec<HmlSaveBlocker>) {
     let path = resource_path("BORDERFILLLIST", "BORDERFILL", index);
     let container_omitted = fill.raw_data.is_some()
+        || fill.break_cell_separate_line
         || fill.attr != 0
         || fill.diagonal.diagonal_type != 0
         || fill.diagonal.width != 0

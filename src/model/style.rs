@@ -570,6 +570,9 @@ pub struct BorderFill {
     pub fill: Fill,
     /// 3차원 효과 (HWPX borderFill@threeD)
     pub three_d: bool,
+    /// 자동으로 나뉜 표의 별도 경계선 (HWPX borderFill@breakCellSeparateLine).
+    /// HWP5의 대응 비트는 확인되지 않았으므로 attr에서 추측하지 않는다.
+    pub break_cell_separate_line: bool,
 }
 
 /// 중심선 방향 (HWPX borderFill@centerLine)

@@ -1546,6 +1546,7 @@ fn parse_border_fill(
     let mut bf = BorderFill::default();
     for attr in e.attributes().flatten() {
         match attr.key.as_ref().as_bytes() {
+            b"breakCellSeparateLine" => bf.break_cell_separate_line = parse_bool(&attr),
             b"centerLine" => {
                 bf.center_line = parse_center_line(&attr);
                 if bf.center_line == CenterLine::None {
