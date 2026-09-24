@@ -12,6 +12,8 @@ mod borders;
 mod content;
 mod contracts;
 mod decoration;
+mod document;
+mod document_input;
 mod export;
 mod flow;
 mod fragment;
@@ -28,6 +30,7 @@ pub use contracts::{
     GeometryError, Insets, LineBox, LineOwner, LinePlacement, NestedTablePlacement, PageArea, Rect,
     RowInput, SplitPolicy, TablePlacement,
 };
+pub use document::{DocumentV2Error, DocumentV2Session};
 pub use export::{TablePreviewExportError, TablePreviewExportSession};
 pub use fragment::{FragmentFit, TableCursor, TableFragmentPlan};
 pub use ir::{CellParagraphComposer, ParagraphItem};

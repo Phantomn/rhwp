@@ -52,6 +52,42 @@ impl TableContentPlan {
     }
 }
 
+/// Shared admission for the same paragraph-relative exclusion rule in a cell
+/// and in a document body. It is not an inferred TAC/side-wrap policy.
+pub(super) fn validate_anchor(table: &Table) -> Result<(), GeometryError> {
+    let a = &table.common;
+    if a.treat_as_char
+        || a.text_wrap != TextWrap::TopAndBottom
+        || a.vert_rel_to != VertRelTo::Para
+        || a.vert_align != VertAlign::Top
+        || a.horz_rel_to != HorzRelTo::Para
+        || a.vertical_offset != 0
+        || a.horizontal_offset != 0
+        || !matches!(
+            a.horz_align,
+            HorzAlign::Left | HorzAlign::Center | HorzAlign::Right
+        )
+        || a.prevent_page_break != 0
+        || [
+            a.margin.left,
+            a.margin.right,
+            a.margin.top,
+            a.margin.bottom,
+            table.outer_margin_left,
+            table.outer_margin_right,
+            table.outer_margin_top,
+            table.outer_margin_bottom,
+        ]
+        .iter()
+        .any(|v| *v != 0)
+    {
+        return Err(GeometryError::Unsupported(
+            "nested anchor, TAC, wrap or outer margin",
+        ));
+    }
+    Ok(())
+}
+
 fn bind_table(
     table: &Table,
     scale: f64,
@@ -123,36 +159,7 @@ fn bind_table(
                     let Control::Table(child) = ctrl else {
                         return Err(GeometryError::Unsupported("non-table cell control"));
                     };
-                    let a = &child.common;
-                    if a.treat_as_char
-                        || a.text_wrap != TextWrap::TopAndBottom
-                        || a.vert_rel_to != VertRelTo::Para
-                        || a.vert_align != VertAlign::Top
-                        || a.horz_rel_to != HorzRelTo::Para
-                        || a.vertical_offset != 0
-                        || a.horizontal_offset != 0
-                        || !matches!(
-                            a.horz_align,
-                            HorzAlign::Left | HorzAlign::Center | HorzAlign::Right
-                        )
-                        || a.prevent_page_break != 0
-                        || [
-                            a.margin.left,
-                            a.margin.right,
-                            a.margin.top,
-                            a.margin.bottom,
-                            child.outer_margin_left,
-                            child.outer_margin_right,
-                            child.outer_margin_top,
-                            child.outer_margin_bottom,
-                        ]
-                        .iter()
-                        .any(|v| *v != 0)
-                    {
-                        return Err(GeometryError::Unsupported(
-                            "nested anchor, TAC, wrap or outer margin",
-                        ));
-                    }
+                    validate_anchor(child)?;
                 }
                 let mut seen = vec![false; para.controls.len()];
                 for item in composer.compose(para, inner_width)? {

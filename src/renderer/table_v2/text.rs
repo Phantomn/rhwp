@@ -139,7 +139,10 @@ impl TextFragment {
 }
 
 impl TextPaint {
-    fn build_node(&self, placement: &TablePlacement) -> Result<RenderNode, GeometryError> {
+    pub(super) fn build_node(
+        &self,
+        placement: &TablePlacement,
+    ) -> Result<RenderNode, GeometryError> {
         let mut table = RenderNode::new(
             0,
             RenderNodeType::Table(TableNode {
@@ -218,7 +221,7 @@ fn bbox(r: Rect) -> BoundingBox {
     BoundingBox::new(r.x, r.y, r.width, r.height)
 }
 
-fn translate(node: &mut RenderNode, dx: f64, dy: f64) {
+pub(super) fn translate(node: &mut RenderNode, dx: f64, dy: f64) {
     node.bbox.x += dx;
     node.bbox.y += dy;
     for child in &mut node.children {
@@ -226,7 +229,7 @@ fn translate(node: &mut RenderNode, dx: f64, dy: f64) {
     }
 }
 
-fn assign_ids(node: &mut RenderNode, page: &mut PageLayoutContext) {
+pub(super) fn assign_ids(node: &mut RenderNode, page: &mut PageLayoutContext) {
     node.id = page.next_id();
     for child in &mut node.children {
         assign_ids(child, page);

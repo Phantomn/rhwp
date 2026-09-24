@@ -22,6 +22,23 @@ function option(name, fallback) {
 }
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 
+// Source HWP units pass through the common page calculator (e.g.2250HU becomes
+//30.000000000000004px). Compare the independent rational geometry within32ULPs;
+// do NOT round output or relax the exact Native/WASM tree/SVG comparison below.
+const sameCoordinate = (actual, expected) => Number.isFinite(actual)
+  && Math.abs(actual-expected) <= 32*Number.EPSILON*Math.max(1,Math.abs(expected));
+function assertDocumentGeometry(actual, expected) {
+  if (typeof expected === 'number') {
+    assert.ok(sameCoordinate(actual,expected),`${actual} != ${expected}`);
+  } else if (Array.isArray(expected)) {
+    assert.ok(Array.isArray(actual)); assert.equal(actual.length,expected.length);
+    expected.forEach((item,i)=>assertDocumentGeometry(actual[i],item));
+  } else {
+    assert.deepEqual(Object.keys(actual).sort(),Object.keys(expected).sort());
+    for (const key of Object.keys(expected)) assertDocumentGeometry(actual[key],expected[key]);
+  }
+}
+
 // Independent intact-cell oracle:18px lines,6/12px padding and declared row
 // minima. These are not derived from Native output or from the WASM algorithm.
 function verticalContract(name, page) {
@@ -75,6 +92,9 @@ async function main() {
   if (process.argv.includes('--cell-vertical-align')) {
     positive.push('valign-rows','valign-whole','valign-header','valign-nested','valign-parent');
   }
+  if (process.argv.includes('--document-flow')) {
+    positive.push('document-split','document-atomic','document-nested','document-hwp');
+  }
   if (process.argv.includes('--solid-borders')) {
     positive.push('border-grid', 'border-header', 'border-nested', 'border-one-sided');
     paintFailures.push('border-conflict');
@@ -92,7 +112,7 @@ async function main() {
   const files = new Map([
     ['/rhwp.js', ['application/javascript', js]],
     ['/rhwp_bg.wasm', ['application/wasm', wasm]],
-    ...names.map(name => [`/${name}`, ['application/octet-stream', readFileSync(join(fixtures, `${name}.hwpx`))]]),
+    ...names.map(name => [`/${name}`, ['application/octet-stream', readFileSync(join(fixtures, `${name}.${name==='document-hwp'?'hwp':'hwpx'}`))]]),
   ]);
   const configs = Object.fromEntries(names.map(name => [name, JSON.parse(readFileSync(join(fixtures, `${name}.options.json`)))]));
   const server = http.createServer((req, res) => {
@@ -114,7 +134,9 @@ async function main() {
       const throws = (fn, text) => { let failed = false; try { fn(); } catch (e) { failed = String(e).includes(text); } check(failed, `Expected rejection: ${text}`); };
       const input = {};
       for (const name of Object.keys(configs)) input[name] = new Uint8Array(await (await fetch(`/${name}`)).arrayBuffer());
-      const open = (name, config = configs[name]) => new m.TableV2Preview(input[name], JSON.stringify(config));
+      const open = (name, config = configs[name]) => name.startsWith('document-')
+        ? new m.DocumentV2(input[name], JSON.stringify(config))
+        : new m.TableV2Preview(input[name], JSON.stringify(config));
       check(typeof m.TableV2Preview === 'function', 'Missing experimental export');
       const pages = {};
       for (const name of positive) {
@@ -138,6 +160,22 @@ async function main() {
       }
       for (const name of negative) throws(() => open(name),
         name.startsWith('separate-') ? 'V2 separate split-cell border' : 'Unsupported');
+      if (positive.includes('document-split')) {
+        check(typeof m.DocumentV2 === 'function', 'Missing document-body export');
+        for (const options of [{}, {dpi:0,max_pages:1}, {dpi:96,max_pages:0},
+          {dpi:96,max_pages:10,engine:'legacy'}]) {
+          throws(() => new m.DocumentV2(input['document-split'],JSON.stringify(options)), 'Options');
+        }
+        throws(() => new m.DocumentV2(new Uint8Array([0]),JSON.stringify(configs['document-split'])), 'Parse');
+        const limitedDocument = open('document-split',{...configs['document-split'],max_pages:1});
+        try {
+          check(limitedDocument.nextPage() !== undefined,'document first page before limit');
+          for (let i=0;i<2;i++) {
+            throws(() => limitedDocument.nextPage(),'PageLimit');
+            check(limitedDocument.emittedPages()===1,'document limit rollback');
+          }
+        } finally { limitedDocument.free(); }
+      }
       for (const name of paintFailures) {
         const session = open(name);
         try {
@@ -199,17 +237,20 @@ async function main() {
     expected['valign-header'] = [['title','A'],['title','B']];
     expected['valign-nested'] = [['before','','C'],['D','host','after']];
     expected['valign-parent'] = [['A','host','after']];
+    expected['document-split'] = [['before','A','B','C'],['D','E','host','after']];
+    expected['document-atomic'] = [['before1','before2'],['A','B','C','host'],['after']];
+    expected['document-nested'] = [['before','','A','B'],['C','D','inner','tail'],['host','after']];
     const raster = await browser.newPage();
     const artifacts = [];
     for (const [fixtureName, pages] of Object.entries(result.pages)) {
       // Matching table outlines must have the same independently specified
       // geometry/content as their cell-only counterparts, not extra paint.
-      const name = fixtureName.replace(/^outer-/, '');
+      const name = fixtureName === 'document-hwp' ? 'document-split' : fixtureName.replace(/^outer-/, '');
       const native = JSON.parse(readFileSync(join(fixtures, `${fixtureName}.native.json`)));
       writeFileSync(join(out, `${fixtureName}.wasm.json`), JSON.stringify(pages, null, 2));
       assert.equal(pages.length, expected[name].length);
       for (const [index, output] of pages.entries()) {
-        assert.equal(output.engine, 'table_v2'); assert.equal(output.scope, 'selected_table');
+        assert.equal(output.engine, 'table_v2'); assert.equal(output.scope, name.startsWith('document-') ? 'document_body' : 'selected_table');
         assert.equal(output.page_index, index + (name === 'partial' ? 1 : 0));
         const rootNode = output.render_tree.root;
         assert.deepEqual(collect(rootNode, 'TextRun').map(n => n.node_type.TextRun.text), expected[name][index]);
@@ -220,7 +261,35 @@ async function main() {
         const bordered = name.startsWith('border-');
         const cut = name.startsWith('cut-');
         const borderTail = name === 'border-nested' && index === 2;
-        if (name.startsWith('valign-')) {
+        if (name.startsWith('document-')) {
+          assertDocumentGeometry(collect(rootNode,'Body').map(n=>n.bbox),[{x:20,y:30,width:300,height:72}]);
+          assertDocumentGeometry(lines.map(n=>n.bbox.y),expected[name][index].map((_,i)=>30+18*i));
+          const tableBoxes = name === 'document-split'
+            ? [{x:70,y:index===0?48:30,width:200,height:index===0?54:36}]
+            : name === 'document-atomic'
+            ? (index===1 ? [{x:70,y:30,width:200,height:54}] : [])
+            : index===0 ? [{x:70,y:48,width:200,height:54},{x:120,y:66,width:100,height:36}]
+            : index===1 ? [{x:70,y:30,width:200,height:72},{x:120,y:30,width:100,height:36}] : [];
+          assertDocumentGeometry(collect(rootNode,'Table').map(n=>n.bbox),tableBoxes);
+          assertDocumentGeometry(collect(rootNode,'TableCell').map(n=>n.bbox),tableBoxes);
+          const expectedEdges=tableBoxes.flatMap(({x,y,width:w,height:h})=>
+            [[x,y,x,y+h],[x+w,y,x+w,y+h],[x,y,x+w,y],[x,y+h,x+w,y+h]]);
+          const actualEdges=collect(rootNode,'Line').map(n=>['x1','y1','x2','y2'].map(k=>n.node_type.Line[k]));
+          assert.equal(actualEdges.length,expectedEdges.length);
+          const remainingEdges=[...actualEdges];
+          for (const edge of expectedEdges) {
+            const match=remainingEdges.findIndex(candidate=>candidate.every((v,i)=>sameCoordinate(v,edge[i])));
+            assert.ok(match>=0,`missing document edge ${edge}`); remainingEdges.splice(match,1);
+          }
+          const xs = name === 'document-split' ? (index===0 ? [20,70,70,70] : [70,70,20,20])
+            : name === 'document-atomic' ? (index===1 ? [70,70,70,20] : expected[name][index].map(()=>20))
+            : index===0 ? [20,70,120,120] : index===1 ? [120,120,70,70] : [20,20];
+          assertDocumentGeometry(lines.map(n=>n.bbox.x),xs);
+          for (const n of [...lines,...collect(rootNode,'TableCell')]) {
+            const end=n.bbox.y+n.bbox.height;
+            assert.ok(end<=102 || sameCoordinate(end,102));
+          }
+        } else if (name.startsWith('valign-')) {
           const contract=verticalContract(name,index);
           assert.deepEqual(lines.map(n=>n.bbox.x),contract.xs);
           assert.deepEqual(lines.map(n=>n.bbox.y),contract.ys);
