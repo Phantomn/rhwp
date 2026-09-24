@@ -63,6 +63,8 @@ impl PreparedTextTable {
             columns,
             lines: HashMap::new(),
             tables: HashMap::new(),
+            background: Default::default(),
+            cells: HashMap::new(),
         };
         let composer = TextComposer {
             styles,

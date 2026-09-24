@@ -22,7 +22,7 @@ use super::{
 
 pub(super) type PayloadKey = (usize, usize, usize, usize); // row, column, paragraph, line/control
 
-/// An immutable borderless text/table-flow preview. This is not an editable
+/// An immutable text/table-flow preview with optional solid backgrounds. This is not an editable
 /// document session: source hit testing, anchors and backend sidecars are not bound.
 /// Unsupported input is rejected, never sent to the Legacy table engine.
 pub struct PreparedTextTable {
@@ -41,6 +41,8 @@ pub(super) struct TextPaint {
     pub columns: u16,
     pub lines: HashMap<PayloadKey, OrderedPaint<RenderNode>>,
     pub tables: HashMap<PayloadKey, OrderedPaint<Arc<TextPaint>>>,
+    pub background: super::decoration::Background,
+    pub cells: HashMap<(usize, usize), super::decoration::Background>,
 }
 
 /// The payload snapshot cannot be exchanged independently of its geometry cursor.
@@ -68,7 +70,9 @@ impl PreparedTextTable {
     /// Compose once at the declared cell width. Coordinates and style dimensions
     /// are pixels at `dpi`; IR cell sizes remain HWP units. Fresh plain text and
     /// one zero-offset paragraph-relative TopAndBottom child per host are admitted.
-    /// TAC, wrap, saved rows, borders and keep constraints remain unsupported.
+    /// Solid backgrounds use the supplied resolved styles. Source-only effects
+    /// are qualified by TablePreviewSession::from_document before resolution.
+    /// TAC, wrap, saved rows, border lines and keep constraints remain unsupported.
     pub fn prepare(
         table: &Table,
         styles: &ResolvedStyleSet,
@@ -139,7 +143,7 @@ impl TextPaint {
             RenderNodeType::Table(TableNode {
                 row_count: self.rows,
                 col_count: self.columns,
-                border_fill_id: 0,
+                border_fill_id: self.background.id,
                 section_index: None,
                 para_index: None,
                 control_index: None,
@@ -147,7 +151,9 @@ impl TextPaint {
             }),
             bbox(placement.bounds),
         );
+        self.background.append(&mut table, placement.bounds);
         for cell in &placement.cells {
+            let background = self.cells.get(&(cell.row, cell.column));
             let mut node = RenderNode::new(
                 0,
                 RenderNodeType::TableCell(TableCellNode {
@@ -155,7 +161,7 @@ impl TextPaint {
                     col: cell.column as u16,
                     row_span: 1,
                     col_span: cell.column_span as u16,
-                    border_fill_id: 0,
+                    border_fill_id: background.map_or(0, |b| b.id),
                     text_direction: 0,
                     clip: false,
                     page_fragment: true,
@@ -163,6 +169,9 @@ impl TextPaint {
                 }),
                 bbox(cell.bounds),
             );
+            if let Some(background) = background {
+                background.append(&mut node, cell.bounds);
+            }
             let mut ordered = Vec::new();
             for line in &cell.lines {
                 let key = (cell.row, cell.column, line.owner.paragraph, line.owner.line);

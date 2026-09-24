@@ -10,6 +10,7 @@
 
 mod content;
 mod contracts;
+mod decoration;
 mod export;
 mod flow;
 mod fragment;

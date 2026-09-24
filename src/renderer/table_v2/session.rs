@@ -177,6 +177,7 @@ impl TablePreviewSession {
         let Some(Control::Table(table)) = control else {
             return Err(TablePreviewError::InvalidSelection(selection));
         };
+        super::decoration::validate_source(table, &document.doc_info)?;
         let styles = resolve_styles_for_document(document, dpi);
         let prepared = PreparedTextTable::prepare(table, &styles, dpi)?;
         let mut session = Self::new(&prepared, pages, max_pages)?;

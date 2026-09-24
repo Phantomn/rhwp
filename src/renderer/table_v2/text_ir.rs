@@ -1,4 +1,4 @@
-//! Fresh IR content binding for borderless V2 previews. An anchored TopAndBottom
+//! Fresh IR content binding for V2 previews. An anchored TopAndBottom
 //! child excludes the whole host width; at paragraph-top + zero offset the host
 //! lines therefore start below the child. This is NOT the TAC/side-wrap rule.
 use std::{cell::RefCell, collections::HashMap, sync::Arc};
@@ -31,7 +31,7 @@ pub(super) fn prepare(
     // each compose call. Composition records host payloads before child payloads.
     let plan = TableContentPlan::from_ir_contents(table, dpi / 7200.0, &composer)?;
     let mut payloads = composer.paragraphs.into_inner().into_iter();
-    let paint = bind_paint(table, &mut payloads)?;
+    let paint = bind_paint(table, styles, &mut payloads)?;
     if payloads.next().is_some() {
         return Err(GeometryError::InconsistentAtomicPlan);
     }
@@ -135,25 +135,28 @@ impl IrTextComposer<'_> {
 
 fn bind_paint(
     table: &Table,
+    styles: &ResolvedStyleSet,
     payloads: &mut impl Iterator<Item = ParagraphPaint>,
 ) -> Result<TextPaint, GeometryError> {
     // Depth/grid/one-control admission has already succeeded in from_ir_contents.
-    // Reject decorations recursively rather than silently omitting child borders.
-    if table.border_fill_id != 0
-        || table.cells.iter().any(|c| c.border_fill_id != 0)
-        || !table.zones.is_empty()
-    {
-        return Err(GeometryError::Unsupported("text preview table borders"));
+    if !table.zones.is_empty() {
+        return Err(GeometryError::Unsupported("V2 table background zones"));
     }
     let mut paint = TextPaint {
         rows: table.row_count,
         columns: table.col_count,
         lines: HashMap::new(),
         tables: HashMap::new(),
+        background: super::decoration::Background::resolve(table.border_fill_id, styles)?,
+        cells: HashMap::new(),
     };
     let mut cells: Vec<_> = table.cells.iter().collect();
     cells.sort_by_key(|c| (c.row, c.col));
     for cell in cells {
+        paint.cells.insert(
+            (usize::from(cell.row), usize::from(cell.col)),
+            super::decoration::Background::resolve(cell.border_fill_id, styles)?,
+        );
         let mut order = 0;
         for (pi, para) in cell.paragraphs.iter().enumerate() {
             let host = payloads
@@ -170,7 +173,7 @@ fn bind_paint(
                             (cell.row as usize, cell.col as usize, pi, ci),
                             OrderedPaint {
                                 order,
-                                value: Arc::new(bind_paint(child, payloads)?),
+                                value: Arc::new(bind_paint(child, styles, payloads)?),
                             },
                         );
                     }

@@ -5,7 +5,10 @@ use rhwp::{
         document::{Document, Section},
         paragraph::{CharShapeRef, LineSeg, Paragraph},
         shape::{CommonObjAttr, HorzRelTo, TextWrap, VertRelTo},
-        style::{CharShape, LineSpacingType, ParaShape},
+        style::{
+            BorderFill, BorderLine, BorderLineType, CharShape, Fill, FillType, LineSpacingType,
+            ParaShape, SolidFill,
+        },
         table::{Cell, Table, TablePageBreak},
     },
     renderer::table_v2::{TablePreviewExportError, TablePreviewExportSession},
@@ -140,6 +143,326 @@ fn capture(name: &str, data: &[u8], config: &Value, pages: &[Value]) {
             .unwrap();
         }
     }
+}
+
+fn solid(color: u32) -> BorderFill {
+    BorderFill {
+        borders: [BorderLine {
+            line_type: BorderLineType::None,
+            ..Default::default()
+        }; 4],
+        fill: Fill {
+            fill_type: FillType::Solid,
+            solid: Some(SolidFill {
+                background_color: color,
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+fn colored_document(t: Table) -> Document {
+    let mut d = document(t);
+    // COLORREF is BGR: pale red / pale green / pale blue, then transparent / white.
+    d.doc_info.border_fills = vec![
+        solid(0xEEEEFF),
+        solid(0xEEFFEE),
+        solid(0xFFEEEE),
+        solid(0xFFFFFFFF),
+        solid(0xFFFFFF),
+    ];
+    d
+}
+fn colored_pages(name: &str, d: &Document) -> Vec<Value> {
+    let data = rhwp::serializer::hwpx::serialize_hwpx(d).unwrap();
+    let config = options(&data);
+    let pages = drain(&mut open(&data, &config));
+    capture(name, &data, &config, &pages);
+    pages
+}
+fn verify_background(node: &Value, color: u32) {
+    let background = &node["children"][0];
+    assert_eq!(
+        background["bbox"], node["bbox"],
+        "paint uses final reserved fragment, including padding"
+    );
+    let style = &background["node_type"]["Rectangle"]["style"];
+    assert_eq!(style["fill_color"], color);
+    assert_eq!(style["stroke_color"], Value::Null);
+    assert_eq!(style["stroke_width"], 0.0);
+}
+
+#[test]
+fn solid_backgrounds_cover_colspan_and_repeated_headers_without_changing_geometry() {
+    let mut t = table();
+    t.border_fill_id = 3;
+    for c in &mut t.cells {
+        c.border_fill_id = if c.row == 0 { 1 } else { 2 };
+    }
+    let pages = colored_pages("fill-merged", &colored_document(t));
+    assert_eq!(pages.len(), 2);
+    for (i, page) in pages.iter().enumerate() {
+        assert_eq!(labels(page), ["title", if i == 0 { "A" } else { "B" }]);
+        let tables = collect(page, "Table");
+        verify_background(tables[0], 0xFFEEEE);
+        assert_eq!(tables[0]["bbox"]["height"], 36.0);
+        for (j, cell) in collect(page, "TableCell").iter().enumerate() {
+            verify_background(cell, if j == 0 { 0xEEEEFF } else { 0xEEFFEE });
+            assert_eq!(cell["node_type"]["TableCell"]["col_span"], 2);
+            assert_eq!(cell["bbox"]["x"], 20.0);
+            assert_eq!(cell["bbox"]["y"], 30.0 + 18.0 * j as f64);
+            assert_eq!(cell["bbox"]["width"], 200.0);
+            assert_eq!(cell["bbox"]["height"], 18.0);
+        }
+        assert_eq!(collect(page, "Rectangle").len(), 3);
+        let svg = page["svg"].as_str().unwrap();
+        assert!(svg.contains("#ffeeee") && svg.contains("#eeffee") && svg.contains("#eeeeff"));
+    }
+}
+
+#[test]
+fn split_cell_fill_includes_empty_line_and_padding_without_duplication_or_height_change() {
+    let mut t = table();
+    t.row_count = 1;
+    t.repeat_header = false;
+    t.cells.truncate(1);
+    t.padding.left = 750;
+    t.padding.right = 750; // 10px each, not subtracted from background.
+    let c = &mut t.cells[0];
+    c.is_header = false;
+    c.border_fill_id = 2;
+    c.paragraphs = vec![
+        paragraph("A"),
+        paragraph(""),
+        paragraph("B"),
+        paragraph("C"),
+    ];
+    let pages = colored_pages("fill-split", &colored_document(t));
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), ["A", ""]);
+    assert_eq!(labels(&pages[1]), ["B", "C"]);
+    for page in &pages {
+        let cells = collect(page, "TableCell");
+        assert_eq!(cells.len(), 1);
+        verify_background(cells[0], 0xEEFFEE);
+        assert_eq!(cells[0]["bbox"]["x"], 20.0);
+        assert_eq!(cells[0]["bbox"]["width"], 200.0);
+        assert_eq!(cells[0]["bbox"]["y"], 30.0);
+        assert_eq!(cells[0]["bbox"]["height"], 36.0);
+        let lines = collect(page, "TextLine");
+        assert_eq!(lines.len(), 2, "blank paragraph occupies a line");
+        for (i, line) in lines.iter().enumerate() {
+            assert_eq!(line["bbox"]["x"], 30.0);
+            assert_eq!(line["bbox"]["y"], 30.0 + 18.0 * i as f64);
+        }
+        assert_eq!(collect(page, "Rectangle").len(), 1);
+    }
+}
+
+#[test]
+fn nested_backgrounds_remain_below_child_and_following_host_content() {
+    let mut child = table();
+    for c in &mut child.cells {
+        c.border_fill_id = if c.row == 0 { 2 } else { 3 };
+    }
+    let mut parent = table();
+    parent.row_count = 1;
+    parent.repeat_header = false;
+    parent.cells.truncate(1);
+    parent.cells[0].is_header = false;
+    parent.cells[0].border_fill_id = 1;
+    parent.cells[0].paragraphs = vec![host("host", child), paragraph("after")];
+    let pages = colored_pages("fill-nested", &colored_document(parent));
+    assert_eq!(pages.len(), 3);
+    assert_eq!(labels(&pages[2]), ["host", "after"]);
+    for (i, page) in pages.iter().enumerate() {
+        let cells = collect(page, "TableCell");
+        verify_background(cells[0], 0xEEEEFF);
+        assert_eq!(cells[0]["bbox"]["height"], 36.0);
+        if i < 2 {
+            assert_eq!(labels(page), ["title", if i == 0 { "A" } else { "B" }]);
+            verify_background(cells[1], 0xEEFFEE);
+            verify_background(cells[2], 0xFFEEEE);
+            assert_eq!(
+                cells[0]["children"][1]["node_type"]["Table"]["row_count"],
+                3
+            );
+        } else {
+            assert!(cells[0]["children"][1]["node_type"]
+                .get("TextLine")
+                .is_some());
+        }
+        assert_eq!(collect(page, "Rectangle").len(), if i < 2 { 3 } else { 1 });
+    }
+}
+
+#[test]
+fn transparent_reference_is_not_white_and_reopening_keeps_source_style() {
+    let mut t = table();
+    t.border_fill_id = 1;
+    t.cells[0].border_fill_id = 0;
+    t.cells[1].border_fill_id = 4;
+    t.cells[2].border_fill_id = 5;
+    let d = colored_document(t);
+    let data = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+    let config = options(&data);
+    let mut session = open(&data, &config);
+    let mut changed = d.clone();
+    changed.doc_info.border_fills[0] = solid(0xFFEEEE);
+    let pages = drain(&mut session);
+    capture("fill-transparent", &data, &config, &pages);
+    assert_eq!(pages, drain(&mut open(&data, &config)));
+    assert_eq!(collect(&pages[0], "Rectangle").len(), 1); // Only table fill, neither transparent cell fills.
+    assert_eq!(collect(&pages[1], "Rectangle").len(), 2); // White is an explicit opaque fill.
+    verify_background(collect(&pages[1], "TableCell")[1], 0xFFFFFF);
+    let changed_data = rhwp::serializer::hwpx::serialize_hwpx(&changed).unwrap();
+    let changed_pages = drain(&mut open(&changed_data, &options(&changed_data)));
+    verify_background(collect(&changed_pages[0], "Table")[0], 0xFFEEEE);
+}
+
+#[test]
+fn background_retains_remaining_physical_height_after_last_text_line() {
+    let mut t = table();
+    t.row_count = 1;
+    t.repeat_header = false;
+    t.cells.truncate(1);
+    let c = &mut t.cells[0];
+    c.is_header = false;
+    c.border_fill_id = 3;
+    c.height = 6750; // 90px independent minimum; body fits 36px per page.
+    c.paragraphs = vec![paragraph("A")];
+    let pages = colored_pages("fill-band", &colored_document(t));
+    assert_eq!(pages.len(), 3);
+    for (i, page) in pages.iter().enumerate() {
+        assert_eq!(labels(page), if i == 0 { vec!["A"] } else { vec![] });
+        let cells = collect(page, "TableCell");
+        assert_eq!(cells.len(), 1);
+        verify_background(cells[0], 0xFFEEEE);
+        assert_eq!(cells[0]["bbox"]["height"], if i < 2 { 36.0 } else { 18.0 });
+        assert_eq!(collect(page, "Rectangle").len(), 1);
+    }
+}
+
+#[test]
+fn unsupported_or_missing_decoration_is_not_silently_dropped() {
+    use rhwp::renderer::table_v2::{
+        GeometryError, Rect, TablePreviewError, TablePreviewPages, TablePreviewSession,
+        TableSelection,
+    };
+    let open_document = |d: &Document| {
+        TablePreviewSession::from_document(
+            d,
+            TableSelection {
+                section: 0,
+                paragraph: 0,
+                control: 0,
+            },
+            96.0,
+            TablePreviewPages {
+                width: 400.0,
+                height: 400.0,
+                body: Rect {
+                    x: 20.0,
+                    y: 30.0,
+                    width: 300.0,
+                    height: 36.0,
+                },
+                first_y: 30.0,
+            },
+            10,
+        )
+    };
+    let mut t = table();
+    t.cells[0].border_fill_id = 1;
+    let base = colored_document(t);
+    // Source checks precede lossy resolved-style conversion, including malformed complex fills.
+    for index in 0..8 {
+        let mut d = base.clone();
+        let b = &mut d.doc_info.border_fills[0];
+        match index {
+            0 => b.borders[0].line_type = BorderLineType::Solid,
+            1 => b.fill.alpha = 127,
+            2 => b.fill.fill_type = FillType::Gradient,
+            3 => b.fill.fill_type = FillType::Image,
+            4 => b.fill.solid.as_mut().unwrap().pattern_type = 1,
+            5 => b.three_d = true,
+            6 => b.attr = 1,
+            _ => {
+                d.doc_info.border_fills.clear();
+            }
+        }
+        assert!(
+            matches!(
+                open_document(&d),
+                Err(TablePreviewError::Geometry(GeometryError::Unsupported(_)))
+            ),
+            "case {index}"
+        );
+        if index == 0 || index == 4 {
+            let data = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+            let parsed = rhwp::parse_document(&data).unwrap();
+            if index == 0 {
+                assert_eq!(
+                    parsed.doc_info.border_fills[0].borders[0].line_type,
+                    BorderLineType::Solid
+                );
+            } else {
+                assert_eq!(
+                    parsed.doc_info.border_fills[0]
+                        .fill
+                        .solid
+                        .unwrap()
+                        .pattern_type,
+                    1
+                );
+            }
+            let config = options(&data);
+            assert!(matches!(
+                TablePreviewExportSession::from_bytes(&data, &config.to_string()),
+                Err(TablePreviewExportError::Preview(
+                    TablePreviewError::Geometry(GeometryError::Unsupported(_))
+                ))
+            ));
+            capture(
+                if index == 0 {
+                    "fill-border"
+                } else {
+                    "fill-pattern"
+                },
+                &data,
+                &config,
+                &[],
+            );
+        }
+    }
+    // Unreferenced styles must not block the selected table.
+    let mut d = base;
+    let mut unused = solid(0);
+    unused.fill.fill_type = FillType::Image;
+    d.doc_info.border_fills.push(unused);
+    assert!(open_document(&d).is_ok());
+    let mut snapshot = open_document(&d).unwrap();
+    d.doc_info.border_fills[0] = solid(0xFFEEEE);
+    let page = snapshot.next_page().unwrap().unwrap();
+    verify_background(
+        collect(&json!({"render_tree":page.tree}), "TableCell")[0],
+        0xEEEEFF,
+    );
+
+    // Unsupported source effects in descendants cannot evade the source guard.
+    let mut child = table();
+    child.cells[0].border_fill_id = 1;
+    let mut parent = table();
+    parent.cells[0].paragraphs = vec![host("", child)];
+    let mut d = colored_document(parent);
+    d.doc_info.border_fills[0].fill.alpha = 127;
+    assert!(matches!(
+        open_document(&d),
+        Err(TablePreviewError::Geometry(GeometryError::Unsupported(
+            "V2 source decoration effect"
+        )))
+    ));
 }
 
 #[test]

@@ -25,7 +25,15 @@ const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 async function main() {
   const pkg = option('--pkg'), fixtures = option('--fixtures'), out = option('--out');
   const require = createRequire(join(option('--dependencies-root', root), 'rhwp-studio/package.json'));
-  const names = ['merged', 'nested', 'partial', 'stored', 'rowspan'];
+  const positive = ['merged', 'nested', 'partial'];
+  // Opt-in keeps the stage11 command/fixtures valid without silently skipping
+  // missing stage12 evidence. Every requested fixture is mandatory.
+  const negative = ['stored', 'rowspan'];
+  if (process.argv.includes('--solid-backgrounds')) {
+    positive.push('fill-merged', 'fill-nested', 'fill-split', 'fill-band', 'fill-transparent');
+    negative.push('fill-border', 'fill-pattern');
+  }
+  const names = [...positive, ...negative];
   const js = readFileSync(join(pkg, 'rhwp.js')), wasm = readFileSync(join(pkg, 'rhwp_bg.wasm'));
   const files = new Map([
     ['/rhwp.js', ['application/javascript', js]],
@@ -45,7 +53,7 @@ async function main() {
     browser = await require('puppeteer-core').launch({ executablePath: findChrome(process.env.VISUAL_SWEEP_CHROME), headless: true });
     const page = await browser.newPage();
     await page.goto(`http://127.0.0.1:${server.address().port}`);
-    const result = await page.evaluate(async configs => {
+    const result = await page.evaluate(async ({ configs, positive, negative }) => {
       const m = await import('/rhwp.js');
       await m.default({ module_or_path: '/rhwp_bg.wasm' });
       const check = (ok, text) => { if (!ok) throw Error(text); };
@@ -55,7 +63,7 @@ async function main() {
       const open = (name, config = configs[name]) => new m.TableV2Preview(input[name], JSON.stringify(config));
       check(typeof m.TableV2Preview === 'function', 'Missing experimental export');
       const pages = {};
-      for (const name of ['merged', 'nested', 'partial']) {
+      for (const name of positive) {
         const a = open(name), b = open(name);
         try {
           pages[name] = [];
@@ -74,7 +82,7 @@ async function main() {
           check(JSON.stringify(JSON.parse(b.nextPage())) === JSON.stringify(pages[name][0]), 'independent first page');
         } finally { a.free(); b.free(); }
       }
-      for (const name of ['stored', 'rowspan']) throws(() => open(name), 'Unsupported');
+      for (const name of negative) throws(() => open(name), 'Unsupported');
       throws(() => new m.TableV2Preview(input.merged, '{}'), 'Options');
       throws(() => new m.TableV2Preview(new Uint8Array([0]), JSON.stringify(configs.merged)), 'Parse');
       for (const change of [c => { c.engine = 'legacy'; }, c => { c.pages.body.widht = 1; }, c => { c.max_pages = 4294967296; }, c => { c.selection.control = -1; }]) {
@@ -94,11 +102,16 @@ async function main() {
         for (let i = 0; i < 2; i++) { throws(() => blocked.nextPage(), 'DoesNotFit'); check(blocked.emittedPages() === 0, 'fit rollback'); }
       } finally { blocked.free(); }
       return { pages, version: m.version() };
-    }, configs);
+    }, { configs, positive, negative });
     mkdirSync(out, { recursive: true });
     const collect = (node, kind) => [ ...(node.node_type[kind] ? [node] : []), ...node.children.flatMap(n => collect(n, kind)) ];
     // Expectations independent of Native output: 18px lines, 36px body, repeated title.
     const expected = { merged: [['title', 'A'], ['title', 'B']], nested: [['title', 'A'], ['title', 'B'], ['host', 'after']], partial: [['title', 'A'], ['title', 'B']] };
+    expected['fill-merged'] = expected.merged;
+    expected['fill-nested'] = expected.nested;
+    expected['fill-split'] = [['A', ''], ['B', 'C']];
+    expected['fill-band'] = [['A'], [], []];
+    expected['fill-transparent'] = expected.merged;
     const raster = await browser.newPage();
     const artifacts = [];
     for (const [name, pages] of Object.entries(result.pages)) {
@@ -111,12 +124,33 @@ async function main() {
         const rootNode = output.render_tree.root;
         assert.deepEqual(collect(rootNode, 'TextRun').map(n => n.node_type.TextRun.text), expected[name][index]);
         const lines = collect(rootNode, 'TextLine');
-        assert.deepEqual(lines.map(n => n.bbox.y), [30, 48]);
-        assert.ok(lines.every(n => n.bbox.x === 20 && n.bbox.y + n.bbox.height <= 66));
+        assert.deepEqual(lines.map(n => n.bbox.y), name === 'fill-band' ? (index === 0 ? [30] : []) : [30, 48]);
+        assert.ok(lines.every(n => n.bbox.x === (name === 'fill-split' ? 30 : 20) && n.bbox.y + n.bbox.height <= 66));
         for (const c of collect(rootNode, 'TableCell')) {
           assert.equal(c.node_type.TableCell.col_span, 2);
           assert.equal(c.bbox.x, 20); assert.equal(c.bbox.width, 200);
           assert.ok(c.bbox.y >= 30 && c.bbox.y + c.bbox.height <= 66);
+        }
+        if (name.startsWith('fill-')) {
+          const colors = name === 'fill-merged' ? [0xFFEEEE, 0xEEEEFF, 0xEEFFEE]
+            : name === 'fill-nested' ? (index < 2 ? [0xEEEEFF, 0xEEFFEE, 0xFFEEEE] : [0xEEEEFF])
+            : name === 'fill-transparent' ? (index === 0 ? [0xEEEEFF] : [0xEEEEFF, 0xFFFFFF])
+            : name === 'fill-split' ? [0xEEFFEE] : [0xFFEEEE];
+          const rectangles = collect(rootNode, 'Rectangle');
+          assert.deepEqual(rectangles.map(n => n.node_type.Rectangle.style.fill_color), colors);
+          // Background is the first child, never a separate recomputed bbox or a clip.
+          const verify = node => {
+            for (const [i, child] of node.children.entries()) {
+              if (child.node_type.Rectangle) {
+                assert.equal(i, 0); assert.deepEqual(child.bbox, node.bbox);
+                assert.equal(child.node_type.Rectangle.style.stroke_color, null);
+                assert.equal(child.node_type.Rectangle.style.stroke_width, 0);
+              }
+              verify(child);
+            }
+          };
+          verify(rootNode);
+          if (name === 'fill-band') assert.equal(collect(rootNode, 'TableCell')[0].bbox.height, index < 2 ? 36 : 18);
         }
         const stem = `${name}-${index}`;
         writeFileSync(join(out, `${stem}.svg`), output.svg);
@@ -129,6 +163,21 @@ async function main() {
         }
         // Same Chrome raster environment; RGB overlay reference is Native, NOT Hancom.
         const imgs = ['native', 'wasm'].map(b => `data:image/png;base64,${readFileSync(join(out, `${stem}.${b}.png`)).toString('base64')}`);
+        if (name.startsWith('fill-')) {
+          const rgb = color => [color & 255, (color >> 8) & 255, (color >> 16) & 255, 255];
+          const rowColors = name === 'fill-merged' ? [0xEEEEFF, 0xEEFFEE]
+            : name === 'fill-nested' ? (index < 2 ? [0xEEFFEE, 0xFFEEEE] : [0xEEEEFF, 0xEEEEFF])
+            : name === 'fill-transparent' ? [0xEEEEFF, index === 0 ? 0xEEEEFF : 0xFFFFFF]
+            : name === 'fill-split' ? [0xEEFFEE, 0xEEFFEE]
+            : [0xFFEEEE, index < 2 ? 0xFFEEEE : 0xFFFFFF];
+          const samples = await raster.evaluate(async imgs => Promise.all(imgs.map(async url => {
+            const image = new Image(); image.src = url; await image.decode();
+            const c = document.createElement('canvas'); c.width = 400; c.height = 400;
+            const ctx = c.getContext('2d'); ctx.drawImage(image, 0, 0);
+            return [[200,35],[200,53],[200,67],[19,35],[221,35]].map(([x,y]) => [...ctx.getImageData(x,y,1,1).data]);
+          })), imgs);
+          for (const sample of samples) assert.deepEqual(sample, [...rowColors.map(rgb), rgb(0xFFFFFF), rgb(0xFFFFFF), rgb(0xFFFFFF)], `${stem}: visible fill and no overflow`);
+        }
         const overlay = await raster.evaluate(async imgs => {
           const canvases = await Promise.all(imgs.map(async url => {
             const image = new Image(); image.src = url; await image.decode();
@@ -155,7 +204,7 @@ async function main() {
     }
     const manifest = { version: result.version, browser: await browser.version(), js_sha256: hash(js), wasm_sha256: hash(wasm), inputs: Object.fromEntries(names.map(n => [n, hash(files.get(`/${n}`)[1])])), artifacts, result: 'PASS', oracle: 'synthetic geometry and Native backend; not Hancom' };
     writeFileSync(join(out, 'manifest.json'), JSON.stringify(manifest, null, 2));
-    console.log(`PASS: 7 page exports; exact Native/WASM tree+SVG parity; isolation, rejection, rollback, termination. ${manifest.browser}`);
+    console.log(`PASS: ${artifacts.length} page exports; exact Native/WASM tree+SVG parity; isolation, rejection, rollback, termination. ${manifest.browser}`);
   } finally {
     try {
       if (browser) await browser.close();
