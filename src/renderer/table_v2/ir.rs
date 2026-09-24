@@ -136,7 +136,10 @@ fn bind_table(
                         || a.horz_rel_to != HorzRelTo::Para
                         || a.vertical_offset != 0
                         || a.horizontal_offset != 0
-                        || a.horz_align != HorzAlign::Left
+                        || !matches!(
+                            a.horz_align,
+                            HorzAlign::Left | HorzAlign::Center | HorzAlign::Right
+                        )
                         || a.prevent_page_break != 0
                         || [
                             a.margin.left,
@@ -182,12 +185,29 @@ fn bind_table(
                             let Control::Table(child) = &para.controls[ci] else {
                                 unreachable!()
                             };
+                            let plan = bind_table(child, scale, composer, depth + 1)?;
+                            // Resolve against the same padded content width used by
+                            // paragraph composition, not the page or outer cell.
+                            let free_width = inner_width - plan.width;
+                            if free_width < 0.0 {
+                                return Err(GeometryError::ContentWidth {
+                                    row: r,
+                                    column: resolved.tracks[r][c].column,
+                                });
+                            }
+                            let offset_x = match child.common.horz_align {
+                                HorzAlign::Left => 0.0,
+                                HorzAlign::Center => free_width / 2.0,
+                                HorzAlign::Right => free_width,
+                                _ => unreachable!("anchor qualified above"),
+                            };
                             blocks.push(FlowBlock::Table {
                                 owner: ControlOwner {
                                     paragraph: pi,
                                     control: ci,
                                 },
-                                plan: Arc::new(bind_table(child, scale, composer, depth + 1)?),
+                                offset_x,
+                                plan: Arc::new(plan),
                             });
                             seen[ci] = true;
                         }

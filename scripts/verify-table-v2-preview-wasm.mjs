@@ -37,6 +37,9 @@ async function main() {
     negative.push('fill-border', 'fill-pattern');
   }
   const paintFailures = [];
+  if (process.argv.includes('--nested-alignment')) {
+    positive.push('align-left', 'align-center', 'align-right', 'align-cell-padding', 'align-deep', 'align-header');
+  }
   if (process.argv.includes('--solid-borders')) {
     positive.push('border-grid', 'border-header', 'border-nested', 'border-one-sided');
     paintFailures.push('border-conflict');
@@ -151,6 +154,11 @@ async function main() {
     expected['cut-header'] = [['title','L','A'], ['title','B'], ['title','C']];
     expected['cut-nested'] = [['A','B'], ['C','host'], ['after']];
     expected['cut-padding'] = [['A'], ['B']];
+    for (const name of ['align-left','align-center','align-right','align-cell-padding']) {
+      expected[name] = [['A','B'], ['C','host'], ['after']];
+    }
+    expected['align-deep'] = [['A','B'], ['C','middle'], ['host','after']];
+    expected['align-header'] = [['title','A'], ['title','B'], ['host','after']];
     const raster = await browser.newPage();
     const artifacts = [];
     for (const [fixtureName, pages] of Object.entries(result.pages)) {
@@ -166,6 +174,9 @@ async function main() {
         const rootNode = output.render_tree.root;
         assert.deepEqual(collect(rootNode, 'TextRun').map(n => n.node_type.TextRun.text), expected[name][index]);
         const lines = collect(rootNode, 'TextLine');
+        const aligned = name.startsWith('align-');
+        const deep = name === 'align-deep', header = name === 'align-header';
+        const childX = name === 'align-left' ? 30 : name === 'align-right' ? 90 : 60;
         const bordered = name.startsWith('border-');
         const cut = name.startsWith('cut-');
         const borderTail = name === 'border-nested' && index === 2;
@@ -176,22 +187,44 @@ async function main() {
           : name === 'cut-nested' && index === 2 ? [30] : [30,48];
         const ys = cut ? cutYs : name === 'fill-band' ? (index === 0 ? [30] : [])
           : bordered && !borderTail ? (name === 'border-one-sided' ? [30,30] : [30,48,48]) : [30,48];
-        assert.deepEqual(lines.map(n => n.bbox.y), ys);
+        assert.deepEqual(lines.map(n => n.bbox.y), aligned
+          ? (index === 2 && !deep && !header ? [30] : [30,48]) : ys);
         const cutXs = name === 'cut-siblings' ? (index === 0 ? [20,120,120] : [120,120])
           : name === 'cut-header' ? (index === 0 ? [20,20,120] : [20,120])
           : lines.map(() => name === 'cut-lines' ? 30 : 20);
         const xs = cut ? cutXs : bordered && !borderTail ? (name === 'border-one-sided' ? [20,120] : [20,20,120])
           : lines.map(() => name === 'fill-split' ? 30 : 20);
-        assert.deepEqual(lines.map(n => n.bbox.x), xs);
+        assert.deepEqual(lines.map(n => n.bbox.x), aligned
+          ? header ? (index < 2 ? [90,90] : [30,30])
+          : deep ? [[120,120],[120,100],[30,30]][index]
+          : [[childX,childX],[childX,30],[30]][index] : xs);
         assert.ok(lines.every(n => n.bbox.y + n.bbox.height <= 66));
         for (const c of collect(rootNode, 'TableCell')) {
           const span = c.node_type.TableCell.col_span;
-          if (bordered || cut) {
+          if (aligned) {
+            assert.equal(span, 1);
+          } else if (bordered || cut) {
             assert.ok(span === 1 || span === 2);
             assert.equal(c.bbox.x, 20 + c.node_type.TableCell.col * 100);
           } else { assert.equal(span, 2); assert.equal(c.bbox.x, 20); }
-          assert.equal(c.bbox.width, span * 100);
+          if (!aligned) assert.equal(c.bbox.width, span * 100);
           assert.ok(c.bbox.y >= 30 && c.bbox.y + c.bbox.height <= 66);
+        }
+        if (aligned) {
+          // Independent geometric oracle: declared widths/padding and18px lines.
+          // Nested origin:20+10+(160-100)=90; grandchild90+10+(80-40)/2=120.
+          const boxes = [{x:20,y:30,width:200,height:index===2 && !deep && !header ? 18 : 36}];
+          if (index < 2) {
+            if (header) boxes.push({x:90,y:30,width:100,height:18},{x:90,y:48,width:100,height:18});
+            else if (deep) boxes.push({x:90,y:30,width:100,height:36},{x:120,y:30,width:40,height:index===0 ? 36 : 18});
+            else boxes.push({x:childX,y:30,width:100,height:index===0 ? 36 : 18});
+          }
+          assert.deepEqual(collect(rootNode,'TableCell').map(n=>n.bbox),boxes);
+          const boxEdges = ({x,y,width:w,height:h}) => [[x,y,x,y+h],[x+w,y,x+w,y+h],[x,y,x+w,y],[x,y+h,x+w,y+h]];
+          const geometry = header && index < 2
+            ? [[90,30,90,66],[190,30,190,66],[90,30,190,30],[90,48,190,48],[90,66,190,66],...boxEdges(boxes[0])]
+            : boxes.toReversed().flatMap(boxEdges);
+          assert.deepEqual(collect(rootNode,'Line').map(n=>['x1','y1','x2','y2'].map(k=>n.node_type.Line[k])),geometry);
         }
         if (cut) {
           const box = height => [[20,30,20,30+height],[220,30,220,30+height],[20,30,220,30],[20,30+height,220,30+height]];

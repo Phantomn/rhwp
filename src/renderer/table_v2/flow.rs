@@ -67,7 +67,11 @@ impl FlowCursor {
                     }));
                     result.height += height;
                 }
-                FlowBlock::Table { owner, plan } => {
+                FlowBlock::Table {
+                    owner,
+                    offset_x,
+                    plan,
+                } => {
                     let cursor = result
                         .next
                         .child
@@ -76,9 +80,9 @@ impl FlowCursor {
                         .unwrap_or_else(|| TableCursor::new(Arc::clone(plan)));
                     match cursor.fit(PageArea {
                         bounds: Rect {
-                            x: area.x,
+                            x: area.x + offset_x,
                             y: area.y + result.height,
-                            width: area.width,
+                            width: area.width - offset_x,
                             height: available,
                         },
                     })? {

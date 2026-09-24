@@ -74,6 +74,9 @@ pub enum FlowBlock {
     },
     Table {
         owner: ControlOwner,
+        /// Resolved horizontal offset inside the parent cell content box.
+        /// Every continuation consumes this same placement result.
+        offset_x: f64,
         plan: std::sync::Arc<super::TableContentPlan>,
     },
 }

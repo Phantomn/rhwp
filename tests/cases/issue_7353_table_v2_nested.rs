@@ -67,6 +67,7 @@ fn wrapper(child: TableContentPlan) -> TableContentPlan {
                 blocks: vec![
                     lines(0, 10.0),
                     FlowBlock::Table {
+                        offset_x: 0.0,
                         owner: ControlOwner {
                             paragraph: 1,
                             control: 0,
@@ -166,6 +167,7 @@ fn nested_three_levels_keep_their_own_origins_and_cuts() {
                 },
                 minimum_height: 0.0,
                 blocks: vec![FlowBlock::Table {
+                    offset_x: 0.0,
                     owner: ControlOwner {
                         paragraph: 0,
                         control: 0,
@@ -291,6 +293,7 @@ fn fractional_page_budget_does_not_split_an_atomic_nested_table() {
                 blocks: vec![
                     lines(0, 1.0),
                     FlowBlock::Table {
+                        offset_x: 0.0,
                         owner: ControlOwner {
                             paragraph: 1,
                             control: 0,
@@ -323,6 +326,7 @@ fn parallel_cells_resume_independently_without_replaying_short_cell_lines() {
                     padding: Insets::default(),
                     minimum_height: 0.0,
                     blocks: vec![FlowBlock::Table {
+                        offset_x: 0.0,
                         owner: ControlOwner {
                             paragraph: 0,
                             control: 0,

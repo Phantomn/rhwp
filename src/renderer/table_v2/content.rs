@@ -164,14 +164,21 @@ impl TableContentPlan {
                                 }
                             }
                         }
-                        FlowBlock::Table { owner, plan } => {
+                        FlowBlock::Table {
+                            owner,
+                            offset_x,
+                            plan,
+                        } => {
                             depth = depth.max(plan.depth + 1);
                             if depth > 64 {
                                 return Err(GeometryError::Unsupported(
                                     "table nesting resource limit",
                                 ));
                             }
-                            if plan.width > inner_width {
+                            nonnegative(*offset_x, "nested horizontal offset")?;
+                            if !(offset_x + plan.width).is_finite()
+                                || offset_x + plan.width > inner_width
+                            {
                                 return Err(GeometryError::ContentWidth { row, column });
                             }
                             if !controls.insert(*owner) {
