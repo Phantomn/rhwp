@@ -67,7 +67,7 @@ struct Output {
 }
 
 /// Experimental snapshot, NOT a switch on a live Studio document. Initially
-/// supports one uniform horizontal section, fresh text and the qualified V2
+/// supports one uniform horizontal section, fresh/qualified stored text and the V2
 /// zero-offset TopAndBottom tables. No edits, hidden fallback or saved-row purge.
 #[derive(Clone)]
 pub struct DocumentV2Session {

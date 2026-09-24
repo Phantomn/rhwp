@@ -111,6 +111,162 @@ fn text(line: &RenderNode) -> String {
 }
 
 #[test]
+fn stored_partitions_and_continuation_share_final_line_boxes() {
+    // Synthetic boundary contract: two saved 12HU boxes at 18HU pitch,
+    // 10HU baseline, 200HU content width. This is not Hancom evidence.
+    let mut t = table(&["alphabeta"]);
+    t.cells[0].paragraphs[0].line_segs = vec![
+        LineSeg {
+            text_start: 0,
+            vertical_pos: 100,
+            line_height: 12,
+            text_height: 12,
+            baseline_distance: 10,
+            line_spacing: 6,
+            segment_width: 200,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            ..Default::default()
+        },
+        LineSeg {
+            text_start: 5,
+            vertical_pos: 118,
+            line_height: 12,
+            text_height: 12,
+            baseline_distance: 10,
+            line_spacing: 6,
+            segment_width: 200,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            ..Default::default()
+        },
+    ];
+    let prepared = PreparedTextTable::prepare(&t, &styles(), 7200.0).unwrap();
+    let first = placed(&prepared.start(), 21.0);
+    let (_, lines) = render(&first);
+    assert_eq!(lines.len(), 1);
+    assert_eq!(text(&lines[0]), "alpha");
+    assert_eq!(lines[0].bbox.y, 33.0);
+    assert_eq!(first.geometry().reserved_height(), 21.0);
+    let second = placed(&first.continuation(), 22.0);
+    let (_, lines) = render(&second);
+    assert_eq!(lines.len(), 1);
+    assert_eq!(text(&lines[0]), "beta");
+    assert_eq!(lines[0].bbox.y, 30.0);
+    assert_eq!(second.geometry().reserved_height(), 22.0);
+    assert!(matches!(
+        second.continuation().fit(area(22.0)).unwrap(),
+        TextFragmentFit::Complete
+    ));
+    assert_eq!(t.cells[0].paragraphs[0].line_segs[0].vertical_pos, 100);
+
+    for mutation in 0..4 {
+        let mut invalid = t.clone();
+        let p = &mut invalid.cells[0].paragraphs[0];
+        match mutation {
+            0 => p.line_segs[1].vertical_pos = 110, // overlap is not a page reset
+            1 => p.stored_text_partition_dirty = true,
+            2 => p.line_segs[1].text_start = 99,
+            _ => p.line_segs[0].tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY,
+        }
+        assert!(PreparedTextTable::prepare(&invalid, &styles(), 7200.0).is_err());
+    }
+    let mut resized = t.clone();
+    resized.cells[0].width += 1;
+    assert!(PreparedTextTable::prepare(&resized, &styles(), 7200.0).is_err());
+}
+
+#[test]
+fn original_6923_stored_paragraphs_keep_source_metrics_in_v2_fragments() {
+    // Actual HWP-origin rows, NOT fabricated LineSeg metadata. Isolated text
+    // probes do not claim that the full document's tables are admitted.
+    let data = std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"),
+    )
+    .unwrap();
+    let document = rhwp::parse_document(&data).unwrap();
+    let styles = rhwp::renderer::style_resolver::resolve_styles(&document.doc_info, 96.0);
+    fn visit<'a>(ps: &'a [Paragraph], out: &mut Vec<&'a Paragraph>) {
+        for p in ps {
+            if p.controls.is_empty() && !p.text.is_empty() {
+                out.push(p);
+            }
+            for control in &p.controls {
+                if let rhwp::model::control::Control::Table(t) = control {
+                    for c in &t.cells {
+                        visit(&c.paragraphs, out);
+                    }
+                }
+            }
+        }
+    }
+    let mut paragraphs = Vec::new();
+    visit(&document.sections[0].paragraphs, &mut paragraphs);
+    let mut admitted = 0;
+    let mut reasons = std::collections::BTreeMap::new();
+    for p in paragraphs {
+        let source = serde_json::to_value(p).unwrap();
+        let width = p.line_segs[0].segment_width;
+        if width <= 0 {
+            continue;
+        }
+        let t = Table {
+            row_count: 1,
+            col_count: 1,
+            page_break: TablePageBreak::CellBreak,
+            cells: vec![Cell {
+                width: width as u32,
+                row_span: 1,
+                col_span: 1,
+                paragraphs: vec![p.clone()],
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let prepared = match PreparedTextTable::prepare(&t, &styles, 96.0) {
+            Ok(v) => v,
+            Err(e) => {
+                *reasons.entry(format!("{e:?}")).or_insert(0usize) += 1;
+                continue;
+            }
+        };
+        let a = PageArea {
+            bounds: Rect {
+                x: 20.0,
+                y: 30.0,
+                width: 1000.0,
+                height: 2000.0,
+            },
+        };
+        let TextFragmentFit::Placed(fragment) = prepared.start().fit(a).unwrap() else {
+            panic!("expected text")
+        };
+        let mut page = PageRenderTree::new(0, 1000.0, 2200.0);
+        fragment.append_to(&mut page).unwrap();
+        let mut lines = Vec::new();
+        collect_lines(&page.root, &mut lines);
+        assert_eq!(lines.len(), p.line_segs.len());
+        assert_eq!(lines.iter().map(text).collect::<String>(), p.text);
+        for (line, row) in lines.iter().zip(&p.line_segs) {
+            assert!((line.bbox.height - f64::from(row.line_height) / 75.0).abs() < 1e-9);
+            assert!(
+                (line.bbox.y
+                    - lines[0].bbox.y
+                    - f64::from(row.vertical_pos - p.line_segs[0].vertical_pos) / 75.0)
+                    .abs()
+                    < 1e-9
+            );
+        }
+        assert_eq!(serde_json::to_value(p).unwrap(), source);
+        admitted += 1;
+    }
+    eprintln!("original stored paragraphs admitted={admitted}, unsupported={reasons:?}");
+    assert_eq!(
+        admitted, 6,
+        "actual source admission must not silently disappear"
+    );
+}
+
+#[test]
 fn text_payload_and_reserved_fragment_have_identical_final_coordinates() {
     let prepared =
         PreparedTextTable::prepare(&table(&["alpha", "beta"]), &styles(), 7200.0).unwrap();

@@ -1,5 +1,5 @@
 //! Table-local text preview. Composition owns both occupied lines and paint payloads.
-//! No DocumentCore engine switch, stored-LineSeg admission, or Legacy table layout.
+//! Qualified plain stored rows retain their partition and metrics. No Legacy table layout.
 use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use crate::model::{paragraph::Paragraph, style::HeadType, table::Table};
@@ -74,7 +74,7 @@ impl PreparedTextTable {
     /// Solid backgrounds use the supplied resolved styles. Source-only effects
     /// are qualified by TablePreviewSession::from_document before resolution.
     /// Solid cell edges follow accepted fragments for all three split policies.
-    /// TAC, wrap, saved rows, complex borders and keep constraints remain unsupported.
+    /// TAC, wrap, stored control hosts, complex borders and keep constraints remain unsupported.
     pub fn prepare(
         table: &Table,
         styles: &ResolvedStyleSet,
@@ -264,7 +264,6 @@ impl CellParagraphComposer for TextComposer<'_> {
     fn compose(&self, para: &Paragraph, width: f64) -> Result<Vec<ParagraphItem>, GeometryError> {
         if para.column_type != crate::model::paragraph::ColumnBreakType::None
             || !para.controls.is_empty()
-            || !para.line_segs.is_empty()
             || para.source_line_seg_vertical_pos.is_some()
             || para.layout_only_fill_lines != 0
             || !para.field_ranges.is_empty()
@@ -328,10 +327,19 @@ impl CellParagraphComposer for TextComposer<'_> {
                 "text preview unusable paragraph width",
             ));
         }
-        let mut fresh = para.clone();
-        fresh.line_segs =
-            layout_paragraph_in_frame(para, &mut frame_box.frame(0), self.styles, self.dpi)
-                .ok_or(GeometryError::Unsupported("text preview frame composition"))?;
+        let stored = !para.line_segs.is_empty();
+        let fresh = if stored {
+            if style.margin_left != 0.0 || style.margin_right != 0.0 || style.indent != 0.0 {
+                return Err(GeometryError::Unsupported("stored text paragraph insets"));
+            }
+            super::stored_text::localize(para, width, self.dpi)?
+        } else {
+            let mut fresh = para.clone();
+            fresh.line_segs =
+                layout_paragraph_in_frame(para, &mut frame_box.frame(0), self.styles, self.dpi)
+                    .ok_or(GeometryError::Unsupported("text preview frame composition"))?;
+            fresh
+        };
         let composed = compose_paragraph(&fresh);
         let mut frame = PageLayoutContext::new(0, width, 0.0);
         let mut column = RenderNode::new(
@@ -367,6 +375,16 @@ impl CellParagraphComposer for TextComposer<'_> {
             true,
         );
         super::contracts::nonnegative(end, "composed paragraph end")?;
+        if stored {
+            super::stored_text::validate_paint(
+                &fresh,
+                &column.children,
+                end,
+                style.spacing_before,
+                style.spacing_after,
+                self.dpi,
+            )?;
+        }
         let mut items = Vec::new();
         let mut cursor = 0.0;
         for (i, node) in column.children.iter_mut().enumerate() {

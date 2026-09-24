@@ -94,6 +94,9 @@ impl IrTextComposer<'_> {
         if para.controls.is_empty() {
             return self.text.compose(para, width);
         }
+        if !para.line_segs.is_empty() {
+            return Err(GeometryError::Unsupported("stored child anchor ownership"));
+        }
         // Two floating objects at the same anchor need overlap/avoidance rules,
         // not declaration-order stacking. Leave that input explicitly unsupported.
         if para.controls.len() != 1 || !matches!(&para.controls[0], Control::Table(_)) {

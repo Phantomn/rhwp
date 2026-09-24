@@ -320,6 +320,43 @@ fn no_silent_admission_of_stored_rows_anchors_or_invalid_page_geometry() {
 }
 
 #[test]
+fn stored_body_rows_keep_partition_and_following_paragraph_origin() {
+    use rhwp::model::paragraph::LineSeg;
+    let mut saved = p("onetwo");
+    saved.line_segs = (0..2)
+        .map(|i| LineSeg {
+            text_start: i * 3,
+            vertical_pos: 1000 + i as i32 * 1350,
+            line_height: 900,
+            text_height: 900,
+            baseline_distance: 765,
+            line_spacing: 450,
+            segment_width: 22500,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            ..Default::default()
+        })
+        .collect();
+    let mut d = source(vec![p("before"), saved, p("after"), p("next")]);
+    // Manual saved-row boundary fixture: explicit left alignment avoids treating
+    // the short first row as a justified full-width line. Not a Hancom specimen.
+    d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Left;
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), ["before", "one", "two", "after"]);
+    assert_eq!(labels(&pages[1]), ["next"]);
+    for (line, y) in nodes(&pages[0], "TextLine")
+        .iter()
+        .zip([30.0, 48.0, 66.0, 84.0])
+    {
+        near(&line["bbox"]["y"], y);
+        near(&line["bbox"]["height"], 12.0);
+    }
+    near(&nodes(&pages[1], "TextLine")[0]["bbox"]["y"], 30.0);
+    assert_eq!(d.sections[0].paragraphs[1].line_segs[0].vertical_pos, 1000);
+    capture("document-stored", &d, &pages);
+}
+
+#[test]
 fn real_6923_remains_unmodified_and_explicitly_unqualified() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp");

@@ -23,7 +23,7 @@ IR 탐색 자료이며 현재 head의 조판/회귀 증거로 세지 않는다. 
 한 개의 단순 서식 확장만으로 원본 전체를 수용할 수 없다. 기존 stage4의 의미 기반 검사와
 원본을 유지하고, 기능을 지운 파생 입력을 원본 성공으로 보고하지 않는다.
 
-## 현재 작업과 남은 경계
+## 첫 연결 시점의 작업과 경계
 
 첫 연결은 명시적으로 선택하는 독립 V2 문서 세션이며 문단과 표의 실제 본문 점유·이월·
 뒤 문단·종료를 검사한다. 저장 줄/TAC/rowspan 등의 미지원 입력은 원문 위치를 포함한 오류로
@@ -155,3 +155,81 @@ Native 첫 중첩 페이지는 WASM 빌드 전에 `document-nested-0.png`로도 
 원본 #6923의 저장 줄 유효성/문단 원점, TAC와 문단 줄 소속, rowspan 소유 유닛, 그림·section
 부가 출력까지 종단 경로에서 수용해야 A 완료가 된다. 원본을 단순화해 대신 통과시키지 않는다.
 선택 표 미리보기만의 기존 형식 지원 확장을 반복하지 않고 이 의존 순서로 이어간다.
+
+## 후속 진행 — 일반 저장 줄의 실제 소비 경로
+
+`978efeab1` 이후 A의 의존 작업을 이어 진행했다. 아래 기록이 저장 줄 수용 범위의 최신
+상태이며 A 전체 완료를 뜻하지 않는다. Legacy나 Studio 기본 엔진은 바꾸지 않았다.
+
+- 독립 근거: 원본 #6923 HWP의 실제 LineSeg/문자 오프셋과
+  `mydocs/tech/document_ir_lineseg_standard.md`의 줄 시작·줄간격 계약.
+  수동 LineSeg 입력은 분할 경계 계약으로만 쓰고 한컴 생성본으로 취급하지 않는다.
+- `stored_text::localize`: 컨트롤 없는 단일 세그먼트 줄에서 저장 문자 경계·높이·기준선·
+  너비를 그대로 두고 문단 원점만 뺀다. 편집으로 무효화된 partition, 구현용 합성 사다리,
+  겹침/내부 페이지 리셋, 폭 변경은 명시적으로 거부한다. 겹침을 페이지 분리로 해석하지 않는다.
+- `TextComposer::compose` → 공통 glyph 배치의 `physical_frame_rows` →
+  `stored_text::validate_paint`: 후속 배치가 실제 줄 소속·y·높이·기준선·마지막 전진량을
+  바꿨는지 검사한다. 다르면 unsupported이며 clamp나 새 측정값으로 덮지 않는다.
+- 검증된 같은 RenderNode가 ParagraphItem/FlowCursor의 점유와 TextPaint/DocumentV2의
+  실제 출력에 사용된다. 별도 줄 나누기나 표 알고리즘 fallback은 없다.
+- 저장 컨트롤 host는 `text_ir`/`document_input`에서 계속 거부한다. 일반 문단 수용을
+  TAC·TopAndBottom 저장 앵커 소유의 구현 완료로 확대 해석하지 않는다.
+
+실제 원본에서 일반 텍스트 문단 6개의 줄 소속·높이·vpos 차이를 유지하여 V2 fragment로
+출력했다. 테스트에서는 원본 문단을 바꾸지 않고 독립적인 텍스트 probe 셀에 넣는다.
+이는 원본 표/문서 전체 통과가 아니다. 나머지 검사 대상 483개는 문단 inset 9개,
+장식/keep 등 473개, 기타 provenance/control 1개로 명시적 미수용이다.
+원본 전체의 첫 section guard와 TAC/rowspan/그림 등 잔여 경계도 그대로다.
+
+### 집중 계약 및 비교
+
+기존 두 `tests/cases/issue_7353_table_v2_{text,document_flow}.rs`에 3건을 추가했다.
+
+1. 실제 원본 6문단의 문자 소속·저장 높이·상대 원점·입력 불변성.
+2. 합성 12HU 줄 상자/6HU 간격/10HU 기준선: 첫 조각21HU(위 패딩3+줄12+간격6),
+   다음22HU(줄12+간격6+아래 패딩4). `alpha`/`beta` 누락·중복 없이 종료하고
+   겹친 줄·dirty partition·잘못된 문자 경계·합성 tag·변경 폭은 거부한다.
+3. 문서 본문 before → 저장 one/two → after의 y=30/48/66/84px, 다음 쪽 next의 y=30px.
+   초기 저장 vpos=1000HU는 원본에 남고 본문 원점은 FlowCursor가 소유한다.
+   이 합성 입력은 명시적 왼쪽 정렬이며 한컴 저장본의 피델리티 증거가 아니다.
+
+이전 `978efeab1`의 **TextComposer 파일만** review overlay에 대입한 대조에서는 기존7건
+PASS, 신규 저장 줄2건 FAIL(원본 수용0개)을 확인했다. 전체 이전 head 재실행이나 기존
+Legacy 결함 검출이라고 주장하지 않는다. 변경된 composer 복원 후에는 신규 지원이 통과한다.
+`before-text-tests.log`, `text-tests.log`에 경계의 거부→수용을 보존했다.
+
+증적 루트: `output/7353/r19/stored-text/`.
+선택 회귀162건(V2 148 + Legacy14) PASS, 최종 문서 계약8건 PASS다. source-side cfg(test),
+golden/ignore/기존 기대값은 바꾸지 않았다. Native/WASM library Clippy와 변경 test 대상
+Clippy, fmt, 고정 base manifest 검사는 PASS다. 명령은 선행 절과 같은 target-dir/base를 쓴다.
+`selected-tests.log`, `document-final.log`, `clippy-{native,wasm,tests}.log`,
+`fmt-final.log`, `policy-final.log`, `source-final.sha256`에 기록했다.
+
+테스트 마지막 주석/정렬 fixture 변경 후 파생 suite 배치가 달라져 첫 정책 검사에서 drift가
+검출됐다. review overlay에서 `--prepare` 후 고정 base로 재검사하여 통과했다. 파생 파일은
+제품 worktree/커밋에 넣지 않는다. 새 시각 fixture의 정렬 명시 후 문서8건도 다시 실행했다.
+전체 PR CI/제출용 workspace all-target 검증을 실행한 것으로 간주하지 않는다.
+
+### fresh WASM·시각 확인
+
+Docker WASM 빌드7분44초 성공. WASM SHA256은
+`9c76e764936417e1934d77e2c32e630897aebeea68a3334d084a7ddd8520191d`이며
+`docker-wasm.log`/`pkg.sha256`에 보존했다. 위 기존 browser 명령에 `--stored-body`를 추가하고
+fixtures/out을 이 증적 루트로 지정했다. Chrome146에서94쪽의 Native/WASM RenderTree·SVG
+완전 일치 및 독립 좌표 검사가 PASS다(`browser.log`, `browser/manifest.json`).
+기존92쪽 review PNG는 모두 이전 r19 결과와 byte-identical(`visual-compare.log`)이다.
+
+새 `browser/document-stored-{0,1}.review.png`와 각각의 standalone overlay를 직접 열었다.
+첫 쪽 before/one/two/after의 순서·18px 피치와 다음 쪽 next의 본문 시작 위치를 확인했고
+누락·중복·backend 위치 차이는 보이지 않는다. 최초 합성 fixture는 기본 양쪽 정렬이라
+짧은 `one`이 폭 전체로 벌어졌으며, 수동 경계 사례의 의도를 왼쪽 정렬로 명시한 뒤
+문서 계약/fixture를 다시 산출했다. 엔진 좌표 보정이나 원본 문서 변경은 하지 않았다.
+이는 합성 경계와 backend 비교이며 한컴 PDF와 원본 전체의 시각 통과는 아직 미검증이다.
+
+컴파일 입력과 변경 테스트1,089개가 제품/review overlay에서 일치한다
+(`review-source-match.log`). frontend bindings1건도 PASS다. Docker 실행 중 추가한
+모듈/API 설명 주석은 지원 범위 문구만 갱신했으며 동작 코드는 빌드 시작 후 바꾸지 않았다.
+최종 파일 해시 검사는 `source-check.log`에 보존했다.
+
+다음 의존 범위는 저장 컨트롤 host의 TAC 줄 소속과 rowspan/section/그림 등이다.
+일반 저장 줄의 제한적 수용을 이유로 원본 #6923의 미지원 guard를 제거하지 않는다.

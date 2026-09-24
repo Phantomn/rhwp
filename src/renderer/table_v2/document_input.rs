@@ -132,6 +132,11 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
             }
         }
         if let Some((ci, table)) = table_control {
+            if !source.line_segs.is_empty() {
+                return Err(fail(GeometryError::Unsupported(
+                    "stored body anchor ownership",
+                )));
+            }
             super::ir::validate_anchor(table).map_err(fail)?;
             let style = styles
                 .para_styles
