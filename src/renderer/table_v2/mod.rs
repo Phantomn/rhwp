@@ -12,6 +12,7 @@ mod content;
 mod contracts;
 mod flow;
 mod fragment;
+mod grid;
 mod ir;
 mod session;
 mod text;

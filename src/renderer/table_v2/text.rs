@@ -154,7 +154,7 @@ impl TextPaint {
                     row: cell.row as u16,
                     col: cell.column as u16,
                     row_span: 1,
-                    col_span: 1,
+                    col_span: cell.column_span as u16,
                     border_fill_id: 0,
                     text_direction: 0,
                     clip: false,

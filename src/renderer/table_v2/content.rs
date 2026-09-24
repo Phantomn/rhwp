@@ -9,7 +9,7 @@ use super::{
 /// Immutable width-bound cell content. Child tables retain their own plans.
 #[derive(Debug)]
 pub struct TableContentPlan {
-    pub(super) column_widths: Vec<f64>,
+    pub(super) grid: Vec<Vec<CellTrack>>,
     pub(super) rows: Vec<FlowRowInput>,
     pub(super) row_heights: Vec<f64>,
     pub(super) row_spacing: f64,
@@ -20,6 +20,16 @@ pub struct TableContentPlan {
     /// body cursor. Qualified by the IR adapter; zero for caller-composed flows.
     pub(super) header_rows: usize,
     depth: usize,
+}
+
+/// One physical cell, even when it covers several logical columns. Produced at
+/// grid binding and consumed unchanged for composition width and final placement.
+#[derive(Debug, Clone)]
+pub(super) struct CellTrack {
+    pub column: usize,
+    pub span: usize,
+    pub left: f64,
+    pub width: f64,
 }
 
 impl FlowBlock {
@@ -71,14 +81,13 @@ impl TableContentPlan {
     /// Padding is physical space and is inserted once, not once per page.
     pub fn from_flow_rows(
         column_widths: Vec<f64>,
-        mut rows: Vec<FlowRowInput>,
+        rows: Vec<FlowRowInput>,
         row_spacing: f64,
         policy: SplitPolicy,
     ) -> Result<Self, GeometryError> {
         if column_widths.is_empty() || rows.is_empty() {
             return Err(GeometryError::EmptyTable);
         }
-        nonnegative(row_spacing, "row spacing")?;
         for &width in &column_widths {
             nonnegative(width, "column width")?;
             if width == 0.0 {
@@ -86,22 +95,50 @@ impl TableContentPlan {
             }
         }
         let width = column_widths.iter().sum();
+        let mut left = 0.0;
+        let tracks: Vec<_> = column_widths
+            .into_iter()
+            .enumerate()
+            .map(|(column, width)| {
+                let cell = CellTrack {
+                    column,
+                    span: 1,
+                    left,
+                    width,
+                };
+                left += width;
+                cell
+            })
+            .collect();
+        Self::from_grid_rows(vec![tracks; rows.len()], width, rows, row_spacing, policy)
+    }
+
+    pub(super) fn from_grid_rows(
+        grid: Vec<Vec<CellTrack>>,
+        width: f64,
+        mut rows: Vec<FlowRowInput>,
+        row_spacing: f64,
+        policy: SplitPolicy,
+    ) -> Result<Self, GeometryError> {
+        nonnegative(row_spacing, "row spacing")?;
         nonnegative(width, "table width")?;
         let mut row_heights = Vec::with_capacity(rows.len());
         let mut depth: usize = 1;
         for (row, input) in rows.iter_mut().enumerate() {
-            if input.cells.len() != column_widths.len() {
+            if input.cells.len() != grid[row].len() {
                 return Err(GeometryError::CellCount { row });
             }
             let mut height: f64 = 0.0;
-            for (column, cell) in input.cells.iter_mut().enumerate() {
+            for (slot, cell) in input.cells.iter_mut().enumerate() {
+                let track = &grid[row][slot];
+                let column = track.column;
                 let p = cell.padding;
                 for v in [p.left, p.right, p.top, p.bottom] {
                     nonnegative(v, "padding")?;
                 }
                 nonnegative(cell.minimum_height, "minimum cell height")?;
                 nonnegative(cell.width, "content width")?;
-                let inner_width = column_widths[column] - p.left - p.right;
+                let inner_width = track.width - p.left - p.right;
                 if inner_width < 0.0 || inner_width != cell.width {
                     return Err(GeometryError::ContentWidth { row, column });
                 }
@@ -157,7 +194,7 @@ impl TableContentPlan {
         });
         nonnegative(height, "physical table height")?;
         Ok(Self {
-            column_widths,
+            grid,
             rows,
             row_heights,
             row_spacing,

@@ -38,7 +38,8 @@ pub trait CellParagraphComposer {
 impl TableContentPlan {
     /// Build *local* table content from Document IR. The outer paragraph anchor
     /// and document engine selection remain the caller's responsibility.
-    /// Only plain cells and zero-offset TopAndBottom nested controls are admitted.
+    /// Horizontal spans and zero-offset TopAndBottom nested controls are admitted;
+    /// row spans remain unsupported.
     pub fn from_ir_contents(
         table: &Table,
         units_per_hwp: f64,
@@ -68,23 +69,8 @@ fn bind_table(
     {
         return Err(GeometryError::Unsupported("relative table size"));
     }
-    let nr = table.row_count as usize;
-    let nc = table.col_count as usize;
-    if nr == 0 || nc == 0 {
-        return Err(GeometryError::EmptyTable);
-    }
-    if table.cells.len() != nr * nc {
-        return Err(GeometryError::Unsupported("incomplete or merged grid"));
-    }
-    let mut grid = vec![None; nr * nc];
+    let resolved = super::grid::resolve(table, scale)?;
     for cell in &table.cells {
-        let (r, c) = (cell.row as usize, cell.col as usize);
-        if r >= nr || c >= nc || cell.row_span != 1 || cell.col_span != 1 {
-            return Err(GeometryError::Unsupported("cell address or span"));
-        }
-        if grid[r * nc + c].replace(cell).is_some() {
-            return Err(GeometryError::Unsupported("duplicate cell address"));
-        }
         if cell.vertical_align != VerticalAlign::Top
             || cell.text_direction != 0
             || cell.line_wrap != 0
@@ -94,19 +80,15 @@ fn bind_table(
             ));
         }
     }
-    let mut widths = Vec::with_capacity(nc);
     // The preview admits only whole, contiguous leading header rows. Partial
-    // header cells, spans, or scattered markers need a separate qualification;
+    // header cells, row spans, or scattered markers need a separate qualification;
     // do not infer their repetition from a row's incidental content.
     let mut header_rows = 0;
     if table.repeat_header {
-        for r in 0..nr {
-            let count = grid[r * nc..(r + 1) * nc]
-                .iter()
-                .filter(|c| c.is_some_and(|c| c.is_header))
-                .count();
+        for (r, row) in resolved.rows.iter().enumerate() {
+            let count = row.iter().filter(|c| c.is_header).count();
             if count != 0 {
-                if count != nc || r != header_rows {
+                if count != row.len() || r != header_rows {
                     return Err(GeometryError::Unsupported(
                         "partial or non-leading header rows",
                     ));
@@ -115,20 +97,10 @@ fn bind_table(
             }
         }
     }
-    for c in 0..nc {
-        let width = grid[c]
-            .ok_or(GeometryError::Unsupported("missing cell"))?
-            .width;
-        if (1..nr).any(|r| grid[r * nc + c].is_none_or(|cell| cell.width != width)) {
-            return Err(GeometryError::Unsupported("inconsistent column widths"));
-        }
-        widths.push(width as f64 * scale);
-    }
-    let mut rows = Vec::with_capacity(nr);
-    for r in 0..nr {
-        let mut cells = Vec::with_capacity(nc);
-        for c in 0..nc {
-            let cell = grid[r * nc + c].ok_or(GeometryError::Unsupported("missing cell"))?;
+    let mut rows = Vec::with_capacity(resolved.rows.len());
+    for (r, row) in resolved.rows.iter().enumerate() {
+        let mut cells = Vec::with_capacity(row.len());
+        for (c, cell) in row.iter().enumerate() {
             let p = if cell.apply_inner_margin {
                 cell.padding
             } else {
@@ -143,7 +115,7 @@ fn bind_table(
             for value in [padding.left, padding.right, padding.top, padding.bottom] {
                 super::contracts::nonnegative(value, "resolved IR padding")?;
             }
-            let inner_width = widths[c] - padding.left - padding.right;
+            let inner_width = resolved.tracks[r][c].width - padding.left - padding.right;
             super::contracts::nonnegative(inner_width, "IR content width")?;
             let mut blocks = Vec::new();
             for (pi, para) in cell.paragraphs.iter().enumerate() {
@@ -239,7 +211,8 @@ fn bind_table(
         TablePageBreak::RowBreak => SplitPolicy::BetweenRows,
         TablePageBreak::CellBreak => SplitPolicy::WithinCells,
     };
-    let mut plan = TableContentPlan::from_flow_rows(widths, rows, 0.0, policy)?;
+    let mut plan =
+        TableContentPlan::from_grid_rows(resolved.tracks, resolved.width, rows, 0.0, policy)?;
     plan.header_rows = header_rows;
     Ok(plan)
 }

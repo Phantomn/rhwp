@@ -115,6 +115,7 @@ pub struct LinePlacement {
 pub struct CellPlacement {
     pub row: usize,
     pub column: usize,
+    pub column_span: usize,
     pub bounds: Rect,
     pub content_origin: (f64, f64),
     pub lines: Vec<LinePlacement>,

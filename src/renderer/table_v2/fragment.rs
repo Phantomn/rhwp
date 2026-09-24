@@ -210,8 +210,9 @@ impl TableCursor {
             let mut used: f64 = 0.0;
             let mut changed = false;
             let mut all_done = true;
-            let mut x = b.x;
             for (column, cell) in row.cells.iter().enumerate() {
+                let track = &plan.grid[next.row][column];
+                let x = b.x + track.left;
                 let fit = next.cells[column].fit(
                     cell,
                     Rect {
@@ -226,7 +227,6 @@ impl TableCursor {
                 blocked = blocked.max(fit.required);
                 all_done &= fit.next.block == cell.blocks.len();
                 fit_cells.push((x, fit));
-                x += plan.column_widths[column];
             }
             // Minimum height is a remaining physical band, not already consumed
             // text. Do not manufacture blank progress in front of a blocked unit.
@@ -251,11 +251,12 @@ impl TableCursor {
                 };
                 cells.push(CellPlacement {
                     row: next.row,
-                    column,
+                    column: plan.grid[next.row][column].column,
+                    column_span: plan.grid[next.row][column].span,
                     bounds: Rect {
                         x,
                         y: b.y + offset,
-                        width: plan.column_widths[column],
+                        width: plan.grid[next.row][column].width,
                         height: used,
                     },
                     content_origin: (x + cell.padding.left, origin_y),
