@@ -339,10 +339,14 @@ impl CellParagraphComposer for TextComposer<'_> {
         }
         let stored = !para.line_segs.is_empty();
         let fresh = if stored {
-            if style.margin_left != 0.0 || style.margin_right != 0.0 || style.indent != 0.0 {
-                return Err(GeometryError::Unsupported("stored text paragraph insets"));
+            if style.indent != 0.0 {
+                return Err(GeometryError::Unsupported("stored text indentation"));
             }
-            super::stored_text::localize(para, width, self.dpi)?
+            super::stored_text::localize(
+                para,
+                style.margin_left..width - style.margin_right,
+                self.dpi,
+            )?
         } else {
             let mut fresh = para.clone();
             fresh.line_segs =

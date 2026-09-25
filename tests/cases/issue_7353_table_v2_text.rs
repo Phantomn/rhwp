@@ -245,6 +245,66 @@ fn contained_stored_frames_survive_alignment_and_continuation() {
 }
 
 #[test]
+fn stored_margins_are_not_applied_twice_and_invalid_frames_stay_rejected() {
+    let mut t = table(&["AB", "after"]);
+    t.cells[0].paragraphs[0].line_segs = [(0, 100, 10, 170), (1, 118, 20, 160)]
+        .into_iter()
+        .map(
+            |(text_start, vertical_pos, column_start, segment_width)| LineSeg {
+                text_start,
+                vertical_pos,
+                column_start,
+                segment_width,
+                line_height: 12,
+                text_height: 12,
+                baseline_distance: 10,
+                line_spacing: 6,
+                tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            },
+        )
+        .collect();
+    let mut s = styles();
+    s.para_styles[0].margin_left = 10.0;
+    s.para_styles[0].margin_right = 20.0;
+    let source = t.clone();
+    let prepared = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+    let a = placed(&prepared.start(), 21.0);
+    let b = placed(&a.continuation(), 40.0);
+    let (_, first) = render(&a);
+    let (_, rest) = render(&b);
+    // Cell origin25 + saved cs10/20; not + paragraph margin again.
+    assert_eq!((first[0].bbox.x, first[0].bbox.width), (35.0, 170.0));
+    assert_eq!((rest[0].bbox.x, rest[0].bbox.width), (45.0, 160.0));
+    assert_eq!((rest[1].bbox.x, rest[1].bbox.width), (35.0, 170.0));
+    assert_eq!(
+        (text(&first[0]), text(&rest[0]), text(&rest[1])),
+        ("A".into(), "B".into(), "after".into())
+    );
+    assert_eq!(
+        (
+            a.geometry().reserved_height(),
+            b.geometry().reserved_height()
+        ),
+        (21.0, 40.0)
+    );
+    assert_eq!(
+        t.cells[0].paragraphs[0].line_segs,
+        source.cells[0].paragraphs[0].line_segs
+    );
+    for (x, w) in [(9, 170), (10, 171)] {
+        let mut bad = t.clone();
+        bad.cells[0].paragraphs[0].line_segs[0].column_start = x;
+        bad.cells[0].paragraphs[0].line_segs[0].segment_width = w;
+        assert!(PreparedTextTable::prepare(&bad, &s, 7200.0).is_err());
+    }
+    // Indent needs its own source-tag/context contract; never ignore it.
+    for indent in [-10.0, 10.0] {
+        s.para_styles[0].indent = indent;
+        assert!(PreparedTextTable::prepare(&t, &s, 7200.0).is_err());
+    }
+}
+
+#[test]
 fn original_6923_first_empty_cell_keeps_its_stored_line_frame() {
     let source = std::fs::read(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

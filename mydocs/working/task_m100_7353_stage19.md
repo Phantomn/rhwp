@@ -961,3 +961,83 @@ backend 일치에 대한 것으로 원본 전체 PDF 일치나 Studio Canvas 편
 줄 영역의 관계다. 측정·paint에서 같은 들여쓰기 결과를 소비하는지 확인하며 이어간다.
 이번 절편의 지원 범위는 완료했지만 원본 문서의 종단 수용/PDF 비교와 A/R5는 미완료다.
 기본 엔진 전환·push·PR은 수행하지 않았다.
+
+### R19 후속: 저장 문단의 좌우 여백과 물리 줄 영역
+
+직전 `1baa42de3`에서 원본 첫 표의 다음 거부는 저장 문단 여백이었다. 이번에는
+`TextComposer`의 일괄 거부를 분리하고, **들여쓰기 0이며 저장 줄 전체가 문단 좌우
+여백 안에 포함되는 경우**를 수용한다. `cs/sw`를 이동·축소하지 않는다. 왼쪽 여백보다
+작은 cs, 오른쪽 여백을 침범하는 끝점, 양/음수 들여쓰기는 계속 명시적으로 거부한다.
+들여쓰기에는 저장 bit20과 셀/본문 문맥 차이가 있어 margin과 같은 것으로 취급하지 않는다.
+이 부분의 독립 근거·구현은 다음 지원 범위로 남긴다.
+
+입력 근거는 원본 #6923 첫 표의 셀2/4/5/6/7/10/11이다. 원본 paragraph/style/LineSeg를
+보존해 단일 셀 probe로 격리한다. ParaShape 좌측 여백1000의 해석은500HU이며 원본
+cs도500HU다. 우측 여백·indent는0이다. 셀 폭·padding·원본 저장 sw는 그대로 유지한다.
+원본 전체나 기준 PDF 일치를 주장하는 시험이 아니며 PDF1쪽의 해당 내용과 구분한다.
+합성 계약은200px 셀 안 좌10/우20px, 저장 줄 [10,180]/[20,180],12px 줄/18px pitch로
+독립 지정했다. 빈 줄도18px을 소비하고 뒤 문단이 이어받는다. Left/Center/Right는
+각 저장 상자 안에서 정렬되며 새로 조판한 뒤 문단은 문단 여백으로 생성한170px 폭을 쓴다.
+
+소비 경로: `stored_text::localize`가 문단 content interval에 저장 cs/sw를 검증하고
+`TextComposer::compose`가 `layout_composed_paragraph_in_frame(physical_frame_rows=true)`로
+물리 줄을 생성한다. 공용 paint의 `uses_stored_segment_geometry`와 여백0 분기가
+저장 상자를 그대로 소비한다. `validate_paint`는 최종 bbox·baseline·줄 소속·전진량을
+다시 검증한다. 같은 노드에서 `ParagraphItem`/`FlowBlock::Lines`의 요구 높이와 paint
+payload를 만든다. `flow.rs::fit`은 수용한 줄만 전진시키며 예산 실패 시 줄을 남긴다.
+`TextPaint::build_node`는 확정 placement와 payload 원점 차이로만 평행 이동한다.
+추가 clamp/크기 재계산은 없다. 본문도 `text_flow`에서 같은 composer를 사용하지만
+이번 신규 독립 시각 probe는 셀 경로다. TAC/rowspan의 컷 알고리즘은 변경하지 않는다.
+
+검증 증적은 `output/7353/r19/margins/`에 기록한다. `before.log`의 새3검사는 모두
+기존 `stored text paragraph insets` 거부로 FAIL했다(환경 실패 아님). 후속 실행 결과는
+아래에 추가한다. 기본 엔진은 Legacy이며 원본 종단 A/R5는 여전히 진행 중이다.
+
+`after.log`는 합성2 PASS와 진단2 FAIL이었다. 하나는 원본 수용 경계가 문단0의
+`TAC content changed stored occupied box`로 이동한 것이고, 다른 하나는 격리 probe의
+TablePageBreak를 원본 RowBreak 대신 CellBreak로 만든 오류다. probe가 원본 속성을
+유지하도록 수정하고 admission의 관측 진단만 갱신했다. baseline/ignore를 바꾸지 않았다.
+최종 `final-tests.log`는213 PASS(V2 191+Legacy/저장 inline 대조22),
+`prior-native-compare.log`는 이전99 fixture의 Native 출력 byte 동일이다.
+Native `native-center.png`, `native-source-5.png`를 직접 열어 저장 영역 안의 중앙
+정렬과 원본 보도일시 셀의 두 줄이 모두 표시됨을 확인했다. 원본 probe는 부모 셀 위치를
+옮긴 격리 출력으로 PDF 전체 페이지와 같은 좌표라는 주장은 하지 않는다.
+
+다음 장애물의 관측도 남겼다(`source-cell-height-observations.jsonl`). 원본 셀5의
+선언 높이3042HU=40.56px에 비해 격리 V2는45.36px이고, 차이360HU=4.8px는 마지막
+줄간격과 같다. 셀2도 선언2282HU보다600HU 높다. 셀4/10은 선언 높이와 같다.
+원본 PDF1쪽을 직접 열어 해당 내용이 두 줄로 배치됨을 확인했다. 이 관측은 셀 끝의
+줄간격/내용 요구 높이와 TAC 저장 상자의 관계를 다음에 조사할 근거이며, 마지막
+줄간격을 무조건 제거한다는 구현 결정은 아니다. 원본 종단 거부를 우회하지 않았고
+이들 격리 probe를 한컴 시각 통과로 승격하지 않는다.
+
+최종 검증은 동일 소스에서 수행했다. review worktree의 `fmt.log`,
+`clippy-{native,wasm,test}.log`는 fmt check, Native root/WASM32 lib 및 변경 integration
+target Clippy(-D warnings) 통과다. `policy.log`는 고정 base
+`7a95e46e025470a4d7a7b59ad68ec02958bda738` 대비 manifest check 통과다. source-side
+unit test는 변경하지 않았다. 전체 workspace 제출 CI를 실행한 결과는 아니다.
+
+`docker compose --env-file .env.docker -p rhwp run --rm wasm`은7분5초에 완료했다
+(`docker-wasm.log`). WASM SHA256은
+`b0c55878f736fe0f2c10611ceb37181205cc13631e6354a56cfb8d1868988a78`이다.
+`source-final.sha256`/`post-build-source-check.log`로 빌드 중 소스 불변을 확인했다.
+Chrome 최초 실행은 시작 단계에서 종료했다(`browser-launch-failure.log`). 동일 명령의
+재시도는 성공했으며 환경 실패를 조판 회귀로 집계하지 않았다.
+
+browser 명령은 직전 pictures 검증의 flags에 `--stored-margins`를 더하고
+fixtures/out을 `margins/` 아래로 지정했다. `browser.log`/`browser/manifest.json`은
+206쪽(기존187+새19)의 정확한 Native/fresh WASM tree·SVG 일치, 실제 독립 좌표·내용,
+입력 폐기·재열기·거부·rollback·종료 검사 통과 증거다. `prior-visual-compare.log`는
+기존187쪽 review PNG가 byte 동일함을 확인한다. 수치·baseline 허용치는 완화하지 않았다.
+
+`browser/margins-contact.png`의 새19쪽 standalone overlay와
+`browser/stored-margin-source-5-0.review.png`를 직접 열었다. 원본7셀의 내용 표시,
+합성 Left/Center/Right의 A/B·빈 줄·after 순서와 정렬을 확인했다. 같은 폴더의
+`*.native.png`, `*.wasm.png`, `*.overlay.png`, `*.review.png`가 Native/compare/overlay
+증적이다. backend 일치 검사이며 한컴 PDF 피델리티 점수를 산출한 것은 아니다.
+빈 줄 점유 높이는 보이는 글자 유무가 아니라 정식 회귀의18px 예약/후속 페이지로 검사한다.
+
+이번 저장 여백 지원 범위는 검증했으나, 양/음수 들여쓰기와 원본 종단 TAC 높이 계약은
+미완료다. 다음은 `tac::bind`의 저장 상자와 실제 `TableContentPlan.height` 차이를
+셀 끝 줄간격·padding·선언 높이 및 기준 PDF와 대조하는 작업이다. 기본값 전환·원격
+push/PR은 수행하지 않았다. 내부 커밋 SHA는 `verified-commit.txt`에 연결한다.

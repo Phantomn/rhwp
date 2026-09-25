@@ -17,7 +17,11 @@ fn unsupported() -> GeometryError {
 /// Preserve source text partitions and metrics, changing only the coordinate
 /// origin. The caller owns the paragraph origin; page/column resets need a
 /// separate continuation contract and are deliberately not admitted here.
-pub(super) fn localize(para: &Paragraph, width: f64, dpi: f64) -> Result<Paragraph, GeometryError> {
+pub(super) fn localize(
+    para: &Paragraph,
+    content: std::ops::Range<f64>,
+    dpi: f64,
+) -> Result<Paragraph, GeometryError> {
     if para.stored_text_partition_is_dirty()
         || para.text.chars().any(char::is_control)
         || para.line_segs.is_empty()
@@ -33,8 +37,13 @@ pub(super) fn localize(para: &Paragraph, width: f64, dpi: f64) -> Result<Paragra
     for (i, row) in para.line_segs.iter().enumerate() {
         // Saved lines own a physical interval inside the available frame.
         // It need not fill the frame (rounding, insets or a narrower lane).
-        // Keep its origin/width for the shared physical-row paint path.
-        let right = hwpunit_to_px(row.column_start, dpi) + hwpunit_to_px(row.segment_width, dpi);
+        // A contained stored interval already accounts for paragraph margins.
+        // Do not add them a second time in the physical-row paint path. If the
+        // source interval violates those insets, reject it rather than shrinking
+        // or moving glyphs while retaining stale line membership. Indentation is
+        // separately gated by the caller; it is not inferred from cs/sw.
+        let left = hwpunit_to_px(row.column_start, dpi);
+        let right = left + hwpunit_to_px(row.segment_width, dpi);
         if row.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
             || row.tag & LineSeg::TAG_SINGLE_SEGMENT_LINE != LineSeg::TAG_SINGLE_SEGMENT_LINE
             || row.tag & (LineSeg::TAG_AUTO_HYPHENATION | LineSeg::TAG_PARAGRAPH_HEAD) != 0
@@ -48,7 +57,8 @@ pub(super) fn localize(para: &Paragraph, width: f64, dpi: f64) -> Result<Paragra
             || row.line_spacing < 0
             || row.column_start < 0
             || row.segment_width <= 0
-            || (right > width && !same(right, width))
+            || (left < content.start && !same(left, content.start))
+            || (right > content.end && !same(right, content.end))
             || row.vertical_pos.checked_sub(first).is_none_or(|v| v < 0)
         {
             return Err(unsupported());

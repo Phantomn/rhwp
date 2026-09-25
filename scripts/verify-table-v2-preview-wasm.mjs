@@ -86,6 +86,10 @@ async function main() {
     negative.push('fill-border', 'fill-pattern');
   }
   const paintFailures = [];
+  if (process.argv.includes('--stored-margins')) {
+    positive.push('stored-margin-left','stored-margin-center','stored-margin-right',
+      ...[2,4,5,6,7,10,11].map(i=>`stored-margin-source-${i}`));
+  }
   if (process.argv.includes('--pictures')) {
     for (const a of ['left','center','right']) positive.push(`picture-${a}`,`picture-${a}-defer`);
     positive.push('picture-rows','picture-crop-margin','picture-source-1','picture-source-8','picture-nested');
@@ -235,6 +239,15 @@ async function main() {
     const collect = (node, kind) => [ ...(node.node_type[kind] ? [node] : []), ...node.children.flatMap(n => collect(n, kind)) ];
     // Expectations independent of Native output: 18px lines, 36px body, repeated title.
     const expected = { merged: [['title', 'A'], ['title', 'B']], nested: [['title', 'A'], ['title', 'B'], ['host', 'after']], partial: [['title', 'A'], ['title', 'B']] };
+    for (const a of ['left','center','right']) expected[`stored-margin-${a}`]=[['A'],['B'],[''],['after']];
+    // Original-source text, grouped by saved row (not by font-run boundaries).
+    const marginSource={
+      2:['보 도 자 료'],4:['보도일시'],
+      5:['2012.8.29(수) 조간부터 보도가능','(방송․인터넷매체는 28일 낮 12시)'],
+      6:['담당부서'],7:['부산지방공정거래사무소 소비자과'],10:['담당자'],
+      11:['과  장 이원두 051)460-1030','조사관 이효권 051)460-1034 '],
+    };
+    for (const [i,rows] of Object.entries(marginSource)) expected[`stored-margin-source-${i}`]=[rows];
     expected['fill-merged'] = expected.merged;
     expected['fill-nested'] = expected.nested;
     expected['fill-split'] = [['A', ''], ['B', 'C']];
@@ -312,15 +325,34 @@ async function main() {
         assert.equal(output.engine, 'table_v2'); assert.equal(output.scope, name.startsWith('document-') ? 'document_body' : 'selected_table');
         assert.equal(output.page_index, index + (name === 'partial' ? 1 : 0));
         const rootNode = output.render_tree.root;
-        assert.deepEqual(collect(rootNode, 'TextRun').map(n => n.node_type.TextRun.text), expected[name][index]);
         const lines = collect(rootNode, 'TextLine');
+        assert.deepEqual(name.startsWith('stored-margin-source-')
+          ? lines.map(n=>collect(n,'TextRun').map(r=>r.node_type.TextRun.text).join(''))
+          : collect(rootNode, 'TextRun').map(n => n.node_type.TextRun.text), expected[name][index]);
         const aligned = name.startsWith('align-');
         const deep = name === 'align-deep', header = name === 'align-header';
         const childX = name === 'align-left' ? 30 : name === 'align-right' ? 90 : 60;
         const bordered = name.startsWith('border-');
         const cut = name.startsWith('cut-');
         const borderTail = name === 'border-nested' && index === 2;
-        if (name.startsWith('picture-source-')) {
+        if (name.startsWith('stored-margin-source-')) {
+          const ci=Number(name.split('-').at(-1));
+          const sw=ci===2?25652:[4,6,10].includes(ci)?5036:19832;
+          for (const line of lines) {
+            assertDocumentGeometry([line.bbox.x,line.bbox.width],[20+641/75,sw/75]);
+            for(const run of line.children) {
+              assert.ok(run.bbox.x>=line.bbox.x-1e-9);
+              assert.ok(run.bbox.x+run.bbox.width<=line.bbox.x+line.bbox.width+1e-9);
+            }
+          }
+        } else if (name.startsWith('stored-margin-')) {
+          const b={x:index===1?40:30,y:30,width:index===1?160:170,height:12};
+          assertDocumentGeometry(lines.map(n=>n.bbox),[b]);
+          assertDocumentGeometry(collect(rootNode,'TableCell').map(n=>n.bbox),[{x:20,y:30,width:200,height:18}]);
+          const r=lines[0].children[0].bbox;
+          assertDocumentGeometry(r.x,name.endsWith('-center')?b.x+(b.width-r.width)/2:name.endsWith('-right')?b.x+b.width-r.width:b.x);
+          if(index===2) assert.equal(r.width,0);
+        } else if (name.startsWith('picture-source-')) {
           const pictures=collect(rootNode,'Image');
           assert.equal(pictures.length,1);
           const [w,h]=name.endsWith('-1')?[8021,5064]:[10738,4617];

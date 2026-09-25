@@ -543,6 +543,137 @@ fn original_6923_picture_rows_keep_their_declared_frames() {
 }
 
 #[test]
+fn stored_margin_frames_export_with_empty_rows_and_continuation() {
+    use rhwp::model::style::Alignment;
+    for (suffix, alignment) in [
+        ("left", Alignment::Left),
+        ("center", Alignment::Center),
+        ("right", Alignment::Right),
+    ] {
+        let mut t = table();
+        t.row_count = 1;
+        t.repeat_header = false;
+        t.cells.truncate(1);
+        t.cells[0].is_header = false;
+        let row = |text_start, vertical_pos, column_start, segment_width| LineSeg {
+            text_start,
+            vertical_pos,
+            column_start,
+            segment_width,
+            line_height: 900,
+            text_height: 900,
+            baseline_distance: 750,
+            line_spacing: 450,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+        };
+        let mut p = paragraph("AB");
+        p.line_segs = vec![row(0, 7500, 750, 12750), row(1, 8850, 1500, 12000)];
+        let mut empty = paragraph("");
+        empty.line_segs = vec![row(0, 10200, 750, 12750)];
+        t.cells[0].paragraphs = vec![p, empty, paragraph("after")];
+        let mut d = document(t);
+        d.doc_info.para_shapes[0].alignment = alignment;
+        // ParaShape margin units are twice LineSeg HU: 1500/2/75=10px.
+        d.doc_info.para_shapes[0].margin_left = 1500;
+        d.doc_info.para_shapes[0].margin_right = 3000;
+        let data = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+        let mut config = options(&data);
+        config["pages"]["body"]["height"] = json!(18);
+        let pages = drain(&mut open(&data, &config));
+        assert_eq!(pages.len(), 4);
+        for (i, page) in pages.iter().enumerate() {
+            assert_eq!(labels(page), [["A", "B", "", "after"][i]]);
+            let line = collect(page, "TextLine")[0];
+            let (x, w) = if i == 1 { (40.0, 160.0) } else { (30.0, 170.0) };
+            assert_eq!(
+                line["bbox"],
+                json!({"x":x,"y":30.0,"width":w,"height":12.0})
+            );
+            let b = &line["children"][0]["bbox"];
+            let rw = b["width"].as_f64().unwrap();
+            let rx = match alignment {
+                Alignment::Center => x + (w - rw) / 2.0,
+                Alignment::Right => x + w - rw,
+                _ => x,
+            };
+            assert!((b["x"].as_f64().unwrap() - rx).abs() < 1e-9);
+            assert_eq!(collect(page, "TableCell")[0]["bbox"]["height"], 18.0);
+            if i == 2 {
+                assert_eq!(rw, 0.0);
+            }
+        }
+        capture(&format!("stored-margin-{suffix}"), &data, &config, &pages);
+    }
+}
+
+#[test]
+fn original_6923_margin_cells_keep_saved_frames() {
+    let data = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"
+    ))
+    .unwrap();
+    let original = rhwp::parse_document(&data).unwrap();
+    let Control::Table(t) = &original.sections[0].paragraphs[0].controls[3] else {
+        panic!("table")
+    };
+    let styles = rhwp::renderer::style_resolver::resolve_styles(&original.doc_info, 96.0);
+    for ci in [2, 4, 5, 6, 7, 10, 11] {
+        let mut cell = t.cells[ci].clone();
+        for p in &cell.paragraphs {
+            let s = &styles.para_styles[p.para_shape_id as usize];
+            assert_eq!(
+                (s.margin_left, s.margin_right, s.indent),
+                (500.0 / 75.0, 0.0, 0.0),
+                "cell{ci} style={s:?}"
+            );
+            assert_eq!(p.line_segs[0].column_start, 500);
+        }
+        cell.row = 0;
+        cell.col = 0;
+        cell.row_span = 1;
+        cell.col_span = 1;
+        let mut probe = original.clone();
+        probe.sections[0].paragraphs = vec![host(
+            "",
+            Table {
+                row_count: 1,
+                col_count: 1,
+                page_break: t.page_break,
+                padding: t.padding,
+                cells: vec![cell.clone()],
+                ..Default::default()
+            },
+        )];
+        let bytes = rhwp::serializer::hwpx::serialize_hwpx(&probe).unwrap();
+        let mut config = options(&bytes);
+        config["pages"]["width"] = json!(800);
+        config["pages"]["body"]["width"] = json!(700);
+        config["pages"]["body"]["height"] = json!(200);
+        let mut session = open(&bytes, &config);
+        let raw = session.next_page_json().unwrap().unwrap();
+        assert!(session.next_page_json().unwrap().is_none());
+        let page: Value = serde_json::from_str(&raw).unwrap();
+        let lines = collect(&page, "TextLine");
+        assert_eq!(lines.len(), cell.paragraphs.len());
+        for (line, p) in lines.iter().zip(&cell.paragraphs) {
+            assert!((line["bbox"]["x"].as_f64().unwrap() - (20.0 + 641.0 / 75.0)).abs() < 1e-9);
+            assert!(
+                (line["bbox"]["width"].as_f64().unwrap()
+                    - f64::from(p.line_segs[0].segment_width) / 75.0)
+                    .abs()
+                    < 1e-9
+            );
+        }
+        let name = format!("stored-margin-source-{ci}");
+        capture(&name, &bytes, &config, &[page]);
+        if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
+            std::fs::write(format!("{dir}/{name}.native.json"), format!("[{raw}]")).unwrap();
+        }
+    }
+}
+
+#[test]
 fn stored_line_frames_export_without_replacing_their_width_or_origin() {
     use rhwp::model::style::Alignment;
     for (name, alignment) in [
