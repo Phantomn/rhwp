@@ -43,7 +43,7 @@ impl TableContentPlan {
     /// Build *local* table content from Document IR. The outer paragraph anchor
     /// and document engine selection remain the caller's responsibility.
     /// Horizontal spans, zero-offset TopAndBottom and composed inline rows are
-    /// admitted; row spans remain unsupported.
+    /// admitted. Row spans require resolved row heights and intact cell groups.
     pub fn from_ir_contents(
         table: &Table,
         units_per_hwp: f64,
@@ -116,7 +116,7 @@ fn bind_table(
         }
     }
     // The preview admits only whole, contiguous leading header rows. Partial
-    // header cells, row spans, or scattered markers need a separate qualification;
+    // header cells or scattered markers need a separate qualification;
     // do not infer their repetition from a row's incidental content.
     let mut header_rows = 0;
     if table.repeat_header {
@@ -130,6 +130,14 @@ fn bind_table(
                 }
                 header_rows += 1;
             }
+        }
+        if table.cells.iter().any(|cell| {
+            usize::from(cell.row) < header_rows
+                && usize::from(cell.row) + usize::from(cell.row_span) > header_rows
+        }) {
+            return Err(GeometryError::Unsupported(
+                "header boundary crosses rowspan",
+            ));
         }
     }
     let mut rows = Vec::with_capacity(resolved.rows.len());

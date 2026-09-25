@@ -164,7 +164,7 @@ impl TextPaint {
                 RenderNodeType::TableCell(TableCellNode {
                     row: cell.row as u16,
                     col: cell.column as u16,
-                    row_span: 1,
+                    row_span: cell.row_span as u16,
                     col_span: cell.column_span as u16,
                     border_fill_id: background.map_or(0, |b| b.id),
                     text_direction: 0,

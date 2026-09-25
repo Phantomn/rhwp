@@ -7,6 +7,8 @@ use super::{
     CellPlacement, GeometryError, PageArea, Rect, SplitPolicy, TableContentPlan, TablePlacement,
 };
 
+mod row_groups;
+
 /// A continuation is inseparable from its immutable content plan and child cuts.
 #[derive(Debug, Clone)]
 pub struct TableCursor {
@@ -171,6 +173,15 @@ impl TableCursor {
         if self.is_complete() {
             return Ok(FragmentFit::Complete);
         }
+        if self
+            .plan
+            .grid
+            .iter()
+            .flatten()
+            .any(|track| track.row_span > 1)
+        {
+            return self.fit_row_groups(area, end_row, atomic);
+        }
         let mut next = self.clone();
         let plan = &self.plan;
         let required = if atomic {
@@ -252,6 +263,7 @@ impl TableCursor {
                 };
                 cells.push(CellPlacement {
                     row: next.row,
+                    row_span: 1,
                     column: plan.grid[next.row][column].column,
                     column_span: plan.grid[next.row][column].span,
                     bounds: Rect {

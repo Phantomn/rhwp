@@ -132,6 +132,7 @@ pub struct LinePlacement {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CellPlacement {
     pub row: usize,
+    pub row_span: usize,
     pub column: usize,
     pub column_span: usize,
     pub bounds: Rect,

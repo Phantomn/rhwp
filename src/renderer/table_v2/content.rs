@@ -36,6 +36,7 @@ pub(super) enum VerticalAlignment {
 pub(super) struct CellTrack {
     pub column: usize,
     pub span: usize,
+    pub row_span: usize,
     pub left: f64,
     pub width: f64,
     pub alignment: VerticalAlignment,
@@ -116,6 +117,7 @@ impl TableContentPlan {
                 let cell = CellTrack {
                     column,
                     span: 1,
+                    row_span: 1,
                     left,
                     width,
                     alignment: VerticalAlignment::Top,
@@ -146,6 +148,9 @@ impl TableContentPlan {
             let mut height: f64 = 0.0;
             for (slot, cell) in input.cells.iter_mut().enumerate() {
                 let track = &grid[row][slot];
+                if track.row_span > 1 && policy == SplitPolicy::WithinCells {
+                    return Err(GeometryError::Unsupported("rowspan cell-internal cuts"));
+                }
                 if policy == SplitPolicy::WithinCells && track.alignment != VerticalAlignment::Top {
                     return Err(GeometryError::Unsupported("split-cell vertical alignment"));
                 }
@@ -230,16 +235,34 @@ impl TableContentPlan {
                 cell.blocks.push(FlowBlock::Space(p.bottom));
                 let physical = cell.blocks.iter().map(FlowBlock::height).sum::<f64>();
                 nonnegative(physical, "physical cell height")?;
-                height = height.max(physical).max(cell.minimum_height);
+                if track.row_span == 1 {
+                    height = height.max(physical).max(cell.minimum_height);
+                }
             }
             row_heights.push(height);
+        }
+        let has_spans = grid.iter().flatten().any(|track| track.row_span > 1);
+        if has_spans && (row_spacing != 0.0 || row_heights.contains(&0.0)) {
+            return Err(GeometryError::Unsupported(
+                "unresolved rowspan row boundaries",
+            ));
+        }
+        for (row, input) in rows.iter().enumerate() {
             // The whole row height is known only after EVERY cell was measured.
             // Empty line boxes and nested tables are physical content, not ink.
             // Do not center each page fragment or change declared minimum height.
             for (slot, cell) in input.cells.iter().enumerate() {
                 let physical = cell.blocks.iter().map(FlowBlock::height).sum::<f64>();
-                let slack = height - physical;
                 let track = &mut grid[row][slot];
+                let height = row_heights[row..row + track.row_span].iter().sum::<f64>();
+                // Intact non-spanning cells establish the row boundaries. A
+                // spanning cell cannot silently resize an arbitrary covered row.
+                if physical > height || cell.minimum_height > height {
+                    return Err(GeometryError::Unsupported(
+                        "rowspan height needs redistribution",
+                    ));
+                }
+                let slack = height - physical;
                 track.content_offset_y = match track.alignment {
                     VerticalAlignment::Top => 0.0,
                     VerticalAlignment::Center => slack / 2.0,

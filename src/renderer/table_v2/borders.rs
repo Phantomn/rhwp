@@ -58,7 +58,7 @@ impl CellBorders {
         placement: &TablePlacement,
         node: &mut RenderNode,
     ) -> Result<(), GeometryError> {
-        // The IR adapter guarantees a contiguous complete grid, row_span=1 and
+        // The IR adapter guarantees a contiguous complete grid and
         // zero row spacing. Use the fragment's visible row order, NOT source row
         // adjacency: a repeated header may be followed by a later body row.
         // WithinCells supplies the same physical rectangles for partial cells,
@@ -70,6 +70,14 @@ impl CellBorders {
         let mut slots = BTreeMap::new();
         let mut xs = BTreeMap::new();
         let mut ys = BTreeMap::new();
+        let visible_rows: BTreeSet<_> = placement
+            .cells
+            .iter()
+            .flat_map(|cell| cell.row..cell.row + cell.row_span)
+            .collect();
+        for (slot, row) in visible_rows.into_iter().enumerate() {
+            slots.insert(row, slot);
+        }
         for cell in &placement.cells {
             // Logical row boundaries must have distinct physical coordinates.
             // Even an unbordered zero-height row would otherwise separate two
@@ -79,8 +87,7 @@ impl CellBorders {
                     "zero-height row in bordered table",
                 ));
             }
-            let next = slots.len();
-            let slot = *slots.entry(cell.row).or_insert(next);
+            let slot = slots[&cell.row];
             xs.insert(cell.column, cell.bounds.x);
             ys.insert(slot, cell.bounds.y);
         }
@@ -90,7 +97,7 @@ impl CellBorders {
             // rounded prior start+width. Unobserved interior columns stay absent.
             xs.entry(cell.column + cell.column_span)
                 .or_insert(cell.bounds.x + cell.bounds.width);
-            ys.entry(slot + 1)
+            ys.entry(slot + cell.row_span)
                 .or_insert(cell.bounds.y + cell.bounds.height);
         }
         // (horizontal, boundary index) -> intervals in the other topology axis.
@@ -100,12 +107,13 @@ impl CellBorders {
                 continue;
             };
             let row = slots[&cell.row];
+            let row_end = row + cell.row_span;
             let end = cell.column + cell.column_span;
             for (horizontal, boundary, start, stop, style) in [
-                (false, cell.column, row, row + 1, edges[0]),
-                (false, end, row, row + 1, edges[1]),
+                (false, cell.column, row, row_end, edges[0]),
+                (false, end, row, row_end, edges[1]),
                 (true, row, cell.column, end, edges[2]),
-                (true, row + 1, cell.column, end, edges[3]),
+                (true, row_end, cell.column, end, edges[3]),
             ] {
                 if style.line_type != BorderLineType::None {
                     groups

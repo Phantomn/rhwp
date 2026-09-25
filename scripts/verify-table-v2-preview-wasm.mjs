@@ -98,6 +98,7 @@ async function main() {
   if (process.argv.includes('--stored-body')) positive.push('document-stored');
   if (process.argv.includes('--stored-tac')) positive.push('document-inline', 'document-inline-rows', 'document-inline-nested');
   if (process.argv.includes('--structural-tac')) positive.push('document-inline-first', 'document-inline-first-rows');
+  if (process.argv.includes('--rowspan')) positive.push('rowspan-groups','rowspan-whole','rowspan-header','rowspan-align','rowspan-nested','rowspan-spanning-header','rowspan-inner');
   if (process.argv.includes('--solid-borders')) {
     positive.push('border-grid', 'border-header', 'border-nested', 'border-one-sided');
     paintFailures.push('border-conflict');
@@ -249,6 +250,13 @@ async function main() {
     expected['document-inline-nested'] = [['A','a','B','b','tail']];
     expected['document-inline-first'] = [['A','a','B','b','after']];
     expected['document-inline-first-rows'] = [['A','a'],['B','b','after']];
+    expected['rowspan-groups'] = [['prefix'],['A','B','C','D','E','F'],['after']];
+    expected['rowspan-whole'] = [['prefix','A','B','C','D','E','F','after']];
+    expected['rowspan-header'] = [['prefix','A','B','C','D','E','F'],['prefix','after']];
+    expected['rowspan-align'] = [['T','C','B','a','b']];
+    expected['rowspan-nested'] = [['prefix'],['A','B','C','D','E','F'],['after','host','tail']];
+    expected['rowspan-spanning-header'] = [['header','h1','h2','body1'],['header','h1','h2','body2']];
+    expected['rowspan-inner'] = [['inner','host','tail','a','b']];
     const raster = await browser.newPage();
     const artifacts = [];
     for (const [fixtureName, pages] of Object.entries(result.pages)) {
@@ -311,6 +319,42 @@ async function main() {
           for (const n of [...lines,...collect(rootNode,'TableCell')]) {
             const end=n.bbox.y+n.bbox.height;
             assert.ok(end<=102 || sameCoordinate(end,102));
+          }
+        } else if (name.startsWith('rowspan-')) {
+          const box=(x,y,width,height)=>({x,y,width,height});
+          const group=y=>[box(20,y,60,72),box(80,y,120,36),box(80,y+36,60,72),
+            box(140,y+36,60,36),box(20,y+72,60,36),box(140,y+72,60,36)];
+          const small=box(20,30,180,18);
+          const aligned=name==='rowspan-align';
+          const nested=name==='rowspan-nested';
+          const spanHeader=name==='rowspan-spanning-header',inner=name==='rowspan-inner';
+          let cells=spanHeader ? [box(20,30,60,72),box(80,30,60,36),box(80,66,60,36),box(20,102,120,18)]
+            : inner ? [box(20,30,60,72),box(20,39,60,18),box(80,30,60,36),box(80,66,60,36)]
+            : aligned ? [box(20,30,60,72),box(80,30,60,72),box(140,30,60,72),box(200,30,60,36),box(200,66,60,36)]
+            : name==='rowspan-whole' ? [small,...group(48),box(20,156,180,18)]
+            : name==='rowspan-header' ? (index===0 ? [small,...group(48)] : [small,box(20,48,180,18)])
+            : index===1 ? group(30) : [small];
+          if(nested) cells=[box(20,30,180,[18,108,54][index]),...cells];
+          assertDocumentGeometry(collect(rootNode,'TableCell').map(n=>n.bbox),cells);
+          const tableHeight=spanHeader ? 90 : inner||aligned ? 72
+            : name==='rowspan-whole' ? 144 : name==='rowspan-header' ? (index===0?126:36)
+            : nested ? [18,108,54][index] : [18,108,18][index];
+          const tables=[box(20,30,aligned?240:spanHeader||inner?120:180,tableHeight)];
+          if(nested) tables.push(box(20,30,180,[18,108,18][index]));
+          if(inner) tables.push(box(20,39,60,18));
+          assertDocumentGeometry(collect(rootNode,'Table').map(n=>n.bbox),tables);
+          const ys=spanHeader ? [30,30,66,102] : inner ? [39,57,75,30,66] : aligned ? [36,54,72,36,72]
+            : name==='rowspan-whole' ? [30,48,48,84,84,120,120,156]
+            : name==='rowspan-header' ? (index===0 ? [30,48,48,84,84,120,120] : [30,48])
+            : index===1 ? [30,30,66,66,102,102] : nested&&index===2 ? [30,48,66] : [30];
+          assertDocumentGeometry(lines.map(n=>n.bbox.y),ys);
+          const body=configs[fixtureName].pages.body;
+          assert.ok(cells.every(b=>b.y>=body.y && b.y+b.height<=body.y+body.height));
+          if(name==='rowspan-groups' && index===1) {
+            assertDocumentGeometry(collect(rootNode,'Line').map(n=>['x1','y1','x2','y2'].map(k=>n.node_type.Line[k])),[
+              [20,30,20,138],[80,30,80,138],[140,66,140,138],[200,30,200,138],
+              [20,30,200,30],[80,66,200,66],[20,102,80,102],[140,102,200,102],[20,138,200,138]]);
+            assert.deepEqual(collect(rootNode,'TableCell').map(n=>n.node_type.TableCell.row_span),[2,1,2,1,1,1]);
           }
         } else if (name.startsWith('valign-')) {
           const contract=verticalContract(name,index);

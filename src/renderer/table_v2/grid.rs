@@ -21,7 +21,8 @@ pub(super) fn resolve(table: &Table, scale: f64) -> Result<ResolvedGrid<'_>, Geo
     let mut rows = vec![Vec::new(); nr];
     for cell in &table.cells {
         if cell.row as usize >= nr
-            || cell.row_span != 1
+            || cell.row_span == 0
+            || cell.row as usize + cell.row_span as usize > nr
             || cell.col_span == 0
             || cell.col as usize + cell.col_span as usize > nc
         {
@@ -35,10 +36,18 @@ pub(super) fn resolve(table: &Table, scale: f64) -> Result<ResolvedGrid<'_>, Geo
     let mut tracks = Vec::with_capacity(nr);
     for row in &mut rows {
         row.sort_by_key(|cell| cell.col);
+    }
+    let mut covering: Vec<&Cell> = Vec::new();
+    for (r, row) in rows.iter().enumerate() {
+        // A spanning cell owns every covered grid slot, but its content is bound
+        // only at its original row. Never duplicate it into continuation rows.
+        covering.retain(|cell| r < cell.row as usize + cell.row_span as usize);
+        covering.extend(row.iter().copied());
+        covering.sort_by_key(|cell| cell.col);
         let mut column = 0;
         let mut left = 0_i64;
         let mut resolved = Vec::with_capacity(row.len());
-        for cell in row.iter() {
+        for cell in &covering {
             if cell.col as usize != column || cell.width == 0 {
                 return Err(GeometryError::Unsupported(
                     "incomplete, overlapping or zero-width grid",
@@ -52,18 +61,21 @@ pub(super) fn resolve(table: &Table, scale: f64) -> Result<ResolvedGrid<'_>, Geo
                 }
                 edges[index] = Some(position);
             }
-            resolved.push(CellTrack {
-                column,
-                span: cell.col_span as usize,
-                left: left as f64 * scale,
-                width: cell.width as f64 * scale,
-                alignment: match cell.vertical_align {
-                    VerticalAlign::Top => VerticalAlignment::Top,
-                    VerticalAlign::Center => VerticalAlignment::Center,
-                    VerticalAlign::Bottom => VerticalAlignment::Bottom,
-                },
-                content_offset_y: 0.0,
-            });
+            if cell.row as usize == r {
+                resolved.push(CellTrack {
+                    column,
+                    span: cell.col_span as usize,
+                    row_span: cell.row_span as usize,
+                    left: left as f64 * scale,
+                    width: cell.width as f64 * scale,
+                    alignment: match cell.vertical_align {
+                        VerticalAlign::Top => VerticalAlignment::Top,
+                        VerticalAlign::Center => VerticalAlignment::Center,
+                        VerticalAlign::Bottom => VerticalAlignment::Bottom,
+                    },
+                    content_offset_y: 0.0,
+                });
+            }
             left = right;
             column = end;
         }

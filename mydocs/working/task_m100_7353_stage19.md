@@ -416,3 +416,85 @@ fresh WASM의 모호한 HWPX 축 거부도 확인했다(`unsupported-axis-wasm.l
 줄 합성/큰 표 분할, 구조 혼재 HWPX 다중 줄의 독립 출처 확인이 남았다. 파서·직렬화기,
 Legacy/Studio 기본값, golden/ignore는 유지했다. 내부 자동 승인 경계를 유지하며 원격 게시나
 전체 제출용 CI를 실행한 것으로 보고하지 않는다.
+
+## A 후속 — 세로 병합 셀의 온전한 행 그룹
+
+2026-09-25 후속 승인으로 #6923의 rowspan 의존 범위를 확장한다. Legacy는 변경하지 않는다.
+`RowBreak`에서 병합 셀 내부를 임의로 자르거나 같은 내용을 각 행에 복제하지 않고, 병합이
+가로지르는 경계들을 연결한 행 그룹을 한 번에 예약한다. `None`은 표 전체를 예약한다.
+이것은 **내부 행 높이가 결정되는 온전한 셀 그룹**의 실험 경로이며 일반 rowspan 내부 분할,
+한컴과의 모든 행 나눔 호환성을 완료했다는 뜻이 아니다.
+
+### 근거·공통 결과·제한
+
+- 입력 생성: 새 계약은 고정18px 문단과 선언 행 최소 높이를 갖는 합성 IR→HWPX→정상 parser다.
+  독립 기대값은 직렬화 전 지정한 행 높이, 여백, 병합 주소, 정렬 불변식에서 정한다.
+  #6923 원본은 변경 없이 파싱하여 별도 관측한다. 첫 표의 비병합 행 높이
+  2282/3042/1922/3274HU와 병합 높이5324/7246/5196HU의 합 관계를 검사한다.
+  그림이나 구조 컨트롤을 제거해 원본 수용으로 보고하지 않는다.
+- 생산: `grid::resolve`가 각 행을 덮는 원래 셀의 격자를 검사하고 시작 주소에만 track을 만든다.
+  `TableContentPlan::from_grid_rows`는 비병합 셀의 내용·최소 높이로 행 경계를 결정한다.
+  병합 셀 전체 높이는 해당 행들의 합이며 전체 상자에서 Top/Center/Bottom 여백을 산출한다.
+- 요구/예약/이월: `fragment::fit_rows`→`row_groups::fit_row_groups`가 연결된 그룹의 전체
+  요구 높이를 비교한 뒤 같은 행 높이로 셀 배치를 만든다. 부족하면 그룹 전체를 이월한다.
+  각 원래 셀의 `FlowCursor`는 한 번만 실행하며, 소비되지 않은 유닛이 남으면 오류다.
+  누적 예약 높이는 수용한 그룹의 합이고 후속 문단은 그 끝에서 시작한다.
+- 실제 배치: `text::render`는 원래 row/column/row_span과 최종 bounds를 소비한다.
+  `CellBorders::append`는 실제 보이는 행 순서와 span 끝 경계를 사용해 T자 공유선을 합친다.
+  반복 제목 뒤 source row가 건너뛰어도 같은 물리 경계를 사용한다. 좌표 clamp/별도 paint
+  높이 확장은 없다. 기존 비병합/WithinCells 경로는 별도 경로로 유지하고 선택 회귀로 대조한다.
+- 행 경계가 비병합 셀로 결정되지 않는 경우, 병합 내용에 맞춰 임의의 행을 늘려야 하는 경우,
+  rowspan의 `CellBreak`, 제목/본문 경계를 관통하는 병합은 명시적 미지원이다.
+  이번 온전한 그룹에는 시작/끝 내용 컷이 없고, padding/최소 높이 밴드는 한 번 계상한다.
+  일반 셀 내부 컷·캡션·각주·그림은 이번 신규 지원의 적용 대상이 아니다.
+
+### 검증
+
+`tests/cases/issue_7353_table_v2_rowspan.rs`의 정식 계약은 연결된 두 병합의 그룹 이월,
+여러 병합이 같은 경계에서 끝나는 경우, 예산107.5/108 및125/126px 경계, 원래 셀 소유,
+T자 테두리, 세 정렬과 여백, 반복되는 병합 제목, 병합 셀 내부 자식 표, 부모 안의 그룹 분할과
+host/tail, 종료 후 추가 페이지 없음, 불명확한 높이/잘못된 격자의 거부를 검사한다.
+실물 관측 계약을 합성 최종 출력 계약과 분리했다.
+
+증적 루트: `output/7353/r19/rowspan/`. 변경 전 `171c70d5a` WASM은 같은 새 입력을
+`Unsupported("cell address or span")`으로 거부했다(`before-wasm.log`, `before-pkg.sha256`).
+이는 Legacy 결함 재현이 아니라 V2의 기존 미지원→신규 수용 증거다.
+초기 테스트 실패는 용지를 넘는 테스트 본문 높이, 단위 변환1ULP 비교, parser가 zero rowspan을
+1로 정규화하는 부정 입력 기대값에서 발생했고 해당 로그를 보존했다. 제품 출력은 반올림하지
+않으며 유리수 좌표 기대값 비교에 기존 방식의8ULP만 적용한다. Native 렌더의 병합 외곽과
+정렬을 직접 열어 확인했다. 최종 회귀/lint/fresh WASM 결과는 아래에 기록한다.
+
+선택 회귀180건(V2 163 + Legacy17)이 통과했다(`selected-final.log`, 실행 명령 포함).
+Native/WASM library Clippy, 변경 test target Clippy, fmt, 고정 base
+`7a95e46e025470a4d7a7b59ad68ec02958bda738` manifest 검사가 통과했다.
+`clippy-native-final.log`, `clippy-wasm.log`, `clippy-tests-transport.log`, `fmt-final.log`,
+`policy-final.log`에 연결한다. 초기 Clippy의 `manual_contains`는 동일 의미의 `contains`
+호출로 수정했다. review overlay와 제품 `src/` 차이는 없다(`review-source-diff.log`).
+
+Docker 표준 WASM 빌드는7분40초에 성공했다(`docker-wasm.log`). WASM SHA256은
+`eb47e18b5efbf82248e548eec8ec60a734ecffc7f9ebd5f78df89369f9e14017`이다.
+제품 소스는 빌드 전 고정했고 변경하지 않았다(`source-final.sha256`,
+`post-build-source-check.log`). 최종 commit은 `verified-commit.txt`에 연결한다.
+
+첫 브라우저 비교에서 Native 증적의120과 WASM의120.00000000000001 차이가 검출됐다.
+엔진의 원문 JSON은 둘 다120.00000000000001였고, Native 테스트의 `serde_json::Value`
+재파싱/재직렬화가1ULP를 잃는 원인이었다. 이전 증적과 실패 로그를 보존하고
+(`rowspan-groups-reencoded.native.json`, `browser-reencoded-native.log`,
+`transport-roundtrip.log`), 새 테스트 helper가 `next_page_json` 원문을 보존하도록 수정했다.
+렌더러나 비교 허용치는 바꾸지 않았다. 해당10건과 변경 target Clippy·fmt·정책 검사를 다시
+통과했다(`rowspan-transport.log`). 제품 소스/입력이 같아 Docker 재빌드와 전체 선택 회귀
+중복 실행은 하지 않았다.
+
+브라우저 명령은 앞 절과 같은 모든 옵션에 `--rowspan`을 추가하고 fixtures/out을
+`output/7353/r19/rowspan/` 아래로 지정했다.115쪽의 **정확한** Native/fresh WASM
+RenderTree·SVG 동일성과 독립 좌표/소유 계약이 PASS했다(`browser.log`, `browser/manifest.json`).
+기존102쪽 Native JSON과 review PNG는 모두 동일하다(`prior-native-compare.log`,
+`visual-compare.log`). 새13쪽의 standalone overlay 전체와 대표4개 review PNG
+(`rowspan-groups-1`, `rowspan-align-0`, `rowspan-nested-2`, `rowspan-spanning-header-1`)를
+직접 열어 병합 외곽/T자 경계, 정렬, 제목/본문 소유, host/tail과 종료를 확인했다.
+합성 시각 계약의 범위에서 누락·중복·backend 차이를 보지 못했다. 한컴 PDF 일치 판정은 아니다.
+
+**A와 R5는 미완료다.** #6923 원본577문단 전체는 아직 section/쪽번호·그림·저장 앵커 등의
+미지원 경계에 걸린다. 다음 종단 의존 범위에서 이를 다루며 원본을 축소해 완료로 바꾸지 않는다.
+rowspan 내부 컷과 불명확한 높이 배분도 남긴다. Legacy/Studio 기본값·golden/ignore를 유지했고,
+전체 제출용 CI·원격 push·PR은 실행하지 않았다.
