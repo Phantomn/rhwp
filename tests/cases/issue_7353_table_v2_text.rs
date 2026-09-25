@@ -171,7 +171,138 @@ fn stored_partitions_and_continuation_share_final_line_boxes() {
     }
     let mut resized = t.clone();
     resized.cells[0].width += 1;
+    assert!(PreparedTextTable::prepare(&resized, &styles(), 7200.0).is_ok());
+    resized.cells[0].width -= 2; // saved interval no longer fits, not a tolerance
     assert!(PreparedTextTable::prepare(&resized, &styles(), 7200.0).is_err());
+}
+
+#[test]
+fn contained_stored_frames_survive_alignment_and_continuation() {
+    use rhwp::model::style::Alignment;
+    for alignment in [Alignment::Left, Alignment::Center, Alignment::Right] {
+        let mut t = table(&["AB", "after"]);
+        t.cells[0].paragraphs[0].line_segs = [(0, 100, 10, 150), (1, 118, 20, 170)]
+            .into_iter()
+            .map(
+                |(text_start, vertical_pos, column_start, segment_width)| LineSeg {
+                    text_start,
+                    vertical_pos,
+                    column_start,
+                    segment_width,
+                    line_height: 12,
+                    text_height: 12,
+                    baseline_distance: 10,
+                    line_spacing: 6,
+                    tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+                },
+            )
+            .collect();
+        let source = t.clone();
+        let mut s = styles();
+        s.para_styles[0].alignment = alignment;
+        let prepared = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+        let first = placed(&prepared.start(), 21.0);
+        let (_, a) = render(&first);
+        let next = placed(&first.continuation(), 40.0);
+        let (_, b) = render(&next);
+        assert_eq!(a.len(), 1);
+        assert_eq!(b.len(), 2);
+        for (line, x, y, w, label) in [
+            (&a[0], 35.0, 33.0, 150.0, "A"),
+            (&b[0], 45.0, 30.0, 170.0, "B"),
+        ] {
+            assert_eq!(
+                (line.bbox.x, line.bbox.y, line.bbox.width, line.bbox.height),
+                (x, y, w, 12.0)
+            );
+            assert_eq!(text(line), label);
+            let run = &line.children[0].bbox;
+            let expected = match alignment {
+                Alignment::Center => x + (w - run.width) / 2.0,
+                Alignment::Right => x + w - run.width,
+                _ => x,
+            };
+            assert!((run.x - expected).abs() < 1e-9);
+        }
+        assert_eq!(text(&b[1]), "after");
+        assert_eq!(b[1].bbox.y, 48.0);
+        assert_eq!(next.geometry().reserved_height(), 40.0);
+        assert!(matches!(
+            next.continuation().fit(area(40.0)).unwrap(),
+            TextFragmentFit::Complete
+        ));
+        assert_eq!(
+            t.cells[0].paragraphs[0].line_segs,
+            source.cells[0].paragraphs[0].line_segs
+        );
+        for (x, w) in [(-1, 150), (51, 150), (0, 201), (0, 0)] {
+            let mut bad = t.clone();
+            bad.cells[0].paragraphs[0].line_segs[0].column_start = x;
+            bad.cells[0].paragraphs[0].line_segs[0].segment_width = w;
+            assert!(PreparedTextTable::prepare(&bad, &s, 7200.0).is_err());
+        }
+    }
+}
+
+#[test]
+fn original_6923_first_empty_cell_keeps_its_stored_line_frame() {
+    let source = std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"),
+    )
+    .unwrap();
+    let d = rhwp::parse_document(&source).unwrap();
+    let rhwp::model::control::Control::Table(original) = &d.sections[0].paragraphs[0].controls[3]
+    else {
+        panic!("first table")
+    };
+    let cell = original.cells[0].clone();
+    assert_eq!(cell.width, 47488);
+    assert_eq!(original.padding.left + original.padding.right, 282);
+    let row = &cell.paragraphs[0].line_segs[0];
+    assert_eq!(
+        (
+            row.column_start,
+            row.segment_width,
+            row.line_height,
+            row.line_spacing
+        ),
+        (0, 47204, 300, 92)
+    );
+    let t = Table {
+        row_count: 1,
+        col_count: 4,
+        page_break: TablePageBreak::RowBreak,
+        padding: original.padding,
+        cells: vec![cell],
+        ..Default::default()
+    };
+    let s = rhwp::renderer::style_resolver::resolve_styles(&d.doc_info, 96.0);
+    let prepared = PreparedTextTable::prepare(&t, &s, 96.0).unwrap();
+    let TextFragmentFit::Placed(fragment) = prepared
+        .start()
+        .fit(PageArea {
+            bounds: Rect {
+                x: 0.0,
+                y: 0.0,
+                width: 700.0,
+                height: 100.0,
+            },
+        })
+        .unwrap()
+    else {
+        panic!("fit")
+    };
+    let (_, lines) = render(&fragment);
+    assert_eq!(lines.len(), 1);
+    assert!(text(&lines[0]).is_empty());
+    for (actual, hu) in [
+        (lines[0].bbox.x, 141.0),
+        (lines[0].bbox.width, 47204.0),
+        (lines[0].bbox.height, 300.0),
+    ] {
+        assert!((actual - hu / 75.0).abs() < 1e-9);
+    }
 }
 
 #[test]

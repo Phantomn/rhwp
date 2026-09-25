@@ -610,9 +610,7 @@ fn real_6923_remains_unmodified_and_explicitly_unqualified() {
             e @ DocumentV2Error::Paragraph {
                 index: 0,
                 reason:
-                    rhwp::renderer::table_v2::GeometryError::Unsupported(
-                        "stored text requires intact single-segment rows",
-                    ),
+                    rhwp::renderer::table_v2::GeometryError::Unsupported("non-table cell control"),
             },
         ) => e.to_string(),
         Err(e) => panic!("unexpected source admission boundary: {e}"),

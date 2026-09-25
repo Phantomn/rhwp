@@ -86,6 +86,10 @@ async function main() {
     negative.push('fill-border', 'fill-pattern');
   }
   const paintFailures = [];
+  if (process.argv.includes('--stored-frames')) {
+    positive.push('stored-frame-left', 'stored-frame-center', 'stored-frame-right',
+      'stored-frame-empty-center', 'stored-frame-empty-right');
+  }
   if (process.argv.includes('--linear-backgrounds')) {
     positive.push('gradient-horizontal', 'gradient-vertical', 'gradient-stepped', 'gradient-whole', 'inactive-diagonal');
   }
@@ -234,6 +238,8 @@ async function main() {
     expected['fill-transparent'] = expected.merged;
     for (const name of ['gradient-horizontal', 'gradient-vertical', 'gradient-stepped', 'inactive-diagonal']) expected[name] = expected.merged;
     expected['gradient-whole'] = [['title', 'A']];
+    for (const alignment of ['left','center','right']) expected[`stored-frame-${alignment}`] = [['A','B'],['after']];
+    for (const alignment of ['center','right']) expected[`stored-frame-empty-${alignment}`] = [['','after']];
     expected['border-grid'] = [['title', 'L1', 'R1']];
     expected['border-header'] = [['title', 'L1', 'R1'], ['title', 'L2', 'R2']];
     expected['border-nested'] = [...expected['border-header'], ['host', 'after']];
@@ -301,7 +307,21 @@ async function main() {
         const bordered = name.startsWith('border-');
         const cut = name.startsWith('cut-');
         const borderTail = name === 'border-nested' && index === 2;
-        if (name.startsWith('document-frame-') || name.includes('-signed-')) {
+        if (name.startsWith('stored-frame-')) {
+          const empty=name.startsWith('stored-frame-empty-');
+          const boxes=empty ? [{x:30,y:30,width:150,height:12},{x:20,y:48,width:200,height:12}]
+            : index===0 ? [{x:30,y:30,width:150,height:12},{x:40,y:48,width:170,height:12}]
+            : [{x:20,y:30,width:200,height:12}];
+          assertDocumentGeometry(lines.map(n=>n.bbox),boxes);
+          assertDocumentGeometry(collect(rootNode,'TableCell').map(n=>n.bbox),[{x:20,y:30,width:200,height:index===0?36:18}]);
+          if(empty) assert.equal(lines[0].children[0].bbox.width,0);
+          for(const line of lines) {
+            const run=line.children[0].bbox, b=line.bbox;
+            const x=name.endsWith('-center') ? b.x+(b.width-run.width)/2
+              : name.endsWith('-right') ? b.x+b.width-run.width : b.x;
+            assertDocumentGeometry(run.x,x);
+          }
+        } else if (name.startsWith('document-frame-') || name.includes('-signed-')) {
           const budget=name==='document-inline-signed-budget', nested=name==='document-inline-signed-nested';
           const rows=name==='document-signed-rows-hwp', frame=name.startsWith('document-frame-');
           const x=frame ? 32+({left:0,center:36,right:72}[name.split('-').at(-1)]) : rows ? 130 : 88;

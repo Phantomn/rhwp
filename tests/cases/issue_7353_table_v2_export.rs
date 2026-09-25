@@ -162,6 +162,106 @@ fn solid(color: u32) -> BorderFill {
         ..Default::default()
     }
 }
+
+#[test]
+fn stored_line_frames_export_without_replacing_their_width_or_origin() {
+    use rhwp::model::style::Alignment;
+    for (name, alignment) in [
+        ("stored-frame-left", Alignment::Left),
+        ("stored-frame-center", Alignment::Center),
+        ("stored-frame-right", Alignment::Right),
+    ] {
+        let mut t = table();
+        t.row_count = 1;
+        t.repeat_header = false;
+        t.cells.truncate(1);
+        t.cells[0].is_header = false;
+        let mut p = paragraph("AB");
+        p.line_segs = [(0, 7500, 750, 11250), (1, 8850, 1500, 12750)]
+            .into_iter()
+            .map(
+                |(text_start, vertical_pos, column_start, segment_width)| LineSeg {
+                    text_start,
+                    vertical_pos,
+                    column_start,
+                    segment_width,
+                    line_height: 900,
+                    text_height: 900,
+                    baseline_distance: 750,
+                    line_spacing: 450,
+                    tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+                },
+            )
+            .collect();
+        t.cells[0].paragraphs = vec![p, paragraph("after")];
+        let mut d = document(t);
+        d.doc_info.para_shapes[0].alignment = alignment;
+        let pages = colored_pages(name, &d);
+        assert_eq!(pages.len(), 2);
+        assert_eq!(labels(&pages[0]), ["A", "B"]);
+        assert_eq!(labels(&pages[1]), ["after"]);
+        for (line, x, y, width) in collect(&pages[0], "TextLine")
+            .iter()
+            .zip([(30.0, 30.0, 150.0), (40.0, 48.0, 170.0)])
+            .map(|(l, (x, y, w))| (l, x, y, w))
+        {
+            assert_eq!(
+                line["bbox"],
+                json!({"x":x,"y":y,"width":width,"height":12.0})
+            );
+        }
+        assert_eq!(
+            collect(&pages[1], "TextLine")[0]["bbox"],
+            json!({"x":20.0,"y":30.0,"width":200.0,"height":12.0})
+        );
+        assert_eq!(collect(&pages[0], "TableCell")[0]["bbox"]["height"], 36.0);
+        assert_eq!(collect(&pages[1], "TableCell")[0]["bbox"]["height"], 18.0);
+    }
+}
+
+#[test]
+fn empty_stored_frame_retains_flow_but_caret_has_zero_advance() {
+    use rhwp::model::style::Alignment;
+    for (name, alignment, x) in [
+        ("stored-frame-empty-center", Alignment::Center, 105.0),
+        ("stored-frame-empty-right", Alignment::Right, 180.0),
+    ] {
+        let mut t = table();
+        t.row_count = 1;
+        t.repeat_header = false;
+        t.cells.truncate(1);
+        t.cells[0].is_header = false;
+        let mut p = paragraph("");
+        p.line_segs = vec![LineSeg {
+            vertical_pos: 7500,
+            column_start: 750,
+            segment_width: 11250,
+            line_height: 900,
+            text_height: 900,
+            baseline_distance: 750,
+            line_spacing: 450,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            ..Default::default()
+        }];
+        t.cells[0].paragraphs = vec![p, paragraph("after")];
+        let mut d = document(t);
+        d.doc_info.para_shapes[0].alignment = alignment;
+        let pages = colored_pages(name, &d);
+        assert_eq!(pages.len(), 1);
+        assert_eq!(labels(&pages[0]), ["", "after"]);
+        let lines = collect(&pages[0], "TextLine");
+        assert_eq!(
+            lines[0]["bbox"],
+            json!({"x":30.0,"y":30.0,"width":150.0,"height":12.0})
+        );
+        assert_eq!(
+            lines[0]["children"][0]["bbox"],
+            json!({"x":x,"y":30.0,"width":0.0,"height":12.0})
+        );
+        assert_eq!(lines[1]["bbox"]["y"], 48.0);
+        assert_eq!(collect(&pages[0], "TableCell")[0]["bbox"]["height"], 36.0);
+    }
+}
 fn colored_document(t: Table) -> Document {
     let mut d = document(t);
     // COLORREF is BGR: pale red / pale green / pale blue, then transparent / white.

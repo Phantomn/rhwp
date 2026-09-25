@@ -794,3 +794,82 @@ Studio Canvas 실사용 또는 #6923 원본 전체 PDF 시각 통과로 확대�
 다음 작업은 원본 첫 표의 저장 줄 수용 제한의 실제 조건을 추적하고 공통 줄 구성으로
 연결하는 것이다. 분할 gradient·다른 배경 효과·중첩 gradient의 모든 조합은 미검증으로
 남기며 A/R5는 진행 중이다. 기본 엔진 전환·remote push·PR은 하지 않았다.
+
+### R19 후속: 셀 안의 저장 줄 영역과 빈 문단 캐럿
+
+출발 HEAD `8d3d7613b`. 원본 #6923 첫 표(p0/ci3)의 첫 셀은 폭47488HU,
+좌우 유효 여백141HU씩으로 내용 영역47206HU이며 저장 줄은 cs0/sw47204HU다.
+거부 원인은 여러 줄 자체가 아니라 V2가 저장 줄 폭과 셀 내용 폭의 완전 일치를 요구한
+조건이다. `document_ir_lineseg_standard.md`의 줄별 물리 영역 계약에 따라 포함된
+cs/sw를 그대로 사용한다. 원본 HWP·LineSeg를 수정하지 않았고 2HU 보정이나 문서별
+허용치를 추가하지 않았다. 기존 부동소수 변환 비교 외의 tolerance도 늘리지 않았다.
+
+값의 경로는 `table_v2/stored_text::localize`의 포함 검사/세로 원점 이동 →
+`table_v2/text::TextComposer::compose` →
+`layout/paragraph_layout::layout_composed_paragraph_in_frame(physical_frame_rows=true)`의
+줄별 effective_col_x/w·정렬 → `stored_text::validate_paint`의 실제 x/width/y/height/
+baseline/줄 소속 확인 → 같은 TextLine 노드로 만든 Lines와 paint payload다.
+페이지 fit/이어받기는 그 Lines를 소비하고 paint는 최종 배치만 평행 이동한다.
+뒤 문단도 같은 점유 결과를 소비한다. 기존 dirty cache, 잘못된 partition, 겹치는 세로 줄,
+여러 segment/페이지 reset, 범위 밖 줄의 거부는 유지한다. 변경 후 별도 폭 덮어쓰기를
+허용하는 대신 실제 paint 폭/원점 검사도 추가했다.
+
+폭 제한을 제거한 뒤 원본의 중앙 정렬 빈 문단에서 캐럿 TextRun의 폭이 줄 전체 폭으로
+생성되어 오른쪽을 넘는 문제가 드러났다. `layout_empty_runs_line`의 **물리 줄 경로**는
+빈 캐럿의 advance를0으로 생성하며 TextLine의 저장 폭·높이·간격은 보존한다.
+TextComposer의 run containment를 건너뛰거나 좌표를 clamp하지 않았다. 일반
+`layout_composed_paragraph`는 physical_frame_rows=false로 기존 경로를 유지한다.
+공유 true 경로인 `layout_stored_inline_flow`도 영향 범위이므로 기존 #6706/#6737/#6754
+계약을 추가 실행한다. Studio 편집 caret/hit-testing 전체 시나리오는 미검증이다.
+
+`tests/cases/issue_7353_table_v2_{text,export}.rs`의 새 계약은 저장 줄의 서로 다른
+가로 영역, 좌/중앙/우 정렬, 예산21px에서의 앞 줄 소비와 이어받기·뒤 문단·종료,
+범위 밖/폭0 거부, 빈 중앙/우 정렬의0폭 캐럿과18px 점유, 실제 원본 첫 셀 probe다.
+기대값은 저장 HU·명시한12px 줄/18px pitch·정렬 불변식에서 정했다. 합성 HWPX는
+한컴 생성본이 아니며 원본 셀 probe도 원본 전체 표의 PDF 일치 증거는 아니다.
+
+증적은 `output/7353/r19/stored-frames/`다. `before.log`는 새 text 계약2건이 기존
+저장 줄 제한으로 FAIL(기존9 PASS), `focused.log`는 가로 영역 계약 통과 후 빈 캐럿
+거부를 재현했다. `focused-caret.log`는47 PASS와 원본 admission 진단1 FAIL이다.
+진단의 실제 다음 경계가 문단0의 `non-table cell control`로 이동해 그 **오류 기대값만**
+갱신했다. 원본은 여전히 미지원이며 page-count/golden/ignore를 변경하지 않았다.
+중간 `after.log`의0 tests는 suite 준비 누락으로 검증에 포함하지 않았고 이후 원본
+변경마다 review worktree에서 manifest를 다시 prepare했다.
+
+Native `native-center.png`/`native-empty.png`를 직접 열어 서로 다른 줄 영역 안의 정렬,
+빈 첫 줄 뒤의 본문 위치를 확인한 뒤 제품 소스를 고정했다. 최종 회귀·lint·Docker
+WASM·직접 대조 결과는 아래에 이어 기록한다.
+
+최종 `final-tests.log`는205 PASS(V2 183+Legacy/저장 inline 대조22)다. review worktree에서
+manifest prepare 후 각 case를 `resolveCasePlan`으로 연결한 generated target에
+`cargo nextest run --locked --no-fail-fast -E 'test(~issue_7353_table_v2_...) | …'`
+필터를 적용했고 shared `target/pr-review`, `CARGO_BUILD_JOBS=1`을 사용했다.
+fmt와 Native library/WASM library/변경 integration target Clippy(-D warnings),
+고정 base `7a95e46e025470a4d7a7b59ad68ec02958bda738` 대비 manifest check도 통과했다
+(`fmt.log`, `clippy-{native,wasm,test}.log`, `policy.log`). 진단 오류 기대값의 rustfmt
+줄바꿈만 뒤에 정리했으며 실행 의미와 제품 소스는 동일하다. 전체 workspace 제출 CI나
+source-side unit test 변경은 이번 범위가 아니다.
+
+`docker compose --env-file .env.docker -p rhwp run --rm wasm`은7분27초에 완료했다
+(`docker-wasm.log`). fresh `pkg/rhwp_bg.wasm` SHA256은
+`29895e351dad36dce85379026173f993d3551e9320578776d9155eca74b3ce49`다.
+이전 절편의 browser 명령에서 fixtures/out을 `stored-frames/` 아래로 바꾸고
+`--stored-frames`를 추가했다. `browser.log`/`browser/manifest.json`의161쪽 모두
+정확한 Native/fresh WASM tree·SVG 대조를 통과했다. 기존 Native 자료7개는 빈 캐럿의
+width만0으로 바뀌었고 다른 좌표·내용은 동일하다(`prior-native-compare.log`). 기존
+153쪽의 review PNG는 모두 byte 동일하다(`prior-visual-compare.log`).
+
+`browser/stored-frames-contact.png`의 새8쪽 standalone overlay와
+`browser/stored-frame-center-0.review.png`의 Native/fresh WASM/overlay3면을 직접 열어
+저장 영역이 다른 줄들의3정렬, 다음 쪽의 뒤 문단, 빈 첫 줄의 점유 공간을 확인했다.
+각 `.native.png`, `.wasm.png`, `.overlay.png`, `.review.png`도 같은 폴더에 있다.
+합성 경계와 backend 일치 증거이며 Studio Canvas 편집 검증이나 한컴 PDF 일치로
+확대하지 않는다. `source-final.sha256`/`post-build-source-check.log`는 빌드 소스의
+불변을, `original-inputs.sha256`는 원본 HWP/PDF를, `verified-source.sha256`와
+`verified-commit.txt`는 최종 파일/내부 커밋을 고정한다.
+
+다음 장애물은 원본 첫 표의 저장 줄 안 TAC 그림이다(원본 dump의 bin_id1, 이어서2).
+`table_v2/ir.rs`의 비표 컨트롤 거부와 `text_ir.rs`의 표 전용 paint slot을 실제 그림의
+줄 소속·점유·BinData paint까지 연결해야 한다. 그림을 삭제하거나 Legacy 표 조판으로
+우회하지 않는다. 원본 종단 수용/PDF 비교와 A/R5는 아직 진행 중이다.
+기본 엔진 전환·remote push·PR은 수행하지 않았다.

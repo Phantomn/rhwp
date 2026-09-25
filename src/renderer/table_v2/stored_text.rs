@@ -31,6 +31,10 @@ pub(super) fn localize(para: &Paragraph, width: f64, dpi: f64) -> Result<Paragra
         return Err(unsupported());
     }
     for (i, row) in para.line_segs.iter().enumerate() {
+        // Saved lines own a physical interval inside the available frame.
+        // It need not fill the frame (rounding, insets or a narrower lane).
+        // Keep its origin/width for the shared physical-row paint path.
+        let right = hwpunit_to_px(row.column_start, dpi) + hwpunit_to_px(row.segment_width, dpi);
         if row.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
             || row.tag & LineSeg::TAG_SINGLE_SEGMENT_LINE != LineSeg::TAG_SINGLE_SEGMENT_LINE
             || row.tag & (LineSeg::TAG_AUTO_HYPHENATION | LineSeg::TAG_PARAGRAPH_HEAD) != 0
@@ -42,9 +46,9 @@ pub(super) fn localize(para: &Paragraph, width: f64, dpi: f64) -> Result<Paragra
             || row.baseline_distance < 0
             || row.baseline_distance > row.line_height
             || row.line_spacing < 0
-            || row.column_start != 0
+            || row.column_start < 0
             || row.segment_width <= 0
-            || !same(hwpunit_to_px(row.segment_width, dpi), width)
+            || (right > width && !same(right, width))
             || row.vertical_pos.checked_sub(first).is_none_or(|v| v < 0)
         {
             return Err(unsupported());
@@ -92,7 +96,9 @@ pub(super) fn validate_paint(
         let RenderNodeType::TextLine(line) = &node.node_type else {
             return Err(unsupported());
         };
-        if !same(node.bbox.y, before + hwpunit_to_px(row.vertical_pos, dpi))
+        if !same(node.bbox.x, hwpunit_to_px(row.column_start, dpi))
+            || !same(node.bbox.width, hwpunit_to_px(row.segment_width, dpi))
+            || !same(node.bbox.y, before + hwpunit_to_px(row.vertical_pos, dpi))
             || !same(node.bbox.height, hwpunit_to_px(row.line_height, dpi))
             || !same(line.baseline, hwpunit_to_px(row.baseline_distance, dpi))
         {

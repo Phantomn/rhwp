@@ -881,6 +881,9 @@ fn line_is_leading_empty_equation_tac_guide(
 /// [#1925 추출] `layout_empty_runs_line` 줄-스코프 스칼라 입력 묶음.
 #[derive(Clone, Copy)]
 struct EmptyRunsLineVars {
+    /// Physical rows already own the hit/flow box. The empty run is a
+    /// zero-advance caret anchor, including center/right aligned anchors.
+    physical_frame_rows: bool,
     alignment: crate::model::style::Alignment,
     available_width: f64,
     effective_col_x: f64,
@@ -6161,6 +6164,7 @@ impl LayoutEngine {
                     &line_tac_offsets,
                     col_area,
                     EmptyRunsLineVars {
+                        physical_frame_rows,
                         alignment,
                         available_width,
                         effective_col_x,
@@ -9307,7 +9311,7 @@ impl LayoutEngine {
             BoundingBox::new(
                 empty_line_mark_x,
                 vars.y,
-                if empty_line_mark_x > vars.x_start {
+                if vars.physical_frame_rows || empty_line_mark_x > vars.x_start {
                     0.0
                 } else {
                     vars.available_width
