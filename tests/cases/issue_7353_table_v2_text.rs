@@ -110,6 +110,157 @@ fn text(line: &RenderNode) -> String {
         .collect()
 }
 
+// Synthetic fresh IR, not a Hancom-generated fixture. At 7200 dpi the input
+// 400/1400 HU em boxes correspond to 4/14 pt in document units. A 156% pitch
+// adds 224/784 HU respectively; both gaps are exact multiples of 4 HU.
+// Test nonterminal origins, not the unresolved terminal-cell spacing policy.
+fn blank_paragraph_fixture(count: usize, font_height: f64) -> (Table, ResolvedStyleSet) {
+    let mut texts = vec!["before"];
+    texts.extend(std::iter::repeat_n("", count));
+    texts.push("after");
+    let mut t = table(&texts);
+    t.cells[0].width = 20_012;
+    let mut s = styles();
+    s.char_styles[0].font_size = 1200.0;
+    s.para_styles[0].line_spacing = 1800.0;
+    s.char_styles.push(ResolvedCharStyle {
+        font_size: font_height,
+        ..Default::default()
+    });
+    s.para_styles.push(ResolvedParaStyle {
+        line_spacing: 156.0,
+        line_spacing_type: rhwp::model::style::LineSpacingType::Percent,
+        spacing_before: 200.0,
+        spacing_after: 300.0,
+        ..Default::default()
+    });
+    for p in &mut t.cells[0].paragraphs[1..=count] {
+        p.char_shapes[0].char_shape_id = 1;
+        p.para_shape_id = 1;
+    }
+    (t, s)
+}
+
+fn prepare_blank_flow(t: &Table, s: &ResolvedStyleSet, explicit: bool) -> PreparedTextTable {
+    if !explicit {
+        return PreparedTextTable::prepare(t, s, 7200.0).unwrap();
+    }
+    PreparedTextTable::from_flow_rows(
+        vec![20_012.0],
+        vec![TextFlowRow {
+            cells: vec![TextFlowCell {
+                padding: Insets {
+                    left: 5.0,
+                    right: 7.0,
+                    top: 3.0,
+                    bottom: 4.0,
+                },
+                minimum_height: 0.0,
+                blocks: t.cells[0]
+                    .paragraphs
+                    .iter()
+                    .enumerate()
+                    .map(|(owner, p)| TextFlowBlock::Paragraph {
+                        owner,
+                        paragraph: Box::new(p.clone()),
+                    })
+                    .collect(),
+            }],
+        }],
+        0.0,
+        SplitPolicy::WithinCells,
+        s,
+        7200.0,
+    )
+    .unwrap()
+}
+
+fn blank_area(height: f64) -> PageArea {
+    let mut page = area(height);
+    page.bounds.width = 20_012.0;
+    page
+}
+
+fn placed_blank(cursor: &TextTableCursor, height: f64) -> TextFragment {
+    match cursor.fit(blank_area(height)).unwrap() {
+        TextFragmentFit::Placed(f) => f,
+        _ => panic!("expected blank paragraph flow"),
+    }
+}
+
+fn blank_lines(fragment: &TextFragment) -> Vec<RenderNode> {
+    // The synthetic frame is in source HU, so the paint page must use that
+    // same coordinate scale rather than the small pixel page of other tests.
+    let mut page = PageRenderTree::new(0, 21_000.0, 21_000.0);
+    fragment.append_to(&mut page).unwrap();
+    let mut lines = Vec::new();
+    collect_lines(&page.root, &mut lines);
+    for line in &lines {
+        assert!(line.bbox.y >= 30.0);
+        assert!(line.bbox.y + line.bbox.height <= 30.0 + fragment.geometry().reserved_height());
+    }
+    lines
+}
+
+#[test]
+fn blank_paragraph_font_percent_and_insets_set_following_line_origin() {
+    for explicit in [false, true] {
+        for (font_height, pitch) in [(400.0, 624.0), (1400.0, 2184.0)] {
+            for count in 0..=2 {
+                let (t, s) = blank_paragraph_fixture(count, font_height);
+                let original = serde_json::to_value(&t).unwrap();
+                let prepared = prepare_blank_flow(&t, &s, explicit);
+                let f = placed_blank(&prepared.start(), 20_000.0);
+                let lines = blank_lines(&f);
+                assert_eq!(lines.len(), count + 2);
+                assert_eq!(text(&lines[0]), "before");
+                assert_eq!(lines[0].bbox.y, 33.0);
+                let advance = 200.0 + pitch + 300.0;
+                for (i, line) in lines[1..=count].iter().enumerate() {
+                    assert_eq!(text(line), "");
+                    assert_eq!(line.bbox.height, font_height);
+                    assert_eq!(line.bbox.y, 33.0 + 1800.0 + i as f64 * advance + 200.0);
+                }
+                let last = lines.last().unwrap();
+                assert_eq!(text(last), "after");
+                assert_eq!(last.bbox.y, 33.0 + 1800.0 + count as f64 * advance);
+                assert!(last.bbox.y + last.bbox.height <= 30.0 + f.geometry().reserved_height());
+                assert!(matches!(
+                    f.continuation().fit(blank_area(20_000.0)).unwrap(),
+                    TextFragmentFit::Complete
+                ));
+                assert_eq!(
+                    serde_json::to_value(&t).unwrap(),
+                    original,
+                    "composition must not rewrite the input IR"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn blank_line_that_does_not_fit_is_carried_before_following_text() {
+    for explicit in [false, true] {
+        let (t, s) = blank_paragraph_fixture(1, 400.0);
+        let prepared = prepare_blank_flow(&t, &s, explicit);
+        // Top padding + first pitch + blank paragraph-before + one HU less
+        // than the blank's 400 HU line box. No part of that line may disappear.
+        let first = placed_blank(&prepared.start(), 3.0 + 1800.0 + 200.0 + 399.0);
+        let first_lines = blank_lines(&first);
+        assert_eq!(first_lines.iter().map(text).collect::<Vec<_>>(), ["before"]);
+        let second = placed_blank(&first.continuation(), 20_000.0);
+        let lines = blank_lines(&second);
+        assert_eq!(lines.iter().map(text).collect::<Vec<_>>(), ["", "after"]);
+        assert_eq!(lines[0].bbox.height, 400.0);
+        assert_eq!(lines[1].bbox.y - lines[0].bbox.y, 624.0 + 300.0);
+        assert!(matches!(
+            second.continuation().fit(blank_area(20_000.0)).unwrap(),
+            TextFragmentFit::Complete
+        ));
+    }
+}
+
 #[test]
 fn stored_partitions_and_continuation_share_final_line_boxes() {
     // Synthetic boundary contract: two saved 12HU boxes at 18HU pitch,

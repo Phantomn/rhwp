@@ -1209,3 +1209,67 @@ lint와207쪽 backend 증거를 동일 소스의 기존 근거로 재사용하�
 않는다. pkg SHA256도 위 `e02672c2…ecb93daf`와 동일해 Docker/WASM을 중복 빌드하지 않았다.
 전체 workspace 제출 CI/원격 작업은 미실행이다. 내부 커밋은 `triage-verified-commit.txt`에
 연결한다. 다음은 종료 점유/전진 결과의 구분과 유효한 TAC/분할 경계 입력 재설계다.
+
+### A 후속 — 편집 의미 보존과 빈 문단 경계 계약
+
+작업지시자는 HWP/HWPX → 공통 IR → 조판에서 편집자의 의도를 저장 속성에 따라 구현하는
+도메인 원칙을 장기 메모리에 기록하도록 요청했다. 승인된 Codex 메모리 확장 노트에 기록하고
+구현계획의 공통 결과 절에도 반영했다. AGENTS.md나 기존 메모리 원본은 수정하지 않았다.
+시작 head는 `e166bf1cf9626e5cdeaf8e6e2cc3e55606cd777b`이며 clean 상태였다.
+
+**원인 경계와 다음 설계:** 보류 후보의 마지막 vector 항목 판정은 추가 공간과 실제 후속 줄을
+혼동한다. 이를 빈 문자열 제거·0 공간 삭제로 고치지 않는다. 빈 문단은 글자/문단모양과 줄
+소유자를 유지하며 TAC/어울림 영향은 별도 줄 구성에서 결정해야 한다. 마지막 줄간격과 문단
+뒤 간격의 셀 끝 적용은 별도 독립 근거가 필요하다. 이번에는 잘못된 후보를 활성화하지 않고
+종료 결과 분리 작업이 보존해야 할 빈 문단의 실제 좌표·이월 계약을 먼저 확정했다.
+
+값의 실제 경로는 다음과 같다.
+
+- 입력 `Paragraph.char_shapes`/`para_shape_id` → `TextComposer::compose`의 style 선택 →
+  `composer/line_breaking.rs::layout_paragraph_in_frame_impl`의 빈 문단 font 선택 및 줄 구성.
+- `layout_composed_paragraph_in_frame`이 생성한 `TextLine.bbox`와 반환 원점 → `text.rs`의
+  `ParagraphItem::Lines`/줄 사이 Space → `ir.rs::bind_table` 또는 `text_flow.rs::from_flow_rows`.
+- `content.rs::physical_extent`와 padding/행 최소 높이 → fit의 줄 소유 유닛·공간 소비 →
+  `TextFragment::append_to`의 실제 TextLine. 테스트는 helper 반환값이 아닌 이 최종 좌표를 검사한다.
+- TAC는 `text_ir.rs` → `tac.rs::compose`의 저장 줄 소속/점유·전진 경로이며, 그림은
+  `pictures.rs::compose`다. 이것들을 문자 없는 빈 문단으로 취급하지 않는다. 일반 어울림과
+  텍스트/TAC 혼합 재조판은 현재 명시적 미지원 경계다. 기존 거부 검사의 PASS는 구현 완료가 아니다.
+
+`tests/cases/issue_7353_table_v2_text.rs`에 다음 2건을 추가했다. 수동 작성 fresh IR의 합성
+규칙 계약이며 정상 한컴 저장본이나 피델리티 증거로 분류하지 않는다.
+
+1. `blank_paragraph_font_percent_and_insets_set_following_line_origin`: 앞/뒤 텍스트 사이
+   빈 문단 0/1/2개, 글자 크기400/1400HU(4/14pt), 156%, 문단 앞200/뒤300HU를 사용한다.
+   독립 기대 피치는624/2184HU이고 문단간 전진은 각각1124/2684HU다. IR/explicit flow 양쪽에서
+   빈 줄의 수·높이·원점, 뒤 텍스트 원점, 조각 내부 점유, 입력 IR 불변, 완전 종료를 검사한다.
+2. `blank_line_that_does_not_fit_is_carried_before_following_text`: 첫 줄 pitch1800 +
+   위 padding3 + 빈 문단 앞200 + 빈 줄400보다1HU 부족한 예산을 준다. 앞 조각에는 before만,
+   다음 조각에는 빈 줄과 after가 한 번씩 나타나며 두 줄 원점 차이는624+300HU다.
+   빈 문단 삭제나 줄 상자를 Space로 대체하면 성립하지 않는 계약이다.
+
+기존 96dpi의4pt/156% 검사와 원본 #6923 저장 빈 셀 검사도 같은 focused suite에서 재실행했다.
+새 검사는 현재 코드에서 PASS인 **보존 계약**이며 발견된 기존 결함의 수정 전 FAIL 증거로
+주장하지 않는다. 이 결과로 끝 줄간격 포함/제외 정책을 확정하거나 기존96건 기대값을 갱신하지 않는다.
+
+검증은 기존 review overlay에서 수행했다. 다른 WIP는 보존하고 변경 test만 제품과 동일하게
+갱신했다. `output/7353/r19/terminal/`의 `domain-text-tests.log`와
+`domain-control-tests.log`에 문단14건 + 기존 IR/중첩/문서 흐름40건, **총54 PASS**를 기록한다.
+후자는 저장 TAC의 같은 줄/다른 줄·음수 간격·원자적 이월과 어울림 명시적 거부 대조를 포함한다.
+소스 구현은 변경하지 않았고 테스트만 추가했으므로 Docker/WASM을 중복 빌드하거나 이전207쪽
+시각 증거를 새 실행으로 합산하지 않았다. 새 합성 입력의 WASM/한컴 시각 검증은 미실행이다.
+
+fmt check, 변경 integration target Clippy(-D warnings), 고정 base
+`7a95e46e025470a4d7a7b59ad68ec02958bda738` 대비 manifest 검사는 각각
+`domain-fmt.log`, `domain-clippy-test.log`, `domain-policy.log`에 남긴다.
+이는 내부 체크포인트이며 전체 workspace 제출 CI 완료가 아니다. 다음은 빈 문단을 보존한 채
+문단 구성 결과의 점유 끝/전진 원점을 분리하고, 유효한 저장 TAC와 셀 종료 근거를 연결하는 작업이다.
+종료 후보 활성화·baseline/ignore 변경·Legacy 변경·원격 push/PR·R5 완료 판정은 하지 않았다.
+
+최종 테스트 파일 SHA256은 `40972026360ae35969ba341b43d943f9eaf4154eed60aa049a16baef01c858a3`다.
+제품/review의 tracked `src/`, `crates/`, Cargo 파일1346개를 byte 비교하여 차이0을 확인했다.
+최종 문단 검사 명령은 review에서 `CARGO_BUILD_JOBS=1`과 공유 `CARGO_TARGET_DIR`을 지정한
+`node scripts/run-rust-test.mjs issue_7353_table_v2_text -- --no-fail-fast`이며 최종 배정은
+`regression_suite_007`이다. 이 target Clippy와 fmt/policy도 모두 PASS다.
+도중 test source 크기 변경 뒤 파생 suite 재준비 전 실행은0건으로 실패했으며 성공으로 세지 않았다.
+`--prepare` 재실행 후 위14건을 실제 실행한 결과가 최종 증거다. 다른40건 case source와
+제품 구현은 그 검증 뒤 변경하지 않았다.
