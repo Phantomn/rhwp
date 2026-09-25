@@ -362,6 +362,29 @@ fn real_6923_remains_unmodified_and_explicitly_unqualified() {
         .join("tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp");
     let data = std::fs::read(path).expect("required original fixture");
     let d = rhwp::parse_document(&data).unwrap();
+    // Unmodified first HWP paragraph: secd/cold/page number occupy source
+    // slots 0/8/16, but not inline width. Table remains control 3, not 0.
+    let first = rhwp::renderer::table_v2::stored_tac_rows(
+        &d.sections[0].paragraphs[0],
+        48188.0,
+        rhwp::model::style::Alignment::Center,
+    )
+    .unwrap();
+    assert_eq!(first.len(), 1);
+    assert_eq!(first[0].height, 11668.0);
+    assert_eq!(first[0].spacing, -800.0);
+    assert_eq!(
+        first[0].tables,
+        vec![(
+            3,
+            rhwp::renderer::table_v2::Rect {
+                x: 350.0,
+                y: 283.0,
+                width: 47488.0,
+                height: 11102.0,
+            }
+        )]
+    );
     // Original HWP control carrier, not a rewritten synthetic table. Query only:
     // children still contain features the experimental engine does not admit.
     let carrier = &d.sections[0].paragraphs[24];
@@ -439,6 +462,12 @@ fn inline_carrier(separate: bool) -> Paragraph {
         t.outer_margin_right = 150;
         t.outer_margin_top = 150;
         t.outer_margin_bottom = 150;
+        // Both IR mirrors carry the same serialized object margin. HWP uses
+        // common.margin, HWPX uses the table fields; neither is extra padding.
+        t.common.margin.left = 150;
+        t.common.margin.right = 150;
+        t.common.margin.top = 150;
+        t.common.margin.bottom = 150;
         para.controls.push(Control::Table(Box::new(t)));
     }
     para.line_segs = (0..if separate { 2 } else { 1 })
@@ -487,22 +516,6 @@ fn stored_inline_row_is_reserved_once_and_defers_all_siblings() {
 
 #[test]
 fn stored_inline_distinct_rows_and_nested_path_preserve_source_ownership() {
-    let structural = bytes(&source(vec![inline_carrier(true)]));
-    assert!(matches!(
-        DocumentV2Session::from_bytes(&structural, r#"{"dpi":96,"max_pages":20}"#),
-        Err(DocumentV2Error::Paragraph {
-            index: 0,
-            reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "body control or multiple anchors"
-            )
-        })
-    ));
-    if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(format!("{dir}/unsupported-structural-tac.hwpx"), structural).unwrap();
-    }
-    // Keep structural SectionDef/ColumnDef outside the TAC carrier. Their saved
-    // character-axis mapping is a separate, still unsupported source boundary.
     let mut d = source(vec![p("before"), inline_carrier(true)]);
     d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Center;
     let pages = drain(&mut open(&d));
@@ -532,6 +545,209 @@ fn stored_inline_distinct_rows_and_nested_path_preserve_source_ownership() {
     }
     near(&nodes(&pages[0], "TextLine")[4]["bbox"]["y"], 74.0);
     capture("document-inline-nested", &d, &pages);
+}
+
+#[test]
+fn first_body_inline_rows_keep_structural_slots_and_final_geometry() {
+    use rhwp::{model::style::Alignment, renderer::table_v2::stored_tac_rows};
+    for separate in [false, true] {
+        let mut d = source(vec![inline_carrier(separate), p("after")]);
+        add_leading_structure(&mut d);
+        d.doc_info.para_shapes[0].alignment = Alignment::Center;
+        let parsed = rhwp::parse_document(&bytes(&d)).unwrap();
+        let hwpx_para = &parsed.sections[0].paragraphs[0];
+        // secPr is out-of-axis; the separately serialized ctrl/colPr is not.
+        assert_eq!(hwpx_para.hwpx_axis_shift, 8);
+        let hwp = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+        let hwp_parsed = rhwp::parse_document(&hwp).unwrap();
+        let para = &hwp_parsed.sections[0].paragraphs[0];
+        assert_eq!(para.hwpx_axis_shift, 0);
+        assert_eq!(para.char_count, 33);
+        assert!(matches!(para.controls[0], Control::SectionDef(_)));
+        assert!(matches!(para.controls[1], Control::ColumnDef(_)));
+        let rows = stored_tac_rows(para, 22500.0, Alignment::Center).unwrap();
+        assert_eq!(
+            rows.iter()
+                .flat_map(|r| r.tables.iter().map(|t| t.0))
+                .collect::<Vec<_>>(),
+            [2, 3]
+        );
+        if separate {
+            assert_eq!(para.line_segs[1].text_start, 24);
+            assert_eq!(para.line_seg_text_start(1), 24);
+            assert_eq!(rows[0].tables.len(), 1);
+            assert_eq!(rows[1].tables[0].0, 3);
+            assert!(matches!(
+                DocumentV2Session::from_bytes(&bytes(&d), r#"{"dpi":96,"max_pages":20}"#),
+                Err(DocumentV2Error::Paragraph {
+                    reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
+                        "ambiguous structural TAC character axis"
+                    ),
+                    ..
+                })
+            ));
+        }
+        let pages = drain(
+            &mut DocumentV2Session::from_bytes(&hwp, r#"{"dpi":96,"max_pages":20}"#).unwrap(),
+        );
+        if !separate {
+            let hwpx_pages = drain(&mut open(&d));
+            assert_eq!(hwpx_pages.len(), pages.len());
+            for (a, b) in hwpx_pages.iter().zip(&pages) {
+                assert_eq!(labels(a), labels(b));
+                assert_eq!(
+                    nodes(a, "Table")
+                        .iter()
+                        .map(|n| &n["bbox"])
+                        .collect::<Vec<_>>(),
+                    nodes(b, "Table")
+                        .iter()
+                        .map(|n| &n["bbox"])
+                        .collect::<Vec<_>>()
+                );
+            }
+        }
+        assert_eq!(pages.len(), if separate { 2 } else { 1 });
+        if separate {
+            assert_eq!(labels(&pages[0]), ["A", "a"]);
+            assert_eq!(labels(&pages[1]), ["B", "b", "after"]);
+        } else {
+            assert_eq!(labels(&pages[0]), ["A", "a", "B", "b", "after"]);
+        }
+        for page in &pages {
+            let ts = nodes(page, "Table");
+            assert_eq!(ts.len(), if separate { 1 } else { 2 });
+            for (i, t) in ts.iter().enumerate() {
+                near(
+                    &t["bbox"]["x"],
+                    if separate {
+                        130.0
+                    } else {
+                        88.0 + 84.0 * i as f64
+                    },
+                );
+                near(&t["bbox"]["y"], 32.0);
+                near(&t["bbox"]["width"], 80.0);
+                near(&t["bbox"]["height"], 36.0);
+            }
+        }
+        let final_lines = nodes(pages.last().unwrap(), "TextLine");
+        near(&final_lines.last().unwrap()["bbox"]["y"], 74.0);
+        if separate {
+            if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
+                std::fs::write(format!("{dir}/document-inline-first-rows.hwp"), &hwp).unwrap();
+                std::fs::write(
+                    format!("{dir}/document-inline-first-rows.options.json"),
+                    r#"{"dpi":96,"max_pages":20}"#,
+                )
+                .unwrap();
+                std::fs::write(
+                    format!("{dir}/document-inline-first-rows.native.json"),
+                    serde_json::to_vec_pretty(&pages).unwrap(),
+                )
+                .unwrap();
+                std::fs::write(format!("{dir}/unsupported-structural-axis.hwpx"), bytes(&d))
+                    .unwrap();
+            }
+        } else {
+            capture("document-inline-first", &d, &drain(&mut open(&d)));
+        }
+        let mut bad = para.clone();
+        bad.hwpx_axis_shift = 24;
+        assert!(stored_tac_rows(&bad, 22500.0, Alignment::Center).is_err());
+        bad.hwpx_axis_shift = 7;
+        assert!(stored_tac_rows(&bad, 22500.0, Alignment::Center).is_err());
+    }
+}
+
+// Hand-authored IR with explicit HWP5 slots, not a saved-row cache made before
+// the serializer inserts the section's metadata. This is a boundary contract,
+// not a Hancom generated source or a repair of the preserved old fixture.
+fn add_leading_structure(d: &mut Document) {
+    let def = d.sections[0].section_def.clone();
+    let para = &mut d.sections[0].paragraphs[0];
+    para.controls.insert(0, Control::SectionDef(Box::new(def)));
+    para.controls
+        .insert(1, Control::ColumnDef(Default::default()));
+    para.char_count += 16;
+    for line in &mut para.line_segs {
+        if line.text_start != 0 {
+            line.text_start += 16;
+        }
+    }
+}
+
+#[test]
+fn structural_carriers_do_not_silently_drop_unhandled_stories_or_signed_spacing() {
+    use rhwp::renderer::table_v2::GeometryError;
+    let mut d = source(vec![inline_carrier(false)]);
+    d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Center;
+    add_leading_structure(&mut d);
+    d.sections[0].paragraphs[0].line_segs[0].line_spacing = -100;
+    assert!(matches!(
+        DocumentV2Session::from_bytes(
+            &rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap(),
+            r#"{"dpi":96,"max_pages":20}"#
+        ),
+        Err(DocumentV2Error::Paragraph {
+            index: 0,
+            reason: GeometryError::Unsupported("negative TAC row spacing")
+        })
+    ));
+    let mut d = source(vec![inline_carrier(false)]);
+    add_leading_structure(&mut d);
+    d.sections[0].paragraphs[0]
+        .controls
+        .push(Control::PageNumberPos(Default::default()));
+    d.sections[0].paragraphs[0].char_count += 8;
+    assert!(matches!(
+        DocumentV2Session::from_bytes(&bytes(&d), r#"{"dpi":96,"max_pages":20}"#),
+        Err(DocumentV2Error::Paragraph {
+            index: 0,
+            reason: GeometryError::Unsupported("body control or multiple anchors")
+        })
+    ));
+    // HWP preserves these declarations as individual source slots. Duplicate,
+    // multi-column and later-paragraph metadata must not disappear in dispatch.
+    for kind in 0..3 {
+        let mut d = source(vec![inline_carrier(false)]);
+        d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Center;
+        add_leading_structure(&mut d);
+        match kind {
+            0 => {
+                d.sections[0].paragraphs[0]
+                    .controls
+                    .insert(2, Control::ColumnDef(Default::default()));
+                d.sections[0].paragraphs[0].char_count += 8;
+            }
+            1 => {
+                let Control::ColumnDef(c) = &mut d.sections[0].paragraphs[0].controls[1] else {
+                    unreachable!()
+                };
+                c.column_count = 2;
+            }
+            _ => {
+                let mut para = p("");
+                para.controls.push(Control::ColumnDef(Default::default()));
+                para.char_count = 9;
+                d.sections[0].paragraphs.push(para);
+            }
+        }
+        let encoded = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+        let error = DocumentV2Session::from_bytes(&encoded, r#"{"dpi":96,"max_pages":20}"#)
+            .err()
+            .expect("structural guard");
+        assert!(
+            matches!(
+                error,
+                DocumentV2Error::Paragraph {
+                    reason: GeometryError::Unsupported("body control or multiple anchors"),
+                    ..
+                }
+            ),
+            "{kind}: {error}"
+        );
+    }
 }
 
 #[test]

@@ -97,6 +97,7 @@ async function main() {
   }
   if (process.argv.includes('--stored-body')) positive.push('document-stored');
   if (process.argv.includes('--stored-tac')) positive.push('document-inline', 'document-inline-rows', 'document-inline-nested');
+  if (process.argv.includes('--structural-tac')) positive.push('document-inline-first', 'document-inline-first-rows');
   if (process.argv.includes('--solid-borders')) {
     positive.push('border-grid', 'border-header', 'border-nested', 'border-one-sided');
     paintFailures.push('border-conflict');
@@ -114,7 +115,7 @@ async function main() {
   const files = new Map([
     ['/rhwp.js', ['application/javascript', js]],
     ['/rhwp_bg.wasm', ['application/wasm', wasm]],
-    ...names.map(name => [`/${name}`, ['application/octet-stream', readFileSync(join(fixtures, `${name}.${name==='document-hwp'?'hwp':'hwpx'}`))]]),
+    ...names.map(name => [`/${name}`, ['application/octet-stream', readFileSync(join(fixtures, `${name}.${['document-hwp','document-inline-first-rows'].includes(name)?'hwp':'hwpx'}`))]]),
   ]);
   const configs = Object.fromEntries(names.map(name => [name, JSON.parse(readFileSync(join(fixtures, `${name}.options.json`)))]));
   const server = http.createServer((req, res) => {
@@ -246,6 +247,8 @@ async function main() {
     expected['document-inline'] = [['before','lead'],['A','a','B','b','after']];
     expected['document-inline-rows'] = [['before','A','a'],['B','b']];
     expected['document-inline-nested'] = [['A','a','B','b','tail']];
+    expected['document-inline-first'] = [['A','a','B','b','after']];
+    expected['document-inline-first-rows'] = [['A','a'],['B','b','after']];
     const raster = await browser.newPage();
     const artifacts = [];
     for (const [fixtureName, pages] of Object.entries(result.pages)) {
@@ -270,10 +273,13 @@ async function main() {
         if (name.startsWith('document-')) {
           assertDocumentGeometry(collect(rootNode,'Body').map(n=>n.bbox),[{x:20,y:30,width:300,height:72}]);
           const inline = name.startsWith('document-inline');
-          const inlineYs = name === 'document-inline-rows' ? (index===0 ? [30,50,68] : [32,50])
+          const firstRows = name === 'document-inline-first-rows';
+          const inlineYs = firstRows ? (index===0 ? [32,50] : [32,50,74])
+            : name === 'document-inline-rows' ? (index===0 ? [30,50,68] : [32,50])
             : name === 'document-inline' && index===0 ? [30,48] : [32,50,32,50,74];
           assertDocumentGeometry(lines.map(n=>n.bbox.y),inline ? inlineYs : expected[name][index].map((_,i)=>30+18*i));
-          const inlineBoxes = name === 'document-inline-rows' ? [{x:130,y:index===0?50:32,width:80,height:36}]
+          const inlineBoxes = firstRows ? [{x:130,y:32,width:80,height:36}]
+            : name === 'document-inline-rows' ? [{x:130,y:index===0?50:32,width:80,height:36}]
             : name === 'document-inline' && index===0 ? []
             : [...(name === 'document-inline-nested' ? [{x:20,y:30,width:300,height:44}] : []),
               {x:88,y:32,width:80,height:36},{x:172,y:32,width:80,height:36}];
@@ -294,7 +300,8 @@ async function main() {
             const match=remainingEdges.findIndex(candidate=>candidate.every((v,i)=>sameCoordinate(v,edge[i])));
             assert.ok(match>=0,`missing document edge ${edge}`); remainingEdges.splice(match,1);
           }
-          const inlineXs = name === 'document-inline-rows' ? (index===0 ? [20,130,130] : [130,130])
+          const inlineXs = firstRows ? (index===0 ? [130,130] : [130,130,20])
+            : name === 'document-inline-rows' ? (index===0 ? [20,130,130] : [130,130])
             : name === 'document-inline' && index===0 ? [20,20] : [88,88,172,172,20];
           const xs = inline ? inlineXs : name === 'document-stored' ? expected[name][index].map(()=>20)
             : name === 'document-split' ? (index===0 ? [20,70,70,70] : [70,70,20,20])

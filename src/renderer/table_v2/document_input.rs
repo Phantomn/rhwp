@@ -105,11 +105,48 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
                 "explicit body page/column break",
             )));
         }
-        if !source.controls.is_empty()
-            && source
-                .controls
-                .iter()
-                .all(|c| matches!(c, Control::Table(t) if t.common.treat_as_char))
+        // Validate structural declarations before dispatch without removing
+        // their source slots. Page numbers and other stories remain rejected.
+        let mut section_seen = false;
+        let mut column_seen = false;
+        let mut table_count = 0;
+        for control in &source.controls {
+            match control {
+                Control::SectionDef(value)
+                    if pi == 0 && !section_seen && !column_seen && table_count == 0 =>
+                {
+                    if serde_json::to_value(value).ok() != serde_json::to_value(def).ok() {
+                        return Err(fail(GeometryError::Unsupported(
+                            "different section definition",
+                        )));
+                    }
+                    section_seen = true;
+                }
+                Control::ColumnDef(value)
+                    if pi == 0
+                        && !column_seen
+                        && table_count == 0
+                        && value.column_count <= 1
+                        && value.widths.is_empty()
+                        && value.gaps.is_empty()
+                        && value.separator_type == 0 =>
+                {
+                    column_seen = true;
+                }
+                Control::Table(_) => table_count += 1,
+                _ => {
+                    return Err(fail(GeometryError::Unsupported(
+                        "body control or multiple anchors",
+                    )))
+                }
+            }
+        }
+        if table_count > 0
+            && source.controls.iter().all(|c| match c {
+                Control::Table(t) => t.common.treat_as_char,
+                Control::SectionDef(_) | Control::ColumnDef(_) => true,
+                _ => false,
+            })
         {
             for item in super::tac::compose(source, body.width, &styles, dpi).map_err(fail)? {
                 match item {
@@ -148,19 +185,7 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
         let mut table_control = None;
         for (ci, control) in source.controls.iter().enumerate() {
             match control {
-                Control::SectionDef(value) if pi == 0 => {
-                    if serde_json::to_value(value).ok() != serde_json::to_value(def).ok() {
-                        return Err(fail(GeometryError::Unsupported(
-                            "different section definition",
-                        )));
-                    }
-                }
-                Control::ColumnDef(value)
-                    if pi == 0
-                        && value.column_count <= 1
-                        && value.widths.is_empty()
-                        && value.gaps.is_empty()
-                        && value.separator_type == 0 => {}
+                Control::SectionDef(_) | Control::ColumnDef(_) => {}
                 Control::Table(table) if table_control.is_none() => {
                     table_control = Some((ci, table));
                 }

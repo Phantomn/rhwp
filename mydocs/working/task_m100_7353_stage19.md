@@ -331,3 +331,88 @@ Clippy를 재실행하여 PASS(`document-final.log`, `clippy-tests.log`), 파생
 **A는 계속 진행 중이다.** 이 결과는 합성 경계의 제한적 지원과 backend 대조이며 한컴 PDF와
 #6923 원본 전체 일치가 아니다. 저장 구조 컨트롤 혼재 축, rowspan/그림·section 속성,
 일반 TAC 줄 합성과 큰 표 분할이 다음 의존 범위다. Studio 기본값/Legacy/편집 경로는 유지한다.
+
+## A 후속 — 첫 문단 구조 슬롯과 TAC 소유 관계
+
+2026-09-25 후속 절편 승인으로 같은 A 기록에서 진행한다. 첫 문단 구조 컨트롤을 삭제하여
+표의 인덱스를 당기지 않고, 원래 HWP 문자 슬롯과 ControlOwner를 보존한다.
+
+- 원본 #6923 p0은 secd/cold/쪽번호/표의4개 슬롯(33유닛)이다. 표 소유는 ci3이며
+  선언 높이11102 + 위아래283씩 = 저장 줄11668HU다. 가운데 정렬 원점은
+  `(48188 - 47488 - 566)/2 + 283 = 350HU`, y=283이다. 원본 파싱 query로 검사하며,
+  음수 줄간격 -800도 관측값 그대로 보존한다. 이것은 원본 전체 렌더링 성공이 아니다.
+- 생산: `tac::stored_tac_rows`의 source-only 슬롯 검증/줄 소유 → 소비:
+  `tac::compose`의 공통 줄 점유 → `document_input::prepare`의 원래 ci로 자식 plan bind →
+  기존 `FlowCursor` 원자적 예약 → 기존 text paint. 새 좌표 덮어쓰기·clamp는 없다.
+- 본문 dispatcher가 먼저 첫 문단의 단일 SectionDef/ColumnDef를 검증한다. 구조 컨트롤은
+  문자 슬롯을 차지하지만 표의 가로 폭은 차지하지 않는다. 중복·뒤쪽 선언·다단·미지원
+  쪽번호를 소비 없이 버리는 경로는 거부한다. 셀 내부 구조 컨트롤 지원은 추가하지 않았다.
+- signed 저장 간격은 query에서 관측할 수 있지만, 현재 flow의 음수 전진은 미지원이므로
+  compose에서 명시적으로 거부한다. 이 guard를 실제 HWP 문서 세션에서 검사한다.
+
+### 입력과 축 검증에서 발견한 제한
+
+첫 실험의 합성 입력은 직렬화 전 구조 슬롯을 포함하지 않았다. 이후 명시적인 secd/cold
+슬롯을 포함한 HWP5 계약 입력을 새로 생성했다. HWP는 raw 두 번째 줄 시작24로 소유 ci3을
+보존한다. HWPX 변환은 raw 시작8과 parser shift8로 관측됐고, HWP5 기대 위치24와 다르다.
+별도 ctrl/colPr와 secPr 내부 colPr의 축 처리가 같다는 초기 가정이 틀렸다.
+파서/직렬화기나 공용 Paragraph accessor는 이번 절편에서 수정하지 않았다.
+
+빈 control-only HWPX에는 실제 글자 offset이 없어 저장 시작이 이미 HWP5 축인지 별도 축인지
+확정할 수 없다. 따라서 구조 shift가 있는 여러 줄은 `ambiguous structural TAC character
+axis`로 거부한다. 0에서 시작하는 단일 줄은 이 모호성이 없으며 수용한다. 초기 실패 입력
+`stored-tac/fixtures/unsupported-structural-tac.hwpx`는 보존하고 새 입력으로 덮어쓰지 않았다.
+변환된 다중 줄도 `structural-tac/fixtures/unsupported-structural-axis.hwpx`로 남긴다.
+실제 한컴 생성 HWPX 다중 줄과 축 출처 검증은 미완료 의존 항목이다.
+
+### 계약 범위와 증적
+
+기존 `tests/cases/issue_7353_table_v2_document_flow.rs`에2건을 추가하고 원본 query를 확장했다.
+합성 입력은 한컴 피델리티 기준이 아니라 다음 독립 기하 계약이다.
+
+- 첫 줄의80×36px 표2개, 바깥여백2px: 점유40px, centered x=88/172,y=32.
+  후행4px 간격 뒤 문단 y=74. HWP/HWPX 실제 RenderTree를 대조한다.
+- 서로 다른 저장 줄의 HWP 표는 각 쪽 x=130,y=32, 첫 쪽 A/a, 다음 쪽 B/b/after.
+  소유 ci2/3, 외곽·후속 문단·종료와 누락/중복을 검사한다. 첫 줄 내부 컷은 비해당이다.
+- 구조 슬롯 중복, 다단, 뒤 문단 ColumnDef, 쪽번호, 음수 간격과 잘못된 shift의 명시적 거부.
+- 이전 cf0027c24 WASM에서 새 두 양성 입력은 `body control or multiple anchors`로 거부된다.
+  `structural-tac/before-wasm.log`, `before-pkg.sha256`에 남겼다. 기존 Legacy 결함이 아니라
+  신규 경로 수용 범위 확장의 변경 전/후 증거다.
+
+증적 루트: `output/7353/r19/structural-tac/`. 검증 결과는 아래에 이어 기록한다.
+
+최종 선택 회귀170건(V2 153 + Legacy17)이 PASS다(`selected-final.log`, 실제 suite/filter 명령
+포함). Native/WASM library Clippy, 최종 파생 test target `regression_suite_007` Clippy,
+fmt와 고정 base `7a95e46e025470a4d7a7b59ad68ec02958bda738` manifest 검사가 PASS다.
+`clippy-{native,wasm,tests-final}.log`, `fmt-final.log`, `policy-final.log`에 연결한다.
+review overlay 입력1,068개가 제품과 일치한다. 기존99쪽 Native JSON도 동일하다
+(`review-source-match.log`, `prior-native-compare.log`). golden/ignore나 Legacy 코드는 바꾸지 않았다.
+
+초기 실패들은 합성 입력의 구조 슬롯/직렬화 여백 mirror 누락, 검사 옵션 누락, 문단 정렬
+가정과 HWPX 축 차이에서 발생했다. `document{,-second,-third,-fourth}.log`를 보존하며 이를
+기존 엔진 결함의 수정 전 FAIL로 세지 않는다. 실제 변경 전 수용 실패 증거는 위의 동일 입력
+cf0027c24 WASM 검사다. 계약 입력의 `common.margin`과 table outer margin은 양쪽 포맷에서
+같은 외부 여백을 나타내므로 함께 지정했고 두 번 계상하지 않았다.
+
+새3쪽 Native PNG를 직접 확인했다. 같은 줄의 형제 외곽과 텍스트, 별도 줄의 다음 쪽 이월,
+후속 after 문단에 누락·중복·겹침을 보지 못했다. 이 합성 시각 증거는 한컴 원본 일치 판정이
+아니며, fresh WASM 비교 결과는 아래에 이어 기록한다. 전체 제출용 CI는 아직 실행하지 않았다.
+
+Docker 표준 빌드는7분31초에 완료됐다(`docker-wasm.log`). WASM SHA256은
+`4cbbe08950c04ed0b97ec33f4a21a29bf150f6fd86c956649ca4be837986ac06`이다.
+앞 절의 브라우저 명령에서 fixtures/out을 `structural-tac/` 아래로 바꾸고
+`--structural-tac`를 추가하여102쪽의 Native/fresh WASM RenderTree·SVG 동일성과
+최종 좌표 계약이 PASS했다(`browser.log`, `browser/manifest.json`). 입력별 hash는 manifest,
+최종 소스 hash는 `source-final.sha256`/`post-build-source-check.log`에 남겼다.
+
+`browser/document-inline-first-0`, `browser/document-inline-first-rows-0,1`의
+review PNG3개와 standalone overlay3개를 직접 열어 확인했다. 표 형제와 텍스트의 같은 줄
+배치, 서로 다른 쪽의 소유, 외곽 및 after 문단에서 backend 차이나 누락·중복을 보지 못했다.
+이전99쪽 review PNG는 모두 동일하여 기존 직접 판독을 재사용했다(`visual-compare.log`).
+fresh WASM의 모호한 HWPX 축 거부도 확인했다(`unsupported-axis-wasm.log`).
+
+**A는 미완료다.** 이번 절편은 첫 문단의 제한된 구조/TAC 수용 경계까지이며 원본 #6923 전체
+정답 출력이나 R5 완료가 아니다. 원본 전체의 section 속성·쪽번호·rowspan·그림, 일반 TAC
+줄 합성/큰 표 분할, 구조 혼재 HWPX 다중 줄의 독립 출처 확인이 남았다. 파서·직렬화기,
+Legacy/Studio 기본값, golden/ignore는 유지했다. 내부 자동 승인 경계를 유지하며 원격 게시나
+전체 제출용 CI를 실행한 것으로 보고하지 않는다.
