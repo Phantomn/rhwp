@@ -164,7 +164,11 @@ fn bind_paint(
         columns: table.col_count,
         lines: HashMap::new(),
         tables: HashMap::new(),
-        background: super::decoration::Background::resolve(table.border_fill_id, styles)?,
+        background: super::decoration::Background::resolve(
+            table.border_fill_id,
+            styles,
+            table.page_break == crate::model::table::TablePageBreak::None,
+        )?,
         cells: HashMap::new(),
         borders: super::borders::CellBorders::prepare(table, styles, dpi)?,
     };
@@ -173,7 +177,11 @@ fn bind_paint(
     for cell in cells {
         paint.cells.insert(
             (usize::from(cell.row), usize::from(cell.col)),
-            super::decoration::Background::resolve_cell(cell.border_fill_id, styles)?,
+            super::decoration::Background::resolve_cell(
+                cell.border_fill_id,
+                styles,
+                table.page_break != crate::model::table::TablePageBreak::CellBreak,
+            )?,
         );
         let mut order = 0;
         for (pi, para) in cell.paragraphs.iter().enumerate() {

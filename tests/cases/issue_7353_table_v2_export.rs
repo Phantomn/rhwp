@@ -194,6 +194,131 @@ fn verify_background(node: &Value, color: u32) {
 }
 
 #[test]
+fn linear_cell_background_keeps_intact_row_geometry_and_repeated_header() {
+    use rhwp::model::style::GradientFill;
+    for (name, angle) in [
+        ("gradient-horizontal", 90),
+        ("gradient-vertical", 0),
+        ("gradient-stepped", 90),
+    ] {
+        let mut t = table();
+        t.page_break = TablePageBreak::RowBreak;
+        for c in &mut t.cells {
+            c.border_fill_id = 1;
+        }
+        let mut d = colored_document(t);
+        d.doc_info.border_fills[0].fill = Fill {
+            fill_type: FillType::Gradient,
+            gradient: Some(GradientFill {
+                gradient_type: 1,
+                angle,
+                colors: vec![0, 0xFFFFFF],
+                blur: 0,
+                step_center: 50,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        if name == "gradient-stepped" {
+            // Copy only the original gradient payload into an explicitly
+            // synthetic row fixture; this is not the full #6923 document.
+            let source = std::fs::read(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"),
+            )
+            .unwrap();
+            let original = rhwp::parse_document(&source).unwrap();
+            d.doc_info.border_fills[0].fill = original.doc_info.border_fills[34].fill.clone();
+            let g = d.doc_info.border_fills[0].fill.gradient.as_ref().unwrap();
+            assert_eq!(
+                (g.gradient_type, g.angle, g.blur, g.step_center),
+                (1, 90, 50, 50)
+            );
+            assert_eq!(g.colors, [0, 0xEFEFEF]);
+        }
+        let pages = colored_pages(name, &d);
+        assert_eq!(pages.len(), 2);
+        for (i, page) in pages.iter().enumerate() {
+            assert_eq!(labels(page), ["title", if i == 0 { "A" } else { "B" }]);
+            assert_eq!(collect(page, "Rectangle").len(), 2);
+            for (j, cell) in collect(page, "TableCell").iter().enumerate() {
+                let rect = &cell["children"][0];
+                assert_eq!(rect["bbox"], cell["bbox"]);
+                assert_eq!(
+                    rect["bbox"],
+                    json!({"x":20.0,"y":30.0+18.0*j as f64,"width":200.0,"height":18.0})
+                );
+                let gradient = &rect["node_type"]["Rectangle"]["gradient"];
+                assert_eq!(gradient["angle"], angle);
+                if name == "gradient-stepped" {
+                    let colors = gradient["colors"].as_array().unwrap();
+                    let stops = gradient["positions"].as_array().unwrap();
+                    assert_eq!(colors.len(), 100); // 50 flat bands, two ends each
+                    assert_eq!(colors[0], 0);
+                    assert_eq!(colors[99], 0xEFEFEF);
+                    assert_eq!(stops[0], 0.0);
+                    assert_eq!(stops[99], 1.0);
+                    assert!(colors.chunks_exact(2).all(|v| v[0] == v[1]));
+                } else {
+                    assert_eq!(gradient["colors"], json!([0, 0xFFFFFF]));
+                    assert_eq!(gradient["positions"], json!([0.0, 1.0]));
+                }
+            }
+            assert!(page["svg"].as_str().unwrap().contains("linearGradient"));
+        }
+    }
+}
+
+#[test]
+fn inactive_diagonal_line_style_is_not_an_enabled_diagonal() {
+    let mut t = table();
+    t.cells[0].border_fill_id = 1;
+    let mut d = colored_document(t);
+    d.doc_info.border_fills[0].diagonal.diagonal_type = 1;
+    assert_eq!(d.doc_info.border_fills[0].attr, 0);
+    let pages = colored_pages("inactive-diagonal", &d);
+    assert_eq!(pages.len(), 2);
+    assert!(pages.iter().all(|p| collect(p, "Line").is_empty()));
+    assert_eq!(collect(&pages[0], "TableCell")[0]["bbox"]["height"], 18.0);
+}
+
+#[test]
+fn intact_table_gradient_uses_whole_frame_not_each_cell() {
+    let mut t = table();
+    t.page_break = TablePageBreak::None;
+    t.row_count = 2;
+    t.cells.truncate(2);
+    t.border_fill_id = 1;
+    let mut d = colored_document(t);
+    d.doc_info.border_fills[0].fill = Fill {
+        fill_type: FillType::Gradient,
+        gradient: Some(rhwp::model::style::GradientFill {
+            gradient_type: 1,
+            angle: 90,
+            colors: vec![0, 0xFFFFFF],
+            step_center: 50,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let pages = colored_pages("gradient-whole", &d);
+    assert_eq!(pages.len(), 1);
+    assert_eq!(labels(&pages[0]), ["title", "A"]);
+    let frame = collect(&pages[0], "Table")[0];
+    assert_eq!(collect(&pages[0], "Rectangle").len(), 1);
+    assert_eq!(frame["children"][0]["bbox"], frame["bbox"]);
+    assert_eq!(
+        frame["bbox"],
+        json!({"x":20.0,"y":30.0,"width":200.0,"height":36.0})
+    );
+    assert!(collect(&pages[0], "TableCell").iter().all(|cell| collect(
+        &json!({"render_tree":{"root":cell}}),
+        "Rectangle"
+    )
+    .is_empty()));
+}
+
+#[test]
 fn solid_backgrounds_cover_colspan_and_repeated_headers_without_changing_geometry() {
     let mut t = table();
     t.border_fill_id = 3;
@@ -376,6 +501,48 @@ fn unsupported_or_missing_decoration_is_not_silently_dropped() {
     let mut t = table();
     t.cells[0].border_fill_id = 1;
     let base = colored_document(t);
+    // Intact-cell gradients are supported, not silently restarted across cuts.
+    // Use source IR here so a serializer cannot normalize malformed stops.
+    for index in 0..11 {
+        let mut d = base.clone();
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            unreachable!()
+        };
+        t.page_break = TablePageBreak::RowBreak;
+        let b = &mut d.doc_info.border_fills[0];
+        b.fill = Fill {
+            fill_type: FillType::Gradient,
+            gradient: Some(rhwp::model::style::GradientFill {
+                gradient_type: 1,
+                angle: 90,
+                colors: vec![0, 0xFFFFFF],
+                step_center: 50,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let g = b.fill.gradient.as_mut().unwrap();
+        match index {
+            0 => t.page_break = TablePageBreak::CellBreak,
+            1 => t.border_fill_id = 1, // row-split table frame is not intact
+            2 => g.gradient_type = 2,
+            3 => g.colors.clear(),
+            4 => g.positions = vec![100, 0],
+            5 => g.positions = vec![0],
+            6 => g.positions = vec![0, 101],
+            7 => g.blur = -1,
+            8 => g.step_center = 101,
+            9 => b.attr = 8, // real slash declaration, unlike dormant pen style
+            _ => b.fill.alpha = 127,
+        }
+        assert!(
+            matches!(
+                open_document(&d),
+                Err(TablePreviewError::Geometry(GeometryError::Unsupported(_)))
+            ),
+            "gradient rejection {index}"
+        );
+    }
     // Source checks precede lossy resolved-style conversion, including malformed complex fills.
     for index in 0..8 {
         let mut d = base.clone();

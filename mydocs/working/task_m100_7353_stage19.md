@@ -727,3 +727,70 @@ WASM/overlay3면도 직접 대조했다. 각 `.native.png`, `.wasm.png`, `.overl
 `verified-commit.txt`에 연결한다. A/R5는 진행 중이며 원본의 글자 장식·그림/앵커와
 미지원 표/문단 조합, 전체 문서 PDF 검증이 남았다. 기본 엔진 전환·전체 제출 CI·
 원격 push·PR은 실행하지 않았다.
+
+### R19 후속: 온전한 셀/표의 선형 그라데이션과 비활성 대각선 속성
+
+출발 HEAD `d02014671`. 이전의 “글자 장식 효과” 설명을 정정한다.
+`V2 source decoration effect`는 표/셀 BorderFill 검사다. #6923 원본 첫 표의 첫 셀은
+BorderFill35의 선형 그라데이션(type1, angle90, step50, center50, 검정→0xEFEFEF)을
+참조한다. 다른 셀의 attr0/diagonal_type1은 대각선 활성화가 아니라 저장된 선 종류다.
+HWP5 표23/24의 활성 속성과 표28~30의 배경 정보를 구별한다. 기준 PDF
+`tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame-2020.pdf` 1쪽을
+`output/7353/r19/gradient/reference-p1.png`로 렌더링해 상단 띠의 좌검정→우밝음 방향을
+직접 확인했다. 원본 전체 출력 일치 증거는 아니다.
+
+공통 결과 경로는 `decoration::validate_source`의 원본 payload 검증 → 기존
+`style_resolver::resolve_single_border_style`/`expand_gradient_steps`의 색/stop 결과 →
+`text_ir::bind_paint`의 Background 보존 → `TextPaint::build_node`가 전달한 최종
+TablePlacement/CellPlacement bounds → RectangleNode → 기존 SVG 선형 gradient 축이다.
+측정/fit/cut/cursor에는 배경을 입력하지 않으므로 높이/원점을 재계산하거나 덮어쓰지 않는다.
+기존 선형 축의 angle0 위쪽/90 오른쪽 근거는 #6845 기준 PDF 기록을 재사용하며, 새 V2
+출력의 직사각형 좌표·색·stop·실제 raster 방향을 별도로 검증한다.
+
+셀은 None/RowBreak처럼 셀 전체가 유지되는 정책, 표 전체 배경은 None 정책에서만 허용한다.
+CellBreak 셀 및 분할 표의 gradient restart/이어받기는 미검증이므로 명시적으로 거부한다.
+반복 제목과 colspan은 새 geometry를 만들지 않고 매번 수용된 온전한 셀의 최종 bounds를 쓴다.
+활성 대각선/그림/패턴/부분 투명도, radial/conical/rectangular gradient는 계속 미지원이다.
+원본 attribute 또는 저장 줄을 삭제해 수용시키지 않았다. Legacy/default Studio는 불변이다.
+
+정식 `tests/cases/issue_7353_table_v2_export.rs`에는 두 방향과 원본 gradient payload를
+옮긴 합성 row fixture, 반복 제목/colspan, 온전한 표 전체 배경, 비활성 diagonal pen,
+잘못된 stops/종류/step/투명도와 분할 정책의 거부를 추가했다. 원본의 payload를 옮긴
+합성 표는 한컴 생성 문서가 아니다. 고정18px 두 줄의 셀/표 좌표, 텍스트 순서, 페이지
+종료와 실제 Rectangle bounds를 독립 기하 계약으로 확인한다. `before.log` 신규2건은
+기존 source/resolved decoration 거부로 FAIL, `after.log`는14 PASS다.
+
+`v2-all.log`에서178건 중177 PASS, 원본 admission 계약1건만 예상 오류 문구가 바뀌어
+실패했다. 실제 다음 거부는 문단0의 `stored text requires intact single-segment rows`다.
+진단 계약을 실제 경계로 갱신하되 원본은 UNSUPPORTED로 남긴다. 페이지수/golden/ignore의
+허용 범위를 바꾼 것이 아니며 원본 전체 조판/PDF 비교 및 A/R5 완료를 주장하지 않는다.
+최종 회귀·lint·Docker fresh WASM·시각 결과는 아래에 이어 기록한다.
+
+최종 `final-tests.log`는196 PASS(V2 179+Legacy 17)다. fmt, Native library/WASM library/
+변경 integration target Clippy 및 고정 base `7a95e46e025470a4d7a7b59ad68ec02958bda738`
+대비 manifest 검사가 통과했다(`fmt.log`, `clippy-{native,wasm,test}.log`, `policy.log`).
+전체 workspace 제출 CI를 실행했다는 뜻은 아니다. source-side unit test는 변경하지 않았다.
+재생성한 기존 Native JSON78개는 byte 동일하다(`prior-native-compare.log`); 이전의
+미사용 `document-number-start.native.json`1개는 이번 생성 대상이 아니며 HWP 대조군으로
+대체된 과거 증적이다. 검증 대상은 browser 명령의 명시적 fixture 목록으로 고정한다.
+
+Docker WASM은7분26초에 완료(`docker-wasm.log`), SHA256은
+`d03aca0e00d71a62c648d2a5be6b18b1612d768f99b72ebb1e12e1f13dff6355`다.
+`source-final.sha256`/`post-build-source-check.log`는 두 변경 제품 소스의 빌드 입력 불변,
+`original-inputs.sha256`는 원본 HWP/PDF를 고정한다. browser 명령은 이전 절편의
+fixtures/out을 `output/7353/r19/gradient/` 아래로 바꾸고 `--linear-backgrounds`를
+추가했다. `browser.log`/`browser/manifest.json`:153쪽 정확한 Native/fresh WASM
+tree·SVG 대조 PASS. 기존144쪽 review PNG도 byte 동일(`prior-visual-compare.log`).
+
+새9쪽 `browser/gradient-contact.png`의 standalone overlay를 직접 열어 수평/수직 색축,
+50단계 띠, 반복 제목/뒤 행의 셀 경계, 표 전체 배경, 비활성 대각선의 선 없음과 두 쪽
+내용을 확인했다. `gradient-stepped-0.review.png`의 Native/fresh WASM/overlay3면도
+직접 비교했다. 검정 텍스트/검정 시작 배경의 낮은 명암은 합성 입력 그대로이며 이번
+검증은 텍스트 색 자동 보정을 주장하지 않는다. 각 `.native.png`, `.wasm.png`,
+`.overlay.png`, `.review.png`가 같은 폴더에 있다. 이것은 SVG 출력의 backend 대조이며
+Studio Canvas 실사용 또는 #6923 원본 전체 PDF 시각 통과로 확대하지 않는다.
+
+최종 파일 지문은 `verified-source.sha256`, 내부 커밋은 `verified-commit.txt`에 연결한다.
+다음 작업은 원본 첫 표의 저장 줄 수용 제한의 실제 조건을 추적하고 공통 줄 구성으로
+연결하는 것이다. 분할 gradient·다른 배경 효과·중첩 gradient의 모든 조합은 미검증으로
+남기며 A/R5는 진행 중이다. 기본 엔진 전환·remote push·PR은 하지 않았다.

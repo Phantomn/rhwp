@@ -86,6 +86,9 @@ async function main() {
     negative.push('fill-border', 'fill-pattern');
   }
   const paintFailures = [];
+  if (process.argv.includes('--linear-backgrounds')) {
+    positive.push('gradient-horizontal', 'gradient-vertical', 'gradient-stepped', 'gradient-whole', 'inactive-diagonal');
+  }
   if (process.argv.includes('--nested-alignment')) {
     positive.push('align-left', 'align-center', 'align-right', 'align-cell-padding', 'align-deep', 'align-header');
   }
@@ -229,6 +232,8 @@ async function main() {
     expected['fill-split'] = [['A', ''], ['B', 'C']];
     expected['fill-band'] = [['A'], [], []];
     expected['fill-transparent'] = expected.merged;
+    for (const name of ['gradient-horizontal', 'gradient-vertical', 'gradient-stepped', 'inactive-diagonal']) expected[name] = expected.merged;
+    expected['gradient-whole'] = [['title', 'A']];
     expected['border-grid'] = [['title', 'L1', 'R1']];
     expected['border-header'] = [['title', 'L1', 'R1'], ['title', 'L2', 'R2']];
     expected['border-nested'] = [...expected['border-header'], ['host', 'after']];
@@ -512,6 +517,25 @@ async function main() {
             assert.ok(Math.abs(edge.node_type.Line.style.width - 1.92) < 1e-9);
           }
         }
+        if (name.startsWith('gradient-')) {
+          const rectangles = collect(rootNode, 'Rectangle');
+          assert.equal(rectangles.length, name === 'gradient-whole' ? 1 : 2);
+          for (const cell of collect(rootNode, name === 'gradient-whole' ? 'Table' : 'TableCell')) {
+            const rect = cell.children[0];
+            assert.deepEqual(rect.bbox, cell.bbox);
+            const g = rect.node_type.Rectangle.gradient;
+            assert.equal(g.gradient_type, 1);
+            assert.equal(g.angle, name === 'gradient-vertical' ? 0 : 90);
+            assert.equal(g.colors.length, name === 'gradient-stepped' ? 100 : 2);
+            assert.equal(g.colors[0], 0);
+            assert.equal(g.colors.at(-1), name === 'gradient-stepped' ? 0xEFEFEF : 0xFFFFFF);
+            assert.equal(g.positions[0], 0); assert.equal(g.positions.at(-1), 1);
+          }
+        }
+        if (name === 'inactive-diagonal') {
+          assert.equal(collect(rootNode, 'Line').length, 0);
+          assert.deepEqual(collect(rootNode, 'Rectangle').map(n => n.node_type.Rectangle.style.fill_color), [0xEEEEFF]);
+        }
         if (name.startsWith('fill-')) {
           const colors = name === 'fill-merged' ? [0xFFEEEE, 0xEEEEFF, 0xEEFFEE]
             : name === 'fill-nested' ? (index < 2 ? [0xEEEEFF, 0xEEFFEE, 0xFFEEEE] : [0xEEEEFF])
@@ -576,6 +600,19 @@ async function main() {
             return [[200,35],[200,53],[200,67],[19,35],[221,35]].map(([x,y]) => [...ctx.getImageData(x,y,1,1).data]);
           })), imgs);
           for (const sample of samples) assert.deepEqual(sample, [...rowColors.map(rgb), rgb(0xFFFFFF), rgb(0xFFFFFF), rgb(0xFFFFFF)], `${stem}: visible fill and no overflow`);
+        }
+        if (name.startsWith('gradient-')) {
+          const points = name === 'gradient-vertical' ? [[200,47],[200,31]] : [[21,40],[218,40]];
+          const samples = await raster.evaluate(async ({imgs,points}) => Promise.all(imgs.map(async url => {
+            const image = new Image(); image.src = url; await image.decode();
+            const c = document.createElement('canvas'); c.width = 400; c.height = 400;
+            const ctx = c.getContext('2d'); ctx.drawImage(image,0,0);
+            return points.map(([x,y]) => [...ctx.getImageData(x,y,1,1).data]);
+          })), {imgs,points});
+          for (const sample of samples) {
+            assert.ok(sample[0].slice(0,3).every(v => v < 30), `${stem}: dark start`);
+            assert.ok(sample[1].slice(0,3).every(v => v > 225), `${stem}: light end`);
+          }
         }
         const overlay = await raster.evaluate(async imgs => {
           const canvases = await Promise.all(imgs.map(async url => {
