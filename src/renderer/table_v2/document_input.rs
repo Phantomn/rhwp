@@ -22,7 +22,11 @@ use super::{
     PreparedTextTable, Rect,
 };
 
-pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, DocumentV2Error> {
+pub(super) fn prepare(
+    document: &Document,
+    dpi: f64,
+    cell_end_policy: super::CellEndPolicy,
+) -> Result<BodyPlan, DocumentV2Error> {
     if document.sections.len() != 1 {
         return Err(DocumentV2Error::Unsupported("one section required"));
     }
@@ -176,11 +180,12 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
                             };
                             super::decoration::validate_source(table, &document.doc_info)
                                 .map_err(fail)?;
-                            let prepared = PreparedTextTable::prepare_with_resources(
+                            let prepared = PreparedTextTable::prepare_with_end_policy(
                                 table,
                                 &styles,
                                 dpi,
                                 &document.bin_data_content,
+                                cell_end_policy,
                             )
                             .map_err(fail)?;
                             let owner = ControlOwner {
@@ -241,11 +246,12 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
                 )));
             }
             super::decoration::validate_source(table, &document.doc_info).map_err(fail)?;
-            let prepared = PreparedTextTable::prepare_with_resources(
+            let prepared = PreparedTextTable::prepare_with_end_policy(
                 table,
                 &styles,
                 dpi,
                 &document.bin_data_content,
+                cell_end_policy,
             )
             .map_err(fail)?;
             let free = body.width - prepared.plan.width;

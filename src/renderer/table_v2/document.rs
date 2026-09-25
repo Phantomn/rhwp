@@ -45,6 +45,8 @@ impl From<GeometryError> for DocumentV2Error {
 struct Options {
     dpi: f64,
     max_pages: u32,
+    #[serde(default)]
+    cell_end_policy: super::CellEndPolicy,
 }
 
 pub(super) struct BodyPlan {
@@ -82,6 +84,8 @@ pub struct DocumentV2Session {
 impl DocumentV2Session {
     /// Strict options: {"dpi":96,"max_pages":100}. Page/body geometry comes
     /// from the source PageDef, never caller-supplied preview coordinates.
+    /// Optional `cell_end_policy` is applied inside tables only. Body paragraph
+    /// advances, stored TAC envelopes and the default policy remain unchanged.
     pub fn from_bytes(bytes: &[u8], options: &str) -> Result<Self, DocumentV2Error> {
         let options: Options =
             serde_json::from_str(options).map_err(|e| DocumentV2Error::Options(e.to_string()))?;
@@ -93,7 +97,11 @@ impl DocumentV2Session {
         let document =
             crate::parse_document(bytes).map_err(|e| DocumentV2Error::Parse(e.to_string()))?;
         Ok(Self {
-            plan: Arc::new(super::document_input::prepare(&document, options.dpi)?),
+            plan: Arc::new(super::document_input::prepare(
+                &document,
+                options.dpi,
+                options.cell_end_policy,
+            )?),
             cursor: FlowCursor::default(),
             emitted: 0,
             max_pages: options.max_pages,

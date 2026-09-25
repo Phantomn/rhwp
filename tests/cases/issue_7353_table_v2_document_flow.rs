@@ -98,6 +98,157 @@ fn source(paragraphs: Vec<Paragraph>) -> Document {
 fn bytes(d: &Document) -> Vec<u8> {
     rhwp::serializer::hwpx::serialize_hwpx(d).unwrap()
 }
+
+const TERMINAL_OPTIONS: &str =
+    r#"{"dpi":96,"max_pages":20,"cell_end_policy":"omit_final_line_gap"}"#;
+
+#[test]
+fn document_terminal_policy_keeps_body_paragraph_advance_after_anchored_table() {
+    let d = source(vec![
+        host("host", table(&["A", "B"], TablePageBreak::CellBreak)),
+        p("after"),
+    ]);
+    let data = bytes(&d);
+    let pages = drain(&mut DocumentV2Session::from_bytes(&data, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    assert_eq!(labels(&pages[0]), ["A", "B", "host", "after"]);
+    // Source font12px/pitch18px: cell12+6+12=30; body lines retain18px.
+    near(&nodes(&pages[0], "Table")[0]["bbox"]["height"], 30.0);
+    for (line, y) in nodes(&pages[0], "TextLine")
+        .iter()
+        .zip([30.0, 48.0, 60.0, 78.0])
+    {
+        near(&line["bbox"]["y"], y);
+    }
+    let default = drain(&mut open(&d));
+    near(&nodes(&default[0], "Table")[0]["bbox"]["height"], 36.0);
+    near(&nodes(&default[0], "TextLine")[3]["bbox"]["y"], 84.0);
+    capture_terminal("document-terminal-anchor", &data, &pages);
+}
+
+fn capture_terminal(name: &str, data: &[u8], pages: &[Value]) {
+    if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(format!("{dir}/{name}.hwpx"), data).unwrap();
+        std::fs::write(format!("{dir}/{name}.options.json"), TERMINAL_OPTIONS).unwrap();
+        // Keep renderer JSON verbatim: Value round-tripping can change the
+        // last bits of floating-point coordinates before browser comparison.
+        let mut session = DocumentV2Session::from_bytes(data, TERMINAL_OPTIONS).unwrap();
+        let mut raw = Vec::new();
+        while let Some(page) = session.next_page_json().unwrap() {
+            raw.push(page);
+        }
+        assert_eq!(raw.len(), pages.len());
+        std::fs::write(
+            format!("{dir}/{name}.native.json"),
+            format!("[{}]", raw.join(",")),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
+fn document_terminal_policy_original_carrier_preserves_blank_and_following_origin() {
+    let data = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"
+    ))
+    .unwrap();
+    let mut d = rhwp::parse_document(&data).unwrap();
+    let original_carrier = serde_json::to_value(&d.sections[0].paragraphs[0]).unwrap();
+    // Scoped derivative: keep original first carrier and all its source table
+    // data, append synthetic blank/tail. This is NOT a full-document oracle.
+    d.sections[0].paragraphs.truncate(1);
+    let char_id = d.doc_info.char_shapes.len() as u32;
+    d.doc_info.char_shapes.push(CharShape {
+        base_size: 900,
+        ..Default::default()
+    });
+    let para_id = d.doc_info.para_shapes.len() as u16;
+    d.doc_info.para_shapes.push(ParaShape {
+        line_spacing_type: LineSpacingType::Fixed,
+        line_spacing: 2700,
+        ..Default::default()
+    });
+    for text in ["", "after"] {
+        let mut para = p(text);
+        para.para_shape_id = para_id;
+        para.char_shapes[0].char_shape_id = char_id;
+        d.sections[0].paragraphs.push(para);
+    }
+    let data = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+    let reparsed = rhwp::parse_document(&data).unwrap();
+    assert_eq!(
+        serde_json::to_value(&reparsed.sections[0].paragraphs[0]).unwrap(),
+        original_carrier
+    );
+    let pages = drain(&mut DocumentV2Session::from_bytes(&data, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    let tables = nodes(&pages[0], "Table");
+    assert_eq!(tables.len(), 1);
+    // PageDef body=(5669,7087)HU, stored control=(350,283), height11102.
+    for (key, hu) in [("x", 6019.0), ("y", 7370.0), ("height", 11102.0)] {
+        near(&tables[0]["bbox"][key], hu / 75.0);
+    }
+    assert_eq!(nodes(&pages[0], "Image").len(), 2);
+    let mut lines = Vec::new();
+    collect(nodes(&pages[0], "Body")[0], "TextLine", &mut lines);
+    let end = &lines[lines.len() - 2..];
+    // Saved body row11668HU advances by11668-800, then blank12px/pitch18px.
+    for (line, y) in end
+        .iter()
+        .zip([(7087.0 + 10868.0) / 75.0, (7087.0 + 10868.0) / 75.0 + 18.0])
+    {
+        near(&line["bbox"]["y"], y);
+        near(&line["bbox"]["height"], 12.0);
+    }
+    assert_eq!(
+        labels(&pages[0]).iter().filter(|t| **t == "after").count(),
+        1
+    );
+    capture_terminal("document-terminal-source", &data, &pages);
+}
+
+#[test]
+fn document_terminal_policy_original_full_admission_advances_without_fallback() {
+    let data = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"
+    ))
+    .unwrap();
+    let result = DocumentV2Session::from_bytes(&data, TERMINAL_OPTIONS);
+    let Err(error) = result else {
+        panic!("qualify full source output before updating admission")
+    };
+    eprintln!("original terminal admission: {error}");
+    assert!(matches!(
+        error,
+        DocumentV2Error::Paragraph {
+            index: 1,
+            reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
+                "text preview paragraph decoration or keep"
+            )
+        }
+    ));
+    if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            format!("{dir}/6923-terminal-admission.txt"),
+            error.to_string(),
+        )
+        .unwrap();
+        let original = rhwp::parse_document(&data).unwrap();
+        let p = &original.sections[0].paragraphs[1];
+        let shape = &original.doc_info.para_shapes[p.para_shape_id as usize];
+        std::fs::write(
+            format!("{dir}/6923-terminal-next-source.json"),
+            serde_json::to_vec_pretty(&json!({"paragraph":p,"para_shape":shape,
+                "border_fills":original.doc_info.border_fills}))
+            .unwrap(),
+        )
+        .unwrap();
+    }
+}
 fn open(d: &Document) -> DocumentV2Session {
     DocumentV2Session::from_bytes(&bytes(d), r#"{"dpi":96,"max_pages":20}"#).unwrap()
 }

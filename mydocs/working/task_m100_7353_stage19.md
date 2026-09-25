@@ -1449,3 +1449,67 @@ PDF crop 아래의 후속 문장은 selected-table preview 범위 밖이다. 원
 남은 일은 이 선택형 근거를 본문 TAC 수용과 연결하고 원본 전체의 다음 미지원 경계를 검증하는
 것이다. 기존 baseline/golden/ignore는 수정하지 않았다. 기본값 전환·원격 push/PR·전체 CI 상당
 제출 검증은 수행하지 않았으며 A/R5 완료가 아니다.
+
+### 셀 끝 정책의 본문 연결 — 진행 기록
+
+이번 절편 시작 head는 `2eef95686`이다. 선택 표에서 검증한 정책을 본문 옵션으로 전달하되,
+셀 내부에만 적용한다. `document.rs::Options` → `document_input::prepare`의 저장 TAC 및
+TopAndBottom 두 준비 호출 → `PreparedTextTable::prepare_with_end_policy` → 기존 재귀
+IR/FlowBlock으로 이어진다. 본문 자체의 `paragraph_end::into_flow_items`는 그대로 두어
+빈 문단·저장 TAC의 음수 전진·후속 문단 원점을 바꾸지 않는다. 준비된 표는 동일 plan으로
+TAC 저장 점유 검사/FlowCursor 요구 높이·예산·이월과 document paint를 수행한다.
+모든 콘텐츠 준비가 성공하기 전에는 부분 문서를 공개하지 않는 기존 계약도 유지한다.
+
+독립 기대값: 원본 첫 표는11102HU, 본문 원점(5669,7087)HU에 저장 객체 원점(350,283)HU를
+더한다. 저장 TAC 줄의 다음 전진은11668−800HU다. 첫 원본 carrier와 내부 속성을 보존하고
+합성12px/18px 빈 문단·after를 붙인 파생 문서로 본문 연결/빈 줄 보존을 검사한다.
+원본 전체가 아닌 파생 입력임을 구분하고 HWP 재파싱 후 첫 carrier JSON 동일성을 확인한다.
+일반 자리차지 표는 합성12px/18px의 두 줄: 셀30px, 뒤 본문은18px 전진을 유지한다.
+옵션 파싱만 추가하고 실제 전달을 끊은 review overlay를 음성 대조로 먼저 실행한다.
+
+#### 연결 결과와 검증
+
+실제 전달이 없는 음성 대조는3건 모두 의도한 원인으로 FAIL했다(`bridge-before.log`).
+자리차지 표 높이36≠30px, 원본 carrier/전체는 para0의 저장 TAC 점유 불일치였다.
+연결 뒤 합성 문단의 Fixed18px 입력을 올바른 HWP 단위2700으로 정정했다
+(`style_resolver.rs`의 Fixed 값은2로 나누어 해석). 기대 좌표는 바꾸지 않았고3건 PASS다.
+`bridge-tests-final.log`는선별228/228 PASS다. 이후 증적 저장 helper만 수정한 최종
+`bridge-capture-final.log`에서3/3 재검증했다. 렌더러 JSON을 Value로 재직렬화하면서 생긴
+부동소수점 끝자리 차이는 원문 JSON 보존으로 해결했고 exact parity를 완화하지 않았다.
+
+명령/환경: review worktree, 공유 target/pr-review, CARGO_BUILD_JOBS=1.
+228건 명령은 `bridge-tests-final.log` 첫 줄에, 최종 집중 명령은
+`node scripts/run-rust-test.mjs issue_7353_table_v2_document_flow -- --locked document_terminal_policy`다.
+최종 fmt check, native Clippy, wasm32 lib Clippy, 해당 integration target
+`regression_suite_019` Clippy(`--locked`, `-D warnings`) 모두 PASS했다
+(`bridge-fmt-final.log`, `bridge-clippy-{native,wasm,test}.log`).
+테스트 source 수정 후 발생한 generated harness drift는 review에서 `--prepare`로 재생성해
+`--check --base-ref 7a95e46e025470a4d7a7b59ad68ec02958bda738` PASS로 확인했다
+(`bridge-policy-final.log`). 파생 파일은 제품 커밋 대상이 아니다. source unit test 변경은 없다.
+
+Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm`은7분28초 성공했다.
+WASM SHA256: `028a077752792612442c6e2c2dd5849518c526ee79b8bc95a1ba57bc600a2dec`.
+기존 browser 명령에 `--document-terminal`을 추가하고 fixtures/out을
+`bridge-fixtures`/`bridge-browser`로 지정했다. `bridge-browser.log`:210쪽 exact tree/SVG
+parity·isolation/rejection/rollback/termination PASS. `bridge-preservation.json`은 기존
+Native113개·review PNG208개 byte 동일을 확인한다. `bridge-source-comparison.json`은
+제품/review Rust·Cargo1074개 차이0, 최종 테스트 동일성·hash를 기록한다.
+
+직접 확인한 증적은 모두 `output/7353/r19/terminal/` 아래다.
+- `bridge-browser/document-terminal-{source,anchor}-0.review.png`: Native/fresh WASM 표,
+  뒤 문단 배치와 overlay 확인. 원본 carrier의 저장 음수 전진과 합성 빈 줄을 보존한다.
+  쪽번호 `- 1 -`는 본문 밖 footer에1회 배치되는 것을 실제 WASM 좌표로 검사한다.
+- `bridge-pdf-review.png`, `bridge-pdf-{native,wasm}-overlay.png`: 원본 PDF 첫 쪽과
+  파생 문서 첫 표를 같은96dpi 좌표(x72,y90,w660,h160)로 비교했다. 위치/크기 정렬 변형은
+  하지 않았다(`bridge-pdf-compare.mjs`, `bridge-pdf-scope.json`). 외곽·셀 경계는 가깝지만
+  로고 표시와 글꼴/글자 모양 차이는 남는다. 합성 after 및 원본 나머지 본문은 PDF 비교 밖이다.
+  독립 V2 browser 경로의 직접 비교이며 일반 CLI 전체 Visual Sweep/자동 fidelity 점수는 미실행이다.
+
+원본 전체는 첫 표를 통과해 paragraph index1에서
+`Unsupported("text preview paragraph decoration or keep")`로 멈춘다.
+`6923-terminal-next-source.json`: 해당 문단은 빈 문자열, 저장 높이1000HU/줄간격200HU,
+`border_fill_id=1`, attr1=268이며 keep/page-break bit는 없다. `text.rs`는 비영 border ID를
+일괄 거부한다. 참조 BorderFill1의 실제 테두리는 None이고 solid 배경값은0xffffffff다.
+다음은 이 참조의 실제 표시 의미와 빈 문단의 저장 줄 수용을 확인하는 일이다. ID를 지우거나
+빈 문단을 건너뛰어 수용시키지 않는다. 원본 전체 성공/메인테이너 시각 통과/A·R5 완료가 아니다.
+기본 V2/Legacy·baseline/golden/ignore는 그대로이며 원격 push/PR·전체 CI 상당 검증은 하지 않았다.
