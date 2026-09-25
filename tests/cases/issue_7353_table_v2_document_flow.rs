@@ -492,6 +492,17 @@ fn real_6923_remains_unmodified_and_explicitly_unqualified() {
     assert_eq!(first.len(), 1);
     assert_eq!(first[0].height, 11668.0);
     assert_eq!(first[0].spacing, -800.0);
+    // The source's saved row is 48188HU, while the PageDef content width is
+    // 48190HU. Admission currently rejects this independently of the negative
+    // trailing spacing. Do not delete metadata or add a tolerance to pass it.
+    assert_eq!(
+        def.page_def.width - def.page_def.margin_left - def.page_def.margin_right,
+        48190
+    );
+    assert_eq!(
+        d.sections[0].paragraphs[0].line_segs[0].segment_width,
+        48188
+    );
     assert_eq!(
         first[0].tables,
         vec![(
@@ -560,7 +571,7 @@ fn real_6923_remains_unmodified_and_explicitly_unqualified() {
                 index: 0,
                 reason:
                     rhwp::renderer::table_v2::GeometryError::Unsupported(
-                        "body control or multiple anchors",
+                        "stored TAC carrier requires unambiguous intact rows",
                     ),
             },
         ) => e.to_string(),
@@ -808,6 +819,83 @@ fn add_leading_structure(d: &mut Document) {
 }
 
 #[test]
+fn footer_story_preserves_first_paragraph_tac_slots_and_body_fragments() {
+    use rhwp::{
+        model::{control::PageNumberPos, style::Alignment},
+        renderer::table_v2::stored_tac_rows,
+    };
+    let mut d = source(vec![inline_carrier(true), p("after")]);
+    add_leading_structure(&mut d);
+    d.doc_info.para_shapes[0].alignment = Alignment::Center;
+    let encode = |d: &Document| rhwp::serializer::cfb_writer::serialize_hwp(d).unwrap();
+    let options = r#"{"dpi":96,"max_pages":20}"#;
+    let mut reference = drain(&mut DocumentV2Session::from_bytes(&encode(&d), options).unwrap());
+    // Inserting a source control shifts both tables' source identities, but
+    // must not alter any of their geometry, fragments or descendant paint.
+    fn shift_table_owners(node: &mut Value) {
+        if let Some(table) = node["node_type"].get_mut("Table") {
+            table["control_index"] = Value::from(table["control_index"].as_u64().unwrap() + 1);
+        }
+        for child in node["children"].as_array_mut().unwrap() {
+            shift_table_owners(child);
+        }
+    }
+    for page in &mut reference {
+        shift_table_owners(&mut page["render_tree"]["root"]);
+    }
+    let para = &mut d.sections[0].paragraphs[0];
+    para.controls.insert(
+        2,
+        Control::PageNumberPos(PageNumberPos {
+            position: 5,
+            dash_char: '-',
+            ..Default::default()
+        }),
+    );
+    para.char_count += 8;
+    for line in &mut para.line_segs {
+        if line.text_start != 0 {
+            line.text_start += 8;
+        }
+    }
+    let input = encode(&d);
+    let parsed = rhwp::parse_document(&input).unwrap();
+    let rows = stored_tac_rows(
+        &parsed.sections[0].paragraphs[0],
+        22500.0,
+        Alignment::Center,
+    )
+    .unwrap();
+    assert_eq!(
+        rows.iter()
+            .flat_map(|r| r.tables.iter().map(|t| t.0))
+            .collect::<Vec<_>>(),
+        [3, 4]
+    );
+    let mut session = DocumentV2Session::from_bytes(&input, options).unwrap();
+    let mut raw = Vec::new();
+    while let Some(page) = session.next_page_json().unwrap() {
+        raw.push(page);
+    }
+    assert_eq!(raw.len(), 2);
+    for (i, page) in raw.iter().enumerate() {
+        let page: Value = serde_json::from_str(page).unwrap();
+        assert_eq!(nodes(&page, "Body"), nodes(&reference[i], "Body"));
+        assert_eq!(labels(&page).last().unwrap(), &format!("- {} -", i + 1));
+    }
+    if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
+        let name = "document-number-tac-hwp";
+        std::fs::write(format!("{dir}/{name}.hwp"), input).unwrap();
+        std::fs::write(format!("{dir}/{name}.options.json"), options).unwrap();
+        std::fs::write(
+            format!("{dir}/{name}.native.json"),
+            format!("[{}]", raw.join(",")),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
 fn structural_carriers_do_not_silently_drop_unhandled_stories_or_signed_spacing() {
     use rhwp::renderer::table_v2::GeometryError;
     let mut d = source(vec![inline_carrier(false)]);
@@ -828,13 +916,18 @@ fn structural_carriers_do_not_silently_drop_unhandled_stories_or_signed_spacing(
     add_leading_structure(&mut d);
     d.sections[0].paragraphs[0]
         .controls
-        .push(Control::PageNumberPos(Default::default()));
+        .push(Control::PageNumberPos(
+            rhwp::model::control::PageNumberPos {
+                format: 1,
+                ..Default::default()
+            },
+        ));
     d.sections[0].paragraphs[0].char_count += 8;
     assert!(matches!(
         DocumentV2Session::from_bytes(&bytes(&d), r#"{"dpi":96,"max_pages":20}"#),
         Err(DocumentV2Error::Paragraph {
             index: 0,
-            reason: GeometryError::Unsupported("body control or multiple anchors")
+            reason: GeometryError::Unsupported("page-number format or position")
         })
     ));
     // HWP preserves these declarations as individual source slots. Duplicate,

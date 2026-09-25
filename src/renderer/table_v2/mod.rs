@@ -21,6 +21,7 @@ mod flow;
 mod fragment;
 mod grid;
 mod ir;
+mod page_number;
 mod session;
 mod stored_text;
 mod tac;

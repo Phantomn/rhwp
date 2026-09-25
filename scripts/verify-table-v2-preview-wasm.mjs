@@ -99,6 +99,10 @@ async function main() {
   if (process.argv.includes('--stored-tac')) positive.push('document-inline', 'document-inline-rows', 'document-inline-nested');
   if (process.argv.includes('--structural-tac')) positive.push('document-inline-first', 'document-inline-first-rows');
   if (process.argv.includes('--empty-page-borders')) positive.push('document-empty-page-borders', 'document-empty-page-borders-hwp');
+  if (process.argv.includes('--page-numbers')) positive.push(
+    'document-number-4', 'document-number-5', 'document-number-6',
+    'document-number-4-hwp', 'document-number-5-hwp', 'document-number-6-hwp',
+    'document-number-start-hwp', 'document-number-hidden', 'document-number-tac-hwp');
   if (process.argv.includes('--rowspan')) positive.push('rowspan-groups','rowspan-whole','rowspan-header','rowspan-align','rowspan-nested','rowspan-spanning-header','rowspan-inner');
   if (process.argv.includes('--solid-borders')) {
     positive.push('border-grid', 'border-header', 'border-nested', 'border-one-sided');
@@ -117,7 +121,7 @@ async function main() {
   const files = new Map([
     ['/rhwp.js', ['application/javascript', js]],
     ['/rhwp_bg.wasm', ['application/wasm', wasm]],
-    ...names.map(name => [`/${name}`, ['application/octet-stream', readFileSync(join(fixtures, `${name}.${['document-hwp','document-inline-first-rows','document-empty-page-borders-hwp'].includes(name)?'hwp':'hwpx'}`))]]),
+    ...names.map(name => [`/${name}`, ['application/octet-stream', readFileSync(join(fixtures, `${name}.${name.endsWith('-hwp') || name==='document-inline-first-rows'?'hwp':'hwpx'}`))]]),
   ]);
   const configs = Object.fromEntries(names.map(name => [name, JSON.parse(readFileSync(join(fixtures, `${name}.options.json`)))]));
   const server = http.createServer((req, res) => {
@@ -258,6 +262,11 @@ async function main() {
     expected['rowspan-nested'] = [['prefix'],['A','B','C','D','E','F'],['after','host','tail']];
     expected['rowspan-spanning-header'] = [['header','h1','h2','body1'],['header','h1','h2','body2']];
     expected['rowspan-inner'] = [['inner','host','tail','a','b']];
+    for (const name of positive.filter(n=>n.startsWith('document-number-'))) {
+      const body = name==='document-number-tac-hwp' ? expected['document-inline-first-rows'] : expected['document-split'];
+      expected[name] = body.map((texts,i)=>[...texts,...(name.endsWith('-hidden') ? []
+        : [name==='document-number-start-hwp' ? `[${9+i}]` : `- ${i+1} -`])]);
+    }
     const raster = await browser.newPage();
     const artifacts = [];
     for (const [fixtureName, pages] of Object.entries(result.pages)) {
@@ -280,7 +289,35 @@ async function main() {
         const bordered = name.startsWith('border-');
         const cut = name.startsWith('cut-');
         const borderTail = name === 'border-nested' && index === 2;
-        if (name.startsWith('document-')) {
+        if (name.startsWith('document-number-')) {
+          const body=collect(rootNode,'Body')[0], tac=name==='document-number-tac-hwp';
+          assertDocumentGeometry(body.bbox,{x:20,y:30,width:300,height:72});
+          const bodyLines=collect(body,'TextLine');
+          assertDocumentGeometry(bodyLines.map(n=>n.bbox.y), tac ? (index===0 ? [32,50] : [32,50,74])
+            : (index===0 ? [30,48,66,84] : [30,48,66,84]));
+          assertDocumentGeometry(bodyLines.map(n=>n.bbox.x), tac ? (index===0 ? [130,130] : [130,130,20])
+            : (index===0 ? [20,20,20,20] : [20,20,20,20]));
+          const boxes=tac ? [{x:130,y:32,width:80,height:36}]
+            : [{x:20,y:index===0?48:30,width:200,height:index===0?54:36}];
+          assertDocumentGeometry(collect(body,'Table').map(n=>n.bbox),boxes);
+          assertDocumentGeometry(collect(body,'TableCell').map(n=>n.bbox),boxes);
+          for (const n of [...bodyLines,...collect(body,'TableCell')]) assert.ok(n.bbox.y+n.bbox.height<=102 || sameCoordinate(n.bbox.y+n.bbox.height,102));
+          if (name.endsWith('-hidden')) assert.equal(rootNode.children.length,1);
+          else {
+            assert.equal(rootNode.children.length,2);
+            const story=rootNode.children[1], run=story.children[0];
+            assertDocumentGeometry(run.node_type.TextRun.style.font_size,40/3);
+            assertDocumentGeometry(run.node_type.TextRun.baseline,40/3);
+            // TAC fixture uses the same footer distances/body frame as other documents.
+            assertDocumentGeometry(run.bbox.y,102+15+40/9);
+            assertDocumentGeometry(story.bbox.y,run.bbox.y);
+            assertDocumentGeometry(story.bbox.height,16);
+            assertDocumentGeometry(run.bbox.width,story.bbox.width);
+            const pos=name.startsWith('document-number-4') ? 4 : name.startsWith('document-number-6') ? 6 : 5;
+            assertDocumentGeometry(run.bbox.x+(pos===4 ? 0 : run.bbox.width/(pos===5 ? 2 : 1)),pos===4 ? 20 : pos===5 ? 170 : 320);
+            assert.ok(story.bbox.y+story.bbox.height<200);
+          }
+        } else if (name.startsWith('document-')) {
           assertDocumentGeometry(collect(rootNode,'Body').map(n=>n.bbox),[{x:20,y:30,width:300,height:72}]);
           const inline = name.startsWith('document-inline');
           const firstRows = name === 'document-inline-first-rows';

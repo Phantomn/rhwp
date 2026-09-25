@@ -100,6 +100,7 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
     let mut lines = HashMap::new();
     let mut tables = HashMap::new();
     let mut order = 0;
+    let mut page_number = None;
     for (pi, source) in section.paragraphs.iter().enumerate() {
         let fail = |reason| DocumentV2Error::Paragraph { index: pi, reason };
         if source.column_type != ColumnBreakType::None
@@ -110,7 +111,7 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
             )));
         }
         // Validate structural declarations before dispatch without removing
-        // their source slots. Page numbers and other stories remain rejected.
+        // their source slots. Qualified page numbers paint outside body flow.
         let mut section_seen = false;
         let mut column_seen = false;
         let mut table_count = 0;
@@ -138,6 +139,12 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
                     column_seen = true;
                 }
                 Control::Table(_) => table_count += 1,
+                Control::PageNumberPos(value) if pi == 0 && page_number.is_none() => {
+                    page_number = Some(
+                        super::page_number::PageNumberStory::new(value, def, &layout)
+                            .map_err(fail)?,
+                    );
+                }
                 _ => {
                     return Err(fail(GeometryError::Unsupported(
                         "body control or multiple anchors",
@@ -148,7 +155,7 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
         if table_count > 0
             && source.controls.iter().all(|c| match c {
                 Control::Table(t) => t.common.treat_as_char,
-                Control::SectionDef(_) | Control::ColumnDef(_) => true,
+                Control::SectionDef(_) | Control::ColumnDef(_) | Control::PageNumberPos(_) => true,
                 _ => false,
             })
         {
@@ -189,7 +196,7 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
         let mut table_control = None;
         for (ci, control) in source.controls.iter().enumerate() {
             match control {
-                Control::SectionDef(_) | Control::ColumnDef(_) => {}
+                Control::SectionDef(_) | Control::ColumnDef(_) | Control::PageNumberPos(_) => {}
                 Control::Table(table) if table_control.is_none() => {
                     table_control = Some((ci, table));
                 }
@@ -317,6 +324,7 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
         },
         lines,
         tables,
+        page_number,
         body,
         page_width: layout.page_width,
         page_height: layout.page_height,

@@ -560,3 +560,86 @@ A/R5는 계속 진행 중이다. 다음 실제 원본 차단은 쪽번호 story�
 표 경계도 남았다. Legacy/Studio 기본값·golden/ignore는 유지한다. 전체 제출 CI·원격 push·PR은
 이번 내부 절편에 포함하지 않았다. 디스크 여유가 약3.8GiB이므로 후속 큰 빌드 전 공간 상태를
 확인한다. 다른 작업 캐시의 정리는 별도 승인 없이 수행하지 않는다.
+
+## A 후속 — 원본 쪽번호와 본문 흐름 분리
+
+2026-09-25 후속 승인으로 쪽번호를 본문/표와 다른 page story로 연결했다. `PageNumberPos`는
+문단에 선언되지만 글줄의 너비·본문 높이·내용 컷을 소비하지 않는다. 첫 문단의 단일 선언,
+십진 숫자, 하단 좌/중앙/우 또는 숨김만 수용한다. 상단·안/바깥·다른 형식·중간 재선언·
+중첩 셀 선언은 계속 명시적으로 거부한다. Legacy 경로와 Studio 기본값은 변경하지 않았다.
+
+독립 근거는 로컬 HWP5 사양 표147/148의 위치/장식 구분과 #6923 원본 및 대응 PDF다.
+앞 절편의 `section/oracle-1-bbox.html`에서 쪽번호 잉크 범위는 y788.592..798.532pt였다.
+원본 PageDef로 계산한 본문 하단771.01pt, 꼬리말 거리28.35pt, 자동 번호10pt로부터
+run top=771.01+28.35/2+10/3=788.5183pt, baseline=798.5183pt를 사용한다. 글리프의 잉크
+bbox와 run bbox를 동일시하지 않는다. 이 관측은 무장식 하단 번호의 근거이며, 원본 문서
+전체 V2/PDF 일치 판정이 아니다. 일반 글자 스타일과 번호 문자열/폭 계산 primitive만
+재사용하며 Legacy 표 배치/분할 알고리즘은 호출하지 않는다.
+
+값 소비 경로는 `document_input.rs`의 선언 검증→`PageNumberStory::new`의 번호/용지
+스냅샷→`page_number.rs::render`의 같은 TextStyle 기반 폭/원점→`document.rs`의
+Body 다음 형제 노드→RenderTree/SVG다. 본문 FlowCursor/fit 결과를 수정하지 않으며,
+TextLine bbox는 실제 TextRun을 감싼다. 번호·물리 용지 범위 오류 시 다음 페이지 cursor를
+commit하지 않는다. TAC 경로는 `stored_tac_rows`가 원래 control index를 유지하고 기존
+줄 소속/예약/배치 결과를 그대로 소비한다. 이번에는 분할 컷/rowspan/패딩 계상 규칙을
+변경하지 않았다. 분할 영향 여부는 번호 없는 대조군의 완전한 Body 노드로 비교했다.
+
+정식 테스트 `issue_7353_table_v2_page_number`의6건은 HWP/HWPX 하단3정렬, 2쪽 표 분할
+뒤 번호 증가, HWP 시작9/앞뒤 장식, 숨김, 잘못된 선언, 번호 overflow와 clone/retry,
+DPI72/144와 물리 용지 밖 번호 실패의 비소비를 검사한다. 합성 입력의 body는
+(20,30,300,72)px이며 footer run top=102+15+40/9, 좌/중앙/우 anchor=20/170/320px다.
+본문 분할 높이는18px 줄의 독립 기대값54+36px다. HWPX pageNum 저장기는 prefix/suffix를
+쓰지 않고 sideChar만 쓰므로 앞뒤 장식 계약은 HWP로 검증한다. 직렬화가 제거한 속성을
+V2가 수용/거부했다고 주장하지 않는다. 저장기는 이번 범위에서 변경하지 않았다.
+
+`issue_7353_table_v2_document_flow`의 추가 계약은 secd/cold/쪽번호/TAC 두 줄을 가진
+HWP의 표 소유 슬롯3/4, 기존 좌표/외곽/전체 Body 보존, 뒤 문단과 번호 증가를 검사한다.
+비교 대조군에는 삽입된 제어로 이동한 표 control index만+1을 적용하며 좌표나 내용은
+정규화하지 않는다. 총16건이 통과했다. 원본 #6923의 다음 거부는 예상했던 음수 간격보다
+앞선 저장 줄 폭 검증이다: PageDef 본문48190HU와 LineSeg48188HU가 다르다. 두 원본 값과
+명시적 미지원 결과를 검사하고, 음수 줄간격-800HU도 후속 범위로 남긴다. tolerance를 늘리거나
+저장 정보를 삭제하지 않았다. A/R5 완료는 아직 아니다.
+
+증적 폴더는 `output/7353/r19/page-number/`다. `before.log`의 기존 구현은 신규 최초4건 중
+1 PASS/3 FAIL이며 PNP 명시적 거부가 실패 원인이다. 새 지원의 전후 증거이지 Legacy 결함
+수정이라고 주장하지 않는다. `after.log`의2실패는 위 HWPX 장식 저장 차이를 사용한 잘못된
+시험 입력이었고 수정했다. suite 재분배 후 prepare를 생략한 `after2.log`/`document.log`는
+0건 실행으로 증거에서 제외했다. 준비 후 `number-final.log`6 PASS와 `document-final.log`
+16 PASS가 최종 계약 결과다. `document-prepared.log`에서 검출한 소유 index 차이는 정상적인
+원본 슬롯 이동으로 기대값을 수정했고, 실제 원본의 다음 거부를 폭 계약으로 바로잡았다.
+
+Native 초기 출력 `native-number-0.png`를 직접 열어 본문 아래 분리된 번호와 여백을 확인했다.
+이는 합성 경계의 직접 판독이며 한컴 실물 시각 통과로 승격하지 않는다. 최종 lint/Legacy
+대조/fresh WASM 결과와 source hash는 아래에 이어 기록한다.
+
+이번 head의 Native 실행은 쪽번호6+본문16+Legacy17=39 PASS다. Legacy 사례 목록과 실제
+파생 suite 명령은 `legacy.log`에 있다. Native library/WASM library/변경 integration
+suite Clippy 및 fmt, base `7a95e46e025470a4d7a7b59ad68ec02958bda738` 대비 manifest 정책
+검사가 통과했다(`clippy-{native,wasm,test}.log`, `fmt.log`, `policy.log`). source-side
+unit test는 변경하지 않았다. 전체 workspace/all-targets 제출 게이트 실행으로 보고하지 않는다.
+검증 overlay와 제품 소스는 동일하며 파생 suite는 제품 PR 소스에 포함하지 않는다.
+
+Docker 명령 `docker compose --env-file .env.docker -p rhwp run --rm wasm`은7분22초에
+완료했다(`docker-wasm.log`). fresh WASM SHA256은
+`03cc43f856b4ed5d2e3eedaf52ec3e6c49ba6a91e7fb7c04f2a6c78f352fef35`이다.
+앞 절편 browser 명령의 fixtures/out을 `page-number/`으로 바꾸고 `--page-numbers`를
+추가하여137쪽의 정확한 Native/WASM tree·SVG 대조가 통과했다(`browser.log`,
+`browser/manifest.json`). 이번 새 Native 입력18쪽과 재생성한 본문 사례를 사용했고,
+수정하지 않은 선택 표 경로의 이전 Native 증거는 재사용했다.137개 Native 회귀 테스트를
+새로 실행했다는 뜻이 아니다. 기존119쪽 review PNG는 모두 동일하다
+(`prior-visual-compare.log`). 실패한 중간 장식 HWPX 산출은 최종 manifest에 포함하지 않았다.
+
+`browser/number-contact-{0,1,2}.png`에서 신규18쪽의 standalone overlay를 직접 확인했다.
+좌/중앙/우 번호가 본문 아래에 분리되고 1→2, [9]→[10]으로 증가하며 숨김 입력에는 번호가 없다.
+TAC 두 줄의 쪽 이월에서도 외곽·내용·뒤 문단이 유지된다.
+`document-number-tac-hwp-1.review.png`와 `document-number-start-hwp-1.review.png`의
+Native/fresh WASM/overlay3면도 직접 열어 위치와 표시를 대조했다. 원본 PDF에 대한 전체
+시각 통과는 아니며 합성 계약과 backend 일치에 한정한다. 각 원본 `.native.png`, `.wasm.png`,
+`.overlay.png`, `.review.png`도 같은 폴더에 보존했다.
+
+검증 출발 HEAD는 `f2fdd5bb7`이며 검증한 변경 소스·정식 테스트·하네스는
+`source-final.sha256`으로 고정했다. `post-build-source-check.log`가 빌드 이후 불변을 확인하고
+최종 내부 커밋은 `verified-commit.txt`에 연결한다. 원본 HWP/PDF 해시는
+`original-inputs.sha256`에 있다. Legacy/Studio 기본값·golden/ignore를 유지했으며 전체 제출
+CI·원격 push·PR은 실행하지 않았다. 다음 A 의존 작업은 저장 폭의 출처와 수용 계약, 음수
+줄간격 및 원본의 그림/앵커 등이다. 기본 엔진 전환과 R5 완료 판정은 여전히 남았다.

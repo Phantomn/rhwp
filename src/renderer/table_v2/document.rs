@@ -54,6 +54,7 @@ pub(super) struct BodyPlan {
     pub body: Rect,
     pub page_width: f64,
     pub page_height: f64,
+    pub page_number: Option<super::page_number::PageNumberStory>,
 }
 
 #[derive(Serialize)]
@@ -161,6 +162,12 @@ impl DocumentV2Session {
             PageRenderTree::new(self.emitted, self.plan.page_width, self.plan.page_height);
         assign_ids(&mut body, tree.frame_mut());
         tree.root.children.push(body);
+        if let Some(story) = &self.plan.page_number {
+            if let Some(mut node) = story.render(self.emitted)? {
+                assign_ids(&mut node, tree.frame_mut());
+                tree.root.children.push(node);
+            }
+        }
         let mut svg = SvgRenderer::new();
         svg.render_tree(&tree);
         let result = serde_json::to_string(&Output {
