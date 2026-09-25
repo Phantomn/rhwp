@@ -23,6 +23,7 @@ pub enum ParagraphItem {
     TableControl(usize),
     InlineTables {
         height: f64,
+        advance: f64,
         tables: Vec<(usize, Rect)>,
     },
 }
@@ -228,7 +229,11 @@ fn bind_table(
                             });
                             seen[ci] = true;
                         }
-                        ParagraphItem::InlineTables { height, tables } => {
+                        ParagraphItem::InlineTables {
+                            height,
+                            advance,
+                            tables,
+                        } => {
                             let mut bound = Vec::new();
                             for (ci, rect) in tables {
                                 if seen.get(ci).copied() != Some(false) {
@@ -257,6 +262,7 @@ fn bind_table(
                             }
                             blocks.push(FlowBlock::InlineTables {
                                 height,
+                                advance,
                                 tables: bound,
                             });
                         }

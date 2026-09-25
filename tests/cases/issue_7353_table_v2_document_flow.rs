@@ -137,17 +137,42 @@ fn near(value: &Value, expected: f64) {
 fn capture(name: &str, d: &Document, pages: &[Value]) {
     if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(format!("{dir}/{name}.hwpx"), bytes(d)).unwrap();
+        let (extension, input) = if name.ends_with("-hwp") {
+            (
+                "hwp",
+                rhwp::serializer::cfb_writer::serialize_hwp(d).unwrap(),
+            )
+        } else {
+            ("hwpx", bytes(d))
+        };
+        std::fs::write(format!("{dir}/{name}.{extension}"), &input).unwrap();
         std::fs::write(
             format!("{dir}/{name}.options.json"),
             r#"{"dpi":96,"max_pages":20}"#,
         )
         .unwrap();
-        std::fs::write(
-            format!("{dir}/{name}.native.json"),
-            serde_json::to_vec_pretty(pages).unwrap(),
-        )
-        .unwrap();
+        if name.ends_with("-hwp") {
+            // Preserve renderer JSON bytes: parsing through Value without
+            // float_roundtrip can turn 120.00000000000001 into 120.0.
+            let mut session =
+                DocumentV2Session::from_bytes(&input, r#"{"dpi":96,"max_pages":20}"#).unwrap();
+            let mut raw = Vec::new();
+            while let Some(page) = session.next_page_json().unwrap() {
+                raw.push(page);
+            }
+            assert_eq!(raw.len(), pages.len());
+            std::fs::write(
+                format!("{dir}/{name}.native.json"),
+                format!("[{}]", raw.join(",")),
+            )
+            .unwrap();
+        } else {
+            std::fs::write(
+                format!("{dir}/{name}.native.json"),
+                serde_json::to_vec_pretty(pages).unwrap(),
+            )
+            .unwrap();
+        }
     }
 }
 
@@ -492,9 +517,24 @@ fn real_6923_remains_unmodified_and_explicitly_unqualified() {
     assert_eq!(first.len(), 1);
     assert_eq!(first[0].height, 11668.0);
     assert_eq!(first[0].spacing, -800.0);
+    let frame = rhwp::renderer::table_v2::stored_tac_rows(
+        &d.sections[0].paragraphs[0],
+        48190.0,
+        rhwp::model::style::Alignment::Center,
+    )
+    .unwrap();
+    assert_eq!(frame[0].tables, first[0].tables);
+    assert_eq!(
+        d.sections[0].paragraphs[1].line_segs[0].vertical_pos,
+        11668 - 800
+    );
+    assert_eq!(
+        d.sections[0].paragraphs[2].line_segs[0].vertical_pos,
+        10868 + 1000 + 200
+    );
     // The source's saved row is 48188HU, while the PageDef content width is
-    // 48190HU. Admission currently rejects this independently of the negative
-    // trailing spacing. Do not delete metadata or add a tolerance to pass it.
+    // 48190HU. The saved segment is an independent, contained alignment frame;
+    // neither its width nor the signed spacing is rewritten to admit it.
     assert_eq!(
         def.page_def.width - def.page_def.margin_left - def.page_def.margin_right,
         48190
@@ -570,9 +610,7 @@ fn real_6923_remains_unmodified_and_explicitly_unqualified() {
             e @ DocumentV2Error::Paragraph {
                 index: 0,
                 reason:
-                    rhwp::renderer::table_v2::GeometryError::Unsupported(
-                        "stored TAC carrier requires unambiguous intact rows",
-                    ),
+                    rhwp::renderer::table_v2::GeometryError::Unsupported("V2 source decoration effect"),
             },
         ) => e.to_string(),
         Err(e) => panic!("unexpected source admission boundary: {e}"),
@@ -587,6 +625,36 @@ fn real_6923_remains_unmodified_and_explicitly_unqualified() {
             "section": d.sections[0].section_def,
             "border_fills": d.doc_info.border_fills})).unwrap()).unwrap();
     }
+}
+
+#[test]
+fn overlapping_saved_envelopes_keep_distinct_rows_and_physical_ends() {
+    let mut carrier = inline_carrier(true);
+    carrier.line_segs[1].vertical_pos = 3925; // origin1000 +39px, envelope40px
+    carrier.line_segs[0].line_spacing = -75;
+    carrier.line_segs[1].line_spacing = -75;
+    let mut d = source(vec![carrier, p("after")]);
+    d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Center;
+    d.sections[0].section_def.page_def.margin_bottom = 1500; // 200-30-20-30=120px
+    add_leading_structure(&mut d);
+    let pages = drain(
+        &mut DocumentV2Session::from_bytes(
+            &rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap(),
+            r#"{"dpi":96,"max_pages":20}"#,
+        )
+        .unwrap(),
+    );
+    assert_eq!(pages.len(), 1);
+    assert_eq!(labels(&pages[0]), ["A", "a", "B", "b", "after"]);
+    let ts = nodes(&pages[0], "Table");
+    assert_eq!(ts.len(), 2);
+    for (t, y) in ts.iter().zip([32.0, 71.0]) {
+        near(&t["bbox"]["x"], 130.0);
+        near(&t["bbox"]["y"], y);
+        near(&t["bbox"]["height"], 36.0);
+    }
+    near(&nodes(&pages[0], "TextLine")[4]["bbox"]["y"], 108.0);
+    capture("document-signed-rows-hwp", &d, &pages);
 }
 
 fn inline_carrier(separate: bool) -> Paragraph {
@@ -625,6 +693,86 @@ fn inline_carrier(separate: bool) -> Paragraph {
         })
         .collect();
     para
+}
+
+#[test]
+fn stored_inline_frames_align_inside_the_saved_segment_not_the_container() {
+    use rhwp::model::style::Alignment;
+    for alignment in [Alignment::Left, Alignment::Center, Alignment::Right] {
+        let mut carrier = inline_carrier(false);
+        carrier.line_segs[0].column_start = 750;
+        carrier.line_segs[0].segment_width = 18000;
+        let mut d = source(vec![carrier, p("after")]);
+        d.doc_info.para_shapes[0].alignment = alignment;
+        let pages = drain(&mut open(&d));
+        assert_eq!(pages.len(), 1);
+        // Saved frame x=10,width=240; two84px envelopes leave72px.
+        let x = 32.0
+            + match alignment {
+                Alignment::Left => 0.0,
+                Alignment::Center => 36.0,
+                _ => 72.0,
+            };
+        for (i, t) in nodes(&pages[0], "Table").iter().enumerate() {
+            near(&t["bbox"]["x"], x + 84.0 * i as f64);
+            near(&t["bbox"]["y"], 32.0);
+            near(&t["bbox"]["height"], 36.0);
+        }
+        near(
+            &nodes(&pages[0], "TextLine").last().unwrap()["bbox"]["y"],
+            74.0,
+        );
+        let name = match alignment {
+            Alignment::Left => "document-frame-left",
+            Alignment::Center => "document-frame-center",
+            _ => "document-frame-right",
+        };
+        capture(name, &d, &pages);
+    }
+}
+
+#[test]
+fn signed_inline_advance_does_not_shrink_the_physical_fit_budget() {
+    let mut carrier = inline_carrier(false);
+    carrier.line_segs[0].line_spacing = -75; // advance39px, occupied40px
+    let mut d = source(vec![p("before"), carrier, p("after")]);
+    d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Center;
+    //57px body: after18px prose,39px remains. The40px row must move intact.
+    d.sections[0].section_def.page_def.margin_bottom = 6225;
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), ["before"]);
+    assert_eq!(labels(&pages[1]), ["A", "a", "B", "b", "after"]);
+    assert!(nodes(&pages[0], "Table").is_empty());
+    for t in nodes(&pages[1], "Table") {
+        near(&t["bbox"]["y"], 32.0);
+        near(&t["bbox"]["height"], 36.0);
+    }
+    near(
+        &nodes(&pages[1], "TextLine").last().unwrap()["bbox"]["y"],
+        69.0,
+    );
+    capture("document-inline-signed-budget", &d, &pages);
+}
+
+#[test]
+fn signed_nested_inline_rows_reserve_the_complete_physical_envelope() {
+    let mut carrier = inline_carrier(false);
+    carrier.line_segs[0].line_spacing = -75;
+    let mut outer = table(&[], TablePageBreak::CellBreak);
+    outer.cells[0].width = 22500;
+    outer.cells[0].paragraphs = vec![carrier];
+    let mut d = source(vec![host("tail", outer)]);
+    d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Center;
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 1);
+    assert_eq!(labels(&pages[0]), ["A", "a", "B", "b", "tail"]);
+    near(&nodes(&pages[0], "Table")[0]["bbox"]["height"], 40.0);
+    near(
+        &nodes(&pages[0], "TextLine").last().unwrap()["bbox"]["y"],
+        70.0,
+    );
+    capture("document-inline-signed-nested", &d, &pages);
 }
 
 #[test]
@@ -896,12 +1044,12 @@ fn footer_story_preserves_first_paragraph_tac_slots_and_body_fragments() {
 }
 
 #[test]
-fn structural_carriers_do_not_silently_drop_unhandled_stories_or_signed_spacing() {
+fn structural_carriers_do_not_silently_drop_unhandled_stories_or_nonforward_spacing() {
     use rhwp::renderer::table_v2::GeometryError;
     let mut d = source(vec![inline_carrier(false)]);
     d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Center;
     add_leading_structure(&mut d);
-    d.sections[0].paragraphs[0].line_segs[0].line_spacing = -100;
+    d.sections[0].paragraphs[0].line_segs[0].line_spacing = -3000;
     assert!(matches!(
         DocumentV2Session::from_bytes(
             &rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap(),
@@ -909,7 +1057,7 @@ fn structural_carriers_do_not_silently_drop_unhandled_stories_or_signed_spacing(
         ),
         Err(DocumentV2Error::Paragraph {
             index: 0,
-            reason: GeometryError::Unsupported("negative TAC row spacing")
+            reason: GeometryError::Unsupported("non-forward TAC row advance")
         })
     ));
     let mut d = source(vec![inline_carrier(false)]);
@@ -990,8 +1138,14 @@ fn stored_inline_rejects_incomplete_ownership_and_changed_content_boxes() {
     invalid.line_segs[1].text_start = 7;
     assert!(stored_tac_rows(&invalid, 22500.0, Alignment::Center).is_err());
     invalid.line_segs[1].text_start = 8;
-    invalid.line_segs[1].vertical_pos = 2000;
+    invalid.line_segs[1].vertical_pos = invalid.line_segs[0].vertical_pos;
     assert!(stored_tac_rows(&invalid, 22500.0, Alignment::Center).is_err());
+    for (start, width) in [(-1, 22500), (1, 22500), (0, 0), (0, 12000)] {
+        let mut invalid = source_para.clone();
+        invalid.line_segs[0].column_start = start;
+        invalid.line_segs[0].segment_width = width;
+        assert!(stored_tac_rows(&invalid, 22500.0, Alignment::Center).is_err());
+    }
     assert!(stored_tac_rows(&source_para, 22499.0, Alignment::Center).is_err());
     let mut d = source(vec![p("before"), source_para]);
     d.doc_info.para_shapes[0].alignment = Alignment::Center;

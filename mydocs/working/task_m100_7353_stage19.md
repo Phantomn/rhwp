@@ -643,3 +643,87 @@ Native/fresh WASM/overlay3면도 직접 열어 위치와 표시를 대조했다.
 `original-inputs.sha256`에 있다. Legacy/Studio 기본값·golden/ignore를 유지했으며 전체 제출
 CI·원격 push·PR은 실행하지 않았다. 다음 A 의존 작업은 저장 폭의 출처와 수용 계약, 음수
 줄간격 및 원본의 그림/앵커 등이다. 기본 엔진 전환과 R5 완료 판정은 여전히 남았다.
+
+## A 후속 — 저장 TAC 줄 영역과 signed advance
+
+2026-09-25 후속 승인으로 저장 줄의 정렬 영역과 음수 줄간격을 실험 V2에 연결했다.
+HWP5 사양4.3.4/표62의 단 시작·줄 폭·signed 줄간격은 별도 필드다. 원본 #6923의
+첫 줄은 본문48190HU 안의 줄 폭48188HU, 점유11668HU, 줄간격-800HU이며 다음 빈
+문단의 vpos10868HU, 그다음 문단의 vpos12068HU다. 원본 덤프는
+`output/7353/r19/6923-exploratory-dump.txt`다. 2HU 차이의 생성 원인을 반올림으로
+단정하지 않고, 저장 영역이 가용 영역 안에 있을 때 저장 폭/시작 위치로 정렬한다.
+원본/저장 메트릭을 삭제하거나 수치 tolerance를 확대하지 않는다.
+
+`tac.rs::stored_tac_rows`의 줄 소유/정렬 query → `compose`의 공통
+`ParagraphItem::InlineTables { height, advance, tables }` → 본문 `document_input.rs`와
+셀 `ir.rs`의 같은 `FlowBlock`으로 연결했다. `height`는 온전한 외곽여백 포함 점유,
+`advance`는 다음 원점이다. `content.rs::physical_extent`는 advance로 다음 원점을
+진행하면서 모든 점유 끝점의 최댓값을 구한다. `flow.rs::FlowCursor::fit`은 실제 줄/표를
+그 원점에 배치하고 온전한 height가 fit할 때만 수용한다. `fragment.rs::fit`은
+`fit.height`를 셀/조각 예약에 사용하고 `document.rs::next_page`도 같은 결과를 소비한다.
+paint에서 높이를 다시 늘리거나 별도 앵커로 덮어쓰지 않는다.
+
+내용 컷은 여전히 source control/line owner와 block cursor다. 줄 상자 겹침을 줄 소속이나
+페이지 경계로 해석하지 않는다. 원점 역행/정지, 저장 영역 밖 위치/폭, 내용 폭 초과,
+불완전 슬롯/dirty cache, 측정된 자식 박스와 저장 박스 불일치는 계속 거부한다.
+빈 TAC 줄의 음수 advance, 텍스트 혼재/서로 다른 기준선, oversized TAC 내부 분할은
+아직 미지원이다. positive gap과 셀 padding은 물리 Space로 유지한다. 제목 재표시,
+rowspan 완결 그룹, 일반 셀 분할은 기존 TableCursor를 통과하므로 대조군으로 확인한다.
+새 signed TAC와 rowspan/제목의 모든 조합을 직접 검증했다는 뜻은 아니다.
+
+정식 `tests/cases/issue_7353_table_v2_document_flow.rs`에 저장 영역3정렬,
+advance39px만 들어가지만 점유40px는 안 들어가는 페이지 예산, 중첩 셀 끝의40px 보존,
+서로 다른 두 저장 줄의39px 원점 간격을 추가했다. 합성 계약의 독립 기대값은
+80px 자식 너비+좌우2px 여백, 두18px 텍스트 줄+상하2px 여백이다. 실제 Table/TableCell,
+TextLine 좌표와 뒤 문단, 유닛 순서/종료를 검사한다. 입력은 명시한 synthetic HWP/HWPX이며
+한컴 생성본으로 주장하지 않는다. 원본 query도 본문48190HU로 호출할 때 x350HU를
+보존하며, 실제 전체 문서는 문단0의 `V2 source decoration effect`에서 명시적으로 멈춘다.
+기존 폭/간격 제한을 넘은 것이지 원본 전체 조판 완료나 PDF 일치 판정은 아니다.
+
+증적은 `output/7353/r19/tac-metrics/`다. `before.log`의 신규 최초3건은 수정 전
+의도한 수용 제한으로 FAIL, 수정 후 PASS다. `after.log`의 이전 거부 계약2건은
+새 지원 범위에 맞춰 물리 역행/비전진 경계로 교체했다. inter-row 합성 입력의 첫 실패는
+HWPX 구조 슬롯 축 모호성, 다음 실패는 footer를 빠뜨린 시험 용지 예산이었다. 수용 조건을
+완화하지 않고 HWP 원본 슬롯을 명시하고 용지 계산200-30-20-30=120px로 바로잡았다.
+`document-final2.log`20 PASS, `focused.log`75 PASS(이 중 Legacy 대조17건)가 이번
+Native 결과다. 합계95건이며 중복 이전 실행을 더하지 않는다.
+
+`native-nested.png`와 `native-rows.png`를 직접 열어 자식 외곽/부모 높이/뒤 문단과
+연속 두 TAC 행의 구분을 확인한 뒤 fresh Docker WASM을 시작했다. 기존 Legacy/default
+Studio 경로·golden/ignore는 변경하지 않았다. 최종 lint·fresh WASM/시각 결과는 아래에
+이어 기록한다. 출발 HEAD는 `7f463eeff`다.
+
+공통 FlowCursor 영향 범위를 넓혀 V2 정식 계약17파일 전체176건도 실행했고 모두 통과했다
+(`v2-all.log`). 최종 중복 제외 집계는 V2 176+Legacy 17=193 PASS다. 이 실행에서 Native
+fixture도 다시 생성했으며 앞 절편의73개 Native JSON은 모두 byte 동일하다
+(`prior-native-compare.log`). Native library/WASM library/변경 integration target의
+Clippy, fmt, base `7a95e46e025470a4d7a7b59ad68ec02958bda738` 대비 manifest 검사도
+통과했다(`clippy-{native,wasm,test}.log`, `fmt.log`, `policy.log`). 전체 workspace
+제출 게이트 통과라고 보고하지 않는다. source-side unit test는 변경하지 않았다.
+`source-final.sha256`과 `source-check.log`로 빌드 입력 불변을 확인했다.
+
+Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm`은7분23초에 완료했다
+(`docker-wasm.log`). WASM SHA256은
+`9fd24f8241994797fe690f17973e85db9fea896a4113e60adf8c7ed48b91b912`다.
+browser 명령은 앞 절편의 fixtures/out을 `tac-metrics/`로 바꾸고 `--tac-metrics`를
+추가했다. 최초 `browser.log`는 새 HWP body 높이120.00000000000001을 Native 증적의
+serde_json Value 재직렬화가120으로 만든 차이를 검출했다. 허용치를 늘리지 않고 HWP
+export에 renderer 원문 JSON을 보존하도록 테스트 helper만 수정했다. `document-raw.log`
+20 PASS, `clippy-test-final.log`/`fmt-final.log`/`policy-final.log` PASS로 재검증했다.
+제품 Rust 소스는 빌드 후 변경하지 않았으므로 같은 fresh WASM을 사용했다.
+중간 Chrome 프로세스 시작 실패는 `browser-final.log`에 보존했고, 재실행
+`browser-retry.log`와 `browser/manifest.json`에서144쪽의 정확한 tree·SVG 대조가 통과했다.
+
+`browser/tac-contact.png`의 새7쪽 standalone overlay를 직접 열어 저장 영역3정렬,
+예산 부족 시 두 자식의 동반 이월, 부모 셀의 전체 외곽과 뒤 문단,39px 원점 간격의
+두 TAC 행을 확인했다. `document-inline-signed-budget-1.review.png`의 Native/fresh
+WASM/overlay3면도 직접 대조했다. 각 `.native.png`, `.wasm.png`, `.overlay.png`,
+`.review.png`는 같은 폴더에 있다. 기존137쪽 review PNG는 모두 동일하다
+(`prior-visual-compare.log`). 합성 경계 및 backend 일치 증거이며 원본 #6923의
+한컴 PDF 시각 일치로 승격하지 않는다.
+
+최종 검증 파일은 `verified-source.sha256`, 빌드 직후 소스 확인은
+`post-build-source-check.log`, 원본 입력은 `original-inputs.sha256`, 최종 내부 커밋은
+`verified-commit.txt`에 연결한다. A/R5는 진행 중이며 원본의 글자 장식·그림/앵커와
+미지원 표/문단 조합, 전체 문서 PDF 검증이 남았다. 기본 엔진 전환·전체 제출 CI·
+원격 push·PR은 실행하지 않았다.

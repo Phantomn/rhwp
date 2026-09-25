@@ -45,6 +45,12 @@ pub(super) struct CellTrack {
 }
 
 impl FlowBlock {
+    pub(super) fn advance(&self) -> f64 {
+        match self {
+            Self::InlineTables { advance, .. } => *advance,
+            _ => self.height(),
+        }
+    }
     pub(super) fn height(&self) -> f64 {
         match self {
             Self::Space(height)
@@ -53,6 +59,17 @@ impl FlowBlock {
             Self::Table { plan, .. } => plan.height,
         }
     }
+}
+
+fn physical_extent(blocks: &[FlowBlock]) -> f64 {
+    let mut pen: f64 = 0.0;
+    let mut end: f64 = 0.0;
+    for block in blocks {
+        end = end.max(pen + block.height());
+        pen += block.advance();
+        end = end.max(pen);
+    }
+    end
 }
 
 impl TableContentPlan {
@@ -208,7 +225,17 @@ impl TableContentPlan {
                                 return Err(GeometryError::Unsupported("duplicate child owner"));
                             }
                         }
-                        FlowBlock::InlineTables { height, tables } => {
+                        FlowBlock::InlineTables {
+                            height,
+                            advance,
+                            tables,
+                        } => {
+                            nonnegative(*advance, "inline advance")?;
+                            if *advance == 0.0 || *advance > *height {
+                                return Err(GeometryError::Unsupported(
+                                    "inline advance outside envelope",
+                                ));
+                            }
                             if tables.is_empty() {
                                 return Err(GeometryError::Unsupported("empty inline group"));
                             }
@@ -233,7 +260,7 @@ impl TableContentPlan {
                 }
                 cell.blocks.insert(0, FlowBlock::Space(p.top));
                 cell.blocks.push(FlowBlock::Space(p.bottom));
-                let physical = cell.blocks.iter().map(FlowBlock::height).sum::<f64>();
+                let physical = physical_extent(&cell.blocks);
                 nonnegative(physical, "physical cell height")?;
                 if track.row_span == 1 {
                     height = height.max(physical).max(cell.minimum_height);
@@ -252,7 +279,7 @@ impl TableContentPlan {
             // Empty line boxes and nested tables are physical content, not ink.
             // Do not center each page fragment or change declared minimum height.
             for (slot, cell) in input.cells.iter().enumerate() {
-                let physical = cell.blocks.iter().map(FlowBlock::height).sum::<f64>();
+                let physical = physical_extent(&cell.blocks);
                 let track = &mut grid[row][slot];
                 let height = row_heights[row..row + track.row_span].iter().sum::<f64>();
                 // Intact non-spanning cells establish the row boundaries. A

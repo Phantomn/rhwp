@@ -83,7 +83,10 @@ pub enum FlowBlock {
         lines: Vec<LineBox>,
     },
     InlineTables {
+        /// Physical envelope required before accepting the complete row.
         height: f64,
+        /// Next flow origin; signed source spacing can make this less than height.
+        advance: f64,
         tables: Vec<InlineTableInput>,
     },
     Table {

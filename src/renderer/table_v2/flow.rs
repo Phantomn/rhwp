@@ -32,17 +32,19 @@ impl FlowCursor {
             lines: Vec::new(),
             tables: Vec::new(),
         };
+        let mut pen = 0.0;
         while let Some(block) = cell.blocks.get(result.next.block) {
-            let available = (area.height - result.height).max(0.0);
+            let available = (area.height - pen).max(0.0);
             match block {
                 FlowBlock::Space(height) => {
                     let left = result.next.space_left.unwrap_or(*height);
-                    let taken = if area.y + result.height + left <= area.y + area.height {
+                    let taken = if area.y + pen + left <= area.y + area.height {
                         left
                     } else {
                         left.min(available)
                     };
-                    result.height += taken;
+                    pen += taken;
+                    result.height = result.height.max(pen);
                     if left > taken {
                         result.next.space_left = Some(left - taken);
                         result.progressed |= taken > 0.0;
@@ -52,7 +54,7 @@ impl FlowCursor {
                     result.next.space_left = None;
                 }
                 FlowBlock::Lines { height, lines } => {
-                    if area.y + result.height + height > area.y + area.height {
+                    if area.y + pen + height > area.y + area.height {
                         result.required = *height;
                         break;
                     }
@@ -60,15 +62,19 @@ impl FlowCursor {
                         owner: line.owner,
                         bounds: Rect {
                             x: area.x + line.bounds.x,
-                            y: area.y + result.height + line.bounds.y,
+                            y: area.y + pen + line.bounds.y,
                             width: line.bounds.width,
                             height: line.bounds.height,
                         },
                     }));
-                    result.height += height;
+                    pen += height;
                 }
-                FlowBlock::InlineTables { height, tables } => {
-                    if area.y + result.height + height > area.y + area.height {
+                FlowBlock::InlineTables {
+                    height,
+                    advance,
+                    tables,
+                } => {
+                    if area.y + pen + height > area.y + area.height {
                         result.required = *height;
                         break;
                     }
@@ -79,7 +85,7 @@ impl FlowCursor {
                         let fit = TableCursor::new(child.plan.clone()).fit(PageArea {
                             bounds: Rect {
                                 x: area.x + child.x,
-                                y: area.y + result.height + child.y,
+                                y: area.y + pen + child.y,
                                 width: child.plan.width,
                                 height: child.plan.height,
                             },
@@ -96,7 +102,8 @@ impl FlowCursor {
                         });
                     }
                     result.tables.extend(placed);
-                    result.height += height;
+                    result.height = result.height.max(pen + height);
+                    pen += advance;
                 }
                 FlowBlock::Table {
                     owner,
@@ -112,13 +119,14 @@ impl FlowCursor {
                     match cursor.fit(PageArea {
                         bounds: Rect {
                             x: area.x + offset_x,
-                            y: area.y + result.height,
+                            y: area.y + pen,
                             width: area.width - offset_x,
                             height: available,
                         },
                     })? {
                         FragmentFit::Placed(fragment) => {
-                            result.height += fragment.reserved_height();
+                            pen += fragment.reserved_height();
+                            result.height = result.height.max(pen);
                             result.tables.push(NestedTablePlacement {
                                 owner: *owner,
                                 placement: Box::new(fragment.placement().clone()),
@@ -143,6 +151,7 @@ impl FlowCursor {
                     }
                 }
             }
+            result.height = result.height.max(pen);
             result.next.block += 1;
             // Zero padding is bookkeeping, not enough progress to emit a blank
             // fragment in front of a blocked line/table.

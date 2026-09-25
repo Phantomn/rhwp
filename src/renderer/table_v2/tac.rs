@@ -101,13 +101,16 @@ pub fn stored_tac_rows(
             || row.line_height <= 0
             || row.baseline_distance < 0
             || row.baseline_distance > row.line_height
-            || row.column_start != 0
-            || !same(f64::from(row.segment_width), width_hu)
+            || row.column_start < 0
+            || row.segment_width <= 0
+            || (f64::from(row.column_start) + f64::from(row.segment_width) > width_hu
+                && !same(
+                    f64::from(row.column_start) + f64::from(row.segment_width),
+                    width_hu,
+                ))
             || (i > 0
                 && (para.line_seg_text_start(i) <= para.line_seg_text_start(i - 1)
-                    || i64::from(row.vertical_pos)
-                        < i64::from(para.line_segs[i - 1].vertical_pos)
-                            + i64::from(para.line_segs[i - 1].line_height)))
+                    || row.vertical_pos <= para.line_segs[i - 1].vertical_pos))
         {
             return Err(unsupported());
         }
@@ -181,17 +184,22 @@ pub fn stored_tac_rows(
         let Control::Table(table) = &para.controls[*ci] else {
             unreachable!()
         };
-        let free = width_hu - last.x - last.width - f64::from(table.outer_margin_right);
+        let source_row = &para.line_segs[row.source_line];
+        let free = f64::from(source_row.segment_width)
+            - last.x
+            - last.width
+            - f64::from(table.outer_margin_right);
         if free < 0.0 {
             return Err(GeometryError::Unsupported("TAC row exceeds stored width"));
         }
-        let offset = match alignment {
-            Alignment::Left => 0.0,
-            Alignment::Justify if row.tables.len() == 1 => 0.0,
-            Alignment::Center => free / 2.0,
-            Alignment::Right => free,
-            _ => return Err(GeometryError::Unsupported("TAC paragraph alignment")),
-        };
+        let offset = f64::from(source_row.column_start)
+            + match alignment {
+                Alignment::Left => 0.0,
+                Alignment::Justify if row.tables.len() == 1 => 0.0,
+                Alignment::Center => free / 2.0,
+                Alignment::Right => free,
+                _ => return Err(GeometryError::Unsupported("TAC paragraph alignment")),
+            };
         for (_, r) in &mut row.tables {
             r.x += offset;
         }
@@ -231,30 +239,40 @@ pub(super) fn compose(
     super::contracts::nonnegative(style.spacing_after, "TAC spacing after")?;
     let scale = dpi / 7200.0;
     let rows = stored_tac_rows(para, width / scale, style.alignment)?;
-    if rows.iter().any(|r| r.spacing < 0.0) {
-        return Err(GeometryError::Unsupported("negative TAC row spacing"));
-    }
     let mut items = vec![ParagraphItem::Space(style.spacing_before)];
     let mut end = 0.0;
-    for row in rows {
+    for (i, row) in rows.iter().enumerate() {
+        // Source positions choose row origins; occupied envelopes remain intact.
+        // Spacing affects the next origin, never the child's physical fit box.
+        let delta = rows
+            .get(i + 1)
+            .map_or(row.height + row.spacing, |next| next.top - row.top);
+        if !delta.is_finite() || delta <= 0.0 {
+            return Err(GeometryError::Unsupported("non-forward TAC row advance"));
+        }
+        let advance = delta.min(row.height);
         if row.top < end {
             return Err(unsupported());
         }
         if row.top > end {
             items.push(ParagraphItem::Space((row.top - end) * scale));
         }
-        end = row.top + row.height;
+        end = row.top + advance;
         if row.tables.is_empty() {
+            if advance != row.height {
+                return Err(GeometryError::Unsupported("overlapping empty TAC row"));
+            }
             items.push(ParagraphItem::Space(row.height * scale));
         } else {
             items.push(ParagraphItem::InlineTables {
                 height: row.height * scale,
+                advance: advance * scale,
                 tables: row
                     .tables
-                    .into_iter()
+                    .iter()
                     .map(|(ci, r)| {
                         (
-                            ci,
+                            *ci,
                             Rect {
                                 x: r.x * scale,
                                 y: r.y * scale,
@@ -268,9 +286,12 @@ pub(super) fn compose(
         }
     }
     let trailing = para.line_segs.last().ok_or_else(unsupported)?.line_spacing;
-    items.push(ParagraphItem::Space(
-        f64::from(trailing) * scale + style.spacing_after,
-    ));
+    // Negative spacing is already owned by the final inline row's advance.
+    // Positive trailing whitespace remains splittable physical space.
+    if trailing > 0 {
+        items.push(ParagraphItem::Space(f64::from(trailing) * scale));
+    }
+    items.push(ParagraphItem::Space(style.spacing_after));
     Ok(items)
 }
 

@@ -164,6 +164,7 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
                     ParagraphItem::Space(h) => blocks.push(FlowBlock::Space(h)),
                     ParagraphItem::InlineTables {
                         height,
+                        advance,
                         tables: owned,
                     } => {
                         let mut bound = Vec::new();
@@ -185,6 +186,7 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
                         }
                         blocks.push(FlowBlock::InlineTables {
                             height,
+                            advance,
                             tables: bound,
                         });
                     }

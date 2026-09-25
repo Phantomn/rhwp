@@ -96,6 +96,9 @@ async function main() {
     positive.push('document-split','document-atomic','document-nested','document-hwp');
   }
   if (process.argv.includes('--stored-body')) positive.push('document-stored');
+  if (process.argv.includes('--tac-metrics')) positive.push(
+    'document-frame-left','document-frame-center','document-frame-right',
+    'document-inline-signed-budget','document-inline-signed-nested','document-signed-rows-hwp');
   if (process.argv.includes('--stored-tac')) positive.push('document-inline', 'document-inline-rows', 'document-inline-nested');
   if (process.argv.includes('--structural-tac')) positive.push('document-inline-first', 'document-inline-first-rows');
   if (process.argv.includes('--empty-page-borders')) positive.push('document-empty-page-borders', 'document-empty-page-borders-hwp');
@@ -251,6 +254,10 @@ async function main() {
     expected['document-nested'] = [['before','','A','B'],['C','D','inner','tail'],['host','after']];
     expected['document-stored'] = [['before','one','two','after'],['next']];
     expected['document-inline'] = [['before','lead'],['A','a','B','b','after']];
+    for (const alignment of ['left','center','right']) expected[`document-frame-${alignment}`]=[['A','a','B','b','after']];
+    expected['document-inline-signed-budget']=[['before'],['A','a','B','b','after']];
+    expected['document-inline-signed-nested']=[['A','a','B','b','tail']];
+    expected['document-signed-rows-hwp']=[['A','a','B','b','after']];
     expected['document-inline-rows'] = [['before','A','a'],['B','b']];
     expected['document-inline-nested'] = [['A','a','B','b','tail']];
     expected['document-inline-first'] = [['A','a','B','b','after']];
@@ -289,7 +296,31 @@ async function main() {
         const bordered = name.startsWith('border-');
         const cut = name.startsWith('cut-');
         const borderTail = name === 'border-nested' && index === 2;
-        if (name.startsWith('document-number-')) {
+        if (name.startsWith('document-frame-') || name.includes('-signed-')) {
+          const budget=name==='document-inline-signed-budget', nested=name==='document-inline-signed-nested';
+          const rows=name==='document-signed-rows-hwp', frame=name.startsWith('document-frame-');
+          const x=frame ? 32+({left:0,center:36,right:72}[name.split('-').at(-1)]) : rows ? 130 : 88;
+          const boxes=budget && index===0 ? [] : [
+            ...(nested ? [{x:20,y:30,width:300,height:40}] : []),
+            {x,y:32,width:80,height:36},
+            {x:rows?130:x+84,y:rows?71:32,width:80,height:36}];
+          const body=collect(rootNode,'Body')[0];
+          assertDocumentGeometry(body.bbox,{x:20,y:30,width:300,height:budget?57:rows?120:72});
+          assertDocumentGeometry(collect(body,'Table').map(n=>n.bbox),boxes);
+          assertDocumentGeometry(collect(body,'TableCell').map(n=>n.bbox),boxes);
+          assertDocumentGeometry(lines.map(n=>n.bbox.y),budget && index===0 ? [30]
+            : rows ? [32,50,71,89,108] : [32,50,32,50,frame?74:nested?70:69]);
+          assertDocumentGeometry(lines.map(n=>n.bbox.x),budget && index===0 ? [20]
+            : [x,x,rows?130:x+84,rows?130:x+84,20]);
+          for (const n of [...lines,...collect(body,'TableCell')]) assert.ok(n.bbox.y+n.bbox.height<=body.bbox.y+body.bbox.height);
+          const edges=collect(rootNode,'Line').map(n=>['x1','y1','x2','y2'].map(k=>n.node_type.Line[k]));
+          const expectedEdges=boxes.flatMap(({x,y,width:w,height:h})=>[[x,y,x,y+h],[x+w,y,x+w,y+h],[x,y,x+w,y],[x,y+h,x+w,y+h]]);
+          assert.equal(edges.length,expectedEdges.length);
+          for (const edge of expectedEdges) {
+            const at=edges.findIndex(candidate=>candidate.every((v,i)=>sameCoordinate(v,edge[i])));
+            assert.ok(at>=0,`missing saved TAC edge ${edge}`); edges.splice(at,1);
+          }
+        } else if (name.startsWith('document-number-')) {
           const body=collect(rootNode,'Body')[0], tac=name==='document-number-tac-hwp';
           assertDocumentGeometry(body.bbox,{x:20,y:30,width:300,height:72});
           const bodyLines=collect(body,'TextLine');
