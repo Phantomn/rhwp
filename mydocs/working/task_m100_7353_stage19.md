@@ -498,3 +498,65 @@ RenderTree·SVG 동일성과 독립 좌표/소유 계약이 PASS했다(`browser.
 미지원 경계에 걸린다. 다음 종단 의존 범위에서 이를 다루며 원본을 축소해 완료로 바꾸지 않는다.
 rowspan 내부 컷과 불명확한 높이 배분도 남긴다. Legacy/Studio 기본값·golden/ignore를 유지했고,
 전체 제출용 CI·원격 push·PR은 실행하지 않았다.
+
+## A 후속 — 장식 없는 쪽 테두리 레코드 수용
+
+2026-09-25 후속 승인으로 #6923 원본의 첫 거부 조건을 추적했다. 원본 구역에는 기본/추가2개의
+`PageBorderFill`이 있고 모두 `border_fill_id=0`, 간격1417HU, attr1이다. 기존 V2는 추가 레코드가
+있다는 이유만으로 거부했다. 레코드의 존재와 실제 장식 참조를 분리하여 세 레코드 모두 ID0이면
+수용한다. 원본 레코드·간격·제어 슬롯은 삭제하지 않고, 어느 레코드든 비영 참조이면 계속 미지원이다.
+
+근거는 HWP5 사양 표135의 **테두리 위치 간격과 테두리/배경 ID의 구분**, 원본의 저장값과
+기준 PDF에 쪽 테두리가 없다는 관측이다. 간격을 본문 여백으로 취급하지 않는다. 생산 값은
+원본 `PageDef`→`PageLayoutInfo.body_area`이며, 측정은 `BodyPlan.flow`→`FlowCursor.fit`,
+실제 배치는 동일 fit의 bounds→`DocumentV2Session.next_page_json`이다. 이 경로의 원점·
+행 높이·내용 컷·예약·paint는 변경하지 않는다. 장식 수용 조건만 바뀌므로 새로운 분할 알고리즘,
+rowspan 내부 컷, 각주/캡션 지원은 이번 적용 범위가 아니다.
+
+정식 `issue_7353_table_v2_document_flow` 계약에 다음을 추가했다.
+
+- 장식 없음 레코드의 간격을 용지보다 크게 지정한 합성 HWP/HWPX에서도 앞 문단·2쪽 표 분할·
+  host/뒤 문단의 **전체 RenderTree와 SVG가 무장식 대조군과 동일**해야 한다. 레코드2개와
+  간격30000HU가 파싱 후에도 보존되는지 별도로 검사한다. 구현 반환 높이가 기대값이 아니다.
+- 기본/추가 첫째/추가 둘째 레코드 각각에 실제 장식을 지정한 HWP/HWPX6경우는 거부한다.
+- #6923 원본의 577문단 등 기존 관측을 유지하며, 구역 검사 다음 원래 문단0의 쪽번호 컨트롤에서
+  거부되는 것을 고정한다. 원본 수용이나 한컴 일치로 보고하지 않는다. PDF1쪽에 `- 1 -`이
+  실제 존재하므로 이 컨트롤을 지워 수용시키지 않는다.
+
+증적은 `output/7353/r19/section/`에 보존한다. `before-prepared.log`는 수정 전14 PASS/1 FAIL,
+실패 원인은 새 ID0 계약의 `Unsupported("section decoration, grid or writing direction")`다.
+처음 `before.log`는 manifest 미준비로 테스트0건이므로 결함 재현 증거에서 제외했다.
+수정 후 병렬 링크는 디스크 부족(os error28/ld Bus error)으로 실패했다(`after.log`). 가용3.8GiB에서
+캐시 삭제 없이 `CARGO_BUILD_JOBS=1`로 실행한 `after-serial.log`는15 PASS다. 환경 실패를
+제품 회귀로 분류하지 않는다. 기존 캐시·다른 작업·baseline/ignore는 변경하지 않았다.
+
+Native 첫 쪽을 직접 열어 앞 문단과 표 조각의 위치·외곽을 확인했다. 기존 본문/분할 불변식의
+합성 계약 검증이지 실물 전체 피델리티 판정이 아니다. 최종 lint와 fresh WASM 증거는 아래에 잇는다.
+
+이번 실행의 Native 검증은 본문/수용15건과 Legacy 대조17건, 총32 PASS다(`after-serial.log`,
+`legacy.log`). 이전180건 전체를 재실행한 것으로 합산하지 않는다. Native/WASM library와 변경
+integration target Clippy, fmt, 고정 base manifest 검사가 통과했다(`clippy-native.log`,
+`clippy-wasm.log`, `clippy-test.log`, `fmt.log`, `policy.log`). 생성 suite는 review overlay에서만
+준비했으며 제품 소스와 overlay의 `src/`는 동일하다. 추가 PDF 직접 관측은 `oracle-1.png`와
+`oracle-1-bbox.html`에 남겼다. 쪽번호의 표시 범위는 x283.286..311.576pt,
+y788.592..798.532pt다. 이는 후속 쪽번호 구현의 독립 관측이며 현재 V2 출력 값이 아니다.
+
+Docker fresh WASM은7분19초에 완료했다(`docker-wasm.log`). SHA256은
+`edaf41a0c6d5242db35cba6d39b64d34cc26007896b712d3459194810edb18d1`이다.
+기존 browser 명령의 fixtures/out을 `section/`으로 바꾸고 `--empty-page-borders`를 추가했다.
+119쪽의 정확한 Native/WASM tree·SVG 대조가 통과했다(`browser.log`, `browser/manifest.json`).
+변경된 본문 경로의 Native 증적은 이번15건에서 새로 생성했고, 변경하지 않은 선택 표 경로는
+앞 절편의 증적을 재사용해 새 WASM과 비교했다. 기존115쪽 review PNG가 모두 동일하다
+(`prior-visual-compare.log`). 전체 Native 회귀119건을 새로 실행했다는 뜻이 아니다.
+
+`browser/document-empty-page-borders-{0,1}.review.png`와
+`browser/document-empty-page-borders-hwp-{0,1}.overlay.png`를 직접 열어4쪽의 외곽/표 조각,
+앞뒤 문단, 누락·중복 없음과 backend 일치를 확인했다. 각 파일의 `.native.png`, `.wasm.png`,
+`.overlay.png`, `.review.png`가 같은 폴더에 있다. 합성 계약 대조이며 한컴 시각 일치율은
+계산하지 않았다. `source-final.sha256`/`post-build-source-check.log`로 빌드 후 제품 소스·
+테스트·하네스의 불변을 확인했고, 최종 커밋은 `verified-commit.txt`에 연결한다.
+
+A/R5는 계속 진행 중이다. 다음 실제 원본 차단은 쪽번호 story이며 그림·저장 앵커와 기타
+표 경계도 남았다. Legacy/Studio 기본값·golden/ignore는 유지한다. 전체 제출 CI·원격 push·PR은
+이번 내부 절편에 포함하지 않았다. 디스크 여유가 약3.8GiB이므로 후속 큰 빌드 전 공간 상태를
+확인한다. 다른 작업 캐시의 정리는 별도 승인 없이 수행하지 않는다.

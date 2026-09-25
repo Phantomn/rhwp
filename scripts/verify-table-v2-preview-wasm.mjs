@@ -98,6 +98,7 @@ async function main() {
   if (process.argv.includes('--stored-body')) positive.push('document-stored');
   if (process.argv.includes('--stored-tac')) positive.push('document-inline', 'document-inline-rows', 'document-inline-nested');
   if (process.argv.includes('--structural-tac')) positive.push('document-inline-first', 'document-inline-first-rows');
+  if (process.argv.includes('--empty-page-borders')) positive.push('document-empty-page-borders', 'document-empty-page-borders-hwp');
   if (process.argv.includes('--rowspan')) positive.push('rowspan-groups','rowspan-whole','rowspan-header','rowspan-align','rowspan-nested','rowspan-spanning-header','rowspan-inner');
   if (process.argv.includes('--solid-borders')) {
     positive.push('border-grid', 'border-header', 'border-nested', 'border-one-sided');
@@ -116,7 +117,7 @@ async function main() {
   const files = new Map([
     ['/rhwp.js', ['application/javascript', js]],
     ['/rhwp_bg.wasm', ['application/wasm', wasm]],
-    ...names.map(name => [`/${name}`, ['application/octet-stream', readFileSync(join(fixtures, `${name}.${['document-hwp','document-inline-first-rows'].includes(name)?'hwp':'hwpx'}`))]]),
+    ...names.map(name => [`/${name}`, ['application/octet-stream', readFileSync(join(fixtures, `${name}.${['document-hwp','document-inline-first-rows','document-empty-page-borders-hwp'].includes(name)?'hwp':'hwpx'}`))]]),
   ]);
   const configs = Object.fromEntries(names.map(name => [name, JSON.parse(readFileSync(join(fixtures, `${name}.options.json`)))]));
   const server = http.createServer((req, res) => {
@@ -262,7 +263,8 @@ async function main() {
     for (const [fixtureName, pages] of Object.entries(result.pages)) {
       // Matching table outlines must have the same independently specified
       // geometry/content as their cell-only counterparts, not extra paint.
-      const name = fixtureName === 'document-hwp' ? 'document-split' : fixtureName.replace(/^outer-/, '');
+      const name = ['document-hwp','document-empty-page-borders','document-empty-page-borders-hwp'].includes(fixtureName)
+        ? 'document-split' : fixtureName.replace(/^outer-/, '');
       const native = JSON.parse(readFileSync(join(fixtures, `${fixtureName}.native.json`)));
       writeFileSync(join(out, `${fixtureName}.wasm.json`), JSON.stringify(pages, null, 2));
       assert.equal(pages.length, expected[name].length);

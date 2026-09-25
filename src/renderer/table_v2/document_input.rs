@@ -34,8 +34,12 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
         || def.text_direction != 0
         || def.hide_empty_line
         || !def.master_pages.is_empty()
-        || !def.extra_page_border_fills.is_empty()
-        || def.page_border_fill.border_fill_id != 0
+        // Main/odd/even records can exist without naming a decoration. Their
+        // spacing locates a border, not the body, and ID0 paints nothing. Keep
+        // the original records; any nonzero reference still needs a renderer.
+        || std::iter::once(&def.page_border_fill)
+            .chain(&def.extra_page_border_fills)
+            .any(|fill| fill.border_fill_id != 0)
     {
         return Err(DocumentV2Error::Unsupported(
             "section decoration, grid or writing direction",

@@ -320,6 +320,116 @@ fn no_silent_admission_of_stored_rows_anchors_or_invalid_page_geometry() {
 }
 
 #[test]
+fn empty_page_decoration_records_preserve_body_and_split_table_output() {
+    use rhwp::model::page::PageBorderFill;
+    let mut d = source(vec![
+        p("before"),
+        host(
+            "host",
+            table(&["A", "B", "C", "D", "E"], TablePageBreak::CellBreak),
+        ),
+        p("after"),
+    ]);
+    let reference = drain(&mut open(&d));
+    // A page decoration's spacing positions its border; it is not a body
+    // margin. ID0 names no decoration, even when odd/even records are present.
+    // Deliberately larger than the page to catch accidental body reservation.
+    let empty = PageBorderFill {
+        attr: 1,
+        spacing_left: 30000,
+        spacing_right: 30000,
+        spacing_top: 30000,
+        spacing_bottom: 30000,
+        ..Default::default()
+    };
+    d.sections[0].section_def.page_border_fill = empty.clone();
+    d.sections[0].section_def.extra_page_border_fills = vec![empty.clone(), empty];
+    for (name, encoded) in [
+        ("document-empty-page-borders", bytes(&d)),
+        (
+            "document-empty-page-borders-hwp",
+            rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap(),
+        ),
+    ] {
+        let parsed = rhwp::parse_document(&encoded).unwrap();
+        let def = &parsed.sections[0].section_def;
+        assert_eq!(
+            def.extra_page_border_fills.len(),
+            2,
+            "records must survive parsing"
+        );
+        for record in std::iter::once(&def.page_border_fill).chain(&def.extra_page_border_fills) {
+            assert_eq!(record.border_fill_id, 0);
+            assert_eq!(record.spacing_top, 30000);
+        }
+        let mut session =
+            DocumentV2Session::from_bytes(&encoded, r#"{"dpi":96,"max_pages":20}"#).unwrap();
+        let mut raw = Vec::new();
+        while let Some(page) = session.next_page_json().unwrap() {
+            raw.push(page);
+        }
+        let actual: Vec<Value> = raw
+            .iter()
+            .map(|p| serde_json::from_str(p).unwrap())
+            .collect();
+        assert_eq!(
+            actual, reference,
+            "all nodes, owners, geometry and SVG must be unchanged"
+        );
+        assert_eq!(actual.len(), 2);
+        if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
+            std::fs::create_dir_all(&dir).unwrap();
+            let ext = if name.ends_with("-hwp") {
+                "hwp"
+            } else {
+                "hwpx"
+            };
+            std::fs::write(format!("{dir}/{name}.{ext}"), encoded).unwrap();
+            std::fs::write(
+                format!("{dir}/{name}.options.json"),
+                r#"{"dpi":96,"max_pages":20}"#,
+            )
+            .unwrap();
+            std::fs::write(
+                format!("{dir}/{name}.native.json"),
+                format!("[{}]", raw.join(",")),
+            )
+            .unwrap();
+        }
+    }
+}
+
+#[test]
+fn page_decoration_on_any_page_variant_is_not_silently_dropped() {
+    use rhwp::model::page::PageBorderFill;
+    for slot in 0..3 {
+        let mut d = source(vec![p("A")]);
+        let def = &mut d.sections[0].section_def;
+        def.extra_page_border_fills = vec![PageBorderFill::default(); 2];
+        let target = if slot == 0 {
+            &mut def.page_border_fill
+        } else {
+            &mut def.extra_page_border_fills[slot - 1]
+        };
+        target.border_fill_id = 1;
+        for encoded in [
+            bytes(&d),
+            rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap(),
+        ] {
+            assert!(
+                matches!(
+                    DocumentV2Session::from_bytes(&encoded, r#"{"dpi":96,"max_pages":20}"#),
+                    Err(DocumentV2Error::Unsupported(
+                        "section decoration, grid or writing direction"
+                    ))
+                ),
+                "decorated slot {slot}"
+            );
+        }
+    }
+}
+
+#[test]
 fn stored_body_rows_keep_partition_and_following_paragraph_origin() {
     use rhwp::model::paragraph::LineSeg;
     let mut saved = p("onetwo");
@@ -362,6 +472,15 @@ fn real_6923_remains_unmodified_and_explicitly_unqualified() {
         .join("tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp");
     let data = std::fs::read(path).expect("required original fixture");
     let d = rhwp::parse_document(&data).unwrap();
+    let def = &d.sections[0].section_def;
+    assert_eq!(def.extra_page_border_fills.len(), 2);
+    assert!(std::iter::once(&def.page_border_fill)
+        .chain(&def.extra_page_border_fills)
+        .all(|b| b.border_fill_id == 0));
+    assert!(matches!(
+        d.sections[0].paragraphs[0].controls[2],
+        Control::PageNumberPos(_)
+    ));
     // Unmodified first HWP paragraph: secd/cold/page number occupy source
     // slots 0/8/16, but not inline width. Table remains control 3, not 0.
     let first = rhwp::renderer::table_v2::stored_tac_rows(
@@ -436,7 +555,16 @@ fn real_6923_remains_unmodified_and_explicitly_unqualified() {
         "fixture contains all tracked feature classes"
     );
     let reason = match DocumentV2Session::from_bytes(&data, r#"{"dpi":96,"max_pages":30}"#) {
-        Err(e) => e.to_string(),
+        Err(
+            e @ DocumentV2Error::Paragraph {
+                index: 0,
+                reason:
+                    rhwp::renderer::table_v2::GeometryError::Unsupported(
+                        "body control or multiple anchors",
+                    ),
+            },
+        ) => e.to_string(),
+        Err(e) => panic!("unexpected source admission boundary: {e}"),
         Ok(_) => panic!("update real admission evidence before claiming support"),
     };
     if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
@@ -444,7 +572,9 @@ fn real_6923_remains_unmodified_and_explicitly_unqualified() {
         std::fs::write(format!("{dir}/6923-admission.json"),serde_json::to_vec_pretty(&json!({
             "paragraphs":counts[0],"stored_paragraphs":counts[1],"tables":counts[2],
             "rowspan_cells":counts[3],"tac_tables":counts[4],"pictures":counts[5],"rejection":reason,
-            "result":"UNSUPPORTED - not a fidelity pass"})).unwrap()).unwrap();
+            "result":"UNSUPPORTED - not a fidelity pass",
+            "section": d.sections[0].section_def,
+            "border_fills": d.doc_info.border_fills})).unwrap()).unwrap();
     }
 }
 
