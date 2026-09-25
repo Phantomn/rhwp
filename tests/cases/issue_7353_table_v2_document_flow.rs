@@ -226,7 +226,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         DocumentV2Error::Paragraph {
             index: 5,
             reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "stored body anchor ownership"
+                "V2 table background zones"
             )
         }
     ));
@@ -331,7 +331,7 @@ fn document_noop_border_original_blank_keeps_saved_height_and_advance() {
 #[test]
 fn document_noop_border_does_not_admit_visible_or_lost_effects() {
     use rhwp::model::style::{CenterLine, FillType, SolidFill};
-    for variant in 0..6 {
+    for variant in 0..7 {
         let mut d = source(vec![p("text")]);
         d.doc_info.border_fills.push(BorderFill {
             borders: [BorderLine {
@@ -493,6 +493,233 @@ fn drain(session: &mut DocumentV2Session) -> Vec<Value> {
     assert_eq!(session.emitted_pages() as usize, pages.len());
     assert!(session.next_page_json().unwrap().is_none());
     pages
+}
+
+fn stored_anchor(text: &str, policy: TablePageBreak, rows: &[&str]) -> Paragraph {
+    use rhwp::model::paragraph::LineSeg;
+    let mut t = table(rows, policy);
+    t.common.horz_align = HorzAlign::Left;
+    t.common.flow_with_text = true;
+    t.common.vertical_offset = 1350; //18px from paragraph, not its end
+    t.common.horizontal_offset = 375; //5px
+    t.common.margin.left = 225; //3px
+    t.common.margin.right = 225;
+    t.common.margin.top = 450; //6px
+    t.common.margin.bottom = 600; //8px
+    t.outer_margin_left = 225;
+    t.outer_margin_right = 225;
+    t.outer_margin_top = 450;
+    t.outer_margin_bottom = 600;
+    let mut para = host(text, t);
+    para.line_segs.push(LineSeg {
+        text_start: 0,
+        vertical_pos: 1000,
+        line_height: 900,
+        text_height: 900,
+        baseline_distance: 765,
+        line_spacing: 450,
+        segment_width: 22500,
+        tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+        ..Default::default()
+    });
+    para
+}
+
+#[test]
+fn stored_anchor_reserves_offset_once_and_preserves_host_and_following_rows() {
+    // Manual boundary contract: stored host12px + gap6px; anchor18+6px.
+    // It is not a normal Hancom saved specimen or a PDF fidelity assertion.
+    for text in ["", "host"] {
+        let d = source(vec![
+            stored_anchor(text, TablePageBreak::CellBreak, &["A", "B", "C", "D"]),
+            p("after"),
+        ]);
+        for hwp in [false, true] {
+            let encoded = if hwp {
+                rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap()
+            } else {
+                bytes(&d)
+            };
+            let mut session =
+                DocumentV2Session::from_bytes(&encoded, r#"{"dpi":96,"max_pages":20}"#).unwrap();
+            let pages = drain(&mut session);
+            assert_eq!(pages.len(), 2);
+            assert_eq!(labels(&pages[0]), vec![text, "A", "B", "C"]);
+            assert_eq!(labels(&pages[1]), ["D", "after"]);
+            // Three12px line boxes at18px pitch occupy48px exactly. The last
+            //6px paragraph tail is a physical band on the continuation page,
+            // not a reason to discard C or repeat its glyphs.
+            for (page, (y, height)) in pages.iter().zip([(54.0, 48.0), (30.0, 24.0)]) {
+                let t = nodes(page, "Table");
+                assert_eq!(t.len(), 1);
+                near(&t[0]["bbox"]["x"], 28.0);
+                near(&t[0]["bbox"]["y"], y);
+                near(&t[0]["bbox"]["height"], height);
+                near(&t[0]["bbox"]["width"], 200.0);
+                near(&nodes(page, "TableCell")[0]["bbox"]["height"], height);
+            }
+            let line = nodes(&pages[0], "TextLine")[0];
+            near(&line["bbox"]["y"], 30.0);
+            near(&line["bbox"]["height"], 12.0);
+            for (page, ys) in pages
+                .iter()
+                .zip([vec![30.0, 54.0, 72.0, 90.0], vec![36.0, 62.0]])
+            {
+                for (line, y) in nodes(page, "TextLine").iter().zip(ys) {
+                    near(&line["bbox"]["y"], y);
+                }
+            }
+            if !text.is_empty() {
+                capture(
+                    if hwp {
+                        "document-anchor-split-hwp"
+                    } else {
+                        "document-anchor-split"
+                    },
+                    &d,
+                    &pages,
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn stored_anchor_atomic_defer_does_not_repeat_host_or_initial_band() {
+    let d = source(vec![
+        p("before"),
+        stored_anchor("host", TablePageBreak::None, &["A", "B", "C"]),
+        p("after"),
+    ]);
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 3);
+    assert_eq!(labels(&pages[0]), ["before", "host"]);
+    assert_eq!(labels(&pages[1]), ["A", "B", "C"]);
+    assert_eq!(labels(&pages[2]), ["after"]);
+    assert!(nodes(&pages[0], "Table").is_empty());
+    let t = nodes(&pages[1], "Table")[0];
+    near(&t["bbox"]["y"], 30.0);
+    near(&t["bbox"]["height"], 54.0);
+    near(&nodes(&pages[2], "TextLine")[0]["bbox"]["y"], 30.0);
+    capture("document-anchor-defer", &d, &pages);
+}
+
+#[test]
+fn stored_anchor_rejects_overlap_and_other_placement_modes_without_erasing_rows() {
+    for variant in 0..6 {
+        let mut para = stored_anchor("", TablePageBreak::CellBreak, &["A"]);
+        let Control::Table(t) = &mut para.controls[0] else {
+            unreachable!()
+        };
+        match variant {
+            0 => t.common.vertical_offset = 0, //blank line still occupies12px
+            1 => t.common.flow_with_text = false,
+            2 => t.common.text_wrap = TextWrap::Square,
+            3 => t.common.horz_align = HorzAlign::Center,
+            4 => t.common.horizontal_offset = 22500,
+            5 => t.common.vertical_offset = (-1_i32) as u32,
+            _ => {
+                //8px advance is NOT the12px occupied end. top10px intersects
+                //the host even though it follows the next logical origin.
+                para.line_segs[0].line_spacing = -300;
+                t.common.vertical_offset = 300;
+            }
+        }
+        let d = source(vec![para]);
+        let error = DocumentV2Session::from_bytes(&bytes(&d), r#"{"dpi":96,"max_pages":20}"#)
+            .err()
+            .unwrap();
+        assert!(
+            matches!(error, DocumentV2Error::Paragraph { index: 0, .. }),
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn stored_anchor_original_host_isolation_preserves_source_offset_and_blank() {
+    let input = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"
+    ))
+    .unwrap();
+    let mut d = rhwp::parse_document(&input).unwrap();
+    d.sections[0].paragraphs.truncate(6);
+    let original_prefix = serde_json::to_value(&d.sections[0].paragraphs[..5]).unwrap();
+    let original_host = d.sections[0].paragraphs[5].clone();
+    let Control::Table(original_table) = &original_host.controls[0] else {
+        unreachable!()
+    };
+    // Explicit isolation derivative, NOT original-table admission: its87 cell
+    // paragraphs/189665HU cell height are replaced by one fresh18px text row.
+    // Keep the actual host, common anchor and both margin representations.
+    let mut probe = table(&["anchor-probe"], TablePageBreak::RowBreak);
+    probe.common = original_table.common.clone();
+    probe.outer_margin_left = original_table.outer_margin_left;
+    probe.outer_margin_right = original_table.outer_margin_right;
+    probe.outer_margin_top = original_table.outer_margin_top;
+    probe.outer_margin_bottom = original_table.outer_margin_bottom;
+    probe.cells[0].width = original_table.cells[0].width;
+    let char_id = d.doc_info.char_shapes.len() as u32;
+    d.doc_info.char_shapes.push(CharShape {
+        base_size: 900,
+        ..Default::default()
+    });
+    let para_id = d.doc_info.para_shapes.len() as u16;
+    d.doc_info.para_shapes.push(ParaShape {
+        line_spacing_type: LineSpacingType::Fixed,
+        line_spacing: 2700,
+        ..Default::default()
+    });
+    probe.cells[0].paragraphs[0].char_shapes[0].char_shape_id = char_id;
+    probe.cells[0].paragraphs[0].para_shape_id = para_id;
+    d.sections[0].paragraphs[5].controls[0] = Control::Table(Box::new(probe));
+    let blank = d.sections[0].paragraphs[1].clone();
+    d.sections[0].paragraphs.push(blank);
+    let data = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+    let parsed = rhwp::parse_document(&data).unwrap();
+    assert_eq!(
+        serde_json::to_value(&parsed.sections[0].paragraphs[..5]).unwrap(),
+        original_prefix
+    );
+    let mut parsed_host = parsed.sections[0].paragraphs[5].clone();
+    let Control::Table(parsed_table) = &parsed_host.controls[0] else {
+        unreachable!()
+    };
+    assert_eq!(
+        serde_json::to_value(&parsed_table.common).unwrap(),
+        serde_json::to_value(&original_table.common).unwrap()
+    );
+    parsed_host.controls = original_host.controls.clone();
+    assert_eq!(
+        serde_json::to_value(&parsed_host).unwrap(),
+        serde_json::to_value(&original_host).unwrap()
+    );
+    let pages = drain(&mut DocumentV2Session::from_bytes(&data, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    let tables = nodes(&pages[0], "Table");
+    assert_eq!(tables.len(), 2);
+    let t = tables[1];
+    // Page body(5669,7087), host vpos17288, Para/Top offset720 and margin283.
+    near(&t["bbox"]["x"], (5669.0 + 283.0) / 75.0);
+    near(&t["bbox"]["y"], (7087.0 + 17288.0 + 720.0 + 283.0) / 75.0);
+    near(&t["bbox"]["width"], 47901.0 / 75.0);
+    near(&t["bbox"]["height"], 12.0); //terminal policy on the synthetic cell
+    let body = nodes(&pages[0], "Body")[0];
+    let direct: Vec<_> = body["children"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|n| n["node_type"].get("TextLine").is_some())
+        .collect();
+    let host = direct[direct.len() - 2];
+    near(&host["bbox"]["y"], 24375.0 / 75.0);
+    near(&host["bbox"]["height"], 8.0);
+    near(
+        &direct.last().unwrap()["bbox"]["y"],
+        (25378.0 + 900.0 + 283.0) / 75.0,
+    );
+    capture_terminal("document-anchor-isolation", &data, &pages);
 }
 fn collect<'a>(node: &'a Value, kind: &str, out: &mut Vec<&'a Value>) {
     if node["node_type"].get(kind).is_some() {

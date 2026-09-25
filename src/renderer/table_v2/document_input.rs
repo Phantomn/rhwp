@@ -223,13 +223,12 @@ pub(super) fn prepare(
                 }
             }
         }
+        let mut deferred = None;
         if let Some((ci, table)) = table_control {
-            if !source.line_segs.is_empty() {
-                return Err(fail(GeometryError::Unsupported(
-                    "stored body anchor ownership",
-                )));
+            let stored = !source.line_segs.is_empty();
+            if !stored {
+                super::ir::validate_anchor(table).map_err(fail)?;
             }
-            super::ir::validate_anchor(table).map_err(fail)?;
             let style = styles
                 .para_styles
                 .get(source.para_shape_id as usize)
@@ -272,22 +271,43 @@ pub(super) fn prepare(
                 paragraph: pi,
                 control: ci,
             };
-            tables.insert(owner, (order, prepared.paint));
-            blocks.push(FlowBlock::Table {
-                owner,
-                offset_x,
-                plan: prepared.plan,
-            });
-            order += 1;
+            if stored {
+                deferred = Some((owner, table, prepared));
+            } else {
+                tables.insert(owner, (order, prepared.paint));
+                blocks.push(FlowBlock::Table {
+                    owner,
+                    offset_x,
+                    plan: prepared.plan,
+                });
+                order += 1;
+            }
         }
         // Structural controls do not occupy a line. Qualified TopAndBottom at
         // paragraph-top excludes the width: the host line follows its table.
-        // Keep all text, offsets, char shapes and saved rows (the latter reject).
+        // Stored hosts instead keep their composed rows before a disjoint,
+        // paragraph-relative anchor. No stored origin/metric is cleared.
         let mut paragraph = source.clone();
         paragraph.controls.clear();
         paragraph.ctrl_data_records.clear();
         paragraph.column_type = ColumnBreakType::None;
         let items = composer.compose(&paragraph, body.width).map_err(fail)?;
+        let anchored = if let Some((owner, table, prepared)) = deferred {
+            let Some(ParagraphItem::End(end)) = items.last() else {
+                return Err(fail(GeometryError::InconsistentAtomicPlan));
+            };
+            let anchor = super::body_anchor::BodyAnchor::resolve(
+                table,
+                end,
+                prepared.plan.width,
+                body.width,
+                dpi,
+            )
+            .map_err(fail)?;
+            Some((owner, prepared, anchor))
+        } else {
+            None
+        };
         for item in super::paragraph_end::into_flow_items(items) {
             match item {
                 ParagraphItem::Space(h) => blocks.push(FlowBlock::Space(h)),
@@ -340,6 +360,17 @@ pub(super) fn prepare(
                 },
                 (order, node),
             );
+            order += 1;
+        }
+        if let Some((owner, prepared, anchor)) = anchored {
+            blocks.push(FlowBlock::Space(anchor.before));
+            blocks.push(FlowBlock::Table {
+                owner,
+                offset_x: anchor.x,
+                plan: prepared.plan,
+            });
+            blocks.push(FlowBlock::Space(anchor.after));
+            tables.insert(owner, (order, prepared.paint));
             order += 1;
         }
     }

@@ -1715,3 +1715,94 @@ Native/WASM 일치를 한컴 피델리티 최종 통과로 승격하지 않는�
 다음 원본 경계는 index5의1x1 자리차지 표다. 저장 host 줄600HU/간격240HU,
 문단 기준 세로720HU·바깥여백283HU·RowBreak를 가진다. 이 소유/앵커 해석은 아직 미지원이다.
 원본 전체/A·R5 완료가 아니다. Legacy/default·baseline/golden/ignore 및 원격 상태는 유지한다.
+
+### 저장된 본문 자리차지 앵커 — 진행 기록
+
+시작 head `3976eb6b847e72de807b498d7a917b7e427d6716`. 증적은
+`output/7353/r19/stored-anchor/` 아래다. 원본 index5는 빈 host 줄600HU/간격240HU,
+Para/Top 오프셋720HU, 바깥여백283HU, flowWithText의1x1 표다. 부모 셀은87문단과
+189665HU 높이를 가지므로 common.height51339HU를 전체 표의 실제 내용 높이로 대체하지 않는다.
+`before.log`는 원본 앞6문단의 기존 앵커 거부를 보존한다. 직접 내용 준비 probe에서는
+저장 들여쓰기를 거부했지만, 실제 문서 경로는 재귀 decoration 검사에서 내부 표 background zones를
+먼저 거부한다. 원본 전체를 수용했다고 보고하지 않는다.
+
+#### 규칙·소비 경로와 범위
+
+저장 host의 텍스트/LineSeg를 보존한 공통 TextComposer → `ParagraphEnd`의 occupied_end /
+next_origin → `body_anchor::BodyAnchor::resolve` → 본문 `Space(before) / Table / Space(after)`
+→ 기존 `FlowCursor::fit`/TableCursor → `DocumentV2Session::next_page_json`의 실제 nodes로
+전달한다. 앵커 top은 문단 시작 기준 세로 오프셋+top margin이고, before는 top-next_origin이다.
+common.margin과 outer_margin은 같은 원천의 IR 복제이므로 일치 여부를 검사하고 한 번만 적용한다.
+측정 뒤 별도 원점 선택·좌표 clamp·내용 숨김을 추가하지 않는다.
+
+빈 문자열도 host 줄을 제거하지 않는다. top이 host의 물리 끝 또는 다음 원점보다 앞서면
+겹치는 앵커로 명시적으로 거부한다. 이번 경로는 저장된 Para/Top·Left·TopAndBottom·
+flowWithText만 수용하며 TAC/어울림/다른 기준점·음수 offset·overlap는 별도 계약을 남긴다.
+fresh zero-offset 본문과 중첩 셀의 기존 anchor admission은 그대로 유지한다.
+
+시작 컷은 host 다음 물리 before 밴드의1회 소비다. 표의 요구 높이·누적 예약·실패 시 이월은
+기존 child cursor의 실제 수용 조각을 사용한다. 다음 조각은 source offset을 다시 붙이지 않는다.
+after 밴드는 child 완료 뒤에만 소비하고 후속 문단을 배치한다. 다중 rowspan·caption·각주
+규칙은 이번에 변경하지 않았다. 바깥여백의 모든 한컴 페이지 경계 의미를 입증한 것은 아니며,
+미지원 원본 전체/복합 앵커/셀 내부 stored float는 미검증으로 남긴다.
+
+#### 입력·독립 기대값·실행 증거
+
+합성 HWP/HWPX는12px 저장 host와18px 전진, offset18px+top6px, x offset5px+left3px,
+bottom8px를 명시한다. 본문(20,30,300,72)에서 표 시작은(28,54)다.12px 줄을18px pitch로
+배치하면48px 예산에 A/B/C가 들어가고, 다음 조각의 첫6px는 C 뒤 물리 간격이다. 다음 쪽의
+D는 y36, 표 뒤 문단은 y62다. 실제 표/셀 높이48→24, 전체 글자 소유, 빈 host 높이,
+종료와 HWP/HWPX 양 경로를 검사한다. 통째 이월 대조군은 host를 이전 쪽에 보존하고
+표를 다음 쪽 y30에1회 배치한다. 겹치는 빈 host·어울림·다른 기준점 등의 반례는 거부한다.
+초기 계약에서 전체18px pitch가 항상 줄의 fit 단위라고 가정한 것은 잘못이었다.
+기존 공통 규칙대로12px 물리 줄과 뒤6px 밴드를 분리한 기대값으로 정정했으며,
+엔진/기준값을 변경해 맞추지 않았다(`focused-retry.log`).
+
+`stored_anchor_original_host_isolation_preserves_source_offset_and_blank`는 원본 앞5문단과
+host 전체·common anchor의 HWP 재직렬화 동일성을 확인한다. **내부87문단/셀 높이는
+단일 probe로 교체한 분리 입력**이며 원본 표 내용·높이·페이지 분할의 정답지가 아니다.
+원본 PageDef와 host vpos로부터 x5952/75, y25378/75px를 기대하며 빈 host y24375/75,
+높이8px와 실제 후속 원점까지 검사한다. PDF 원본 p1을 `pdftocairo -svg -f 1 -l 1`로
+내보낸 `reference-p1.svg`의 표 상단선은 y(841-587.476562)×4/3=338.031251px,
+왼쪽 세로선 x59.488281×4/3=79.317708px다. 분리 입력의 기하 원점(79.36,338.373333)과
+근접하나 동일하다고 주장하지 않으며, 이 차이를 없애는 보정은 넣지 않았다.
+
+수정 전 `before-contract.log`는 저장 앵커 미지원으로 FAIL이다. 직전 WASM
+`ea2c53487a2bdaac013bdbb5e0a92d6020251169be6e3805dec47ee3b4b03703`에서도
+최종 입력3개가 같은 이유로 거부됐다(`before-wasm.log/json`). 초기 diagnostic의 컴파일 오류와
+stale generated suite의0-test 실행(`focused.log`)은 결함 재현/통과 증거가 아니다.
+실제 generated suite를 지정해 재실행한 뒤 최종 prepare로 manifest를 동기화했다.
+
+#### 검증 마무리
+
+`selected.log`:241/241 PASS. 실행 명령은 로그 첫 줄과
+`run-extent/run-selected.mjs`에 고정했다. 이후 음수 gap의8px 다음 원점과12px 점유 끝이
+갈리는 반례(top10px)를 추가했다. 엔진 변경 없이 동일 앵커 경계4개를 다시 실행하여
+`boundary-final.log`4/4 PASS다. 앞선241건 전체를 이4건에 합산하지 않는다.
+`clippy-native.log`, `clippy-wasm.log`, `clippy-tests-final.log` 모두 `--locked -D warnings`
+PASS, 최종 fmt check/diff check도 PASS다. format 때문에 파생 suite 지문이 달라졌던
+`policy.log` 실패는 최종 prepare 후 `policy-boundary.log`에서 고정 base
+`7a95e46e025470a4d7a7b59ad68ec02958bda738` 대비 PASS했다. 파생 suite는 stage하지 않는다.
+source unit test 변경 및 전체 workspace 제출 게이트 실행은 없다.
+
+Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm`7분20초 성공이다.
+빌드 시작 뒤 Rust 변경은 mod 선언 순서의 rustfmt 정렬뿐이며 동작 변경은 없다.
+컨테이너의 새 anchor/input/mod 파일 hash는 최종 작업본과 동일함을 확인했다.
+최종 WASM SHA256은
+`08a5295715f5cdc6a0f1c7729dbf940e63eababb26896575f15ad2f8cd058540`이다.
+기존 browser 명령에 `--stored-body-anchor`를 추가하고 fixtures/out을
+`stored-anchor/fixtures`, `stored-anchor/browser`로 지정했다. `browser.log`는225쪽의
+exact Native/WASM tree·SVG 일치, isolation/rejection/rollback/termination PASS다.
+`preservation.json`은 기존 Native120개와 review PNG217개가 byte 동일함을 확인한다.
+`source-comparison.json`은 제품/review Rust·Cargo 파일과 주요 테스트·패키지 hash를 연결한다.
+
+Native 첫 출력 검토 후 fresh WASM의 `browser/document-anchor-{split-0,split-1,defer-1,
+isolation-0}.review.png`와 `document-anchor-split-1.overlay.png`를 직접 열었다.
+split의 첫 쪽 A/B/C, 이어받기 쪽 D, 뒤 문단, 통째 이월의 외곽을 확인했다. 대응
+`*.compare.png`, `*.overlay.png`, `*.review.png`는 같은 browser 디렉터리에 있다.
+한컴 PDF 전체와의 `visual_accuracy_proxy_percent`는 미계측이다. 원본 isolation의 probe는
+원본 내용과 다르며, 동일한 두 backend의 통과를 원본 표 피델리티 통과로 승격하지 않는다.
+실험 V2 세션 검증이고 Studio 기본 경로/Legacy·baseline/golden/ignore·원격 상태는 유지한다.
+
+다음 대상은 index5 내부 background zones와 저장 들여쓰기의 독립 근거/지원 경계다.
+원본 전체 수용 및 A·R5 완료는 아직 아니다.

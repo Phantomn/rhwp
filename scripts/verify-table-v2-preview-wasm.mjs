@@ -92,6 +92,7 @@ async function main() {
   if (process.argv.includes('--noop-paragraph-border')) positive.push('document-noop-border','document-noop-source');
   if (process.argv.includes('--trailing-space')) positive.push('document-trailing-source');
   if (process.argv.includes('--signed-text')) positive.push('document-negative-source','document-negative-fresh');
+  if (process.argv.includes('--stored-body-anchor')) positive.push('document-anchor-split','document-anchor-split-hwp','document-anchor-defer','document-anchor-isolation');
   if (process.argv.includes('--stored-margins')) {
     positive.push('stored-margin-left','stored-margin-center','stored-margin-right',
       ...[2,4,5,6,7,10,11].map(i=>`stored-margin-source-${i}`));
@@ -268,6 +269,10 @@ async function main() {
       '- 무학, ‘천연암반수로 만든’ 좋은데이 광고...  알고보니 암반수 함량은 제각각 -',
       ' - 대선주조, ‘체지방감소효과가 있는 BCAA 첨가’ 광고... 객관적 근거는 없어 -','']];
     expected['document-negative-fresh']=[['A',''],['B']];
+    expected['document-anchor-split']=[['host','A','B','C'],['D','after']];
+    expected['document-anchor-split-hwp']=expected['document-anchor-split'];
+    expected['document-anchor-defer']=[['before','host'],['A','B','C'],['after']];
+    expected['document-anchor-isolation']=[[...expected['document-negative-source'][0],'anchor-probe','']];
     expected['fill-merged'] = expected.merged;
     expected['fill-nested'] = expected.nested;
     expected['fill-split'] = [['A', ''], ['B', 'C']];
@@ -345,8 +350,8 @@ async function main() {
         assert.equal(output.engine, 'table_v2'); assert.equal(output.scope, name.startsWith('document-') ? 'document_body' : 'selected_table');
         assert.equal(output.page_index, index + (name === 'partial' ? 1 : 0));
         const rootNode = output.render_tree.root;
-        const lines = collect(['document-terminal-source','document-noop-source','document-trailing-source','document-negative-source'].includes(name) ? collect(rootNode,'Body')[0] : rootNode, 'TextLine');
-        assert.deepEqual(name.startsWith('stored-margin-source-') || name==='fractional-source' || name==='terminal-source' || name==='document-terminal-source' || name==='document-trailing-source' || name.startsWith('document-negative-') || name.startsWith('document-noop-')
+        const lines = collect(['document-terminal-source','document-noop-source','document-trailing-source','document-negative-source','document-anchor-isolation'].includes(name) ? collect(rootNode,'Body')[0] : rootNode, 'TextLine');
+        assert.deepEqual(name.startsWith('stored-margin-source-') || name==='fractional-source' || name==='terminal-source' || name==='document-terminal-source' || name==='document-trailing-source' || name.startsWith('document-negative-') || name.startsWith('document-noop-') || name==='document-anchor-isolation'
           ? lines.map(n=>collect(n,'TextRun').map(r=>r.node_type.TextRun.text).join(''))
           : collect(rootNode, 'TextRun').map(n => n.node_type.TextRun.text), expected[name][index]);
         const aligned = name.startsWith('align-');
@@ -466,6 +471,22 @@ async function main() {
             const pos=name.startsWith('document-number-4') ? 4 : name.startsWith('document-number-6') ? 6 : 5;
             assertDocumentGeometry(run.bbox.x+(pos===4 ? 0 : run.bbox.width/(pos===5 ? 2 : 1)),pos===4 ? 20 : pos===5 ? 170 : 320);
             assert.ok(story.bbox.y+story.bbox.height<200);
+          }
+        } else if (name.startsWith('document-anchor-')) {
+          const ts=collect(rootNode,'Table');
+          if(name==='document-anchor-isolation') {
+            assert.equal(ts.length,2);
+            assertDocumentGeometry(ts[1].bbox,{x:5952/75,y:25378/75,width:47901/75,height:12});
+            const direct=collect(rootNode,'Body')[0].children.filter(n=>n.node_type.TextLine);
+            assertDocumentGeometry(direct.slice(-2).map(n=>n.bbox.y),[24375/75,26561/75]);
+          } else if(name==='document-anchor-defer') {
+            assert.equal(ts.length,index===1?1:0);
+            if(index===1) assertDocumentGeometry(ts[0].bbox,{x:28,y:30,width:200,height:54});
+            assertDocumentGeometry(lines.map(n=>n.bbox.y),index===0?[30,48]:index===1?[30,48,66]:[30]);
+          } else {
+            assert.equal(ts.length,1);
+            assertDocumentGeometry(ts[0].bbox,{x:28,y:index===0?54:30,width:200,height:index===0?48:24});
+            assertDocumentGeometry(lines.map(n=>n.bbox.y),index===0?[30,54,72,90]:[36,62]);
           }
         } else if (name==='document-negative-fresh') {
           assertDocumentGeometry(lines.map(n=>n.bbox.y),index===0?[30,42]:[30]);
@@ -712,7 +733,7 @@ async function main() {
         const stem = `${fixtureName}-${index}`;
         writeFileSync(join(out, `${stem}.svg`), output.svg);
         // Preserve evidence even if a backend comparison fails below.
-        const rasterWidth=['fractional-source','terminal-source','document-terminal-source','document-noop-source','document-trailing-source','document-negative-source'].includes(name)?800:400;
+        const rasterWidth=['fractional-source','terminal-source','document-terminal-source','document-noop-source','document-trailing-source','document-negative-source','document-anchor-isolation'].includes(name)?800:400;
         await raster.setViewport({ width: rasterWidth, height: 400, deviceScaleFactor: 1 });
         for (const [backend, svg] of [['native', native[index].svg], ['wasm', output.svg]]) {
           await raster.setContent(`<body style="margin:0;background:white">${svg}</body>`);
