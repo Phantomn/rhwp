@@ -116,8 +116,17 @@ impl FlowCursor {
                 FlowBlock::Table {
                     owner,
                     offset_x,
+                    restart_top,
                     plan,
                 } => {
+                    // The source offset belongs to the initial anchor only.
+                    // A resumed fragment (including atomic deferral) reserves
+                    // its top outer margin in the same budget used for paint.
+                    let prefix = if result.next.child.is_some() {
+                        *restart_top
+                    } else {
+                        0.0
+                    };
                     let cursor = result
                         .next
                         .child
@@ -127,13 +136,24 @@ impl FlowCursor {
                     match cursor.fit(PageArea {
                         bounds: Rect {
                             x: area.x + offset_x,
-                            y: area.y + pen,
+                            y: area.y + pen + prefix,
                             width: area.width - offset_x,
-                            height: available,
+                            height: (available - prefix).max(0.0),
                         },
                     })? {
                         FragmentFit::Placed(fragment) => {
-                            pen += fragment.reserved_height();
+                            let reserved = prefix + fragment.reserved_height();
+                            // Child fit already owns the fragment budget check.
+                            // Do not recheck its accepted height by subtracting
+                            // the parent pen (1.2 - 1.0 is not exactly 0.2).
+                            // Only guard the prefix when its clamped child area
+                            // could otherwise admit an empty zero-height child.
+                            if area.y + pen + prefix > area.y + area.height {
+                                result.required = reserved;
+                                result.next.child = Some(Box::new(cursor));
+                                break;
+                            }
+                            pen += reserved;
                             result.height = result.height.max(pen);
                             result.tables.push(NestedTablePlacement {
                                 owner: *owner,
@@ -150,7 +170,8 @@ impl FlowCursor {
                         FragmentFit::DoesNotFit {
                             required_height, ..
                         } => {
-                            result.required = required_height;
+                            result.required = prefix + required_height;
+                            result.next.child = Some(Box::new(cursor));
                             break;
                         }
                         FragmentFit::Complete => {

@@ -286,6 +286,7 @@ pub(super) fn prepare(
                 blocks.push(FlowBlock::Table {
                     owner,
                     offset_x,
+                    restart_top: 0.0,
                     plan: prepared.plan,
                 });
                 order += 1;
@@ -375,6 +376,7 @@ pub(super) fn prepare(
             blocks.push(FlowBlock::Table {
                 owner,
                 offset_x: anchor.x,
+                restart_top: anchor.restart_top,
                 plan: prepared.plan,
             });
             blocks.push(FlowBlock::Space(anchor.after));

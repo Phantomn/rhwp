@@ -69,6 +69,7 @@ fn wrapper(child: TableContentPlan) -> TableContentPlan {
                     lines(0, 10.0),
                     FlowBlock::Table {
                         offset_x: 0.0,
+                        restart_top: 0.0,
                         owner: ControlOwner {
                             paragraph: 1,
                             control: 0,
@@ -169,6 +170,7 @@ fn nested_three_levels_keep_their_own_origins_and_cuts() {
                 minimum_height: 0.0,
                 blocks: vec![FlowBlock::Table {
                     offset_x: 0.0,
+                    restart_top: 0.0,
                     owner: ControlOwner {
                         paragraph: 0,
                         control: 0,
@@ -243,6 +245,67 @@ fn consumed_content_does_not_discard_remaining_padding_or_minimum_band() {
 }
 
 #[test]
+fn restarted_child_margin_is_budgeted_transactionally_and_painted_once() {
+    // Independent arithmetic: child rows20/30; restart margin6. No padding.
+    // A30px budget fits the row alone but cannot accept margin+row36px.
+    let plan = TableContentPlan::from_flow_rows(
+        vec![60.0],
+        vec![FlowRowInput {
+            cells: vec![FlowCellInput {
+                padding: Insets::default(),
+                minimum_height: 0.0,
+                width: 60.0,
+                blocks: vec![
+                    FlowBlock::Table {
+                        owner: ControlOwner {
+                            paragraph: 0,
+                            control: 0,
+                        },
+                        offset_x: 0.0,
+                        restart_top: 6.0,
+                        plan: Arc::new(child(SplitPolicy::BetweenRows)),
+                    },
+                    lines(2, 5.0),
+                ],
+            }],
+        }],
+        0.0,
+        SplitPolicy::WithinCells,
+    )
+    .unwrap();
+    let first = fit(&plan.start(), 20.0);
+    assert_eq!(first.reserved_height(), 20.0);
+    let cursor = first.continuation();
+    for _ in 0..2 {
+        assert!(matches!(
+            cursor
+                .fit(PageArea {
+                    bounds: Rect {
+                        x: 10.0,
+                        y: 20.0,
+                        width: 100.0,
+                        height: 30.0,
+                    }
+                })
+                .unwrap(),
+            FragmentFit::DoesNotFit {
+                required_height: 36.0,
+                ..
+            }
+        ));
+    }
+    let second = fit(&cursor, 41.0);
+    assert_eq!(second.reserved_height(), 41.0);
+    let cell = &second.placement().cells[0];
+    assert_eq!(cell.tables.len(), 1);
+    assert_eq!(cell.tables[0].placement.bounds.y, 26.0);
+    assert_eq!(cell.tables[0].placement.bounds.height, 30.0);
+    assert_eq!(cell.lines[0].bounds.y, 56.0);
+    assert!(second.continuation().is_complete());
+    assert_eq!(fit(&cursor, 41.0).placement(), second.placement());
+}
+
+#[test]
 fn zero_budget_never_advances_a_nonzero_line_and_oversize_is_reported() {
     let cursor = child(SplitPolicy::WithinCells).start();
     for budget in [0.0, 19.0] {
@@ -295,6 +358,7 @@ fn fractional_page_budget_does_not_split_an_atomic_nested_table() {
                     lines(0, 1.0),
                     FlowBlock::Table {
                         offset_x: 0.0,
+                        restart_top: 0.0,
                         owner: ControlOwner {
                             paragraph: 1,
                             control: 0,
@@ -328,6 +392,7 @@ fn parallel_cells_resume_independently_without_replaying_short_cell_lines() {
                     minimum_height: 0.0,
                     blocks: vec![FlowBlock::Table {
                         offset_x: 0.0,
+                        restart_top: 0.0,
                         owner: ControlOwner {
                             paragraph: 0,
                             control: 0,

@@ -15,6 +15,7 @@ pub(super) struct BodyAnchor {
     pub x: f64,
     pub before: f64,
     pub after: f64,
+    pub restart_top: f64,
 }
 
 impl BodyAnchor {
@@ -73,6 +74,7 @@ impl BodyAnchor {
             x,
             before: top - host.next_origin(),
             after: hwpunit_to_px(i32::from(a.margin.bottom), dpi),
+            restart_top: hwpunit_to_px(i32::from(a.margin.top), dpi),
         })
     }
 }

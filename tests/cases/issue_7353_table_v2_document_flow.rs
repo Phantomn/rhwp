@@ -549,7 +549,7 @@ fn stored_anchor_reserves_offset_once_and_preserves_host_and_following_rows() {
             // Three12px line boxes at18px pitch occupy48px exactly. The last
             //6px paragraph tail is a physical band on the continuation page,
             // not a reason to discard C or repeat its glyphs.
-            for (page, (y, height)) in pages.iter().zip([(54.0, 48.0), (30.0, 24.0)]) {
+            for (page, (y, height)) in pages.iter().zip([(54.0, 48.0), (36.0, 24.0)]) {
                 let t = nodes(page, "Table");
                 assert_eq!(t.len(), 1);
                 near(&t[0]["bbox"]["x"], 28.0);
@@ -563,7 +563,7 @@ fn stored_anchor_reserves_offset_once_and_preserves_host_and_following_rows() {
             near(&line["bbox"]["height"], 12.0);
             for (page, ys) in pages
                 .iter()
-                .zip([vec![30.0, 54.0, 72.0, 90.0], vec![36.0, 62.0]])
+                .zip([vec![30.0, 54.0, 72.0, 90.0], vec![42.0, 68.0]])
             {
                 for (line, y) in nodes(page, "TextLine").iter().zip(ys) {
                     near(&line["bbox"]["y"], y);
@@ -598,7 +598,7 @@ fn stored_anchor_atomic_defer_does_not_repeat_host_or_initial_band() {
     assert_eq!(labels(&pages[2]), ["after"]);
     assert!(nodes(&pages[0], "Table").is_empty());
     let t = nodes(&pages[1], "Table")[0];
-    near(&t["bbox"]["y"], 30.0);
+    near(&t["bbox"]["y"], 36.0);
     near(&t["bbox"]["height"], 54.0);
     near(&nodes(&pages[2], "TextLine")[0]["bbox"]["y"], 30.0);
     capture("document-anchor-defer", &d, &pages);
@@ -1051,8 +1051,8 @@ fn hancom_saved_anchor_review_preserves_rows_and_following_paragraph() {
     );
     let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
     // Independent matching PDF: p1 has rows01..19, p2 rows20..24 + following
-    // paragraph. This is NOT a fidelity assertion for the continuation origin:
-    // its approx1mm discrepancy remains documented, not blessed as a baseline.
+    // paragraph. Independent 0/1/2mm Hancom variants show that continuation
+    // reserves the top outer margin, not the original paragraph-relative offset.
     assert_eq!(pages.len(), 2);
     let mut first = vec!["표 시작 위치 확인".to_owned()];
     first.extend((1..=19).map(|i| format!("자료 {i:02} : 표 안의 문단과 페이지 연결 확인")));
@@ -1074,6 +1074,9 @@ fn hancom_saved_anchor_review_preserves_rows_and_following_paragraph() {
     };
     assert_eq!(line_texts(&pages[0]), first);
     assert_eq!(line_texts(&pages[1]), second);
+    // Source body top5669HU + outer top283HU. PDF top79.317708px differs by
+    // <0.05px from this unrounded coordinate; do not copy PDF driver rounding.
+    near(&nodes(&pages[1], "Table")[0]["bbox"]["y"], 5952.0 / 75.0);
     for page in &pages {
         let body = nodes(page, "Body")[0];
         let tables = nodes(page, "Table");
@@ -1083,6 +1086,53 @@ fn hancom_saved_anchor_review_preserves_rows_and_following_paragraph() {
             node["bbox"]["y"].as_f64().unwrap() + node["bbox"]["height"].as_f64().unwrap()
         };
         assert!(bottom(table) <= bottom(body));
+    }
+}
+
+#[test]
+fn hancom_anchor_variants_repeat_margin_not_source_offset() {
+    // Unmodified Hancom saves and matching PDFs, not hand-written LineSeg.
+    // PDF p2 border tops:75.479167 /82.994792 /79.317708px at96dpi.
+    for (name, margin) in [
+        ("top0", 0.0),
+        ("top2mm", 567.0),
+        ("offset20mm", 283.0),
+        ("cellbreak", 283.0),
+        ("defer", 283.0),
+    ] {
+        let input = std::fs::read(format!(
+            "{}/tests/fixtures/issue7353_stored_anchor_review/variants/{name}-saved.hwp",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap();
+        let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+        assert_eq!(pages.len(), 2, "{name}");
+        let t = nodes(&pages[1], "Table")[0];
+        near(&t["bbox"]["y"], (5669.0 + margin) / 75.0);
+        let end = t["bbox"]["y"].as_f64().unwrap() + t["bbox"]["height"].as_f64().unwrap();
+        let after = nodes(&pages[1], "TextLine").last().copied().unwrap();
+        // Source bottom outer margin567HU separates final table and following prose.
+        if name != "defer" {
+            near(&after["bbox"]["y"], end + 567.0 / 75.0);
+        }
+        // In the atomic control Hancom leaves following prose on p1. This
+        // test establishes table origin only, not that unresolved story order.
+        let texts = pages
+            .iter()
+            .flat_map(|page| nodes(page, "TextRun"))
+            .map(|run| run["node_type"]["TextRun"]["text"].as_str().unwrap())
+            .collect::<String>();
+        let count = if name == "defer" { 3 } else { 24 };
+        for row in 1..=count {
+            assert_eq!(
+                texts.matches(&format!("자료 {row:02}")).count(),
+                1,
+                "{name} row{row}"
+            );
+        }
+        if name == "defer" {
+            assert!(nodes(&pages[0], "Table").is_empty());
+        }
     }
 }
 

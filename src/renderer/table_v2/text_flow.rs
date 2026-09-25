@@ -188,6 +188,7 @@ impl PreparedTextTable {
                             order += 1;
                             blocks.push(FlowBlock::Table {
                                 offset_x: 0.0,
+                                restart_top: 0.0,
                                 owner,
                                 plan: table.plan,
                             });

@@ -218,6 +218,7 @@ impl TableContentPlan {
                         FlowBlock::Table {
                             owner,
                             offset_x,
+                            restart_top,
                             plan,
                         } => {
                             depth = depth.max(plan.depth + 1);
@@ -227,6 +228,7 @@ impl TableContentPlan {
                                 ));
                             }
                             nonnegative(*offset_x, "nested horizontal offset")?;
+                            nonnegative(*restart_top, "table restart margin")?;
                             if !(offset_x + plan.width).is_finite()
                                 || offset_x + plan.width > inner_width
                             {

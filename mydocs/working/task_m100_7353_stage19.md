@@ -1892,3 +1892,128 @@ CARGO_BUILD_JOBS=1 cargo nextest run --locked --cargo-profile release-test \
   --test regression_suite_005 -E 'test(issue_7353_table_v2_document_flow)' \
   --target-dir /home/edward/mygithub/rhwp/target/pr-review
 ```
+
+### 이어받기 위 바깥여백 — 독립 대조와 구현
+
+2026-09-25 다음 절편 승인으로 위 2쪽 원점 차이를 우선 처리한다. 직전 대체 자료와
+무효과 PageBorderFill 지원을 `50eea221d`로 로컬 커밋했다. 기존 2쪽 위치 차이의 시각
+통과나 #6923 원본 전체 통과로 승인 범위를 확대하지 않는다.
+
+`bug-hunter` 스킬/플레이북을 확인했으나 기존 CLI의 실사용 여정 전용이고 이 경로는
+실험 DocumentV2 API이므로 전체 여정은 적용하지 않았다. 승인된 V2 검증 경로에서
+독립 PDF 대조를 수행한다. 새 이슈/원격 변경/Legacy 전환은 없다.
+
+독립 대조의 입력 생성·MCP job·관측값은
+`tests/fixtures/issue7353_stored_anchor_review/README.md`의 continuation margin controls에
+연결했다. 위 바깥여백0/283/567HU에 따라 PDF의 2쪽 표 시작이 이동하고, 문단 기준 세로
+offset2835→5670HU에는 이동하지 않았다. CellBreak와 원자적 표 전체 이월도 top283HU를
+반영한다. 따라서 첫 앵커의 세로 offset은 한 번만 소비하고, 새 조각의 위 바깥여백은
+반복 예약한다. 합성 입력을 수동으로 고쳐 저장 캐시 수용 조건을 완화하지 않았다.
+
+실제 소비 경로:
+
+- `BodyAnchor::resolve`: IR common/mirror 여백 일치 검증 → before/after/restart_top.
+- `document_input::prepare`: 처음 `Space(before)`는 기존대로, Table에 restart_top 전달.
+- `FlowCursor::fit`: child cursor의 시작/끝 컷은 TableCursor 소유. 이미 수용한 child 또는
+  예산 부족으로 이월한 child에만 prefix 적용 → 가용 높이에서 차감 → child fit의 요구 높이에
+  prefix 합산. 배치 성공 시에만 prefix+reserved_height를 누적한다.
+- `DocumentV2Session`: 동일 FlowFit을 본문 예약/진행과 실제 TablePlacement paint에 사용.
+  paint 이후 별도 원점 보정은 없다. 마지막 child 완료 후에만 after band/후속 문단을 소비한다.
+- 새 속성은 저장 본문 앵커에만 부여한다. fresh/nested adapter는0이며 TAC inline row,
+  side-wrap, Legacy 경로는 비해당. nested synthetic 계약은 공유 fit의 예산 반례이지
+  한컴 중첩 여백 지원 주장으로 쓰지 않는다.
+
+실험 Rust `FlowBlock::Table` 생성자에 `restart_top` 필드가 추가되어 내부 어댑터와
+테스트 생성자를 함께 갱신했다. 기존 WASM DocumentV2 옵션/입출력 스키마는 변경하지 않았다.
+
+수정 전 라이브러리에 같은 정식 document-flow 테스트 소스를 링크하여 신규 좌표 assertion
+2건 FAIL을 확인했다(`anchor-continuation/before-tests.log`): base75.586667≠79.36,
+top2mm75.586667≠83.146667. 최초 진단 링크는 serde dependency 조합 오류였고 결함 재현으로
+세지 않았다. 일치하는 serde_json 라이브러리로 링크한 후 실제 조판 좌표에서 실패했다.
+수정 후 focused/Native/fresh WASM/시각 결과는 아래 후속 기록으로 연결한다.
+
+#### 첫 후보 출력 확인 — 후속 재검증으로 대체
+
+검증 source는 `50eea221d` + 이번 7개 V2 Rust 파일 변경이며 정확한 파일 해시는
+`output/7353/r19/anchor-continuation/superseded-review/source.sha256`에 보존했다. review worktree와 해당 source/
+test 파일이 동일함을 `cmp`로 확인했다. Native는 review의 release-test 라이브러리를 사용했다.
+Docker fresh WASM 빌드가 7분23초에 성공했고 SHA-256은
+`fd2e02eb75da086a83711423ca9a75260583721f8fe48ba854ae7a9f81f61975`다.
+
+실행 명령/증거는 `output/7353/r19/anchor-continuation/` 아래에 있다.
+
+- `docker compose --env-file .env.docker -p rhwp run --rm wasm` → `docker-wasm-first.log`.
+- `probe <동일 saved HWP> review/actual render` → Native 최종 RenderTree/SVG JSON.
+  진단 probe는 기존 `visual-replacement/probe.rs`를 이번 release-test 라이브러리로 링크했다.
+- `node output/7353/r19/anchor-continuation/review.mjs --wasm` → 브라우저 DocumentV2,
+  `review/actual/wasm.json`, 두 backend의 compare/standalone overlay/review 각1·2쪽.
+- `node output/7353/r19/anchor-continuation/check-output.mjs` → `coordinates.json`.
+  수정 전후 양 backend의 실제 표 원점/뒤 문단 위치/24행 단일 출현, 첫 쪽 SVG 불변을 검사.
+
+| 검사 | 결과 |
+| --- | --- |
+| 2쪽 표 원점 | 수정 전75.586667 → 수정 후79.36px; 독립 PDF79.317708px |
+| 2쪽 뒤 문단 원점 | 수정 전238.213333 → 수정 후241.986667px; 표 끝+567HU |
+| 1쪽 보존 | 수정 전후 SVG 완전 동일 |
+| Native/fresh WASM | 두 쪽 SVG 동일, JSON 숫자125곳 최대5.684e-14 차이, 다른 차이0 |
+| 직접 Visual Sweep | Native/WASM review1·2 및 WASM standalone overlay1·2를 열어 표 외곽·행 연결·뒤 문단 확인 |
+| 남은 차이 | 글꼴 폭/굵기. 메인테이너 시각 판정 대기 |
+
+대표 자료는 `review/wasm-review-1.png`, `review/wasm-review-2.png`,
+`review/wasm-overlay-2.png`다. 이미지 좌표 변환 없이 같은 PDF/페이지를 비교했으며,
+이번 여백으로 표를 단순 이동한 것이 아니라 fit 예산/본문 점유도 같이 반영한다.
+
+별도 `defer` 대조에서는 한컴이 후속 문단을1쪽에 남기고 표만2쪽으로 보내는 것을
+PDF 직접 판독/텍스트로 확인했다. V2는 후속 문단을 표 뒤에 배치하므로 이 대조의 **전체
+story 순서 일치는 미충족**이다. 이 사례를 통과 자료로 승격하지 않았고, 회귀 assertion은
+표 이월 원점과 행 보존만 주장한다. 원자적 이월의 주변 문단 흐름은 후속 검토 대상이다.
+원본 #6923 전체/중첩 여백/편집 후 재조판/R5 완료를 뜻하지 않는다.
+전체 release 회귀, Native Skia, PR 제출용 세 Clippy gate는 이번 절편에서 실행하지 않았다.
+
+첫 focused 실행은 `focused.log`에서 **57 passed / 1 failed / 2 not run**이었다.
+기존 `fractional_page_budget_does_not_split_an_atomic_nested_table`이 실제 회귀를
+검출했다. `1.2 - 1.0`으로 계산한 가용 높이와0.2를 다시 비교하면서 child fit의
+수용 결과를 부모에서 뒤집었고 InconsistentAtomicPlan이 발생했다. 테스트 기대값은
+유지하고 중복 reserved-height 재판정을 제거했다. prefix 자체가 본문을 넘는지만
+기존 fit과 같은 절대 좌표계에서 확인하고, 자식 조각의 수용 높이는 child fit 결과를
+그대로 소비한다. 이 변경 뒤 위 후보의 이미지는 `superseded-review/`에 보존하고
+최종 코드의 Native/WASM 빌드·focused·시각 캡처를 다시 실행한다. 기존 캡처를 재사용하지 않는다.
+
+최종 focused 실행은 **60 passed, 0 failed, 163 filtered out**
+(`anchor-continuation/focused-final.log`)이다. 대상은 document_flow/nested/alignment이며
+전체 저장소 회귀 통과를 뜻하지 않는다. 위 소수 경계 테스트와 신규 여백 예산 계약,
+6개 정상 한컴 저장본(기본+5대조)의 실제 좌표/내용 검사가 통과했다.
+
+```sh
+# rhwp-review-7353; 준비된 regression_suite_005 사용
+CARGO_BUILD_JOBS=2 cargo nextest run --locked --cargo-profile release-test \
+  --test regression_suite_005 -E 'test(issue_7353_table_v2)' --no-fail-fast \
+  --target-dir /home/edward/mygithub/rhwp/target/pr-review
+```
+
+nextest0.9.137은 저장소 권고0.9.140보다 낮다는 경고 및 관측용 report-skipped 키 경고가
+있었으나 test 실행은 성공했다. Native probe도 최종 라이브러리로 다시 링크/실행했다.
+
+최종 Docker WASM은 **7분32초 성공**, SHA-256
+`3ad244d3d9bf7e2748fb0b8035a15507bdaf79f261671882631327eef2b60db1`이다.
+`review.mjs --wasm`과 `check-output.mjs`를 최종 빌드로 다시 실행하고, Native/WASM의
+review1·2 및 WASM standalone overlay1·2를 **새 캡처로 다시 열어 판독**했다.
+최종 증적은 `review/`, 최초 후보는 `superseded-review/`로 구분한다.
+표 원점79.36px, 후속 문단241.986667px, 첫 쪽 불변, 두 backend SVG 동일이라는 위 관측은
+최종 코드에서도 재확인했다. 글꼴 폭·굵기와 `defer`의 후속 문단 흐름 차이는 그대로 남는다.
+최종 source 해시는 `anchor-continuation/source.sha256`, 입력/WASM 식별자는
+`review/run.json`, backend 차이는 `review/backend-comparison.json`이다.
+변경 파일 `rustfmt --check`와 `git diff --check`도 통과했다.
+
+이번 절편의 상태는 **이어받기 여백 구현/대상 회귀 완료, 기본 대조 문서1·2쪽 시각 판정 통과**다.
+전체 R5 완료나 원본 #6923 통과를 뜻하지 않는다. 제출 gate와 남은 실제 문서 수용 작업은 유지한다.
+
+#### 작업지시자 시각 판정 — 2026-09-26
+
+작업지시자가 “시각 판정 통과입니다.”로 최종 대조 문서1·2쪽을 승인했다.
+대상은 `anchor-continuation/review/wasm-review-1.png`, `wasm-review-2.png`로 제시한
+표 시작/이어받기, 01~24행 연결, 표 외곽 및 후속 문단 위치다. 대응 WASM은 위 최종
+SHA-256 `3ad244d3…2b60db1`이며, 현재7개 renderer source가 증적의 `source.sha256`과
+동일함을 확인했다. 코드 변경이 없어 이미 통과한60건/빌드/시각 캡처를 반복 실행하지 않았다.
+글꼴의 완전 일치, 별도 `defer` 사례의 후속 문단 흐름, 원본 #6923 전체를 승인한 것으로
+확대하지 않는다. 이번 갱신은 판정 기록뿐이며 소스·기준값·ignore·원격 상태는 바꾸지 않았다.

@@ -54,10 +54,47 @@ Font width and weight differ. No alignment transform is used to hide these
 differences. The offset is close to the outer top margin, but its cause and
 general continuation rule are not established by this one fixture.
 
-The test `hancom_saved_anchor_review_preserves_rows_and_following_paragraph`
-protects the independently observed row ownership and body containment only.
-It deliberately does not approve the continuation origin. Nested tables,
-within-cell splits, original #6923 fidelity, and editor reflow are not covered.
+The initial result above is preserved as a before observation. The follow-up
+below establishes the top-margin rule independently; the tests now also check
+the unrounded source-based continuation origin. Font differences remain.
+Nested tables, within-cell cuts in the reference documents, original #6923
+fidelity, and editor reflow are not covered by these PDF comparisons.
+
+## Continuation margin controls
+
+`variants/` contains authored HWPX, untouched Hancom saves, and PDFs printed
+from those saves using the same service/version/settings above. Starting from
+`anchor-review-input.hwpx`, only these properties were changed before Hancom
+opened them (never manually change the saved LineSeg):
+
+| Control | Change (HU) | PDF page2 border top at96dpi | HWP job / PDF job |
+| --- | --- | --- | --- |
+| top0 | common/mirror outer top0 |75.479167px|`95da1b1b-ef23-488b-9ba8-1a5863366d76` / `d7cb577f-a1e7-4e31-91c7-ad2daef53653`|
+| top2mm | common/mirror outer top567 |82.994792px|`89f4276d-5f32-4cf0-93f1-9965e99c758b` / `90da853d-e05b-4332-be55-6f32a04536f2`|
+| offset20mm | vertical offset5670; top283 unchanged |79.317708px|`63bf6bfd-143a-444c-95b3-ccdd9fa65f02` / `7fa3b173-2875-4b20-9077-822aa481bd93`|
+| cellbreak | page_break CellBreak |79.317708px|`fdcd0028-51fb-4fb7-9805-0b9c4b160b02` / `a522d42b-1377-434b-9c52-e0475cd0e5d8`|
+| defer | page_break None; offset43000; first3rows only, common height6978 |79.317708px|`1360bce6-1915-439b-9459-f73a0c6f68b8` / `2a6bff09-d021-4c69-afe6-7603ef1fa828`|
+
+For `defer`, truncate cells/row_sizes to3, set row_count3 and clear the derived
+cell_grid before serialization. All other source properties are unchanged.
+Each reference is two pages. `pdftocairo -svg -f 2 -l 2` exposes the left
+vertical border's start: y538.390625/532.753906/535.511719pt under the transform
+`matrix(1,0,0,-1,0,595)`. Pixel top is `(595-y)*4/3`.
+
+The page2 top changes with outer top margin, not the original vertical offset;
+atomic deferral also keeps that margin. The engine contract therefore uses
+`(5669 + outer_top)/75`px, not the PDF printer's rounding (difference <0.16px).
+The changed fit path must reserve that margin before accepting a child and pass
+the resulting origin directly to paint. This does not authorize TAC, side-wrap,
+or nested-anchor rules. A separate synthetic WithinCells budget contract tests
+transactional rejection when the child fits but child+margin does not.
+
+The `defer` PDF leaves the following paragraph on page1 before the deferred
+table on page2. V2's sequential body-flow implementation places it after the
+table. This control proves only the table restart origin; it is **not** an
+approved full-document fidelity result. Resolving that floating story ordering
+is outside this margin slice. The main 24-row review fixture has following
+prose on page2 in both outputs.
 
 Evidence and maintainer judgment are tracked in
 [`task_m100_7353_stage19.md`](../../../mydocs/working/task_m100_7353_stage19.md).

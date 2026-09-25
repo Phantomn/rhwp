@@ -96,6 +96,9 @@ pub enum FlowBlock {
         /// Resolved horizontal offset inside the parent cell content box.
         /// Every continuation consumes this same placement result.
         offset_x: f64,
+        /// Top outer margin reserved on a resumed/deferred fragment. The first
+        /// fragment's anchor band already includes it; source offset is not repeated.
+        restart_top: f64,
         plan: std::sync::Arc<super::TableContentPlan>,
     },
 }

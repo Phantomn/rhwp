@@ -398,6 +398,7 @@ fn caller_composed_offsets_are_validated_before_pagination() {
                             control: 0,
                         },
                         offset_x,
+                        restart_top: 0.0,
                         plan: Arc::new(plan),
                     }],
                 }],

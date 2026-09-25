@@ -292,6 +292,7 @@ fn bind_table(
                                     control: ci,
                                 },
                                 offset_x,
+                                restart_top: 0.0,
                                 plan: Arc::new(plan),
                             });
                             seen[ci] = true;
