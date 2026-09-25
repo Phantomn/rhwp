@@ -78,6 +78,53 @@ fn prepare(
     .unwrap()
 }
 
+// An explicit physical Space is additive, including the zero identity. This
+// contract does not choose whether a terminal line owns its next-line gap.
+fn terminal_flow_observation(extra: Option<f64>) -> (f64, Vec<(String, f64, f64)>) {
+    let mut blocks = vec![paragraph(0, "last")];
+    if let Some(height) = extra {
+        blocks.push(TextFlowBlock::Space(height));
+    }
+    let prepared = prepare(100.0, Insets::default(), blocks, SplitPolicy::Never);
+    let fragment = placed(&prepared.start(), area(20.0, 30.0, 100.0));
+    let page = render(&fragment);
+    let mut lines = Vec::new();
+    let mut tables = Vec::new();
+    nodes(&page.root, &mut lines, &mut tables);
+    (
+        fragment.geometry().reserved_height(),
+        lines
+            .iter()
+            .map(|n| (text(n), n.bbox.y, n.bbox.height))
+            .collect(),
+    )
+}
+
+#[test]
+fn zero_trailing_space_is_an_identity_for_cell_flow() {
+    assert_eq!(
+        terminal_flow_observation(None),
+        terminal_flow_observation(Some(0.0))
+    );
+}
+
+#[test]
+fn explicit_terminal_space_adds_only_its_own_height() {
+    let (height, lines) = terminal_flow_observation(None);
+    for extra in [2.0, 7.0] {
+        let (with_space, shifted_lines) = terminal_flow_observation(Some(extra));
+        assert_eq!(
+            shifted_lines, lines,
+            "physical tail does not move preceding lines"
+        );
+        assert_eq!(
+            with_space - height,
+            extra,
+            "tail must not switch paragraph composition"
+        );
+    }
+}
+
 fn leaf(policy: SplitPolicy) -> PreparedTextTable {
     prepare(
         100.0,

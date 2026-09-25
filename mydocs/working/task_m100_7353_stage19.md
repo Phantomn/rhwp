@@ -1141,3 +1141,71 @@ WASM tree·SVG 일치와 입력 격리·거부·rollback·종료 검사 증거�
 기존 엔진과 기대값·baseline·ignore는 변경하지 않았다. 다음 작업은 보관한 종료 높이
 후보의 실패107건을 독립 규칙/입력 근거로 분류하는 것이다. A/R5는 아직 미완료이며
 기본값 전환·원격 push/PR은 하지 않았다. 이번 내부 커밋은 `verified-commit.txt`에 연결한다.
+
+### A 후속 — 종료 높이 후보 실패 트리아지와 조합 계약
+
+기준 제품 head는 `4f51d28158945f91c9a010804b3c316a8a0f1b20`이며 작업 시작 시 clean이다.
+이 절의107건은 **비활성 후보**의 과거 실패 목록이지 현재 제품의 회귀 실패가 아니다.
+기존 `recheck.log`/`prototype-failures.json`을 재사용하고 각 검사명·실패 위치·관측값·
+처리 구분을 `output/7353/r19/terminal/triage-ledger.json`에 연결했다.
+
+| 건수 | 분류와 근거 | 후속 처리 |
+| --- | --- | --- |
+| 96 | 기존 수치/분할 경계 assertion. 주로 font12/고정 pitch18의 끝 간격6을 셀 높이에도 포함한 합성 입력이며, 저장 줄 검사도 포함 | 미확정 판정 유지. 수치 변경과 실제 누락/중복을 구별하고 경계 테스트의 입력 의미를 보존 |
+| 9 | `document_flow::inline_carrier` 계열의 수동 TAC envelope와 재조판 내용 높이 불일치 | 저장 높이 검사를 느슨하게 하지 않음. 유효한 저장 대조와 선언 최소 높이의 역할을 별도 검증 |
+| 1 | 원본 첫 표의 분수 padding 완전 소비 실패 | 별도 수정 `4f51d2815` 적용 뒤 후보에서도 단위 배율/완전 소비 검사 PASS |
+| 1 | 원본의 명시적 미지원 경계가 문단0 TAC 높이에서 문단1 장식/keep으로 이동 | 기능 수용의 진전으로 분류하되 원본 문서 전체/PDF 통과로 세지 않음 |
+
+대표 경계: `issue_7353_table_v2_headers.rs::header_only_fit_is_nonfit_and_retry_does_not_consume_body`
+는 기존 제목18 + 본문 글줄12 > 예산29를 전제로 한다. 후보에서는 제목12 + 본문12=24여서
+29에 두 줄이 들어간다. 따라서 이 실패만으로 제목만 출력한 버그라고 판정할 수 없다.
+새 종료 규칙의 정당성을 별도로 확인한 뒤 `제목 요구높이 + 최소 본문 줄 높이 - 부족량`의
+경계에서 거부/재시도/내용 보존을 검사해야 한다. 단순히 실패 assertion을 삭제하지 않는다.
+
+대표 TAC: 같은 파일이 아니라 `issue_7353_table_v2_document_flow.rs::inline_carrier`는
+자식의 common.height=2700HU(36px), cell.height=0, fresh 두 문단을 수동 구성한다.
+후보에서12+6+12=30px가 되므로 `tac.rs::bind`의 저장36px와 맞지 않는다. serializer
+round-trip을 거쳤다는 사실은 한컴이 생성한 유효 저장 줄이라는 증거가 아니다. 이 거부를
+없애려고 bind의 동등성 검사나 원본 LineSeg를 완화하지 않는다.
+
+**후보 자체의 실제 회귀도 별도로 발견했다.** `text_flow.rs`의 후보는 마지막 vector 항목이
+Paragraph일 때만 `compose_cell_end`를 선택한다. 같은 문단 뒤에 `Space(0)`을 붙이면
+`compose`로 바뀌어 다음 줄 간격을 다시 포함한다. 명시적 Space는 API 주석상 추가 물리 공간이지
+다음 문단/줄을 만들어내는 표지가 아니다. 따라서0은 항등이고 양수 공간은 그 높이만 추가해야 한다.
+이 기대값은 후보가 계산한 끝 높이나 한컴 페이지 수가 아닌 조합의 불변식에서 정했다.
+
+정식 검사2건은 `tests/cases/issue_7353_table_v2_nested_text.rs`에 추가했다.
+
+- `zero_trailing_space_is_an_identity_for_cell_flow`: 같은 최종 줄의 내용/y/높이와 예약 높이 동일.
+- `explicit_terminal_space_adds_only_its_own_height`: 뒤 공간2/7 추가 시 앞 줄의 내용/원점/높이를
+  보존하고 예약 높이는 각각2/7만 증가. 셀 끝 줄간격 자체를12 또는18로 고정하지 않는다.
+
+별도 review overlay에서만 보관 후보의6개 engine 파일을 적용했다. 제품 파일과 WASM은
+변경하지 않았다. `triage-current.log`는 현재 구현의 관련11건 PASS다.
+`triage-prototype.log`는 대표6건 중1 PASS/5 FAIL이며 새2건에서 각각
+`12→18`(0 공간 추가), `+2 대신 +8`을 재현했다. 나머지3 FAIL은 위 제목 경계, TAC envelope,
+원본 admission 진단이고 원본 배율/완전 소비는 PASS였다. 실험 뒤 적용한6개 파일만 복원하여
+제품과 byte 동일함을 확인했다. 기존 review WIP/파생 suite의 다른 변경은 건드리지 않았다.
+
+다음 설계에서는 `실제 줄 점유 끝`, `다음 줄/문단 원점으로의 전진`, `명시적 물리 Space`를
+구분한 결과를 만들고 IR/explicit flow/그림/TAC가 같은 종료 결정을 소비해야 한다. shared
+paragraph layout에도 종료 줄 분기(`paragraph_layout.rs`의 `is_cell_last_line && cell_ctx.is_some()`)
+가 있지만 현재 V2는 cell_ctx=None/is_last_cell_para=false로 호출한다. bool만 바꾸면 해결된다는
+가정도 성립하지 않는다. 기존 셀 측정은 끝 spacing_after를 제외하는 경로가 있어, 이를 후보처럼
+항상 보존하는 판단은 마지막 line_spacing과 별도로 독립 출력 확인이 필요하다.
+
+이번 제품 변경은 방어 계약2건과 조사 기록뿐이다. 후보/기대값/fixture/baseline/ignore를 활성
+변경하지 않았으며 R5 완료로 세지 않는다. 최종 검사와 내부 커밋 결과는 아래에 연결한다.
+
+최종 `triage-final-tests.log`는 **217 PASS**(기존215 + 새2건)다. 앞선 최종 목록의 case를
+현재 manifest로 다시 배정해 실행했으며 명령 전체를 로그 첫 줄에 남겼다. `triage-fmt.log`,
+`triage-clippy-test.log`(변경 case의 `regression_suite_024`, `-D warnings`),
+`triage-policy.log`(기존 고정 base 대비)가 모두 통과했다. 새 test source SHA256은
+`38a5f2d7e578c3d08b13de93433cf9848563e064548103a1c91911358743c42e`다.
+원장107개 검사명의 유일성·source 경로·분류 합계도 확인했다.
+
+제품 Rust 구현과 WASM 소스는 `4f51d2815` 대비 변경0이다. 따라서 이전 Native/WASM library
+lint와207쪽 backend 증거를 동일 소스의 기존 근거로 재사용하며, 이번 실행 건수로 합산하지
+않는다. pkg SHA256도 위 `e02672c2…ecb93daf`와 동일해 Docker/WASM을 중복 빌드하지 않았다.
+전체 workspace 제출 CI/원격 작업은 미실행이다. 내부 커밋은 `triage-verified-commit.txt`에
+연결한다. 다음은 종료 점유/전진 결과의 구분과 유효한 TAC/분할 경계 입력 재설계다.
