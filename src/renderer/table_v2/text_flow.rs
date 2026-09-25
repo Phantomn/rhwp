@@ -111,7 +111,8 @@ impl PreparedTextTable {
                                                 .collect(),
                                         })
                                     }
-                                    ParagraphItem::TableControl(_)
+                                    ParagraphItem::ObjectRow { .. }
+                                    | ParagraphItem::TableControl(_)
                                     | ParagraphItem::InlineTables { .. } => {
                                         return Err(GeometryError::InconsistentAtomicPlan)
                                     }

@@ -174,8 +174,13 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
                             };
                             super::decoration::validate_source(table, &document.doc_info)
                                 .map_err(fail)?;
-                            let prepared =
-                                PreparedTextTable::prepare(table, &styles, dpi).map_err(fail)?;
+                            let prepared = PreparedTextTable::prepare_with_resources(
+                                table,
+                                &styles,
+                                dpi,
+                                &document.bin_data_content,
+                            )
+                            .map_err(fail)?;
                             let owner = ControlOwner {
                                 paragraph: pi,
                                 control: ci,
@@ -234,7 +239,13 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
                 )));
             }
             super::decoration::validate_source(table, &document.doc_info).map_err(fail)?;
-            let prepared = PreparedTextTable::prepare(table, &styles, dpi).map_err(fail)?;
+            let prepared = PreparedTextTable::prepare_with_resources(
+                table,
+                &styles,
+                dpi,
+                &document.bin_data_content,
+            )
+            .map_err(fail)?;
             let free = body.width - prepared.plan.width;
             if free < 0.0 {
                 return Err(fail(GeometryError::Unsupported(
@@ -286,7 +297,9 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
                         })
                         .collect(),
                 }),
-                ParagraphItem::TableControl(_) | ParagraphItem::InlineTables { .. } => {
+                ParagraphItem::ObjectRow { .. }
+                | ParagraphItem::TableControl(_)
+                | ParagraphItem::InlineTables { .. } => {
                     return Err(fail(GeometryError::InconsistentAtomicPlan))
                 }
             }

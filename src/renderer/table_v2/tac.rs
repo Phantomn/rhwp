@@ -68,6 +68,17 @@ pub fn stored_tac_rows(
     width_hu: f64,
     alignment: Alignment,
 ) -> Result<Vec<StoredTacRow>, GeometryError> {
+    stored_object_rows(para, width_hu, alignment, false)
+}
+
+// Same source-slot/line query for images. `tables` in the public legacy result
+// names control indices; only the private image adapter consumes image slots.
+pub(super) fn stored_object_rows(
+    para: &Paragraph,
+    width_hu: f64,
+    alignment: Alignment,
+    pictures: bool,
+) -> Result<Vec<StoredTacRow>, GeometryError> {
     if !complete_stream(para)
         || para.stored_text_partition_is_dirty()
         || para.source_line_seg_vertical_pos.is_some()
@@ -131,10 +142,7 @@ pub fn stored_tac_rows(
         ) {
             continue;
         }
-        let Control::Table(table) = ctrl else {
-            return Err(unsupported());
-        };
-        let a = &table.common;
+        let (a, margins) = object_box(ctrl, pictures)?;
         if !a.treat_as_char
             || a.width == 0
             || a.height == 0
@@ -144,12 +152,6 @@ pub fn stored_tac_rows(
         {
             return Err(unsupported());
         }
-        let margins = [
-            table.outer_margin_left,
-            table.outer_margin_right,
-            table.outer_margin_top,
-            table.outer_margin_bottom,
-        ];
         if margins.iter().any(|v| *v < 0) {
             return Err(unsupported());
         }
@@ -161,12 +163,11 @@ pub fn stored_tac_rows(
         if f64::from(a.height) + f64::from(margins[2]) + f64::from(margins[3]) != row.height {
             return Err(GeometryError::Unsupported("unequal TAC occupied envelopes"));
         }
-        let pen = row.tables.last().map_or(0.0, |(previous, r)| {
-            let Control::Table(t) = &para.controls[*previous] else {
-                unreachable!()
-            };
-            r.x + r.width + f64::from(t.outer_margin_right)
-        });
+        let pen = if let Some((previous, r)) = row.tables.last() {
+            r.x + r.width + f64::from(object_box(&para.controls[*previous], pictures)?.1[1])
+        } else {
+            0.0
+        };
         row.tables.push((
             ci,
             Rect {
@@ -181,14 +182,10 @@ pub fn stored_tac_rows(
         let Some((ci, last)) = row.tables.last() else {
             continue;
         };
-        let Control::Table(table) = &para.controls[*ci] else {
-            unreachable!()
-        };
+        let (_, margins) = object_box(&para.controls[*ci], pictures)?;
         let source_row = &para.line_segs[row.source_line];
-        let free = f64::from(source_row.segment_width)
-            - last.x
-            - last.width
-            - f64::from(table.outer_margin_right);
+        let free =
+            f64::from(source_row.segment_width) - last.x - last.width - f64::from(margins[1]);
         if free < 0.0 {
             return Err(GeometryError::Unsupported("TAC row exceeds stored width"));
         }
@@ -207,16 +204,41 @@ pub fn stored_tac_rows(
     Ok(rows)
 }
 
+fn object_box(
+    ctrl: &Control,
+    pictures: bool,
+) -> Result<(&crate::model::shape::CommonObjAttr, [i32; 4]), GeometryError> {
+    match ctrl {
+        Control::Table(t) if !pictures => Ok((
+            &t.common,
+            [
+                t.outer_margin_left.into(),
+                t.outer_margin_right.into(),
+                t.outer_margin_top.into(),
+                t.outer_margin_bottom.into(),
+            ],
+        )),
+        Control::Picture(p) if pictures => Ok((
+            &p.common,
+            [
+                p.common.margin.left.into(),
+                p.common.margin.right.into(),
+                p.common.margin.top.into(),
+                p.common.margin.bottom.into(),
+            ],
+        )),
+        _ => Err(unsupported()),
+    }
+}
+
 pub(super) fn same(a: f64, b: f64) -> bool {
     (a - b).abs() <= 32.0 * f64::EPSILON * a.abs().max(b.abs()).max(1.0)
 }
 
-pub(super) fn compose(
+pub(super) fn carrier_style<'a>(
     para: &Paragraph,
-    width: f64,
-    styles: &ResolvedStyleSet,
-    dpi: f64,
-) -> Result<Vec<ParagraphItem>, GeometryError> {
+    styles: &'a ResolvedStyleSet,
+) -> Result<&'a crate::renderer::style_resolver::ResolvedParaStyle, GeometryError> {
     let style = styles
         .para_styles
         .get(para.para_shape_id as usize)
@@ -237,6 +259,16 @@ pub(super) fn compose(
     }
     super::contracts::nonnegative(style.spacing_before, "TAC spacing before")?;
     super::contracts::nonnegative(style.spacing_after, "TAC spacing after")?;
+    Ok(style)
+}
+
+pub(super) fn compose(
+    para: &Paragraph,
+    width: f64,
+    styles: &ResolvedStyleSet,
+    dpi: f64,
+) -> Result<Vec<ParagraphItem>, GeometryError> {
+    let style = carrier_style(para, styles)?;
     let scale = dpi / 7200.0;
     let rows = stored_tac_rows(para, width / scale, style.alignment)?;
     let mut items = vec![ParagraphItem::Space(style.spacing_before)];

@@ -80,7 +80,17 @@ impl PreparedTextTable {
         styles: &ResolvedStyleSet,
         dpi: f64,
     ) -> Result<Self, GeometryError> {
-        super::text_ir::prepare(table, styles, dpi)
+        super::text_ir::prepare(table, styles, dpi, &[])
+    }
+
+    /// Snapshot embedded resources for qualified control-only picture rows.
+    pub fn prepare_with_resources(
+        table: &Table,
+        styles: &ResolvedStyleSet,
+        dpi: f64,
+        resources: &[crate::model::bin_data::BinDataContent],
+    ) -> Result<Self, GeometryError> {
+        super::text_ir::prepare(table, styles, dpi, resources)
     }
 
     pub fn start(&self) -> TextTableCursor {

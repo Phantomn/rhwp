@@ -179,7 +179,12 @@ impl TablePreviewSession {
         };
         super::decoration::validate_source(table, &document.doc_info)?;
         let styles = resolve_styles_for_document(document, dpi);
-        let prepared = PreparedTextTable::prepare(table, &styles, dpi)?;
+        let prepared = PreparedTextTable::prepare_with_resources(
+            table,
+            &styles,
+            dpi,
+            &document.bin_data_content,
+        )?;
         let mut session = Self::new(&prepared, pages, max_pages)?;
         session.selection = Some(selection);
         Ok(session)

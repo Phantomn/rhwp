@@ -873,3 +873,91 @@ width만0으로 바뀌었고 다른 좌표·내용은 동일하다(`prior-native
 줄 소속·점유·BinData paint까지 연결해야 한다. 그림을 삭제하거나 Legacy 표 조판으로
 우회하지 않는다. 원본 종단 수용/PDF 비교와 A/R5는 아직 진행 중이다.
 기본 엔진 전환·remote push·PR은 수행하지 않았다.
+
+## 후속 — 셀의 저장 TAC 그림 줄과 리소스
+
+선행 소스는 `034c0777e`다. 원본 첫 표의 cell1/bin1과 cell8/bin2는 문자 없이
+그림 컨트롤을 가진 저장 줄이며 선언 크기는 각각8021×5064,10738×4617HU다.
+원본의 줄/그림/리소스를 지우지 않고 V2에 연결한다. 문자 없는 완전한 제어 슬롯,
+같은 줄에서 같은 점유 envelope, 양의 줄 높이와 겹치지 않는 저장 줄을 이번 경계로
+한정한다. 그림별 바깥여백을 포함한 줄은 원자적이며 예산이 부족하면 통째로 이월한다.
+문자 혼합·부유 배치·음수 줄간격/겹침·회전/전단·그림 효과·캡션은 명시적 미지원이다.
+긍정 배율은 선언 크기에 이미 반영되어 있으므로 그림을 다시 확대/축소하지 않는다.
+
+소비 경로는 `tac.rs::stored_object_rows`의 실제8-unit 소속/저장 cs·sw/여백 query →
+`pictures.rs::compose`의 TextLine+Image와 동일 bounds →
+`ir.rs::bind_table`의 ObjectRow 소유 검사/FlowBlock::Lines →
+`flow.rs::FlowCursor`의 Lines 예산 검사/pen 누적·불수용 시 같은 유닛 이월 →
+`text.rs::TextPaint::paint`의 동일 payload 평행 이동이다. `text_ir.rs`는 paint 순서를
+같은 ObjectRow로 기록한다. 그림 리소스는 selected-table `session.rs` 및 본문
+`document_input.rs`의 두 표 진입점에서 전달한다. 실제 그림 데이터는 스냅샷에 포함되며
+입력 버퍼를 폐기해도 유지된다. common paint의 crop/reference-size를 보존한다.
+새로운 height clamp, 별도 그림 좌표 재계산, Legacy 표 fallback은 추가하지 않았다.
+rowspan/표 분할 알고리즘 자체는 이번에 바꾸지 않았다.
+
+`tests/cases/issue_7353_table_v2_export.rs`는 좌/중앙/우 정렬, 같은 줄 그림2개와
+서로 다른 저장 줄,24px 그림에23px만 남는 예산, 뒤 문단·종료, 여백/자르기,
+중첩 셀/부모 높이, DocumentV2 리소스 전달, 누락 리소스/모호한 소속/효과 거부를
+검사한다. 기대값은 합성 입력의 명시적인HU·12px 글줄/18px pitch,24px 그림 줄과
+정렬 불변식으로 정했다.4색 PNG와 좌상단 자르기의 빨간 픽셀은 독립적인 paint oracle이다.
+원본 두 그림은 원본 문단을 유지한 단일 셀 probe로 검사하고 HWPX 파생 입력으로도
+재열어 크기를 확인한다. 부모 표/다른 문단을 제거한 **격리 파생본**이며 원본 전체 문서나
+한컴 생성 대조군으로 주장하지 않는다.
+
+증적 폴더는 `output/7353/r19/pictures/`다. `before.log`는 기존 소스에서 새 긍정
+계약2건이 `non-table cell control`로 FAIL한 증거다. `after.log`의 실제 새 양성 계약은
+통과했으나, 음성 입력을 직렬화할 때 잘못된 리소스 그림이 생략된 것과 원본 다음 거부
+변경 때문에2 FAIL했다. 음성 검사는 손실 직렬화 전의 IR을 직접 검사하도록 정정했다.
+`after2.log`의 추가1 FAIL은 합성 DocumentV2 입력에 PageDef가 없던 문제로, 명시적인
+400×200px 용지를 입력에 추가했다. 실행되지 않은 CLI 인자 오류/컴파일 오류는
+결함 재현 증거에 포함하지 않는다. 원본 admission은 문단0의
+`stored text paragraph insets`로 이동했으며 그 진단 기대값만 갱신했다.
+baseline/golden/ignore를 바꾸지 않았다.
+
+`native-center.png`와 `native-source-1.png`를 직접 열어 중앙 정렬 그림 줄과 원본
+로고의 표시를 확인한 뒤 제품 소스를 고정하고 Docker fresh WASM을 시작했다.
+최종 회귀·lint·WASM 직접 대조 결과는 이어 기록한다. A/R5와 원본 종단 피델리티는
+여전히 진행 중이며 기본 엔진/원격 작업은 변경하지 않는다.
+
+기준 PDF1쪽(`gradient/reference-p1.png`)도 직접 확인했다. 오른쪽 OPEN 그림은 보이지만
+왼쪽 첫 로고 영역은 비어 있어 격리 probe의 로고 출력과 다르다. 원본 전체 V2는 아직
+수용되지 않으므로 원래 부모 셀/문서 문맥에서의 원인과 일치 여부는 미검증이다.
+probe 통과로 이 차이를 해소하거나 한컴 피델리티 통과로 분류하지 않는다.
+
+최종 `final-tests.log`는210 PASS(V2 188+Legacy/저장 inline 대조22)다. review
+worktree에서 source 변경 후 manifest를 다시 prepare하고 `resolveCasePlan`으로 각
+case의 generated target을 찾아 `cargo nextest run --locked --no-fail-fast`와 case
+필터를 실행했다. `CARGO_BUILD_JOBS=1`, shared `target/pr-review`를 사용했다.
+`fmt.log`, `clippy-{native,wasm,test}.log`는 fmt check와 Native/WASM library 및
+변경 integration target의 Clippy(-D warnings) 통과 증거다. `policy.log`는 고정 base
+`7a95e46e025470a4d7a7b59ad68ec02958bda738` 대비 manifest check 통과다.
+source-side unit test는 변경하지 않았고 전체 workspace 제출 CI를 실행한 것은 아니다.
+최초 Native Clippy가 unsigned width/height의 `<=0`을 지적해 동등한 `==0`으로 정리했다
+(`clippy-native-before.log`). 진행 중 Docker를 중단한 뒤 최종 소스로 다시 빌드했으며,
+위210건도 수정 후 다시 실행한 결과다. `prior-native-compare.log`의 기존89 fixture
+출력은 이전 절편과 byte 동일하다.
+
+최종 `docker compose --env-file .env.docker -p rhwp run --rm wasm`은7분23초에
+완료했다(`docker-wasm.log`). fresh WASM SHA256은
+`855a9531992f7d966d6017e710563f4675aa4a53334ee75934ffd2123d06699c`다.
+browser 명령은 직전 stored-frames 검증과 동일한 flags에 `--pictures`를 추가하고
+fixtures/out을 `pictures/` 아래로 변경했다. `browser.log`/`browser/manifest.json`은
+187쪽(기존161+새 그림26)의 정확한 Native/fresh WASM tree·SVG 일치와 입력 폐기·
+독립 cursor·재열기·거부·rollback·종료 검사의 통과 증거다. 새4색 그림과 crop 결과는
+두 backend의 실제 PNG 내부 픽셀도 검사한다. `prior-visual-compare.log`의 기존161쪽
+review PNG는 모두 이전과 byte 동일하다.
+
+`browser/pictures-contact.png`의 새26쪽 standalone overlay와
+`browser/picture-center-0.review.png`, `picture-crop-margin-0.review.png`,
+`picture-source-8-0.review.png`를 직접 열었다. 정렬·여백, 그림 줄 전체 이월/다른 줄의
+이어받기, 부모 셀 뒤의 after/tail 위치와 자르기 표시를 확인했다. 각 `.native.png`,
+`.wasm.png`, `.overlay.png`, `.review.png`가 같은 폴더에 있다. 이 판정은 합성 규칙과
+backend 일치에 대한 것으로 원본 전체 PDF 일치나 Studio Canvas 편집 검증은 아니다.
+원본 첫 로고와 PDF의 차이는 앞서 기록한 미검증 상태로 남긴다.
+`source-final.sha256`/`post-build-source-check.log`, `original-inputs.sha256`,
+`verified-source.sha256`/`verified-commit.txt`로 빌드 소스·원본·최종 내부 커밋을 고정한다.
+
+다음은 `text.rs::TextComposer::compose`의 저장 문단 margin/indent 제약과 실제 저장
+줄 영역의 관계다. 측정·paint에서 같은 들여쓰기 결과를 소비하는지 확인하며 이어간다.
+이번 절편의 지원 범위는 완료했지만 원본 문서의 종단 수용/PDF 비교와 A/R5는 미완료다.
+기본 엔진 전환·push·PR은 수행하지 않았다.

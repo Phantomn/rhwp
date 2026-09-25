@@ -20,6 +20,12 @@ pub enum ParagraphItem {
         height: f64,
         lines: Vec<(usize, Rect)>,
     },
+    /// An indivisible painted line and the non-table control slots it consumes.
+    ObjectRow {
+        line: usize,
+        bounds: Rect,
+        controls: Vec<usize>,
+    },
     TableControl(usize),
     InlineTables {
         height: f64,
@@ -169,6 +175,9 @@ fn bind_table(
                     ));
                 }
                 for ctrl in &para.controls {
+                    if matches!(ctrl, Control::Picture(_)) {
+                        continue;
+                    }
                     let Control::Table(child) = ctrl else {
                         return Err(GeometryError::Unsupported("non-table cell control"));
                     };
@@ -179,6 +188,35 @@ fn bind_table(
                 let mut seen = vec![false; para.controls.len()];
                 for item in composer.compose(para, inner_width)? {
                     match item {
+                        ParagraphItem::ObjectRow {
+                            line,
+                            bounds,
+                            controls,
+                        } => {
+                            if controls.is_empty() {
+                                return Err(GeometryError::InconsistentAtomicPlan);
+                            }
+                            for ci in controls {
+                                if seen.get(ci).copied() != Some(false)
+                                    || !matches!(para.controls.get(ci), Some(Control::Picture(_)))
+                                {
+                                    return Err(GeometryError::Unsupported(
+                                        "invalid or repeated picture slot",
+                                    ));
+                                }
+                                seen[ci] = true;
+                            }
+                            blocks.push(FlowBlock::Lines {
+                                height: bounds.height,
+                                lines: vec![LineBox {
+                                    owner: LineOwner {
+                                        paragraph: pi,
+                                        line,
+                                    },
+                                    bounds,
+                                }],
+                            });
+                        }
                         ParagraphItem::Space(h) => blocks.push(FlowBlock::Space(h)),
                         ParagraphItem::Lines { height, lines } => blocks.push(FlowBlock::Lines {
                             height,

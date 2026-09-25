@@ -86,6 +86,10 @@ async function main() {
     negative.push('fill-border', 'fill-pattern');
   }
   const paintFailures = [];
+  if (process.argv.includes('--pictures')) {
+    for (const a of ['left','center','right']) positive.push(`picture-${a}`,`picture-${a}-defer`);
+    positive.push('picture-rows','picture-crop-margin','picture-source-1','picture-source-8','picture-nested');
+  }
   if (process.argv.includes('--stored-frames')) {
     positive.push('stored-frame-left', 'stored-frame-center', 'stored-frame-right',
       'stored-frame-empty-center', 'stored-frame-empty-right');
@@ -240,6 +244,15 @@ async function main() {
     expected['gradient-whole'] = [['title', 'A']];
     for (const alignment of ['left','center','right']) expected[`stored-frame-${alignment}`] = [['A','B'],['after']];
     for (const alignment of ['center','right']) expected[`stored-frame-empty-${alignment}`] = [['','after']];
+    for (const a of ['left','center','right']) {
+      expected[`picture-${a}`]=[['before'],['after']];
+      expected[`picture-${a}-defer`]=[['before'],[],['after']];
+    }
+    expected['picture-rows']=[['before'],[],[],['after']];
+    expected['picture-crop-margin']=[['before'],['after']];
+    expected['picture-source-1']=[[]];
+    expected['picture-source-8']=[[]];
+    expected['picture-nested']=[['before'],['after',''],['tail']];
     expected['border-grid'] = [['title', 'L1', 'R1']];
     expected['border-header'] = [['title', 'L1', 'R1'], ['title', 'L2', 'R2']];
     expected['border-nested'] = [...expected['border-header'], ['host', 'after']];
@@ -307,7 +320,24 @@ async function main() {
         const bordered = name.startsWith('border-');
         const cut = name.startsWith('cut-');
         const borderTail = name === 'border-nested' && index === 2;
-        if (name.startsWith('stored-frame-')) {
+        if (name.startsWith('picture-source-')) {
+          const pictures=collect(rootNode,'Image');
+          assert.equal(pictures.length,1);
+          const [w,h]=name.endsWith('-1')?[8021,5064]:[10738,4617];
+          assertDocumentGeometry([pictures[0].bbox.width,pictures[0].bbox.height],[w/75,h/75]);
+          const cell=collect(rootNode,'TableCell')[0].bbox, b=pictures[0].bbox;
+          assert.ok(b.x>=cell.x&&b.y>=cell.y&&b.x+b.width<=cell.x+cell.width+1e-9&&b.y+b.height<=cell.y+cell.height+1e-9);
+        } else if (name.startsWith('picture-')) {
+          const defer=name.endsWith('-defer'), rows=name==='picture-rows', cropped=name==='picture-crop-margin';
+          const imagePage=rows ? index===1||index===2 : index===(defer?1:0);
+          const x=cropped?72:rows||name==='picture-nested'?30:({left:30,center:75,right:120}[name.split('-')[1]]);
+          const y=cropped?52:defer||rows?30:48;
+          const boxes=imagePage ? Array.from({length:rows?1:2},(_,i)=>({x:x+i*(cropped?45:40),y,width:40,height:cropped?16:24})) : [];
+          assertDocumentGeometry(collect(rootNode,'Image').map(n=>n.bbox),boxes);
+          assertDocumentGeometry(collect(rootNode,'TableCell').map(n=>n.bbox.height),
+            name==='picture-nested'?[[42,42],[42,24],[18]][index]:[rows ? [18,30,30,18][index] : defer ? [18,30,18][index] : [42,24][index]]);
+          for (const line of lines) assert.ok(line.bbox.y+line.bbox.height<=30+configs[fixtureName].pages.body.height);
+        } else if (name.startsWith('stored-frame-')) {
           const empty=name.startsWith('stored-frame-empty-');
           const boxes=empty ? [{x:30,y:30,width:150,height:12},{x:20,y:48,width:200,height:12}]
             : index===0 ? [{x:30,y:30,width:150,height:12},{x:40,y:48,width:170,height:12}]
@@ -589,6 +619,16 @@ async function main() {
         }
         // Same Chrome raster environment; RGB overlay reference is Native, NOT Hancom.
         const imgs = ['native', 'wasm'].map(b => `data:image/png;base64,${readFileSync(join(out, `${stem}.${b}.png`)).toString('base64')}`);
+        if (name.startsWith('picture-') && !name.startsWith('picture-source-')) {
+          const cropped=name==='picture-crop-margin';
+          const points=collect(rootNode,'Image').flatMap(n=>[[n.bbox.x+5,n.bbox.y+4],[n.bbox.x+35,n.bbox.y+4],[n.bbox.x+5,n.bbox.y+n.bbox.height-4],[n.bbox.x+35,n.bbox.y+n.bbox.height-4]]);
+          const pixels=await raster.evaluate(async ({imgs,points})=>Promise.all(imgs.map(async url=>{
+            const i=new Image();i.src=url;await i.decode();const c=document.createElement('canvas');c.width=400;c.height=400;
+            const ctx=c.getContext('2d');ctx.drawImage(i,0,0);return points.map(([x,y])=>[...ctx.getImageData(x,y,1,1).data]);
+          })),{imgs,points});
+          const colors=[[255,0,0,255],[0,255,0,255],[0,0,255,255],[255,255,0,255]];
+          for(const samples of pixels) assert.deepEqual(samples,points.map((_,i)=>colors[cropped?0:i%4]),`${stem}: decoded embedded picture colors`);
+        }
         if ((bordered && !borderTail) || cut) {
           const bottom = (name === 'cut-tail' || name === 'cut-nested') && index === 2 ? 48 : 66;
           const points = cut ? [[20,40],[220,40],[150,bottom],[17,40],[150,bottom+3]]

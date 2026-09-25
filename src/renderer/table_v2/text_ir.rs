@@ -18,9 +18,11 @@ pub(super) fn prepare(
     table: &Table,
     styles: &ResolvedStyleSet,
     dpi: f64,
+    resources: &[crate::model::bin_data::BinDataContent],
 ) -> Result<PreparedTextTable, GeometryError> {
     validate_text_context(styles, dpi)?;
     let composer = IrTextComposer {
+        resources,
         text: TextComposer {
             styles,
             dpi,
@@ -44,6 +46,7 @@ pub(super) fn prepare(
 }
 
 struct IrTextComposer<'a> {
+    resources: &'a [crate::model::bin_data::BinDataContent],
     text: TextComposer<'a>,
     paragraphs: RefCell<Vec<ParagraphPaint>>,
 }
@@ -66,6 +69,7 @@ impl CellParagraphComposer for IrTextComposer<'_> {
         let mut slots = Vec::new();
         for item in &items {
             match item {
+                ParagraphItem::ObjectRow { line, .. } => slots.push(PaintSlot::Line(*line)),
                 ParagraphItem::Lines { lines, .. } => {
                     slots.extend(lines.iter().map(|(line, _)| PaintSlot::Line(*line)))
                 }
@@ -97,6 +101,21 @@ impl IrTextComposer<'_> {
     ) -> Result<Vec<ParagraphItem>, GeometryError> {
         if para.controls.is_empty() {
             return self.text.compose(para, width);
+        }
+        if para
+            .controls
+            .iter()
+            .all(|c| matches!(c, Control::Picture(_)))
+        {
+            let (items, nodes) = super::pictures::compose(
+                para,
+                width,
+                self.text.styles,
+                self.text.dpi,
+                self.resources,
+            )?;
+            self.text.payloads.borrow_mut().push(nodes);
+            return Ok(items);
         }
         if para
             .controls

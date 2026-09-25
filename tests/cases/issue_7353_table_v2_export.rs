@@ -163,6 +163,385 @@ fn solid(color: u32) -> BorderFill {
     }
 }
 
+fn picture_document(alignment: rhwp::model::style::Alignment, separate: bool) -> Document {
+    use rhwp::model::{
+        bin_data::{BinData, BinDataContent, BinDataType},
+        image::Picture,
+    };
+    let image = image::RgbImage::from_fn(8, 8, |x, y| {
+        image::Rgb(if x < 4 {
+            if y < 4 {
+                [255, 0, 0]
+            } else {
+                [0, 0, 255]
+            }
+        } else if y < 4 {
+            [0, 255, 0]
+        } else {
+            [255, 255, 0]
+        })
+    });
+    let mut png = std::io::Cursor::new(Vec::new());
+    image.write_to(&mut png, image::ImageFormat::Png).unwrap();
+    let mut p = paragraph("");
+    p.char_count = 17;
+    for _ in 0..2 {
+        let mut pic = Picture::default();
+        pic.common.treat_as_char = true;
+        pic.common.width = 3000;
+        pic.common.height = 1800;
+        pic.shape_attr.original_width = 600;
+        pic.shape_attr.original_height = 600;
+        pic.shape_attr.current_width = 3000;
+        pic.shape_attr.current_height = 1800;
+        pic.image_attr.bin_data_id = 1;
+        p.controls.push(Control::Picture(Box::new(pic)));
+    }
+    p.line_segs = (0..if separate { 2 } else { 1 })
+        .map(|i| LineSeg {
+            text_start: i * 8,
+            vertical_pos: 7500 + i as i32 * 2250,
+            column_start: 750,
+            segment_width: 12750,
+            line_height: 1800,
+            text_height: 900,
+            baseline_distance: 1800,
+            line_spacing: 450,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+        })
+        .collect();
+    let mut t = table();
+    t.row_count = 1;
+    t.cells.truncate(1);
+    t.repeat_header = false;
+    t.cells[0].is_header = false;
+    t.cells[0].paragraphs = vec![paragraph("before"), p, paragraph("after")];
+    let mut d = document(t);
+    d.doc_info.para_shapes[0].alignment = alignment;
+    d.doc_info.bin_data_list.push(BinData {
+        storage_id: 1,
+        data_type: BinDataType::Embedding,
+        extension: Some("png".into()),
+        ..Default::default()
+    });
+    d.bin_data_content.push(BinDataContent {
+        id: 1,
+        data: png.into_inner().into(),
+        extension: "png".into(),
+    });
+    d
+}
+
+#[test]
+fn stored_picture_rows_move_atomically_keep_resources_and_following_text() {
+    use rhwp::model::style::Alignment;
+    for (suffix, alignment, x) in [
+        ("left", Alignment::Left, 30.0),
+        ("center", Alignment::Center, 75.0),
+        ("right", Alignment::Right, 120.0),
+    ] {
+        let d = picture_document(alignment, false);
+        let data = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+        let mut config = options(&data);
+        config["pages"]["body"]["height"] = json!(42);
+        let mut session = open(&data, &config);
+        let pages = drain(&mut session);
+        assert_eq!(pages.len(), 2);
+        assert_eq!(labels(&pages[0]), ["before"]);
+        assert_eq!(labels(&pages[1]), ["after"]);
+        let images = collect(&pages[0], "Image");
+        assert_eq!(images.len(), 2);
+        for (i, n) in images.iter().enumerate() {
+            assert_eq!(
+                n["bbox"],
+                json!({"x":x+i as f64*40.0,"y":48.0,"width":40.0,"height":24.0})
+            );
+        }
+        assert!(collect(&pages[1], "Image").is_empty());
+        assert_eq!(collect(&pages[1], "TextLine")[0]["bbox"]["y"], 36.0);
+        assert!(pages[0]["svg"]
+            .as_str()
+            .unwrap()
+            .contains("data:image/png;base64,"));
+        capture(&format!("picture-{suffix}"), &data, &config, &pages);
+        // Only 23px remain after text: the 24px image row must not be clipped.
+        config["pages"]["body"]["height"] = json!(41);
+        let mut short = open(&data, &config);
+        let moved = drain(&mut short);
+        assert_eq!(moved.len(), 3);
+        assert!(collect(&moved[0], "Image").is_empty());
+        assert_eq!(collect(&moved[1], "Image").len(), 2);
+        assert_eq!(collect(&moved[1], "Image")[0]["bbox"]["y"], 30.0);
+        assert_eq!(labels(&moved[2]), ["after"]);
+        capture(&format!("picture-{suffix}-defer"), &data, &config, &moved);
+    }
+    let data =
+        rhwp::serializer::hwpx::serialize_hwpx(&picture_document(Alignment::Left, true)).unwrap();
+    let config = options(&data);
+    let pages = drain(&mut open(&data, &config));
+    assert_eq!(pages.len(), 4);
+    assert_eq!(collect(&pages[1], "Image").len(), 1);
+    assert_eq!(collect(&pages[2], "Image").len(), 1);
+    assert_eq!(labels(&pages[3]), ["after"]);
+    capture("picture-rows", &data, &config, &pages);
+}
+
+#[test]
+fn stored_pictures_in_nested_cell_preserve_ancestor_and_following_flow() {
+    let mut d = picture_document(rhwp::model::style::Alignment::Left, false);
+    let Control::Table(child) = d.sections[0].paragraphs[0].controls.remove(0) else {
+        panic!()
+    };
+    let mut parent = table();
+    parent.row_count = 1;
+    parent.cells.truncate(1);
+    parent.repeat_header = false;
+    parent.cells[0].is_header = false;
+    parent.cells[0].paragraphs = vec![host("", *child), paragraph("tail")];
+    d.sections[0].paragraphs = vec![host("", parent)];
+    let data = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+    let mut config = options(&data);
+    config["pages"]["body"]["height"] = json!(42);
+    let pages = drain(&mut open(&data, &config));
+    assert_eq!(pages.len(), 3);
+    assert_eq!(labels(&pages[0]), ["before"]);
+    assert_eq!(labels(&pages[1]), ["after", ""]);
+    assert_eq!(labels(&pages[2]), ["tail"]);
+    for (page, heights) in pages
+        .iter()
+        .zip([vec![42.0, 42.0], vec![42.0, 24.0], vec![18.0]])
+    {
+        assert_eq!(
+            collect(page, "TableCell")
+                .iter()
+                .map(|c| c["bbox"]["height"].as_f64().unwrap())
+                .collect::<Vec<_>>(),
+            heights
+        );
+    }
+    assert_eq!(collect(&pages[0], "Image").len(), 2);
+    assert!(pages[1..].iter().all(|p| collect(p, "Image").is_empty()));
+    capture("picture-nested", &data, &config, &pages);
+}
+
+#[test]
+fn stored_picture_margins_crop_and_document_resources_are_preserved() {
+    use rhwp::model::{image::CropInfo, style::Alignment};
+    use rhwp::renderer::table_v2::DocumentV2Session;
+    let mut d = picture_document(Alignment::Center, false);
+    d.sections[0].section_def.page_def = rhwp::model::page::PageDef {
+        width: 30000,
+        height: 15000,
+        margin_left: 1500,
+        margin_right: 6000,
+        margin_top: 1500,
+        margin_header: 750,
+        margin_bottom: 5100,
+        margin_footer: 2250,
+        ..Default::default()
+    };
+    let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+        panic!()
+    };
+    for ctrl in &mut t.cells[0].paragraphs[1].controls {
+        let Control::Picture(pic) = ctrl else {
+            panic!()
+        };
+        pic.common.height = 1200;
+        pic.common.margin.top = 300;
+        pic.common.margin.bottom = 300;
+        pic.common.margin.left = 150;
+        pic.common.margin.right = 225;
+        pic.img_dim = (600, 600);
+        // Top-left quarter of the independent quadrant bitmap is uniformly red.
+        pic.crop = CropInfo {
+            left: 0,
+            top: 0,
+            right: 300,
+            bottom: 300,
+        };
+    }
+    let mut data = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+    let original = data.clone();
+    let mut config = options(&data);
+    config["pages"]["body"]["height"] = json!(42);
+    let mut snapshot = open(&data, &config);
+    let mut document =
+        DocumentV2Session::from_bytes(&data, r#"{"dpi":96,"max_pages":10}"#).unwrap();
+    data.fill(0);
+    d.bin_data_content.clear();
+    let pages = drain(&mut snapshot);
+    assert_eq!(pages.len(), 2);
+    let images = collect(&pages[0], "Image");
+    for (i, n) in images.iter().enumerate() {
+        // (170 - 2*(40+2+3))/2 = 40px of centering; 4px top/bottom margins.
+        assert_eq!(
+            n["bbox"],
+            json!({"x":72.0+i as f64*45.0,"y":52.0,"width":40.0,"height":16.0})
+        );
+        assert_eq!(n["node_type"]["Image"]["crop"], json!([0, 0, 300, 300]));
+        assert_eq!(
+            n["node_type"]["Image"]["original_size_hu"],
+            json!([600, 600])
+        );
+    }
+    assert_eq!(images.len(), 2);
+    assert_eq!(collect(&pages[0], "TableCell")[0]["bbox"]["height"], 42.0);
+    capture("picture-crop-margin", &original, &config, &pages);
+    let mut count = 0;
+    while let Some(page) = document.next_page_json().unwrap() {
+        let v: Value = serde_json::from_str(&page).unwrap();
+        count += collect(&v, "Image").len();
+    }
+    assert_eq!(
+        count, 2,
+        "whole-document table binding carries the same resources"
+    );
+}
+
+#[test]
+fn stored_picture_rejects_missing_resource_effects_and_ambiguous_streams() {
+    use rhwp::renderer::table_v2::{Rect, TablePreviewPages, TablePreviewSession, TableSelection};
+    for variant in 0..12 {
+        let mut d = picture_document(rhwp::model::style::Alignment::Center, false);
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            panic!()
+        };
+        let p = &mut t.cells[0].paragraphs[1];
+        let Control::Picture(pic) = &mut p.controls[0] else {
+            panic!()
+        };
+        match variant {
+            0 => pic.image_attr.bin_data_id = 99,
+            1 => pic.common.treat_as_char = false,
+            2 => pic.shape_attr.rotation_angle = 90,
+            3 => pic.image_attr.brightness = 30,
+            4 => pic.common.height -= 1,
+            5 => {
+                p.text = "X".into();
+                p.char_offsets = vec![16];
+                p.char_count += 1;
+            }
+            6 => p.line_segs[0].line_spacing = -100,
+            7 => pic.common.horizontal_offset = 1,
+            8 => pic.shape_attr.render_tx = 1.0,
+            9 => pic.shape_attr.render_sx = f64::NAN,
+            10 => pic.shape_attr.render_sy = -1.0,
+            _ => pic.crop.right = -1,
+        }
+        // A serializer may omit a picture with an unresolved resource. Inspect
+        // the actual malformed source instead of testing that lossy derivative.
+        assert!(
+            TablePreviewSession::from_document(
+                &d,
+                TableSelection {
+                    section: 0,
+                    paragraph: 0,
+                    control: 0
+                },
+                96.0,
+                TablePreviewPages {
+                    width: 400.0,
+                    height: 400.0,
+                    body: Rect {
+                        x: 20.0,
+                        y: 30.0,
+                        width: 300.0,
+                        height: 100.0
+                    },
+                    first_y: 30.0
+                },
+                10
+            )
+            .is_err(),
+            "variant {variant}"
+        );
+    }
+}
+
+#[test]
+fn original_6923_picture_rows_keep_their_declared_frames() {
+    use rhwp::renderer::table_v2::{Rect, TablePreviewPages, TablePreviewSession, TableSelection};
+    let data = std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"),
+    )
+    .unwrap();
+    let source = rhwp::parse_document(&data).unwrap();
+    let Control::Table(original) = &source.sections[0].paragraphs[0].controls[3] else {
+        panic!()
+    };
+    for (ci, width, height) in [(1, 8021.0, 5064.0), (8, 10738.0, 4617.0)] {
+        let mut d = source.clone();
+        let mut cell = original.cells[ci].clone();
+        cell.row = 0;
+        cell.col = 0;
+        cell.row_span = 1;
+        cell.col_span = 1;
+        cell.height = 0;
+        cell.border_fill_id = 0;
+        cell.paragraphs.truncate(1);
+        let table = Table {
+            row_count: 1,
+            col_count: 1,
+            cells: vec![cell],
+            padding: original.padding,
+            page_break: TablePageBreak::RowBreak,
+            ..Default::default()
+        };
+        d.sections[0].paragraphs = vec![host("", table)];
+        let mut s = TablePreviewSession::from_document(
+            &d,
+            TableSelection {
+                section: 0,
+                paragraph: 0,
+                control: 0,
+            },
+            96.0,
+            TablePreviewPages {
+                width: 400.0,
+                height: 400.0,
+                body: Rect {
+                    x: 20.0,
+                    y: 30.0,
+                    width: 300.0,
+                    height: 150.0,
+                },
+                first_y: 30.0,
+            },
+            10,
+        )
+        .unwrap();
+        let page = s.next_page().unwrap().unwrap();
+        assert!(s.next_page().unwrap().is_none());
+        let value = json!({"render_tree":page.tree});
+        let images = collect(&value, "Image");
+        assert_eq!(images.len(), 1);
+        for (field, hu) in [("width", width), ("height", height)] {
+            assert!((images[0]["bbox"][field].as_f64().unwrap() - hu / 75.0).abs() < 1e-9);
+        }
+        // This HWPX is an explicitly isolated derivative, NOT a replacement
+        // Hancom document oracle. Keep its raw JSON to preserve f64 roundtrip.
+        let data = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+        let mut config = options(&data);
+        config["pages"]["body"]["height"] = json!(150);
+        let mut exported = open(&data, &config);
+        let raw = exported.next_page_json().unwrap().unwrap();
+        assert!(exported.next_page_json().unwrap().is_none());
+        let v: Value = serde_json::from_str(&raw).unwrap();
+        let image = collect(&v, "Image");
+        assert_eq!(image.len(), 1);
+        for (field, hu) in [("width", width), ("height", height)] {
+            assert!((image[0]["bbox"][field].as_f64().unwrap() - hu / 75.0).abs() < 1e-9);
+        }
+        let name = format!("picture-source-{ci}");
+        capture(&name, &data, &config, &[v]);
+        if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
+            std::fs::write(format!("{dir}/{name}.native.json"), format!("[{raw}]")).unwrap();
+        }
+    }
+}
+
 #[test]
 fn stored_line_frames_export_without_replacing_their_width_or_origin() {
     use rhwp::model::style::Alignment;
