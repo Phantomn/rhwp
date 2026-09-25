@@ -208,6 +208,15 @@ pub(super) fn validate_paragraph_source(id: u16, info: &DocInfo) -> Result<(), G
         .ok_or(GeometryError::Unsupported(
             "missing paragraph borderFill reference",
         ))?;
+    if !source_border_is_unpainted(b) {
+        return Err(GeometryError::Unsupported("V2 paragraph decoration"));
+    }
+    Ok(())
+}
+
+/// A page/paragraph border-fill reference may name an explicitly unpainted
+/// style. Inspect its effects without deleting or rewriting the source record.
+pub(super) fn source_border_is_unpainted(b: &crate::model::style::BorderFill) -> bool {
     let no_fill = match b.fill.fill_type {
         FillType::None => true,
         FillType::Solid => b
@@ -217,17 +226,13 @@ pub(super) fn validate_paragraph_source(id: u16, info: &DocInfo) -> Result<(), G
             .is_some_and(|s| s.pattern_type <= 0 && s.background_color >> 24 != 0),
         _ => false,
     };
-    if b.three_d
-        || b.attr != 0
-        || b.center_line != CenterLine::None
-        || b.borders
+    !b.three_d
+        && b.attr == 0
+        && b.center_line == CenterLine::None
+        && b.borders
             .iter()
-            .any(|p| p.line_type != BorderLineType::None)
-        || !no_fill
-    {
-        return Err(GeometryError::Unsupported("V2 paragraph decoration"));
-    }
-    Ok(())
+            .all(|p| p.line_type == BorderLineType::None)
+        && no_fill
 }
 
 /// Resolved-only callers also reject every visible decoration. Pen widths or

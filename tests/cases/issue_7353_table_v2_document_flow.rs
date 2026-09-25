@@ -1035,6 +1035,109 @@ fn empty_page_decoration_records_preserve_body_and_split_table_output() {
 }
 
 #[test]
+fn hancom_saved_anchor_review_preserves_rows_and_following_paragraph() {
+    let input = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue7353_stored_anchor_review/anchor-review-saved.hwp"
+    ))
+    .unwrap();
+    let document = rhwp::parse_document(&input).unwrap();
+    assert_ne!(
+        document.sections[0]
+            .section_def
+            .page_border_fill
+            .border_fill_id,
+        0
+    );
+    let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+    // Independent matching PDF: p1 has rows01..19, p2 rows20..24 + following
+    // paragraph. This is NOT a fidelity assertion for the continuation origin:
+    // its approx1mm discrepancy remains documented, not blessed as a baseline.
+    assert_eq!(pages.len(), 2);
+    let mut first = vec!["표 시작 위치 확인".to_owned()];
+    first.extend((1..=19).map(|i| format!("자료 {i:02} : 표 안의 문단과 페이지 연결 확인")));
+    let mut second: Vec<_> = (20..=24)
+        .map(|i| format!("자료 {i:02} : 표 안의 문단과 페이지 연결 확인"))
+        .collect();
+    second.push("표 종료 후 본문입니다.".to_owned());
+    let line_texts = |page: &Value| {
+        nodes(page, "TextLine")
+            .into_iter()
+            .map(|line| {
+                let mut runs = Vec::new();
+                collect(line, "TextRun", &mut runs);
+                runs.iter()
+                    .map(|run| run["node_type"]["TextRun"]["text"].as_str().unwrap())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(line_texts(&pages[0]), first);
+    assert_eq!(line_texts(&pages[1]), second);
+    for page in &pages {
+        let body = nodes(page, "Body")[0];
+        let tables = nodes(page, "Table");
+        assert_eq!(tables.len(), 1);
+        let table = tables[0];
+        let bottom = |node: &Value| {
+            node["bbox"]["y"].as_f64().unwrap() + node["bbox"]["height"].as_f64().unwrap()
+        };
+        assert!(bottom(table) <= bottom(body));
+    }
+}
+
+#[test]
+fn unpainted_page_border_references_preserve_full_output() {
+    use rhwp::model::page::PageBorderFill;
+    use rhwp::model::style::{FillType, SolidFill};
+    let mut d = source(vec![
+        p("before"),
+        host(
+            "host",
+            table(&["A", "B", "C", "D"], TablePageBreak::CellBreak),
+        ),
+        p("after"),
+    ]);
+    let expected = drain(&mut open(&d));
+    let mut border = BorderFill::default();
+    for pen in &mut border.borders {
+        pen.line_type = BorderLineType::None;
+    }
+    border.fill.fill_type = FillType::Solid;
+    border.fill.solid = Some(SolidFill {
+        background_color: 0xffffffff,
+        pattern_type: -1,
+        ..Default::default()
+    });
+    d.doc_info.border_fills.push(border);
+    for slot in 0..3 {
+        let def = &mut d.sections[0].section_def;
+        def.page_border_fill = PageBorderFill::default();
+        def.extra_page_border_fills = vec![PageBorderFill::default(); 2];
+        let target = if slot == 0 {
+            &mut def.page_border_fill
+        } else {
+            &mut def.extra_page_border_fills[slot - 1]
+        };
+        target.border_fill_id = 2;
+        target.spacing_top = 30000;
+        for encoded in [
+            bytes(&d),
+            rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap(),
+        ] {
+            let actual = drain(
+                &mut DocumentV2Session::from_bytes(&encoded, r#"{"dpi":96,"max_pages":20}"#)
+                    .unwrap(),
+            );
+            assert_eq!(
+                actual, expected,
+                "unpainted reference must not change flow or final paint"
+            );
+        }
+    }
+}
+
+#[test]
 fn page_decoration_on_any_page_variant_is_not_silently_dropped() {
     use rhwp::model::page::PageBorderFill;
     for slot in 0..3 {

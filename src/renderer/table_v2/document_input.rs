@@ -39,11 +39,19 @@ pub(super) fn prepare(
         || def.hide_empty_line
         || !def.master_pages.is_empty()
         // Main/odd/even records can exist without naming a decoration. Their
-        // spacing locates a border, not the body, and ID0 paints nothing. Keep
-        // the original records; any nonzero reference still needs a renderer.
+        // spacing locates a border, not the body. A reference can also name an
+        // unpainted style, as normal Hancom saves do. Keep all source records;
+        // missing references and visible effects still need a renderer.
         || std::iter::once(&def.page_border_fill)
             .chain(&def.extra_page_border_fills)
-            .any(|fill| fill.border_fill_id != 0)
+            .any(|fill| {
+                fill.border_fill_id != 0
+                    && !document
+                        .doc_info
+                        .border_fills
+                        .get(usize::from(fill.border_fill_id) - 1)
+                        .is_some_and(super::decoration::source_border_is_unpainted)
+            })
     {
         return Err(DocumentV2Error::Unsupported(
             "section decoration, grid or writing direction",

@@ -1806,3 +1806,89 @@ split의 첫 쪽 A/B/C, 이어받기 쪽 D, 뒤 문단, 통째 이월의 외곽�
 
 다음 대상은 index5 내부 background zones와 저장 들여쓰기의 독립 근거/지원 경계다.
 원본 전체 수용 및 A·R5 완료는 아직 아니다.
+
+### 저장 앵커 시각 판정 자료 철회 및 재준비
+
+작업지시자의 지적에 따라 `stored-anchor/browser/document-anchor-split-1.review.png`를
+시각 승인 요청 자료에서 철회한다. 해당 그림은 합성 A/B/C/D 입력의 Native/WASM 일치 자료이며,
+원본 표의 조판 정확성을 판정할 자료가 아니다. `ff1eee900`은 합성 계약을 통과한 실험 구현으로만
+분류한다. 원본의 전체 표 내용·분할·후속 문단 피델리티와 앵커 경계의 한컴 일치는 미검증이다.
+앞선 실행 기록은 보존하되 시각 완료·승인의 근거로 재사용하지 않는다.
+
+2026-09-25 재준비: 원본 index5 host와 전체 표 subtree를 보존한 발췌 입력도 실제 V2 경로에서
+`V2 table background zones`로 거부됨을 재확인했다. 원본을 수용한 것처럼 Legacy 출력이나
+내용 교체본을 대신 제시하지 않는다. 별도의 읽을 수 있는 대조 문서를 작성하고 한컴에서 재저장한
+HWP와 그 파일의 기준 PDF로 검증한다. 이것은 #6923 원본 통과가 아닌 앵커 규칙의 독립 대조군이다.
+판정 대상은 첫 표 원점, 앞뒤 문단, 분할 경계 양쪽의 문단 번호·표 외곽·누락/중복이다.
+
+#### 교체 자료와 직접 판독 결과
+
+판정 요청 묶음:
+[`visual-replacement/REVIEW.md`](../../output/7353/r19/visual-replacement/REVIEW.md).
+입력·한컴 저장본·PDF는
+[`tests/fixtures/issue7353_stored_anchor_review/`](../../tests/fixtures/issue7353_stored_anchor_review/README.md)에
+보존했다. 생성 절차·MCP job·세 파일의 SHA-256·정확한 입력 속성은 해당 README가 정본이다.
+새 문서는 24행에 `자료 01`~`자료 24`를 넣어 각 조각의 소유 내용을 식별할 수 있게 했다.
+한컴 재저장 HWP를 다시 수정하지 않고 기준 PDF와 Native/fresh WASM 양쪽에 사용했다.
+
+| 대상 | 독립 기준 PDF / 실제 V2 관측 | 판정 |
+| --- | --- | --- |
+| 1쪽 | 제목 다음 표 시작, 01~19행, 표 외곽이 본문 안에 배치 | 직접 비교 확인, 메인테이너 판정 대기 |
+| 2쪽 내용 | 20~24행 이어받기, 누락·중복 없이 표 종료 후 본문 | 직접 비교 확인, 메인테이너 판정 대기 |
+| 2쪽 원점 | 기준 y=79.317708px, V2 y=75.586667px(96dpi) | 위치 일치 미충족: 약 0.987mm 위 |
+| 글꼴 | 폭·굵기 차이 | 잔여 차이, 일치 통과 아님 |
+| 중첩/셀 내부 분할, #6923 전체, 편집 후 재조판 | 이 대조 문서는 RowBreak의 행 사이 분할만 실행 | 미검증 |
+
+PDF 원점은 `pdftocairo -svg -f 2 -l 2`의 실제 수직 테두리 좌표
+`(595-535.511719)*4/3`에서 얻었다. 차이가 outer top margin(283HU)과 가깝지만
+일반적인 이어받기 규칙의 원인으로 확정하지 않았다. 위치를 보정해 이미지를 맞추거나
+이 좌표를 정상 baseline으로 승인하지 않았다. 이 문제를 남겨 놓고 전체 구현 승인도 요청하지 않는다.
+
+Native 및 fresh WASM의 `*-review-{1,2}.png`와 WASM 단독 `*-overlay-{1,2}.png`를
+직접 열어 판독했다. 한컴·V2·겹침을 같은 페이지/크기로 병렬 표시하고, 잔여 차이를 그림에 적었다.
+전체 픽셀/ink 점수는 `rows/*-metrics-*.json`에 보존하되 자동 시각 통과 기준으로 쓰지 않는다.
+
+#### 정상 저장 입력을 위한 최소 지원 변경과 실행 증거
+
+한컴 저장본의 main/odd/even PageBorderFill은 ID0이 아닌 **무효과 BorderFill ID1**을
+참조한다. 기존 V2는 참조 존재만으로 `section decoration, grid or writing direction`을
+반환했다. `document_input::prepare`가 실제 참조된 스타일의 선·채움·효과를 검사하도록 했고,
+기존 문단 검사의 무효과 판별을 `decoration::source_border_is_unpainted`로 공유했다.
+원본 참조를 지우지 않았으며, 유효하지 않은 참조/보이는 효과는 계속 거부한다.
+이 변경은 입력 수용 경계뿐이다. 이후 body 측정과 FlowBlock/Table 실제 배치의 원점·높이는
+변경하지 않았다. PageBorderFill spacing은 테두리 배치 속성이므로 본문 예약에 넣지 않는다.
+
+보존된 `3976eb6b8` WASM으로 **같은 최종 입력**을 실행하여 위 거부를 재현했다
+(`visual-replacement/before-support.json`). 직전 `ff1eee900` 빌드로 실행한 결과는 아니며,
+두 head 사이 해당 section 거부 분기는 변경되지 않았음을 코드 대조했다.
+수정 후 Native 및 Docker fresh WASM은 실제 2쪽을 생성한다.
+
+검증 source: `ff1eee90048439215a9849bf5ab90ba0ecd8089e` + 미커밋 두 Rust 파일 변경.
+두 파일의 SHA-256 및 입력/PDF/WASM 해시는 `visual-replacement/rows/run.json`에 고정했다.
+Native는 review worktree에서 `cargo build --locked --lib`로 빌드했다.
+WASM은 `docker compose --env-file .env.docker -p rhwp run --rm wasm`으로 새로 빌드했고
+7분 11초에 완료했다. `node output/7353/r19/visual-replacement/review.mjs --wasm`으로
+실제 브라우저 DocumentV2를 실행했다. 두 backend SVG는 2쪽 모두 동일하다. JSON의 숫자
+130곳에 최대 `5.684341886080802e-14` 차이만 있고 다른 값 차이는 없다. 초기 JSON 문자열
+완전 동일 검사는 이 마지막 자리 차이로 중단되었으며, 차이 전수 분석 후 원문을 보존하고
+SVG 동일성·구조·수치 차이를 분리 기록했다. 한컴 일치의 근거로 바꾸어 보고하지 않는다.
+
+추가 `tests/cases/issue_7353_table_v2_document_flow.rs` 계약은 무효과 page-border의
+main/odd/even × HWP/HWPX 최종 출력 보존과, 실제 한컴 저장본의 행 소유·후속 문단·본문 경계를
+검사한다. 2쪽 원점의 일치를 주장하지 않는다. focused 결과는 후속 실행 기록에 남긴다.
+이번 단계는 **대체 시각 자료 판정 대기**이며 R5 완료/원본 전체 통과/PR 제출 준비 완료가 아니다.
+전체 release 회귀·Native Skia·세 Clippy 제출 gate는 이번 시각 자료 준비에서 실행하지 않았다.
+Legacy/Studio 기본 경로, baseline/golden/ignore, 원격 상태는 변경하지 않았다.
+
+focused 최종 실행은 review worktree에서 다음 명령으로 **36 passed, 0 failed**
+(`visual-replacement/focused-final.log`). 최초 추가 테스트는 한컴 저장본의 글꼴별 TextRun
+세 조각을 완전한 한 줄과 비교하여 실패했다(`focused.log`). TextLine별 실제 TextRun을 이어
+줄 내용을 검사하도록 수정했으며 독립 PDF의 행 번호·기대 문자열은 바꾸지 않았다.
+이 실패는 조판 결함이나 수정 전 재현으로 집계하지 않는다. `rustfmt --check`(변경 3파일)와
+`git diff --check`도 통과했다. 위 시각 증적 후 renderer source의 추가 변경은 없다.
+
+```sh
+CARGO_BUILD_JOBS=1 cargo nextest run --locked --cargo-profile release-test \
+  --test regression_suite_005 -E 'test(issue_7353_table_v2_document_flow)' \
+  --target-dir /home/edward/mygithub/rhwp/target/pr-review
+```
