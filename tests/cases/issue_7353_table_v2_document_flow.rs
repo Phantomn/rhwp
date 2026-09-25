@@ -778,6 +778,79 @@ fn signed_nested_inline_rows_reserve_the_complete_physical_envelope() {
 }
 
 #[test]
+fn terminal_policy_nested_tac_preserves_physical_budget_and_validates_children() {
+    use rhwp::renderer::{style_resolver::resolve_styles, table_v2::*};
+    for spacing in [-75, 300] {
+        let mut carrier = inline_carrier(false);
+        carrier.line_segs[0].line_spacing = spacing;
+        let mut outer = table(&[], TablePageBreak::CellBreak);
+        outer.cells[0].width = 22500;
+        // Synthetic declared minimum36px makes the child envelope independent
+        // of whether its final line advances by6px. Do not weaken TAC binding.
+        for c in &mut carrier.controls {
+            if let Control::Table(t) = c {
+                t.cells[0].height = 2700;
+            }
+        }
+        outer.cells[0].paragraphs = vec![carrier];
+        let mut d = source(vec![host("", outer.clone())]);
+        d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Left;
+        let styles = resolve_styles(&d.doc_info, 96.0);
+        let prepared = PreparedTextTable::prepare_with_end_policy(
+            &outer,
+            &styles,
+            96.0,
+            &[],
+            CellEndPolicy::OmitFinalLineGap,
+        )
+        .unwrap();
+        let area = |height| PageArea {
+            bounds: Rect {
+                x: 20.0,
+                y: 30.0,
+                width: 300.0,
+                height,
+            },
+        };
+        assert!(matches!(
+            prepared.start().fit(area(39.0)).unwrap(),
+            TextFragmentFit::DoesNotFit { .. }
+        ));
+        let TextFragmentFit::Placed(f) = prepared.start().fit(area(40.0)).unwrap() else {
+            panic!("fit")
+        };
+        assert_eq!(f.geometry().reserved_height(), 40.0);
+        let mut page = rhwp::renderer::render_tree::PageRenderTree::new(0, 400.0, 200.0);
+        f.append_to(&mut page).unwrap();
+        let value = serde_json::json!({"render_tree":page});
+        assert_eq!(labels(&value), ["A", "a", "B", "b"]);
+        for t in nodes(&value, "Table").into_iter().skip(1) {
+            near(&t["bbox"]["y"], 32.0);
+            near(&t["bbox"]["height"], 36.0);
+        }
+        assert!(matches!(
+            f.continuation().fit(area(40.0)).unwrap(),
+            TextFragmentFit::Complete
+        ));
+        // Without that source minimum the hand-authored36px TAC metadata no
+        // longer describes the actual30px child. It remains an explicit error.
+        for c in &mut outer.cells[0].paragraphs[0].controls {
+            if let Control::Table(t) = c {
+                t.cells[0].height = 0;
+            }
+        }
+        assert!(PreparedTextTable::prepare_with_end_policy(
+            &outer,
+            &styles,
+            96.0,
+            &[],
+            CellEndPolicy::OmitFinalLineGap
+        )
+        .is_err());
+    }
+}
+
+#[test]
 fn stored_inline_row_is_reserved_once_and_defers_all_siblings() {
     let mut d = source(vec![
         p("before"),

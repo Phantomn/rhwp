@@ -164,6 +164,25 @@ impl TablePreviewSession {
         pages: TablePreviewPages,
         max_pages: usize,
     ) -> Result<Self, TablePreviewError> {
+        Self::from_document_with_end_policy(
+            document,
+            selection,
+            dpi,
+            pages,
+            max_pages,
+            super::CellEndPolicy::default(),
+        )
+    }
+
+    /// Opt-in experiment; the source document and default preview are unchanged.
+    pub fn from_document_with_end_policy(
+        document: &Document,
+        selection: TableSelection,
+        dpi: f64,
+        pages: TablePreviewPages,
+        max_pages: usize,
+        policy: super::CellEndPolicy,
+    ) -> Result<Self, TablePreviewError> {
         pages.validate()?;
         super::contracts::finite(dpi, "preview DPI")?;
         if dpi <= 0.0 {
@@ -179,11 +198,12 @@ impl TablePreviewSession {
         };
         super::decoration::validate_source(table, &document.doc_info)?;
         let styles = resolve_styles_for_document(document, dpi);
-        let prepared = PreparedTextTable::prepare_with_resources(
+        let prepared = PreparedTextTable::prepare_with_end_policy(
             table,
             &styles,
             dpi,
             &document.bin_data_content,
+            policy,
         )?;
         let mut session = Self::new(&prepared, pages, max_pages)?;
         session.selection = Some(selection);

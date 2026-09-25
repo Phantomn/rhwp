@@ -19,6 +19,7 @@ pub(super) fn prepare(
     styles: &ResolvedStyleSet,
     dpi: f64,
     resources: &[crate::model::bin_data::BinDataContent],
+    policy: super::CellEndPolicy,
 ) -> Result<PreparedTextTable, GeometryError> {
     validate_text_context(styles, dpi)?;
     let composer = IrTextComposer {
@@ -32,7 +33,8 @@ pub(super) fn prepare(
     };
     // IR binding qualifies the grid, child anchors, margins, and depth BEFORE
     // each compose call. Composition records host payloads before child payloads.
-    let plan = TableContentPlan::from_ir_contents(table, dpi / 7200.0, &composer)?;
+    let plan =
+        TableContentPlan::from_ir_contents_with_end_policy(table, dpi / 7200.0, &composer, policy)?;
     let mut payloads = composer.paragraphs.into_inner().into_iter();
     let paint = bind_paint(table, styles, dpi, &mut payloads)?;
     if payloads.next().is_some() {

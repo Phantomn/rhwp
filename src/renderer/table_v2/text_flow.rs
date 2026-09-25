@@ -53,6 +53,26 @@ impl PreparedTextTable {
         styles: &ResolvedStyleSet,
         dpi: f64,
     ) -> Result<Self, GeometryError> {
+        Self::from_flow_rows_with_end_policy(
+            column_widths,
+            rows,
+            row_spacing,
+            policy,
+            styles,
+            dpi,
+            super::CellEndPolicy::default(),
+        )
+    }
+
+    pub fn from_flow_rows_with_end_policy(
+        column_widths: Vec<f64>,
+        rows: Vec<TextFlowRow>,
+        row_spacing: f64,
+        policy: SplitPolicy,
+        styles: &ResolvedStyleSet,
+        dpi: f64,
+        end_policy: super::CellEndPolicy,
+    ) -> Result<Self, GeometryError> {
         validate_text_context(styles, dpi)?;
         let row_count =
             u16::try_from(rows.len()).map_err(|_| GeometryError::Unsupported("row count"))?;
@@ -84,7 +104,13 @@ impl PreparedTextTable {
                 let mut blocks = Vec::new();
                 let mut paragraphs = HashSet::new();
                 let mut order = 0;
-                for block in cell.blocks {
+                // Additional physical space does not introduce a following line.
+                // A following explicit table DOES, so retain the paragraph gap.
+                let last_content = cell
+                    .blocks
+                    .iter()
+                    .rposition(|b| !matches!(b, TextFlowBlock::Space(_)));
+                for (index, block) in cell.blocks.into_iter().enumerate() {
                     match block {
                         TextFlowBlock::Space(height) => blocks.push(FlowBlock::Space(height)),
                         TextFlowBlock::Paragraph { owner, paragraph } => {
@@ -93,8 +119,10 @@ impl PreparedTextTable {
                                     "duplicate paragraph owner",
                                 ));
                             }
-                            for item in super::paragraph_end::into_flow_items(
+                            for item in super::paragraph_end::into_flow_items_at_end(
                                 composer.compose(&paragraph, width)?,
+                                end_policy,
+                                Some(index) == last_content,
                             ) {
                                 match item {
                                     ParagraphItem::Space(h) => blocks.push(FlowBlock::Space(h)),

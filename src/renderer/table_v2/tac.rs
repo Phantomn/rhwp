@@ -325,7 +325,7 @@ pub(super) fn compose(
         tail.push(f64::from(trailing) * scale);
     }
     tail.push(style.spacing_after);
-    let ending = super::ParagraphEnd::from_composed(&items, tail)?;
+    let ending = super::ParagraphEnd::from_composed(&items, tail, style.spacing_after)?;
     items.push(ParagraphItem::End(ending));
     Ok(items)
 }

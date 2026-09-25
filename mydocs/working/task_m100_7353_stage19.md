@@ -1373,3 +1373,79 @@ End constructor 합성 사례가 별도 fixture로 추가된 것은 아니다.
 기본값 전환은 하지 않았다. 다음 우선순위는 이미 분리한 결과를 바탕으로 **유효한 저장 TAC의
 셀 끝 간격과 선언 점유 envelope를 독립 근거에 연결하여 원본 문서 수용을 진행**하는 것이다.
 보류 후보/기대값 일괄 갱신은 하지 않으며 A/R5 완료로 세지 않는다.
+
+### 셀 끝 후행 줄간격 — 선택형 원본 검증
+
+승인된 다음 절편은 `5bcf48178`에서 시작했다. 전체 정책 전환 전에 원본 입력으로
+격리 검증하도록 선택 표 byte/JSON API에 `cell_end_policy: "omit_final_line_gap"`을
+추가했다. 생략 시 `preserve_advance`가 기본이며 Legacy와 본문 V2 경로는 바꾸지 않았다.
+줄 상자 자체, 빈 문단, 문단 뒤 간격, 셀 padding, 명시적 Space는 삭제하지 않는다.
+비영 문단 뒤 간격의 한컴 셀 끝 의미는 아직 확정하지 않고 기존 값을 보존한다.
+
+생산→소비: `text.rs`/`pictures.rs`/`tac.rs`의 `ParagraphEnd::from_composed`가
+기존 후행 공간과 terminal 공간을 분리한다. `ir.rs::bind_table`은 셀의 마지막 문단에,
+`text_flow.rs::from_flow_rows_with_end_policy`는 마지막 내용이 문단인 경우에만
+`paragraph_end.rs::into_flow_items_at_end`를 적용한다. 후속 Space0/2/7은 문단 소속을
+바꾸지 않으며 후속 explicit Table은 문단 끝 간격을 보존한다. IR의 중첩 표에는 같은 정책을
+전달하고 이미 준비된 explicit 자식 표는 자체 plan을 보존한다. 사용자 composer의 기존
+`ParagraphEnd::new` 계약은 공간을 추측해 제거하지 않는다.
+
+변환된 동일 FlowBlock을 `content.rs`의 요구 높이와 `flow.rs::fit_cell`의 컷/예약이 소비하고,
+`text.rs::TextFragment::append_to`는 그 placement를 그린다. 음수 TAC 전진과 물리 끝은
+계속 분리한다. 별도 높이 clamp·paint 확대·저장 envelope 검사 완화는 없다. 기존 rowspan,
+제목 반복, clipping 분기는 변경하지 않았으며 이번 종료 정책을 그 모든 경로에서 독립 검증한
+것으로 주장하지 않는다. 예산 실패/이월 및 마지막 유닛 종료는 아래 합성 계약으로 검사했다.
+
+정식 tests/cases에 추가한4건:
+
+- `issue_7353_table_v2_text`: 재조판/수동 저장 입력, 12px 빈 줄·18px pitch·문단 뒤2px·
+  padding3/4px의 두 문단은41px. Space0/2/7 가산성, 두 실제 LineOwner/원점, 34px 예산의
+  빈 줄 이월과 완료를 두 adapter에서 검사한다. 후속 explicit 표가 있으면 앞 문단의6px
+  간격이 유지되는 별도 검사도 추가했다. 이는 합성 계약이며 정상 한컴 저장본 증거가 아니다.
+- `issue_7353_table_v2_document_flow`: 자식 최소 높이36px을 명시한 합성 TAC 입력에서
+  -1/+4px 간격 모두39px 예산은 거부,40px은 수용한다. 실제 자식 y/높이·내용·완료를 검사하며,
+  최소 높이 없는 수동36px envelope는 실제30px 내용과 달라 여전히 거부한다.
+- `issue_7353_table_v2_export`: 변경하지 않은 원본 #6923 첫 표를96/7200dpi에서 실행한다.
+  독립 원본 행 근거582(빈 줄300+padding282)+2282+3042+1922+3274=11102HU를 검사한다.
+  첫 빈 줄300HU·12셀·2그림·한 조각/완료·최종 Table 높이를 확인한다.
+
+원본은 `tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp`, 기준은
+같은 stem의 `-2020.pdf` p1이다. 기본 모드12598HU와 선택 모드11102HU를 같은 원본에서
+비교했다. 이전 head 자체에 새 옵션 테스트를 적용한 FAIL/PASS 실행은 하지 않았으므로
+그 증거로 보고하지 않는다. 기본 결과의 이전 head 동일성은 아래111개 비교로 확인했다.
+
+증적은 `output/7353/r19/terminal/policy-*`다. `policy-tests-final2.log`는 최종 파생 suite에서
+225 PASS/3273 미선택이다(이전 `policy-tests-final.log`도225 PASS).
+합성 테스트의 비공개 API/기본 Justify 설정 오류는 공개 API/명시 Left로 바로잡았고 production의
+수용 조건은 바꾸지 않았다. 테스트 수정 뒤 파생 suite drift가 발생해 review worktree에서
+`--prepare`를 다시 실행했다. `policy-manifest-final.log`는 고정 base
+`7a95e46e025470a4d7a7b59ad68ec02958bda738` 대비 PASS다. 파생 파일은 제품에 포함하지 않는다.
+
+lint는 review overlay에서 순차 실행했다. `policy-fmt.log`의 `cargo fmt --all -- --check`,
+`policy-clippy-native.log`의 `cargo clippy --locked -- -D warnings`,
+`policy-clippy-wasm.log`의 `-p rhwp --lib --target wasm32-unknown-unknown`,
+`policy-clippy-tests-final.log`의 `-p rhwp --test regression_suite_014 --test regression_suite_021
+--test regression_suite_022 -- -D warnings` 모두 PASS다. 공통 target-dir은
+`/home/edward/mygithub/rhwp/target/pr-review`, `CARGO_BUILD_JOBS=1`을 사용했다.
+source-side unit test는 변경하지 않았다. 검증 이후 Rust/테스트는 변경하지 않았다.
+
+Docker fresh WASM은7분28초 성공(`policy-docker-wasm.log`), SHA256은
+`9fe40fe35938944300279a2dedb15f26812892f50934d1f11cf458d159fa6f89`다. 이전 기록의 browser 명령에서
+fixtures/out을 `policy-fixtures`/`policy-browser`로 바꾸고 `--terminal-cell-end`를 추가했다.
+`policy-browser.log`는208쪽 exact tree/SVG parity·isolation/rejection/rollback/termination PASS다.
+`policy-preservation.json`: 기존 Native111개와 review PNG207개는 이전 결과와 byte 동일하다.
+`policy-source-comparison.json`: 제품/review의 Rust·Cargo1074개 차이0 및 변경 파일 hash를 기록했다.
+
+직접 시각 확인: `policy-browser/terminal-source-0.review.png`의 Native/fresh WASM 동일성,
+`policy-pdf-review.png`의 PDF/기존/선택 Native/선택 WASM/overlay를 확인했다.
+`compare-policy.mjs`는 PDF trace의 x60.088pt, y(841−767.281)pt를 사용해96dpi에서 위치만
+맞춘다. 높이/폭 변형은 없다. `policy-pdf-overlay.png`는 독립 standalone overlay다.
+PDF 첫 표 높이는147.8387px, 선택 출력은148.0267px(약0.188px 차이)이며 외곽과 셀 경계가
+기존167.9733px보다 가까워졌다. 좌측 로고의 표시 차이와 글꼴/글자 모양 차이는 남는다.
+PDF crop 아래의 후속 문장은 selected-table preview 범위 밖이다. 원본 전체 수용·뒤 문단의
+위치·전체 pagination을 이 비교로 입증하지 않으며 최종 메인테이너 시각 통과도 대신하지 않는다.
+정상 대조군 `document-inline-signed-budget-1.review.png`도 직접 확인했다.
+
+남은 일은 이 선택형 근거를 본문 TAC 수용과 연결하고 원본 전체의 다음 미지원 경계를 검증하는
+것이다. 기존 baseline/golden/ignore는 수정하지 않았다. 기본값 전환·원격 push/PR·전체 CI 상당
+제출 검증은 수행하지 않았으며 A/R5 완료가 아니다.

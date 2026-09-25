@@ -58,10 +58,24 @@ impl TableContentPlan {
         units_per_hwp: f64,
         composer: &impl CellParagraphComposer,
     ) -> Result<Self, GeometryError> {
+        Self::from_ir_contents_with_end_policy(
+            table,
+            units_per_hwp,
+            composer,
+            super::CellEndPolicy::default(),
+        )
+    }
+
+    pub fn from_ir_contents_with_end_policy(
+        table: &Table,
+        units_per_hwp: f64,
+        composer: &impl CellParagraphComposer,
+        policy: super::CellEndPolicy,
+    ) -> Result<Self, GeometryError> {
         if !units_per_hwp.is_finite() || units_per_hwp <= 0.0 {
             return Err(GeometryError::InvalidNumber("HWP unit scale"));
         }
-        bind_table(table, units_per_hwp, composer, 0)
+        bind_table(table, units_per_hwp, composer, 0, policy)
     }
 }
 
@@ -106,6 +120,7 @@ fn bind_table(
     scale: f64,
     composer: &impl CellParagraphComposer,
     depth: usize,
+    policy: super::CellEndPolicy,
 ) -> Result<TableContentPlan, GeometryError> {
     if depth >= 64 {
         return Err(GeometryError::Unsupported("table nesting resource limit"));
@@ -188,9 +203,11 @@ fn bind_table(
                     }
                 }
                 let mut seen = vec![false; para.controls.len()];
-                for item in
-                    super::paragraph_end::into_flow_items(composer.compose(para, inner_width)?)
-                {
+                for item in super::paragraph_end::into_flow_items_at_end(
+                    composer.compose(para, inner_width)?,
+                    policy,
+                    pi + 1 == cell.paragraphs.len(),
+                ) {
                     match item {
                         ParagraphItem::ObjectRow {
                             line,
@@ -246,7 +263,7 @@ fn bind_table(
                                 unreachable!()
                             };
                             validate_anchor(child)?;
-                            let plan = bind_table(child, scale, composer, depth + 1)?;
+                            let plan = bind_table(child, scale, composer, depth + 1, policy)?;
                             // Resolve against the same padded content width used by
                             // paragraph composition, not the page or outer cell.
                             let free_width = inner_width - plan.width;
@@ -292,7 +309,7 @@ fn bind_table(
                                         "non-inline table in inline row",
                                     ));
                                 }
-                                let plan = bind_table(child, scale, composer, depth + 1)?;
+                                let plan = bind_table(child, scale, composer, depth + 1, policy)?;
                                 bound.push(super::tac::bind(
                                     ControlOwner {
                                         paragraph: pi,

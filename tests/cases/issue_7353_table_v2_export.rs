@@ -729,6 +729,47 @@ fn original_first_table_consumption_is_invariant_under_unit_scale() {
 }
 
 #[test]
+fn terminal_policy_original_first_table_uses_physical_cell_end() {
+    let data = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"
+    ))
+    .unwrap();
+    let original = rhwp::parse_document(&data).unwrap();
+    let Control::Table(t) = &original.sections[0].paragraphs[0].controls[3] else {
+        panic!("table")
+    };
+    // Unmodified binary. Independent source dimensions: the first blank row
+    // needs 300HU line + 282HU padding, NOT its following 180HU line gap.
+    // The remaining source row minima are 2282/3042/1922/3274HU.
+    assert_eq!(t.common.height, 11102);
+    for (dpi, name) in [(7200.0, "terminal-source-units"), (96.0, "terminal-source")] {
+        let scale = dpi / 7200.0;
+        let ratio = dpi / 96.0;
+        let mut config = options(&data);
+        config["dpi"] = json!(dpi);
+        config["cell_end_policy"] = json!("omit_final_line_gap");
+        config["pages"] = json!({"width":800.0*ratio,"height":400.0*ratio,
+            "body":{"x":20.0*ratio,"y":30.0*ratio,"width":700.0*ratio,"height":300.0*ratio},"first_y":30.0*ratio});
+        let mut session = open(&data, &config);
+        let raw = session.next_page_json().unwrap().unwrap();
+        assert!(session.next_page_json().unwrap().is_none());
+        let page: Value = serde_json::from_str(&raw).unwrap();
+        let tables = collect(&page, "Table");
+        assert_eq!(tables.len(), 1);
+        assert!((tables[0]["bbox"]["height"].as_f64().unwrap() - 11102.0 * scale).abs() < 1e-9);
+        assert_eq!(collect(&page, "TableCell").len(), 12);
+        assert_eq!(collect(&page, "Image").len(), 2);
+        let first = collect(&page, "TextLine")[0];
+        assert!((first["bbox"]["height"].as_f64().unwrap() - 300.0 * scale).abs() < 1e-9);
+        capture(name, &data, &config, std::slice::from_ref(&page));
+        if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
+            std::fs::write(format!("{dir}/{name}.native.json"), format!("[{raw}]")).unwrap();
+        }
+    }
+}
+
+#[test]
 fn stored_line_frames_export_without_replacing_their_width_or_origin() {
     use rhwp::model::style::Alignment;
     for (name, alignment) in [

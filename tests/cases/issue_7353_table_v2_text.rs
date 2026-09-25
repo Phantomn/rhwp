@@ -110,6 +110,172 @@ fn text(line: &RenderNode) -> String {
         .collect()
 }
 
+#[test]
+fn terminal_policy_preserves_blank_line_and_external_space_in_both_adapters() {
+    for stored in [false, true] {
+        let mut t = table(&["before", ""]);
+        if stored {
+            for p in &mut t.cells[0].paragraphs {
+                p.line_segs = vec![LineSeg {
+                    line_height: 12,
+                    text_height: 12,
+                    baseline_distance: 10,
+                    line_spacing: 6,
+                    segment_width: 200,
+                    tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+                    ..Default::default()
+                }];
+            }
+        }
+        let mut s = styles();
+        s.para_styles[0].spacing_after = 2.0;
+        let ir = PreparedTextTable::prepare_with_end_policy(
+            &t,
+            &s,
+            7200.0,
+            &[],
+            CellEndPolicy::OmitFinalLineGap,
+        )
+        .unwrap();
+        // Synthetic input: padding3 + before(12+6+2) + blank12 + after2 + padding4.
+        // Preserve explicit paragraph-after; this is not its Hancom-policy oracle.
+        let f = placed(&ir.start(), 41.0);
+        assert!(matches!(
+            f.continuation().fit(area(41.0)).unwrap(),
+            TextFragmentFit::Complete
+        ));
+        let (_, reference) = render(&f);
+        assert_eq!(
+            reference.iter().map(text).collect::<Vec<_>>(),
+            ["before", ""]
+        );
+        assert_eq!(
+            reference.iter().map(|l| l.bbox.y).collect::<Vec<_>>(),
+            [33.0, 53.0]
+        );
+        assert_eq!(f.geometry().reserved_height(), 41.0);
+        for extra in [0.0, 2.0, 7.0] {
+            let mut blocks: Vec<_> = t.cells[0]
+                .paragraphs
+                .iter()
+                .enumerate()
+                .map(|(owner, p)| TextFlowBlock::Paragraph {
+                    owner,
+                    paragraph: Box::new(p.clone()),
+                })
+                .collect();
+            blocks.push(TextFlowBlock::Space(extra));
+            let flow = PreparedTextTable::from_flow_rows_with_end_policy(
+                vec![212.0],
+                vec![TextFlowRow {
+                    cells: vec![TextFlowCell {
+                        padding: Insets {
+                            left: 5.0,
+                            right: 7.0,
+                            top: 3.0,
+                            bottom: 4.0,
+                        },
+                        minimum_height: 0.0,
+                        blocks,
+                    }],
+                }],
+                0.0,
+                SplitPolicy::WithinCells,
+                &s,
+                7200.0,
+                CellEndPolicy::OmitFinalLineGap,
+            )
+            .unwrap();
+            let f = placed(&flow.start(), 41.0 + extra);
+            let (_, lines) = render(&f);
+            let boxes = |nodes: &[RenderNode]| {
+                nodes
+                    .iter()
+                    .map(|l| (l.bbox.x, l.bbox.y, l.bbox.width, l.bbox.height))
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(boxes(&lines), boxes(&reference));
+            assert_eq!(f.geometry().reserved_height(), 41.0 + extra);
+            assert!(matches!(
+                f.continuation().fit(area(41.0)).unwrap(),
+                TextFragmentFit::Complete
+            ));
+        }
+        // If only the preceding paragraph and the blank box do not fit, the
+        // blank remains an owned line on the next fragment, not discarded.
+        let first = placed(&ir.start(), 34.0);
+        assert_eq!(
+            render(&first).1.iter().map(text).collect::<Vec<_>>(),
+            ["before"]
+        );
+        let next = placed(&first.continuation(), 41.0);
+        assert_eq!(render(&next).1.iter().map(text).collect::<Vec<_>>(), [""]);
+        assert!(matches!(
+            next.continuation().fit(area(41.0)).unwrap(),
+            TextFragmentFit::Complete
+        ));
+    }
+}
+
+#[test]
+fn terminal_policy_keeps_advance_before_following_explicit_table() {
+    let s = styles();
+    let child = PreparedTextTable::prepare_with_end_policy(
+        &table(&["child"]),
+        &s,
+        7200.0,
+        &[],
+        CellEndPolicy::OmitFinalLineGap,
+    )
+    .unwrap();
+    let prepared = PreparedTextTable::from_flow_rows_with_end_policy(
+        vec![212.0],
+        vec![TextFlowRow {
+            cells: vec![TextFlowCell {
+                padding: Insets::default(),
+                minimum_height: 0.0,
+                blocks: vec![
+                    TextFlowBlock::Paragraph {
+                        owner: 0,
+                        paragraph: Box::new(para("before")),
+                    },
+                    TextFlowBlock::Space(0.0),
+                    TextFlowBlock::Table {
+                        owner: ControlOwner {
+                            paragraph: 1,
+                            control: 0,
+                        },
+                        table: child,
+                    },
+                    TextFlowBlock::Space(7.0),
+                ],
+            }],
+        }],
+        0.0,
+        SplitPolicy::WithinCells,
+        &s,
+        7200.0,
+        CellEndPolicy::OmitFinalLineGap,
+    )
+    .unwrap();
+    // before pitch18 + child(top3+line12+bottom4) + explicit7 =44.
+    let f = placed(&prepared.start(), 44.0);
+    let (_, lines) = render(&f);
+    assert_eq!(
+        lines.iter().map(text).collect::<Vec<_>>(),
+        ["before", "child"]
+    );
+    assert_eq!(
+        lines.iter().map(|l| l.bbox.y).collect::<Vec<_>>(),
+        [30.0, 51.0]
+    );
+    assert_eq!(f.geometry().reserved_height(), 44.0);
+    assert!(matches!(
+        f.continuation().fit(area(44.0)).unwrap(),
+        TextFragmentFit::Complete
+    ));
+}
+
 // Synthetic fresh IR, not a Hancom-generated fixture. At 7200 dpi the input
 // 400/1400 HU em boxes correspond to 4/14 pt in document units. A 156% pitch
 // adds 224/784 HU respectively; both gaps are exact multiples of 4 HU.

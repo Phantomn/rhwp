@@ -80,7 +80,7 @@ impl PreparedTextTable {
         styles: &ResolvedStyleSet,
         dpi: f64,
     ) -> Result<Self, GeometryError> {
-        super::text_ir::prepare(table, styles, dpi, &[])
+        super::text_ir::prepare(table, styles, dpi, &[], super::CellEndPolicy::default())
     }
 
     /// Snapshot embedded resources for qualified control-only picture rows.
@@ -90,7 +90,24 @@ impl PreparedTextTable {
         dpi: f64,
         resources: &[crate::model::bin_data::BinDataContent],
     ) -> Result<Self, GeometryError> {
-        super::text_ir::prepare(table, styles, dpi, resources)
+        Self::prepare_with_end_policy(
+            table,
+            styles,
+            dpi,
+            resources,
+            super::CellEndPolicy::default(),
+        )
+    }
+
+    /// Explicit cell-end experiment shared by Native and WASM previews.
+    pub fn prepare_with_end_policy(
+        table: &Table,
+        styles: &ResolvedStyleSet,
+        dpi: f64,
+        resources: &[crate::model::bin_data::BinDataContent],
+        policy: super::CellEndPolicy,
+    ) -> Result<Self, GeometryError> {
+        super::text_ir::prepare(table, styles, dpi, resources, policy)
     }
 
     pub fn start(&self) -> TextTableCursor {
@@ -468,7 +485,7 @@ impl CellParagraphComposer for TextComposer<'_> {
         } else {
             Vec::new()
         };
-        let ending = super::ParagraphEnd::from_composed(&items, tail)?;
+        let ending = super::ParagraphEnd::from_composed(&items, tail, style.spacing_after)?;
         items.push(ParagraphItem::End(ending));
         self.payloads.borrow_mut().push(column.children);
         Ok(items)

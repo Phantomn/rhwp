@@ -41,7 +41,7 @@ pub use document::{DocumentV2Error, DocumentV2Session};
 pub use export::{TablePreviewExportError, TablePreviewExportSession};
 pub use fragment::{FragmentFit, TableCursor, TableFragmentPlan};
 pub use ir::{CellParagraphComposer, ParagraphItem};
-pub use paragraph_end::ParagraphEnd;
+pub use paragraph_end::{CellEndPolicy, ParagraphEnd};
 pub use session::{
     TablePreviewError, TablePreviewPage, TablePreviewPages, TablePreviewSession, TableSelection,
 };

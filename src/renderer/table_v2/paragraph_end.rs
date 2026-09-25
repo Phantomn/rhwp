@@ -3,11 +3,22 @@
 //! the surrounding cell is not a paragraph and cannot change this result.
 use super::{contracts::nonnegative, GeometryError, ParagraphItem};
 
+/// Explicit preview experiment; existing previews retain their advance policy.
+/// This does not select a document engine or qualify unsupported source data.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CellEndPolicy {
+    #[default]
+    PreserveAdvance,
+    OmitFinalLineGap,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParagraphEnd {
     occupied_end: f64,
     next_origin: f64,
     tail_spaces: Vec<f64>,
+    terminal_spaces: Vec<f64>,
 }
 
 impl ParagraphEnd {
@@ -16,6 +27,7 @@ impl ParagraphEnd {
     pub(super) fn from_composed(
         items: &[ParagraphItem],
         tail_spaces: Vec<f64>,
+        paragraph_after: f64,
     ) -> Result<Self, GeometryError> {
         let mut occupied_end: f64 = 0.0;
         let mut flow_end = 0.0;
@@ -37,7 +49,12 @@ impl ParagraphEnd {
             occupied_end = occupied_end.max(flow_end + height);
             flow_end += advance;
         }
-        Self::new(occupied_end, flow_end, tail_spaces)
+        let mut end = Self::new(occupied_end, flow_end, tail_spaces)?;
+        nonnegative(paragraph_after, "paragraph after spacing")?;
+        // Only the next-line gap is optional. Keep explicit paragraph-after;
+        // its independent cell-end policy is not decided by this experiment.
+        end.terminal_spaces = vec![paragraph_after];
+        Ok(end)
     }
 
     /// All coordinates are local to the composed paragraph content frame.
@@ -61,6 +78,7 @@ impl ParagraphEnd {
         Ok(Self {
             occupied_end,
             next_origin,
+            terminal_spaces: tail_spaces.clone(),
             tail_spaces,
         })
     }
@@ -78,11 +96,24 @@ impl ParagraphEnd {
 /// paragraphs. This preserves the existing tail policy; it does NOT trim a
 /// terminal gap or treat a blank paragraph as empty physical space.
 pub(super) fn into_flow_items(items: Vec<ParagraphItem>) -> Vec<ParagraphItem> {
+    into_flow_items_at_end(items, CellEndPolicy::PreserveAdvance, false)
+}
+
+pub(super) fn into_flow_items_at_end(
+    items: Vec<ParagraphItem>,
+    policy: CellEndPolicy,
+    final_paragraph: bool,
+) -> Vec<ParagraphItem> {
     let mut resolved = Vec::with_capacity(items.len());
     for item in items {
         match item {
             ParagraphItem::End(end) => {
-                resolved.extend(end.tail_spaces.into_iter().map(ParagraphItem::Space));
+                let spaces = if final_paragraph && policy == CellEndPolicy::OmitFinalLineGap {
+                    end.terminal_spaces
+                } else {
+                    end.tail_spaces
+                };
+                resolved.extend(spaces.into_iter().map(ParagraphItem::Space));
             }
             item => resolved.push(item),
         }

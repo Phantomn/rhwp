@@ -152,6 +152,7 @@ pub(super) fn compose(
     let ending = super::ParagraphEnd::from_composed(
         &items,
         vec![f64::from(trailing) * scale + style.spacing_after],
+        style.spacing_after,
     )?;
     items.push(ParagraphItem::End(ending));
     Ok((items, nodes))
