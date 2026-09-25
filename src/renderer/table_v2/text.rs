@@ -463,9 +463,13 @@ impl CellParagraphComposer for TextComposer<'_> {
                 "text preview missing physical line extent",
             ));
         }
-        if end > cursor {
-            items.push(ParagraphItem::Space(end - cursor));
-        }
+        let tail = if end > cursor {
+            vec![end - cursor]
+        } else {
+            Vec::new()
+        };
+        let ending = super::ParagraphEnd::from_composed(&items, tail)?;
+        items.push(ParagraphItem::End(ending));
         self.payloads.borrow_mut().push(column.children);
         Ok(items)
     }

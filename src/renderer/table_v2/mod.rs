@@ -22,6 +22,7 @@ mod fragment;
 mod grid;
 mod ir;
 mod page_number;
+mod paragraph_end;
 mod pictures;
 mod session;
 mod stored_text;
@@ -40,6 +41,7 @@ pub use document::{DocumentV2Error, DocumentV2Session};
 pub use export::{TablePreviewExportError, TablePreviewExportSession};
 pub use fragment::{FragmentFit, TableCursor, TableFragmentPlan};
 pub use ir::{CellParagraphComposer, ParagraphItem};
+pub use paragraph_end::ParagraphEnd;
 pub use session::{
     TablePreviewError, TablePreviewPage, TablePreviewPages, TablePreviewSession, TableSelection,
 };

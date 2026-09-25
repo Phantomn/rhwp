@@ -320,10 +320,13 @@ pub(super) fn compose(
     let trailing = para.line_segs.last().ok_or_else(unsupported)?.line_spacing;
     // Negative spacing is already owned by the final inline row's advance.
     // Positive trailing whitespace remains splittable physical space.
+    let mut tail = Vec::new();
     if trailing > 0 {
-        items.push(ParagraphItem::Space(f64::from(trailing) * scale));
+        tail.push(f64::from(trailing) * scale);
     }
-    items.push(ParagraphItem::Space(style.spacing_after));
+    tail.push(style.spacing_after);
+    let ending = super::ParagraphEnd::from_composed(&items, tail)?;
+    items.push(ParagraphItem::End(ending));
     Ok(items)
 }
 

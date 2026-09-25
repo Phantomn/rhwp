@@ -16,6 +16,8 @@ use super::{
 /// Paragraph.controls index; it never contains an independently rebuilt table.
 pub enum ParagraphItem {
     Space(f64),
+    /// Producer-owned paragraph ending, distinct from additional cell space.
+    End(super::ParagraphEnd),
     Lines {
         height: f64,
         lines: Vec<(usize, Rect)>,
@@ -186,7 +188,9 @@ fn bind_table(
                     }
                 }
                 let mut seen = vec![false; para.controls.len()];
-                for item in composer.compose(para, inner_width)? {
+                for item in
+                    super::paragraph_end::into_flow_items(composer.compose(para, inner_width)?)
+                {
                     match item {
                         ParagraphItem::ObjectRow {
                             line,
@@ -218,6 +222,7 @@ fn bind_table(
                             });
                         }
                         ParagraphItem::Space(h) => blocks.push(FlowBlock::Space(h)),
+                        ParagraphItem::End(_) => unreachable!("paragraph end already lowered"),
                         ParagraphItem::Lines { height, lines } => blocks.push(FlowBlock::Lines {
                             height,
                             lines: lines

@@ -1273,3 +1273,103 @@ fmt check, 변경 integration target Clippy(-D warnings), 고정 base
 도중 test source 크기 변경 뒤 파생 suite 재준비 전 실행은0건으로 실패했으며 성공으로 세지 않았다.
 `--prepare` 재실행 후 위14건을 실제 실행한 결과가 최종 증거다. 다른40건 case source와
 제품 구현은 그 검증 뒤 변경하지 않았다.
+
+### A 후속 — 문단 종료 결과 분리, 기존 출력 보존
+
+시작 head는 `660fef3ef245c74fbd8716becbce89e38931dac6`이며 제품 worktree는 clean이었다.
+이번 승인에서는 보류된 종료 높이 후보를 활성화하지 않고 문단의 실제 점유 끝, 다음 원점,
+문단 밖의 명시적 공간을 구분하는 구조를 구현했다. 저장 정보 수용 조건·Legacy·IR 포맷·
+기준값·ignore는 변경하지 않는다. 빈 문단 삭제나 문서별 높이 보정도 추가하지 않는다.
+
+`table_v2/paragraph_end.rs::ParagraphEnd`는 이미 구성된 줄/개체 recipe에서 물리 점유의
+최댓값과 줄별 advance를 구분한다. 음수 간격 TAC에서는 물리 끝36과 pen30이 다를 수 있다.
+끝 공간은 producer가 계산한 순서와 수치 그대로 보존한다. 텍스트와 그림의 결합된 끝 공간,
+TAC의 양수 줄간격/문단 뒤 간격을 임의로 합치지 않아 기존 부동소수점 덧셈 순서도 유지한다.
+
+실제 생산·소비 경로는 다음과 같다. 경로는 모두 `src/renderer/table_v2/` 기준이다.
+
+| 생산 결과 | 변환·측정 소비 | 실제 배치·최종 원점 |
+| --- | --- | --- |
+| `text.rs::TextComposer::compose`의 실제 줄 상자와 끝 공간 | `ParagraphEnd::from_composed` → `ir.rs::bind_table`/`text_flow.rs::from_flow_rows`/`document_input.rs::prepare`의 `into_flow_items` | 기존 `FlowBlock` → `content.rs::physical_extent` → `flow.rs::FlowCursor::fit` → `text.rs::TextFragment::append_to` |
+| `pictures.rs::compose`의 저장 ObjectRow와 끝 간격 | 동일 변환, ObjectRow 소유 줄 유지 | `text_ir.rs`의 paint slot과 기존 이미지 원점 사용. End 자체는 그릴 노드가 아님 |
+| `tac.rs::compose`의 InlineTables 높이/advance와 끝 간격 | 중첩 IR/본문 모두 동일 변환. declared table height를 재계산 근거로 쓰지 않음 | `flow.rs`의 원자적 줄 fit은 height로 검사하고 advance로 pen을 전진. 각 자식의 실제 배치/종료 검사 유지 |
+
+이번 단계에서 End 메타데이터가 fit 알고리즘을 대체한 것은 아니다. 공통 변환은 기존 끝
+공간을 같은 `FlowBlock::Space`로 내려 보내며, 측정과 배치는 그 결과를 소비한다. 점유 끝과
+후속 원점 getter를 추가했다는 이유만으로 셀 끝 정책이나 페이지네이션 개편이 완료됐다고
+주장하지 않는다. 이후 정책 판단의 입력 경계가 마련된 상태다. 후속 자리차지 앵커 조정과
+padding/수직 정렬은 기존 경로 그대로이며 이번 End로 덮어쓰지 않는다. 일반 어울림·혼합
+재조판은 여전히 미지원이다.
+
+분할 경로는 `FlowCursor::fit`의 기존 블록/space_left/child 소유 컷을 유지한다. 실제 수용한
+Space만 예약하며 줄 예산 실패는 해당 줄을 이월한다. TAC height/advance 분리·자식의 원자적
+fit·완료 검사도 변경하지 않는다. rowspan 특수 분기나 조각 clip을 수정하지 않았으므로 새
+분할 규칙의 증거로 세지 않는다. 기존 분할·rowspan·제목 반복 대조군으로 출력 보존을 확인한다.
+
+정식 `tests/cases/issue_7353_table_v2_nested.rs`에 2건을 추가했다.
+
+- `paragraph_end_distinguishes_occupied_end_and_next_origin`: 12+6+2의 후속 원점20과
+  물리 끝12, TAC 물리 끝36/전진30+2의 차이, 비유한/음수 공간 거부를 검사한다.
+- `paragraph_end_bands_and_external_space_keep_blank_line_ownership`: 합성10높이 빈 줄의
+  End(6+2) 뒤에 명시적 공간0/2/7을 넣어 최종 두 LineOwner·원점 차이18+추가 공간·
+  예약 높이28+추가 공간·완전 종료를 검사한다. helper 값만 검사하지 않고 IR→fit 결과를 검사한다.
+
+이 2건은 새 표현의 합성 계약이지 기존 사용자 결함의 수정 전 FAIL 증거가 아니다. 이전
+0 공간 항등성/명시 공간 가산성, 4/14pt·156% 빈 문단/이월 검사도 함께 실행했다. 한컴
+정상 생성본의 종료 간격 적용을 이 합성 결과로 대신하지 않는다.
+
+최종 `output/7353/r19/terminal/end-tests.log`는 **221 PASS**, 미선택2549건이다. 기존 V2와
+shared control 대조군의 현재 suite 배정/실행 명령은 로그 첫 줄에 남겼다. 초기 focused14건은
+최종 구현 전 결과라 최종221건과 합산하지 않는다. `end-fixtures`의 Native JSON111개는 기존
+`checkpoint-fixtures`111개와 전부 byte 동일하다. 이 비교는 기존 결과 보존의 증거이며
+한컴 정답 일치로 해석하지 않는다. 추가 lint/fresh WASM/직접 시각 확인은 아래에 연결한다.
+
+최종 검증은 같은 review overlay에서 순차 실행했다. `end-fmt.log`,
+`end-clippy-native.log`(`cargo clippy --locked -- -D warnings`),
+`end-clippy-wasm.log`(`-p rhwp --lib --target wasm32-unknown-unknown`),
+`end-clippy-test.log`(`-p rhwp --test regression_suite_021`) 모두 PASS다.
+`end-policy.log`의 manifest 검사는 고정 base `7a95e46e025470a4d7a7b59ad68ec02958bda738`
+대비 PASS다. source-side unit test는 변경하지 않았다. 제품/review의 소스·Cargo1347개
+byte 차이0과 변경 파일별 SHA256은 `end-source-comparison.json`에 기록했다.
+
+`docker compose --env-file .env.docker -p rhwp run --rm wasm`은7분50초에 성공했다
+(`end-docker-wasm.log`). fresh `pkg/rhwp_bg.wasm` SHA256은
+`517e088ca4697622edefb4f2568ed3ffa895b798842b54ae30f2ecf78a6a02b8`다.
+`verify-table-v2-preview-wasm.mjs`를 `--pkg pkg --fixtures output/7353/r19/terminal/end-fixtures
+--out output/7353/r19/terminal/end-browser --dependencies-root /home/edward/mygithub/rhwp`와
+지원하는20개 선택 flag로 실행했다: `--split-line-property --solid-backgrounds
+--fractional-cell-fit --stored-margins --pictures --stored-frames --linear-backgrounds
+--nested-alignment --cell-vertical-align --document-flow --stored-body --tac-metrics
+--stored-tac --structural-tac --empty-page-borders --page-numbers --rowspan --solid-borders
+--split-borders --matching-table-borders`. Chrome 경로는
+`/home/edward/.cache/puppeteer/chrome/linux-146.0.7680.31/chrome-linux64/chrome`다.
+
+`end-browser.log`/`end-browser/manifest.json`은 **207쪽 exact Native/fresh WASM tree·SVG
+parity, isolation/rejection/rollback/termination PASS**다. 이번 Native111개와 이전
+`checkpoint-fixtures`의 byte 동일성은 `end-native-comparison.json`, 이전 `browser`와
+이번 review PNG207개의 byte 동일성은 `end-browser-comparison.json`에 별도 기록했다.
+검증 이후 engine/test는 변경하지 않았다.
+
+직접 연 대표 증적은 `output/7353/r19/terminal/end-browser/` 아래의 다음 파일이다.
+
+- `fractional-source-0.review.png`와 standalone `fractional-source-0.overlay.png`:
+  원본 #6923 첫 선택 표의 외곽·12셀·2그림 상대 위치가 두 backend에서 같다.
+  원본은 `tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp`,
+  독립 기준은 같은 stem의 `-2020.pdf` p1이다. 이번 compare의 직접 기준은 Native이며,
+  앞서 기록한 한컴 PDF와의 높이/좌측 로고 차이를 해소한 것으로 주장하지 않는다.
+- `document-inline-signed-budget-0.review.png`/`-1.review.png`: 앞 문단만 첫 쪽에 남고
+  같은 줄의 두 TAC와 after는 다음 쪽에 함께 조판된다. 음수 간격의 후속 원점도 그대로다.
+- `stored-frame-empty-center-0.review.png`: 빈 저장 줄 다음 after의 위치가 보존된다.
+  빈 줄 점유 자체는 앞의 정식 좌표 계약으로 검증하며 눈에 글자가 없다는 이유로 판단하지 않는다.
+- `picture-source-1-0.review.png`: 원본 그림 payload의 위치/크기가 두 backend에서 같다.
+
+각 review는 Native/fresh WASM/overlay3열 compare이며 별도의 `.native.png`, `.wasm.png`,
+`.overlay.png`도 같은 stem에 있다. `visual_accuracy_proxy_percent`는 이 backend 비교에서
+산출하지 않았다. PNG byte/JSON 비교만으로 시각 통과를 선언하지 않고 위 대표 페이지를 직접
+확인했다. 새 End 전용 합성 입력의 Hancom 시각 대응은 미검증이며, 이번 browser207쪽에 새
+End constructor 합성 사례가 별도 fixture로 추가된 것은 아니다.
+
+내부 커밋은 `end-verified-commit.txt`에 연결한다. 전체 workspace 제출 CI·원격 push/PR·
+기본값 전환은 하지 않았다. 다음 우선순위는 이미 분리한 결과를 바탕으로 **유효한 저장 TAC의
+셀 끝 간격과 선언 점유 envelope를 독립 근거에 연결하여 원본 문서 수용을 진행**하는 것이다.
+보류 후보/기대값 일괄 갱신은 하지 않으며 A/R5 완료로 세지 않는다.

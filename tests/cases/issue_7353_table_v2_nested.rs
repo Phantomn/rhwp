@@ -421,6 +421,74 @@ fn ir_leaf() -> Table {
 }
 
 #[test]
+fn paragraph_end_distinguishes_occupied_end_and_next_origin() {
+    let end = ParagraphEnd::new(12.0, 12.0, vec![6.0, 2.0]).unwrap();
+    assert_eq!(end.occupied_end(), 12.0);
+    assert_eq!(end.next_origin(), 20.0);
+    // Negative TAC spacing has already advanced the row pen by 30, although
+    // its physical box extends to36. It must not be collapsed to the pen.
+    let end = ParagraphEnd::new(36.0, 30.0, vec![2.0]).unwrap();
+    assert_eq!(end.occupied_end(), 36.0);
+    assert_eq!(end.next_origin(), 32.0);
+    for tail in [vec![-1.0], vec![f64::NAN], vec![f64::INFINITY]] {
+        assert!(ParagraphEnd::new(12.0, 12.0, tail).is_err());
+    }
+    assert!(ParagraphEnd::new(12.0, f64::MAX, vec![f64::MAX]).is_err());
+}
+
+#[test]
+fn paragraph_end_bands_and_external_space_keep_blank_line_ownership() {
+    struct Composer(f64);
+    impl CellParagraphComposer for Composer {
+        fn compose(&self, p: &Paragraph, width: f64) -> Result<Vec<ParagraphItem>, GeometryError> {
+            let mut items = SyntheticComposer.compose(p, width)?;
+            if p.text.is_empty() {
+                items.push(ParagraphItem::End(ParagraphEnd::new(
+                    10.0,
+                    10.0,
+                    vec![6.0, 2.0],
+                )?));
+                items.push(ParagraphItem::Space(self.0));
+            } else {
+                items.push(ParagraphItem::End(ParagraphEnd::new(10.0, 10.0, vec![])?));
+            }
+            Ok(items)
+        }
+    }
+    for extra in [0.0, 2.0, 7.0] {
+        let mut t = ir_leaf();
+        t.cells[0].paragraphs.push(Paragraph {
+            text: "after".into(),
+            ..Paragraph::new_empty()
+        });
+        let cursor = TableContentPlan::from_ir_contents(&t, 1.0, &Composer(extra))
+            .unwrap()
+            .start();
+        let fragment = fit(&cursor, 28.0 + extra);
+        let lines = &fragment.placement().cells[0].lines;
+        assert_eq!(lines.len(), 2);
+        assert_eq!(
+            lines[0].owner,
+            LineOwner {
+                paragraph: 0,
+                line: 0
+            }
+        );
+        assert_eq!(
+            lines[1].owner,
+            LineOwner {
+                paragraph: 1,
+                line: 0
+            }
+        );
+        assert_eq!(lines[0].bounds.height, 10.0);
+        assert_eq!(lines[1].bounds.y - lines[0].bounds.y, 18.0 + extra);
+        assert_eq!(fragment.reserved_height(), 28.0 + extra);
+        assert!(fragment.continuation().is_complete());
+    }
+}
+
+#[test]
 fn ir_adapter_uses_table_padding_and_real_paragraph_control_ownership() {
     let mut root = ir_leaf();
     root.cells[0].width = 100;

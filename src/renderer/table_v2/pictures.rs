@@ -149,8 +149,10 @@ pub(super) fn compose(
         end = row.top + row.height;
     }
     let trailing = para.line_segs.last().ok_or_else(unsupported)?.line_spacing;
-    items.push(ParagraphItem::Space(
-        f64::from(trailing) * scale + style.spacing_after,
-    ));
+    let ending = super::ParagraphEnd::from_composed(
+        &items,
+        vec![f64::from(trailing) * scale + style.spacing_after],
+    )?;
+    items.push(ParagraphItem::End(ending));
     Ok((items, nodes))
 }

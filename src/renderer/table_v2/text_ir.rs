@@ -77,7 +77,7 @@ impl CellParagraphComposer for IrTextComposer<'_> {
                 ParagraphItem::InlineTables { tables, .. } => {
                     slots.extend(tables.iter().map(|(ci, _)| PaintSlot::Table(*ci)));
                 }
-                ParagraphItem::Space(_) => {}
+                ParagraphItem::Space(_) | ParagraphItem::End(_) => {}
             }
         }
         let lines = self

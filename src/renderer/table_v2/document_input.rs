@@ -159,7 +159,9 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
                 _ => false,
             })
         {
-            for item in super::tac::compose(source, body.width, &styles, dpi).map_err(fail)? {
+            for item in super::paragraph_end::into_flow_items(
+                super::tac::compose(source, body.width, &styles, dpi).map_err(fail)?,
+            ) {
                 match item {
                     ParagraphItem::Space(h) => blocks.push(FlowBlock::Space(h)),
                     ParagraphItem::InlineTables {
@@ -278,9 +280,10 @@ pub(super) fn prepare(document: &Document, dpi: f64) -> Result<BodyPlan, Documen
         paragraph.ctrl_data_records.clear();
         paragraph.column_type = ColumnBreakType::None;
         let items = composer.compose(&paragraph, body.width).map_err(fail)?;
-        for item in items {
+        for item in super::paragraph_end::into_flow_items(items) {
             match item {
                 ParagraphItem::Space(h) => blocks.push(FlowBlock::Space(h)),
+                ParagraphItem::End(_) => unreachable!("paragraph end already lowered"),
                 ParagraphItem::Lines {
                     height,
                     lines: owned,

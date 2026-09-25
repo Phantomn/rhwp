@@ -93,9 +93,14 @@ impl PreparedTextTable {
                                     "duplicate paragraph owner",
                                 ));
                             }
-                            for item in composer.compose(&paragraph, width)? {
+                            for item in super::paragraph_end::into_flow_items(
+                                composer.compose(&paragraph, width)?,
+                            ) {
                                 match item {
                                     ParagraphItem::Space(h) => blocks.push(FlowBlock::Space(h)),
+                                    ParagraphItem::End(_) => {
+                                        unreachable!("paragraph end already lowered")
+                                    }
                                     ParagraphItem::Lines { height, lines } => {
                                         blocks.push(FlowBlock::Lines {
                                             height,
