@@ -224,9 +224,9 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
     assert!(matches!(
         error,
         DocumentV2Error::Paragraph {
-            index: 2,
+            index: 4,
             reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "text preview run outside occupied line"
+                "stored text requires intact single-segment rows"
             )
         }
     ));
@@ -238,7 +238,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         )
         .unwrap();
         let original = rhwp::parse_document(&data).unwrap();
-        let p = &original.sections[0].paragraphs[2];
+        let p = &original.sections[0].paragraphs[4];
         let shape = &original.doc_info.para_shapes[p.para_shape_id as usize];
         std::fs::write(
             format!("{dir}/6923-terminal-next-source.json"),
@@ -381,6 +381,56 @@ fn document_noop_border_does_not_admit_visible_or_lost_effects() {
             "nested variant {variant}"
         );
     }
+}
+
+#[test]
+fn document_original_title_keeps_trailing_space_and_saved_flow() {
+    let data = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"
+    ))
+    .unwrap();
+    let mut d = rhwp::parse_document(&data).unwrap();
+    let original = serde_json::to_value(&d.sections[0].paragraphs[..3]).unwrap();
+    d.sections[0].paragraphs.truncate(3);
+    // A copied blank is a derivative suffix, not part of the original prefix.
+    // Its geometry checks title advance without replacing the title's style.
+    let blank = d.sections[0].paragraphs[1].clone();
+    d.sections[0].paragraphs.push(blank);
+    let encoded = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+    let reparsed = rhwp::parse_document(&encoded).unwrap();
+    assert_eq!(
+        serde_json::to_value(&reparsed.sections[0].paragraphs[..3]).unwrap(),
+        original
+    );
+    let pages = drain(&mut DocumentV2Session::from_bytes(&encoded, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    let mut lines = Vec::new();
+    collect(nodes(&pages[0], "Body")[0], "TextLine", &mut lines);
+    let title = lines[lines.len() - 2];
+    // Stored body origin + prior TAC/blank advance; 1900HU title + 380HU gap.
+    near(&title["bbox"]["y"], 19155.0 / 75.0);
+    near(&title["bbox"]["height"], 1900.0 / 75.0);
+    near(&title["bbox"]["width"], 48188.0 / 75.0);
+    near(&lines.last().unwrap()["bbox"]["y"], 21435.0 / 75.0);
+    let mut runs = Vec::new();
+    collect(title, "TextRun", &mut runs);
+    let text: String = runs
+        .iter()
+        .map(|r| r["node_type"]["TextRun"]["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(text, d.sections[0].paragraphs[2].text);
+    let right = title["bbox"]["x"].as_f64().unwrap() + 48188.0 / 75.0;
+    let tail = runs.last().unwrap();
+    assert_eq!(tail["node_type"]["TextRun"]["text"], " ");
+    assert!(tail["bbox"]["x"].as_f64().unwrap() + tail["bbox"]["width"].as_f64().unwrap() > right);
+    for run in &runs[..runs.len() - 1] {
+        assert!(
+            run["bbox"]["x"].as_f64().unwrap() + run["bbox"]["width"].as_f64().unwrap()
+                <= right + 1e-7
+        );
+    }
+    capture_terminal("document-trailing-source", &encoded, &pages);
 }
 fn drain(session: &mut DocumentV2Session) -> Vec<Value> {
     let mut pages = Vec::new();

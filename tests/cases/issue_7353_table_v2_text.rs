@@ -494,6 +494,78 @@ fn stored_partitions_and_continuation_share_final_line_boxes() {
 }
 
 #[test]
+fn trailing_plain_space_keeps_logical_advance_without_widening_occupied_line() {
+    use rhwp::model::style::{Alignment, UnderlineType};
+    // Independent alignment contract: RIGHT places visible A at the right
+    // edge, while plain trailing spaces keep their logical advances. The
+    // stored row remains 200HU wide, 12HU high, with 6HU following space.
+    for split_run in [false, true] {
+        let mut t = table(&["A        ", "after"]);
+        let p = &mut t.cells[0].paragraphs[0];
+        p.line_segs = vec![LineSeg {
+            line_height: 12,
+            text_height: 12,
+            baseline_distance: 10,
+            line_spacing: 6,
+            segment_width: 200,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            ..Default::default()
+        }];
+        let mut s = styles();
+        s.para_styles[0].alignment = Alignment::Right;
+        s.char_styles.push(s.char_styles[0].clone());
+        if split_run {
+            // Force a distinct style owner without changing its geometry.
+            p.char_shapes.push(CharShapeRef {
+                start_pos: 1,
+                char_shape_id: 1,
+            });
+        }
+        let prepared = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+        let (page, lines) = render(&placed(&prepared.start(), 43.0));
+        assert_eq!(lines.len(), 2);
+        assert_eq!(text(&lines[0]), "A        ");
+        assert_eq!(lines[0].bbox.width, 200.0);
+        assert_eq!(lines[0].bbox.height, 12.0);
+        assert_eq!(lines[1].bbox.y - lines[0].bbox.y, 18.0);
+        let end = lines[0].bbox.x + 200.0;
+        let last = &lines[0].children.last().unwrap().bbox;
+        assert!(last.x + last.width > end);
+        let mut control = t.clone();
+        let p = &mut control.cells[0].paragraphs[0];
+        p.text = "A".into();
+        p.char_count = 1;
+        p.char_offsets = vec![0];
+        p.char_shapes.truncate(1);
+        let prepared = PreparedTextTable::prepare(&control, &s, 7200.0).unwrap();
+        let (_, control_lines) = render(&placed(&prepared.start(), 43.0));
+        let a = &control_lines[0].children[0].bbox;
+        assert!((a.x + a.width - end).abs() < 1e-7);
+        assert!((lines[0].children[0].bbox.x - a.x).abs() < 1e-7);
+        let mut svg = SvgRenderer::new();
+        svg.render_tree(&page);
+        assert!(svg.output().contains("A"));
+        // A decoration makes those spaces visible, so overflow stays rejected.
+        for effect in [0, 1, 2] {
+            let mut decorated = s.clone();
+            for font in &mut decorated.char_styles {
+                match effect {
+                    0 => font.underline = UnderlineType::Bottom,
+                    1 => font.strikethrough = true,
+                    _ => font.shade_color = 0x00ff00,
+                }
+            }
+            assert!(PreparedTextTable::prepare(&t, &decorated, 7200.0).is_err());
+        }
+        let mut visible_overflow = t.clone();
+        visible_overflow.cells[0].paragraphs[0].text = "A".repeat(100);
+        visible_overflow.cells[0].paragraphs[0].char_offsets = (0..100).collect();
+        visible_overflow.cells[0].paragraphs[0].char_count = 100;
+        assert!(PreparedTextTable::prepare(&visible_overflow, &s, 7200.0).is_err());
+    }
+}
+
+#[test]
 fn contained_stored_frames_survive_alignment_and_continuation() {
     use rhwp::model::style::Alignment;
     for alignment in [Alignment::Left, Alignment::Center, Alignment::Right] {

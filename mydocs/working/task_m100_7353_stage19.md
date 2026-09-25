@@ -1582,3 +1582,67 @@ PDF 비교 범위 밖이다(`pdf-scope.json`). 빈 줄의 높이는 보이지 �
 해당 제목 문단은 저장 높이1900HU/간격380HU, 가운데 정렬이며, 다음 조사는 실제 glyph
 점유와 저장 줄 상자의 관계다. 원인은 아직 확정하지 않았다. 기본 V2/Legacy·baseline·golden·
 ignore는 유지하며 원격 push/PR은 수행하지 않았다. 원본 전체 수용 및 A/R5 완료가 아니다.
+
+### 말미 공백의 논리 폭과 표시 점유 분리 — 진행 기록
+
+시작 head `fd68bb6b3`. `run-extent/diagnostic.log`에서 원본 index2의 마지막 U+0020
+런만 오른쪽을 넘는다: 줄642.506667px, 공백 시작632.764214px, 폭10.689452px,
+끝643.453667px(초과0.947px). y/height/기준선·원본 저장 줄 검사는 통과한다.
+제목은 원본 HWP의 저장1900HU 높이/380HU 줄간격과 실제 27자 제목+공백을 그대로 사용한다.
+대응 PDF p1에는 제목의 가시 글자가 본문 안에 있고 말미 공백에는 표시 효과가 없다.
+
+공통 문단 paint가 발행한 TextRun의 논리 advance를 줄 점유로 오인한 V2 수용 검사다.
+`TextComposer`의 공통 paint → 저장 줄 일치 검사 → 표시 inline 끝 검사 → 기존 ParagraphEnd/
+FlowBlock → 본문/셀 조각 paint로 이어진다. 새 검사는 backend와 같은 replay positions에서
+장식 없는 말미 U+0020만 표시 끝과 구분하며, 텍스트·bbox·저장 줄·payload를 수정하지 않는다.
+줄 높이/후속 원점은 계속 기존 저장 줄 결과에서 계상한다. 밑줄·취소선·음영·테두리 등의
+효과가 있거나 내부 공백·가시 글자이면 기존 전체 폭 검사를 유지한다. 분할/예약 로직 변경은 없다.
+합성 RIGHT 정렬 계약은 말미 공백 유무/런 분할에 무관한 가시 글자 원점과200HU 줄 폭,
+12HU 높이/18HU 다음 원점을 검사한다. 수정 전 `before.log`는 의도한 범위 거부로 FAIL했다.
+
+#### 집중 검증 결과
+
+증적은 `output/7353/r19/run-extent/` 아래다. `before-wasm.log/json`은 직전 패키지
+`3afd9baead27374bb4fc4d96cb57fb0e667f0c9ec8a6307b29b79e08b26f4304`가 원본 앞3문단과
+복사 빈 문단으로 구성한 최종 파생 입력을 같은 이유로 거부함을 확인한다.
+새 `document_original_title_keeps_trailing_space_and_saved_flow` 계약은 앞3문단의
+HWP 재직렬화/재파싱 JSON 동일성, 제목 y19155/75·높이1900/75·폭48188/75px,
+다음 빈 문단 y21435/75px와 공백 런의 원래 초과 폭 보존을 실제 최종 tree에서 검사한다.
+합성 계약은 단일/분리 런, 말미 공백 없는 정렬 대조군, 밑줄/취소선/음영 및 가시 글자
+초과 반례를 확인한다. 어느 경로에서도 bbox를 줄이거나 원본 공백을 삭제하지 않았다.
+
+`after-text.log`17/17 PASS, `document-final.log`28/28 PASS에 이어
+`selected.log`는233/233 PASS다. 실행 명령은 로그 첫 줄과 `run-selected.mjs`에 고정했다.
+중간 `after-document.log`의1건은 원본 전체 거부 지점이 index2에서 index4로 이동한
+수용 범위 계약이며, 다음 실제 거부 이유를 확인한 뒤 갱신했다. 문서 출력 기대 좌표나
+baseline을 완화한 것은 아니다. 원본 나머지를 수용했다고 보고하지 않는다.
+review worktree에서 fmt check, native/WASM lib/변경 integration suite Clippy를 순차로
+실행해 모두 PASS했다(`fmt.log`, `clippy-{native,wasm,tests}.log`, `--locked -D warnings`).
+`policy.log`는 고정 base `7a95e46e025470a4d7a7b59ad68ec02958bda738` 대비 PASS다.
+파생 suite는 커밋하지 않는다. source unit test 변경은 없고 전체 workspace 제출 게이트는
+이번 내부 절편에서 실행하지 않았다.
+
+Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm`은7분23초 성공했다
+(`docker-wasm.log`). 컨테이너의 text.rs SHA256도 작업본과 동일했다.
+최종 WASM SHA256: `156d1831f32c3201a5e48e51e03392fa892ccbb577b2f5612274bbf45c91e887`.
+기존 browser 명령에 `--trailing-space`를 추가하고 fixtures/out을
+`run-extent/fixtures`, `run-extent/browser`로 지정했다. 첫 시도는 Chrome 시작 단계에서
+실패했고(`browser.log`), 같은 조건 재실행은 성공했다. 시작 실패의 정확한 원인은 미확정이며
+제품 렌더링 실패나 통과 증거로 세지 않는다. `browser-retry.log`:214쪽 exact Native/WASM
+tree·SVG 일치, isolation/rejection/rollback/termination PASS.
+`preservation.json`은 기존 Native117개·review PNG213개 byte 동일을 확인한다.
+`source-comparison.json`은 제품/review Rust 및 루트 Cargo1049개 차이0·테스트 동일성·패키지 hash를
+기록한다. Docker 시작 후 렌더러 변경은 없다.
+
+`pdf-review.png`를 먼저 열고 `pdf-{native,wasm}-overlay.png`,
+`browser/document-trailing-source-0.review.png`를 직접 확인했다. PDF 비교는 원본 첫 표와
+제목을 포함한 동일96dpi 좌표(x72,y90,w660,h196)이며 이동/축소 정렬은 하지 않았다
+(`pdf-scope.json`, `compare-pdf.mjs`). 제목과 밑줄은 본문 안에 배치된다. PDF와 글꼴 굵기·
+자간, 기존 로고 표시 차이는 남는다. 복사한 뒤쪽 빈 문단과 원본 후속 본문은 비교 판정 밖이다.
+일반 CLI가 아닌 명시적 V2 browser 경로로 검증했으며 `visual_accuracy_proxy_percent`는
+미계측이다. Native/WASM 일치·계약 통과를 한컴 피델리티 최종 통과로 바꾸지 않는다.
+
+다음 원본 경계는 index4의 저장 줄1400HU/간격-140HU(문단90%) 수용이다. 현재 일반
+텍스트의 stored_text::localize는 음수 간격을 거부한다. 이를0으로 보정하지 않고 줄 점유와
+다음 전진의 계약을 조사해야 한다. 원본 전체/A·R5 완료가 아니다. Legacy/default·
+baseline/golden/ignore 변경 및 원격 push/PR은 없다.

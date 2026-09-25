@@ -287,6 +287,58 @@ pub(super) struct TextComposer<'a> {
     pub payloads: RefCell<Vec<Vec<RenderNode>>>,
 }
 
+/// Logical caret advance can extend past the aligned line's right edge for
+/// plain trailing spaces. Keep the payload intact; qualify only its painted
+/// inline extent, using the same replay positions that backends consume.
+/// Decorations, interior spaces and visible glyphs keep their full bounds.
+fn painted_inline_ends(nodes: &[RenderNode], styles: &ResolvedStyleSet) -> Vec<Option<f64>> {
+    let mut suffix = true;
+    let mut ends = Vec::with_capacity(nodes.len());
+    for node in nodes.iter().rev() {
+        let full = Some(node.bbox.x + node.bbox.width);
+        let RenderNodeType::TextRun(run) = &node.node_type else {
+            suffix = false;
+            ends.push(full);
+            continue;
+        };
+        let s = &run.style;
+        let plain = run.display_text.is_none()
+            && run.char_overlap.is_none()
+            && run.rotation == 0.0
+            && !run.is_vertical
+            && run.field_marker == crate::renderer::render_tree::FieldMarkerType::None
+            && s.underline == crate::model::style::UnderlineType::None
+            && !s.strikethrough
+            && crate::model::color::char_shade(s.shade_color).is_none()
+            && s.tab_leaders.is_empty()
+            && s.outline_type == 0
+            && s.shadow_type == 0
+            && !s.emboss
+            && !s.engrave
+            && s.emphasis_dot == 0
+            && super::decoration::paragraph_is_unpainted(run.border_fill_id, styles);
+        let trimmed = run.text.trim_end_matches(' ');
+        let end = if suffix && plain && trimmed.len() < run.text.len() {
+            if trimmed.is_empty() {
+                None
+            } else {
+                let positions = run.replay_positions_for(&run.text);
+                positions
+                    .get(trimmed.chars().count())
+                    .filter(|v| v.is_finite() && **v >= 0.0)
+                    .map(|v| node.bbox.x + v)
+                    .or(full)
+            }
+        } else {
+            full
+        };
+        suffix &= plain && trimmed.is_empty();
+        ends.push(end);
+    }
+    ends.reverse();
+    ends
+}
+
 impl CellParagraphComposer for TextComposer<'_> {
     fn compose(&self, para: &Paragraph, width: f64) -> Result<Vec<ParagraphItem>, GeometryError> {
         if para.column_type != crate::model::paragraph::ColumnBreakType::None
@@ -438,14 +490,15 @@ impl CellParagraphComposer for TextComposer<'_> {
                     "text preview overlapping or overflowing rows",
                 ));
             }
-            for run in &mut node.children {
+            let painted_ends = painted_inline_ends(&node.children, self.styles);
+            for (run, painted_end) in node.children.iter_mut().zip(painted_ends) {
                 let r = &run.bbox;
                 if [r.x, r.y, r.width, r.height].iter().any(|v| !v.is_finite())
                     || r.width < 0.0
                     || r.height < 0.0
                     || r.x < b.x - 1e-7
                     || r.y < b.y - 1e-7
-                    || r.x + r.width > b.x + b.width + 1e-7
+                    || painted_end.is_some_and(|end| end > b.x + b.width + 1e-7)
                     || r.y + r.height > b.y + b.height + 1e-7
                 {
                     return Err(GeometryError::Unsupported(

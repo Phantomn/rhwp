@@ -90,6 +90,7 @@ async function main() {
   if (process.argv.includes('--terminal-cell-end')) positive.push('terminal-source');
   if (process.argv.includes('--document-terminal')) positive.push('document-terminal-anchor','document-terminal-source');
   if (process.argv.includes('--noop-paragraph-border')) positive.push('document-noop-border','document-noop-source');
+  if (process.argv.includes('--trailing-space')) positive.push('document-trailing-source');
   if (process.argv.includes('--stored-margins')) {
     positive.push('stored-margin-left','stored-margin-center','stored-margin-right',
       ...[2,4,5,6,7,10,11].map(i=>`stored-margin-source-${i}`));
@@ -261,6 +262,7 @@ async function main() {
     expected['document-terminal-anchor']=[['A','B','host','after']];
     expected['document-noop-source']=expected['document-terminal-source'];
     expected['document-noop-border']=[['','A','','host'],['after']];
+    expected['document-trailing-source']=[[...expected['terminal-source'][0],'','무학-대선의 부당 표시·광고행위에 대해 엄중 제재 ','']];
     expected['fill-merged'] = expected.merged;
     expected['fill-nested'] = expected.nested;
     expected['fill-split'] = [['A', ''], ['B', 'C']];
@@ -338,8 +340,8 @@ async function main() {
         assert.equal(output.engine, 'table_v2'); assert.equal(output.scope, name.startsWith('document-') ? 'document_body' : 'selected_table');
         assert.equal(output.page_index, index + (name === 'partial' ? 1 : 0));
         const rootNode = output.render_tree.root;
-        const lines = collect(['document-terminal-source','document-noop-source'].includes(name) ? collect(rootNode,'Body')[0] : rootNode, 'TextLine');
-        assert.deepEqual(name.startsWith('stored-margin-source-') || name==='fractional-source' || name==='terminal-source' || name==='document-terminal-source' || name.startsWith('document-noop-')
+        const lines = collect(['document-terminal-source','document-noop-source','document-trailing-source'].includes(name) ? collect(rootNode,'Body')[0] : rootNode, 'TextLine');
+        assert.deepEqual(name.startsWith('stored-margin-source-') || name==='fractional-source' || name==='terminal-source' || name==='document-terminal-source' || name==='document-trailing-source' || name.startsWith('document-noop-')
           ? lines.map(n=>collect(n,'TextRun').map(r=>r.node_type.TextRun.text).join(''))
           : collect(rootNode, 'TextRun').map(n => n.node_type.TextRun.text), expected[name][index]);
         const aligned = name.startsWith('align-');
@@ -460,6 +462,15 @@ async function main() {
             assertDocumentGeometry(run.bbox.x+(pos===4 ? 0 : run.bbox.width/(pos===5 ? 2 : 1)),pos===4 ? 20 : pos===5 ? 170 : 320);
             assert.ok(story.bbox.y+story.bbox.height<200);
           }
+        } else if (name==='document-trailing-source') {
+          const title=lines.at(-2), runs=collect(title,'TextRun'), tail=runs.at(-1);
+          assertDocumentGeometry(lines.slice(-3).map(n=>n.bbox.y),[17955/75,19155/75,21435/75]);
+          assertDocumentGeometry(lines.slice(-3).map(n=>n.bbox.height),[1000/75,1900/75,1000/75]);
+          assert.equal(tail.node_type.TextRun.text,' ');
+          const right=title.bbox.x+title.bbox.width;
+          assert.ok(tail.bbox.x+tail.bbox.width>right);
+          assert.ok(runs.slice(0,-1).every(r=>r.bbox.x+r.bbox.width<=right+1e-7));
+          assertDocumentGeometry(collect(rootNode,'Table')[0].bbox.height,11102/75);
         } else if (name==='document-noop-border') {
           assertDocumentGeometry(lines.map(n=>n.bbox.y),index===0 ? [30,48,66,84] : [30]);
           assertDocumentGeometry(collect(rootNode,'Table').map(n=>n.bbox.height),index===0 ? [36] : []);
@@ -689,7 +700,7 @@ async function main() {
         const stem = `${fixtureName}-${index}`;
         writeFileSync(join(out, `${stem}.svg`), output.svg);
         // Preserve evidence even if a backend comparison fails below.
-        const rasterWidth=['fractional-source','terminal-source','document-terminal-source','document-noop-source'].includes(name)?800:400;
+        const rasterWidth=['fractional-source','terminal-source','document-terminal-source','document-noop-source','document-trailing-source'].includes(name)?800:400;
         await raster.setViewport({ width: rasterWidth, height: 400, deviceScaleFactor: 1 });
         for (const [backend, svg] of [['native', native[index].svg], ['wasm', output.svg]]) {
           await raster.setContent(`<body style="margin:0;background:white">${svg}</body>`);
