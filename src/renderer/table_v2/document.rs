@@ -11,7 +11,7 @@ use crate::renderer::{
 };
 
 use super::{
-    flow::FlowCursor,
+    body_flow::{AnchoredFlow, BodyCursor},
     text::{assign_ids, translate, TextPaint},
     ControlOwner, FlowCellInput, GeometryError, LineOwner, Rect,
 };
@@ -51,6 +51,7 @@ struct Options {
 
 pub(super) struct BodyPlan {
     pub flow: FlowCellInput,
+    pub anchors: Vec<AnchoredFlow>,
     pub lines: HashMap<LineOwner, (usize, RenderNode)>,
     pub tables: HashMap<ControlOwner, (usize, Arc<TextPaint>)>,
     pub body: Rect,
@@ -77,7 +78,7 @@ struct Output {
 #[derive(Clone)]
 pub struct DocumentV2Session {
     plan: Arc<BodyPlan>,
-    cursor: FlowCursor,
+    cursor: BodyCursor,
     emitted: u32,
     max_pages: u32,
 }
@@ -103,7 +104,7 @@ impl DocumentV2Session {
                 options.dpi,
                 options.cell_end_policy,
             )?),
-            cursor: FlowCursor::default(),
+            cursor: BodyCursor::default(),
             emitted: 0,
             max_pages: options.max_pages,
         })
@@ -116,13 +117,13 @@ impl DocumentV2Session {
     /// Fit -> final nodes -> SVG/JSON -> commit. A paint/fit/serialization error
     /// does not consume any source unit, including an already started child.
     pub fn next_page_json(&mut self) -> Result<Option<String>, DocumentV2Error> {
-        if self.cursor.block == self.plan.flow.blocks.len() {
+        if self.cursor.complete(&self.plan) {
             return Ok(None);
         }
         if self.emitted == self.max_pages {
             return Err(DocumentV2Error::PageLimit(self.max_pages));
         }
-        let fit = self.cursor.fit(&self.plan.flow, self.plan.body)?;
+        let fit = self.cursor.fit(&self.plan)?;
         if !fit.progressed {
             return Err(DocumentV2Error::DoesNotFit {
                 page: self.emitted,

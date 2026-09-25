@@ -2017,3 +2017,139 @@ SHA-256 `3ad244d3…2b60db1`이며, 현재7개 renderer source가 증적의 `sou
 동일함을 확인했다. 코드 변경이 없어 이미 통과한60건/빌드/시각 캡처를 반복 실행하지 않았다.
 글꼴의 완전 일치, 별도 `defer` 사례의 후속 문단 흐름, 원본 #6923 전체를 승인한 것으로
 확대하지 않는다. 이번 갱신은 판정 기록뿐이며 소스·기준값·ignore·원격 상태는 바꾸지 않았다.
+
+### 다음 절편 — 이월된 floating 표와 후속 본문 흐름 분리
+
+작업지시자의 다음 절편 승인으로 착수했다. 앞선 여백 수정/시각 승인 기록은
+로컬 `3f2214e3b`에 보존했다. remote push·Legacy 변경·기본 엔진 전환은 하지 않는다.
+
+독립 근거는 앞 절편에서 확보한 정상 한컴 `variants/defer-saved.hwp`와 그 파일의 PDF다.
+원문·저장 LineSeg·PDF를 수정하거나 다시 생성하지 않았다. PDF1쪽에는 제목과 후속 문단,
+2쪽에는01~03행 표만 있다. 기존 V2는 `Space(anchor.before) → Table → Space(after)`를
+본문에 직렬 삽입하여 표의 예약 실패까지 본문 공백/진행으로 취급했다. 따라서 표가
+2쪽으로 옮겨질 때 후속 문단도 같이 끌려갔다. 이는 총 페이지수가 아니라 페이지별
+소유 내용과 실제 원점의 결함이다.
+
+이번 규칙: 수용된 자리차지 표 조각은 실제 영역을 예약한다. 한 조각도 수용하지 못한
+positioned 표의 초기 offset은 본문이 소비한 빈 문단이 아니다. 표를 다음 페이지의
+대기 커서로 보내고 현재 쪽의 후속 문단은 가용 공간에서 계속 조판한다. 실제 빈 문단과
+문단 간격은 본문 커서에 그대로 남는다. 표의 마지막 조각 뒤 아래 여백도 보존한다.
+TAC/fresh zero-offset/중첩 셀의 기존 흐름은 이 문서용 scheduling과 구분한다.
+
+구현 연결:
+
+- `body_anchor::resolve`: 기존 속성→IR 검증과 x/초기 before/재시작 top/after 결과 유지.
+- `document_input::prepare`: 해당 표를 본문 spacer로 삽입하지 않고 host 직후 block 경계와
+  initial/deferred flow를 만든다. 표 내용 plan/paint/소유 ID는 하나를 공유한다.
+- `body_flow::BodyCursor::fit`: 본문은 anchor 경계까지 공통 `FlowCursor::fit_until`로
+  소비하고, 표도 같은 fit으로 조회한다. 최초 조각이 없으면 그 조회의 초기 위치 밴드만
+  폐기하며 child 유닛은 소비하지 않는다. 다음 페이지에는 pending 예약을 먼저 처리한다.
+  수용된 조각은 원래 child continuation과 남은 물리 밴드를 유지한다.
+- `FlowFit::advance`: 누적 예약 높이와 다음 원점을 분리한다. 음수 줄간격의 실제 점유
+  높이를 다음 origin으로 대신하지 않는다. `BodyFit::accept`가 그 두 값을 누적하고
+  정확한 LinePlacement/TablePlacement를 모은다.
+- `DocumentV2Session::next_page_json`: 동일 BodyFit의 예약 높이를 확인한 뒤 정확한
+  배치 결과를 paint한다. 별도 y 재계산/clamp 없이 SVG/JSON 성공 후 두 커서를 함께
+  commit한다. 본문 종료만으로 완료하지 않으며 pending 표/남은 여백도 종료 조건에 포함한다.
+- 이월된 표가 새 페이지에도 안 맞으면 위 여백만으로 진전을 인정하지 않는다.
+  `DoesNotFit`으로 남기고 반복 호출 때 같은 상태를 보존한다.
+
+독립 PDF를 쓰는 `hancom_deferred_anchor_preserves_prose_on_source_page`는 수정 전
+라이브러리에서 **FAIL**했다(`anchor-story/before-tests.log`):1쪽 실제는 제목만,
+기대는 제목+후속 문단이다. 최초 rustc 호출의 `CARGO_MANIFEST_DIR` 누락은 환경 실패이며
+결함 재현으로 세지 않았다. 해당 환경 변수를 지정한 재실행의 assertion 실패만 증거다.
+기존 합성 `stored_anchor_atomic_defer...`의3쪽/후속 문단3쪽 기대는 독립 출력에 맞지
+않았으므로2쪽/후속 문단1쪽으로 바꿨다. baseline·golden·ignore를 완화한 것이 아니다.
+
+빠른 debug 단계에서 document-flow43건 통과했다. 실제 빈 줄, 다음 쪽 pending 표의
+공간 점유로 후속 문단이 또 이월되는 경우, 본문이 끝나도 남는 표, 페이지 밖 offset,
+여러 pending 소유자 보존, 과대 atomic 표의 무한 빈 페이지 방지와 정상 fit 대조를
+포함한다. 이것은 수정 중 진단이며 최종 release-test/fresh WASM 증거를 아래에 덧붙인다.
+6개 기존 한컴 대조의 범위를 자동으로 확장하지 않으며 중첩 floating/TAC/side-wrap,
+다양한 후속 개체와의 상호배치 전체는 이 절편의 한컴 검증 범위가 아니다.
+
+#### 최종 집중 회귀
+
+최종 source는 `3f2214e3b` + 이번6개 renderer 파일(신규 `body_flow.rs` 포함) 및
+document-flow 테스트 변경이며, 정확한 해시는 `output/7353/r19/anchor-story/source.sha256`다.
+제품/review worktree의 `src/renderer/table_v2/` 전체가 동일함을 `diff -qr`로 확인했다.
+review의 이미 준비된 `regression_suite_005`가 같은 `tests/cases/` 소스를 사용한다.
+파생 suite/manifest를 source PR에 추가하지 않는다.
+
+```sh
+# rhwp-review-7353
+CARGO_BUILD_JOBS=2 cargo nextest run --locked --cargo-profile release-test \
+  --test regression_suite_005 -E 'test(issue_7353_table_v2)' --no-fail-fast \
+  --target-dir /home/edward/mygithub/rhwp/target/pr-review
+```
+
+`anchor-story/focused-final.log`: **66 passed / 0 failed / 163 skipped**,
+release-test 빌드4분56초. 대상은 document_flow/nested/alignment이며 저장소 전체 CI를
+의미하지 않는다. nextest 버전/관측 설정 경고는 이전 절편과 같고 실행은 성공했다.
+최종 Native probe를 이 release-test 라이브러리에 링크하여 동일 저장 HWP2종을 다시
+렌더했다. 기본24행 대조군의 두 쪽 SVG는 앞선 시각 승인 코드 출력과 byte-identical이다.
+이월 사례는 후속 문단이1쪽으로 이동하고2쪽의 표 원점/높이는 보존된다.
+변경 Rust 파일 `rustfmt --check`, `git diff --check`, 최종 source hash 검사가 통과했다.
+전체 release 회귀·PR 제출용 세 Clippy gate·원본 #6923 전체 fidelity는 미검증으로 유지한다.
+
+#### Fresh WASM / Visual Sweep / 판정 요청
+
+제품 worktree에서 `docker compose --env-file .env.docker -p rhwp run --rm wasm`이
+**7분24초 성공**했다(`anchor-story/docker-wasm.log`). 최종 WASM SHA-256:
+`927a70729ca5c013a44caaeacbff75da81ab3348b5fcf87027e9c6f6f59b2417`.
+코드 변경 없이 이 빌드의 `pkg/rhwp.js`/`rhwp_bg.wasm`으로 브라우저 DocumentV2를 실행했다.
+
+```sh
+# rhwp-task-7353; probe는 위 최종 release-test 라이브러리에 링크
+output/7353/r19/anchor-story/probe \
+  tests/fixtures/issue7353_stored_anchor_review/variants/defer-saved.hwp \
+  output/7353/r19/anchor-story/review/defer/actual render
+output/7353/r19/anchor-story/probe \
+  tests/fixtures/issue7353_stored_anchor_review/anchor-review-saved.hwp \
+  output/7353/r19/anchor-story/review/base/actual render
+# 각 대응 PDF를 pdftoppm -png -r 96으로 review/{defer,base}/hancom에 출력
+node output/7353/r19/anchor-story/review.mjs --wasm
+node output/7353/r19/anchor-story/review.mjs --base --wasm
+node output/7353/r19/anchor-story/verify.mjs
+```
+
+`anchor-story/coordinates.json`, `review/{defer,base}/run.json` 및
+`backend-comparison.json`에 원문/PDF/WASM/source 해시와 최종 결과를 남겼다.
+
+| 검사 | 수정 전 → 최종 Native/fresh WASM |
+| --- | --- |
+| 후속 본문 소유 페이지/원점 |2쪽179.96px →1쪽99.053333px; 저장1100HU+660HU 글줄 간격 |
+| 이월 표 |2쪽 x52.92/y79.36/폭426.666667/높이93.04px 유지 |
+| 내용·종료 |1쪽 제목+후속 문단,2쪽01~03행 각1회, 불필요한3쪽 없음 |
+| 편집영역 | 표와 모든 글줄이 실제 Body 안에 있음 |
+| 이월 사례 backend | SVG2쪽 모두 동일; JSON 숫자24곳 최대2.842e-14, 다른 차이0 |
+| 기존24행 대조 | 수정 전후 Native/WASM SVG2쪽 모두 동일; backend 숫자125곳 최대5.684e-14, 다른 차이0 |
+
+최종 코드의 Native/fresh WASM review1·2쪽을 두 대조 모두 직접 열어 확인했고,
+이월 사례 WASM standalone overlay1·2도 직접 판독했다. 원점/스케일 정렬 보정 없이
+동일 PDF·동일 페이지를 비교했다. 주장은1쪽의 후속 문단 보존과2쪽 표의 내용·원점·외곽,
+정상 분할 대조군의 보존이며 글꼴 폭/굵기 차이는 남는다. 자동 점수로 시각 통과를
+선언하지 않는다.
+
+판정 요청 대표 파일:
+
+- [이월 사례1쪽 review](../../output/7353/r19/anchor-story/review/defer/wasm-review-1.png):
+  제목 아래 `표 종료 후 본문입니다.`가 있고 이쪽에는 표가 없어야 한다.
+- [이월 사례2쪽 review](../../output/7353/r19/anchor-story/review/defer/wasm-review-2.png):
+  표01~03행과 외곽이 있어야 하며 후속 본문이 중복되지 않아야 한다.
+- [2쪽 standalone overlay](../../output/7353/r19/anchor-story/review/defer/wasm-overlay-2.png).
+- 입력은 [그대로의 한컴 저장 HWP](../../tests/fixtures/issue7353_stored_anchor_review/variants/defer-saved.hwp),
+  기준은 [해당 HWP의 한컴 PDF](../../tests/fixtures/issue7353_stored_anchor_review/variants/defer-2020.pdf).
+
+상태: **구현·대상 회귀·fresh WASM·직접 비교 완료, 이번 이월 사례의 메인테이너 시각 판정 대기**.
+전체 R5 완료·일반 어울림/중첩 floating 수용·원본 #6923 통과를 뜻하지 않는다.
+
+#### 다음 절편 승인과 폰트 판정 범위
+
+작업지시자는 기존 폰트 메트릭/fallback 구현을 활용하고, 원래 폰트가 없으면 유효한
+저장 LineSeg의 줄 소속·줄바꿈을 보존하는 것을 이번 조판 검증의 기준으로 명확히 했다.
+대체 글꼴의 폭·굵기 외형 차이만으로 이번 절편의 잔여 조판 실패라고 분류하지 않는다.
+실제 사용 폰트 대조 없이 외형 차이의 원인을 확정하지도 않는다.
+이후 다음 절편 진행 승인을 받았다. 이는 별도의 명시적 시각 통과 발언과 구분한다.
+검증한 소스 변경 없이 위 결과를 재사용하며, 다음 대상은 원본 #6923 문단 index5의
+표 영역별 배경/테두리 수용 경계다. 원본 속성을 제거하는 우회는 하지 않는다.

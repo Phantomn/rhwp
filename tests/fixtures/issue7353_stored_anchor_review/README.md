@@ -89,12 +89,19 @@ the resulting origin directly to paint. This does not authorize TAC, side-wrap,
 or nested-anchor rules. A separate synthetic WithinCells budget contract tests
 transactional rejection when the child fits but child+margin does not.
 
-The `defer` PDF leaves the following paragraph on page1 before the deferred
-table on page2. V2's sequential body-flow implementation places it after the
-table. This control proves only the table restart origin; it is **not** an
-approved full-document fidelity result. Resolving that floating story ordering
-is outside this margin slice. The main 24-row review fixture has following
-prose on page2 in both outputs.
+`defer` PDF에서는 후속 문단이1쪽에 남고 표만2쪽으로 이월된다. 여백 절편 당시 V2는
+직렬 본문 흐름 때문에 후속 문단을 표 뒤에 배치했다. 그 당시 결과는 이월 원점만
+검증했으며 문서 전체 fidelity를 입증한 것이 아니다.
+
+후속 본문 흐름 절편은 표의 위치 예약과 본문 소비를 분리한다. 수정하지 않은
+`defer-saved.hwp`가 정식 회귀 입력이다.1쪽에는 제목과 후속 문단,2쪽에는01~03행이
+각각 한 번만 있어야 하며 문단 중복이나1쪽의 표가 없어야 한다. 원점 기대값은
+1쪽 글줄5669/75 및(5669+1100+660)/75px,2쪽 표(5669+283)/75px와 높이6978/75px다.
+구현 결과를 복사한 값이 아니라 저장 메트릭과 독립 PDF의 페이지 소유에 근거한다.
+기본24행 대조군은 여전히2쪽의 최종 조각 뒤에 후속 문단을 배치해야 한다.
+별도의 합성 빈 줄·과대 표·복수 대기 표·본문 종료 계약은 커서 불변식 검사이며,
+추가적인 한컴 fidelity 증거가 아니다. 새 Native/fresh WASM 비교와 메인테이너
+시각 판정 상태는 아래 작업 기록에서 확인한다.
 
 Evidence and maintainer judgment are tracked in
 [`task_m100_7353_stage19.md`](../../../mydocs/working/task_m100_7353_stage19.md).

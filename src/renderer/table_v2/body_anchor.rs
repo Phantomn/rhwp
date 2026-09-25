@@ -8,9 +8,10 @@ use crate::renderer::hwpunit_to_px;
 
 use super::{GeometryError, ParagraphEnd};
 
-/// One coordinate result lowered to physical flow bands and the existing child
-/// cursor. The initial band is consumed once; continuation never reapplies the
-/// source offset. The trailing band follows the final child fragment only.
+/// One coordinate result for the positioned table's reservation query. The
+/// initial band is committed only with an accepted fragment, not inserted into
+/// the text story. Continuation never reapplies the source offset. The trailing
+/// band follows the final child fragment only.
 pub(super) struct BodyAnchor {
     pub x: f64,
     pub before: f64,

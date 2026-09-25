@@ -592,16 +592,152 @@ fn stored_anchor_atomic_defer_does_not_repeat_host_or_initial_band() {
         p("after"),
     ]);
     let pages = drain(&mut open(&d));
-    assert_eq!(pages.len(), 3);
-    assert_eq!(labels(&pages[0]), ["before", "host"]);
+    // The independent Hancom defer fixture keeps the following story on the
+    // source page. A failed floating reservation is not a story page break.
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), ["before", "host", "after"]);
     assert_eq!(labels(&pages[1]), ["A", "B", "C"]);
-    assert_eq!(labels(&pages[2]), ["after"]);
     assert!(nodes(&pages[0], "Table").is_empty());
     let t = nodes(&pages[1], "Table")[0];
     near(&t["bbox"]["y"], 36.0);
     near(&t["bbox"]["height"], 54.0);
-    near(&nodes(&pages[2], "TextLine")[0]["bbox"]["y"], 30.0);
+    near(&nodes(&pages[0], "TextLine")[2]["bbox"]["y"], 66.0);
     capture("document-anchor-defer", &d, &pages);
+}
+
+#[test]
+fn hancom_deferred_anchor_preserves_prose_on_source_page() {
+    let input = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue7353_stored_anchor_review/variants/defer-saved.hwp"
+    ))
+    .unwrap();
+    let mut session = DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap();
+    let mut clone = session.clone();
+    let pages = drain(&mut session);
+    assert_eq!(
+        drain(&mut clone),
+        pages,
+        "query snapshots preserve both cursors"
+    );
+    assert_eq!(pages.len(), 2);
+    assert!(nodes(&pages[0], "Table").is_empty());
+    let text = |page: &Value| labels(page).join("");
+    assert_eq!(text(&pages[0]), "표 시작 위치 확인표 종료 후 본문입니다.");
+    assert_eq!(
+        text(&pages[1]),
+        (1..=3)
+            .map(|i| format!("자료 {i:02} : 표 안의 문단과 페이지 연결 확인"))
+            .collect::<String>()
+    );
+    // Untouched saved HWP: 1100HU line + 660HU gap. Independent PDF p1 has
+    // this consecutive pair of lines and no table; p2 has just the three rows.
+    near(&nodes(&pages[0], "TextLine")[0]["bbox"]["y"], 5669.0 / 75.0);
+    near(
+        &nodes(&pages[0], "TextLine")[1]["bbox"]["y"],
+        (5669.0 + 1760.0) / 75.0,
+    );
+    near(
+        &nodes(&pages[1], "Table")[0]["bbox"]["y"],
+        (5669.0 + 283.0) / 75.0,
+    );
+    near(
+        &nodes(&pages[1], "Table")[0]["bbox"]["height"],
+        6978.0 / 75.0,
+    );
+    capture_terminal("document-anchor-defer-hancom", &input, &pages);
+}
+
+#[test]
+fn deferred_anchor_preserves_blank_lines_and_excludes_remaining_story_on_next_page() {
+    let d = source(vec![
+        p("before"),
+        stored_anchor("host", TablePageBreak::None, &["A", "B", "C"]),
+        p(""),
+        p("prose1"),
+        p("prose2"),
+    ]);
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 3);
+    assert_eq!(labels(&pages[0]), ["before", "host", "", "prose1"]);
+    assert_eq!(labels(&pages[1]), ["A", "B", "C"]);
+    assert_eq!(labels(&pages[2]), ["prose2"]);
+    near(&nodes(&pages[0], "TextLine")[2]["bbox"]["y"], 66.0);
+    near(&nodes(&pages[0], "TextLine")[3]["bbox"]["y"], 84.0);
+    near(&nodes(&pages[1], "Table")[0]["bbox"]["y"], 36.0);
+    near(&nodes(&pages[2], "TextLine")[0]["bbox"]["y"], 30.0);
+}
+
+#[test]
+fn deferred_oversize_anchor_does_not_publish_margin_only_pages() {
+    let d = source(vec![
+        stored_anchor("host", TablePageBreak::None, &["A", "B", "C", "D", "E"]),
+        p("after"),
+    ]);
+    let mut session = open(&d);
+    let first: Value = serde_json::from_str(&session.next_page_json().unwrap().unwrap()).unwrap();
+    assert_eq!(labels(&first), ["host", "after"]);
+    for _ in 0..2 {
+        assert!(matches!(
+            session.next_page_json(),
+            Err(DocumentV2Error::DoesNotFit { page: 1, .. })
+        ));
+        assert_eq!(session.emitted_pages(), 1);
+    }
+}
+
+#[test]
+fn fitting_anchor_reserves_table_and_bottom_margin_before_following_story() {
+    let d = source(vec![
+        stored_anchor("host", TablePageBreak::None, &["A"]),
+        p("after"),
+    ]);
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 1);
+    assert_eq!(labels(&pages[0]), ["host", "A", "after"]);
+    near(&nodes(&pages[0], "Table")[0]["bbox"]["y"], 54.0);
+    near(&nodes(&pages[0], "Table")[0]["bbox"]["height"], 18.0);
+    near(&nodes(&pages[0], "TextLine")[2]["bbox"]["y"], 80.0);
+}
+
+#[test]
+fn deferred_table_survives_story_end_and_offset_outside_page() {
+    let mut para = stored_anchor("host", TablePageBreak::None, &["A"]);
+    let Control::Table(table) = &mut para.controls[0] else {
+        unreachable!()
+    };
+    // Position is not a multi-page blank paragraph. Defer the object once,
+    // preserving its content and outer margin, even with no following prose.
+    table.common.vertical_offset = 75000;
+    let d = source(vec![para]);
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), ["host"]);
+    assert_eq!(labels(&pages[1]), ["A"]);
+    near(&nodes(&pages[1], "Table")[0]["bbox"]["y"], 36.0);
+}
+
+#[test]
+fn multiple_deferred_tables_preserve_owners_without_repeating_story() {
+    let mut first = stored_anchor("host1", TablePageBreak::None, &["A"]);
+    let mut second = stored_anchor("host2", TablePageBreak::None, &["B"]);
+    for para in [&mut first, &mut second] {
+        let Control::Table(table) = &mut para.controls[0] else {
+            unreachable!()
+        };
+        table.common.vertical_offset = 75000;
+    }
+    let d = source(vec![first, p(""), second, p("after")]);
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), ["host1", "", "host2", "after"]);
+    assert_eq!(labels(&pages[1]), ["A", "B"]);
+    let tables = nodes(&pages[1], "Table");
+    assert_eq!(tables.len(), 2);
+    near(&tables[0]["bbox"]["y"], 36.0);
+    near(&tables[1]["bbox"]["y"], 68.0); //6 +18 +8 +6, not source offsets
+    assert_eq!(tables[0]["node_type"]["Table"]["para_index"], 0);
+    assert_eq!(tables[1]["node_type"]["Table"]["para_index"], 2);
 }
 
 #[test]

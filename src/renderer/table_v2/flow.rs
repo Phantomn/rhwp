@@ -16,6 +16,8 @@ pub(super) struct FlowCursor {
 pub(super) struct FlowFit {
     pub next: FlowCursor,
     pub height: f64,
+    /// Next flow origin, distinct from occupied height for overlapping line gaps.
+    pub advance: f64,
     pub progressed: bool,
     pub required: f64,
     pub lines: Vec<LinePlacement>,
@@ -24,16 +26,26 @@ pub(super) struct FlowFit {
 
 impl FlowCursor {
     pub fn fit(&self, cell: &FlowCellInput, area: Rect) -> Result<FlowFit, GeometryError> {
+        self.fit_until(cell, area, cell.blocks.len())
+    }
+
+    pub fn fit_until(
+        &self,
+        cell: &FlowCellInput,
+        area: Rect,
+        end: usize,
+    ) -> Result<FlowFit, GeometryError> {
         let mut result = FlowFit {
             next: self.clone(),
             height: 0.0,
+            advance: 0.0,
             progressed: false,
             required: 0.0,
             lines: Vec::new(),
             tables: Vec::new(),
         };
         let mut pen = 0.0;
-        while let Some(block) = cell.blocks.get(result.next.block) {
+        while let Some(block) = cell.blocks[..end].get(result.next.block) {
             let available = (area.height - pen).max(0.0);
             match block {
                 FlowBlock::Space(height) => {
@@ -186,6 +198,7 @@ impl FlowCursor {
             // fragment in front of a blocked line/table.
             result.progressed |= !matches!(block, FlowBlock::Space(h) if *h == 0.0);
         }
+        result.advance = pen;
         Ok(result)
     }
 }

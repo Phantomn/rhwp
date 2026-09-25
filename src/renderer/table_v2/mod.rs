@@ -11,6 +11,7 @@
 //! Public only as an experimental consumer boundary, not a stable document API.
 
 mod body_anchor;
+mod body_flow;
 mod borders;
 mod content;
 mod contracts;

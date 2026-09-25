@@ -109,6 +109,7 @@ pub(super) fn prepare(
         payloads: RefCell::new(Vec::new()),
     };
     let mut blocks = Vec::new();
+    let mut anchors = Vec::new();
     let mut lines = HashMap::new();
     let mut tables = HashMap::new();
     let mut order = 0;
@@ -372,19 +373,32 @@ pub(super) fn prepare(
             order += 1;
         }
         if let Some((owner, prepared, anchor)) = anchored {
-            blocks.push(FlowBlock::Space(anchor.before));
-            blocks.push(FlowBlock::Table {
-                owner,
-                offset_x: anchor.x,
-                restart_top: anchor.restart_top,
-                plan: prepared.plan,
+            let table_flow = |before| FlowCellInput {
+                padding: Insets::default(),
+                minimum_height: 0.0,
+                width: body.width,
+                blocks: vec![
+                    FlowBlock::Space(before),
+                    FlowBlock::Table {
+                        owner,
+                        offset_x: anchor.x,
+                        restart_top: anchor.restart_top,
+                        plan: prepared.plan.clone(),
+                    },
+                    FlowBlock::Space(anchor.after),
+                ],
+            };
+            anchors.push(super::body_flow::AnchoredFlow {
+                boundary: blocks.len(),
+                initial: table_flow(anchor.before),
+                deferred: table_flow(anchor.restart_top),
             });
-            blocks.push(FlowBlock::Space(anchor.after));
             tables.insert(owner, (order, prepared.paint));
             order += 1;
         }
     }
     Ok(BodyPlan {
+        anchors,
         flow: FlowCellInput {
             padding: Insets::default(),
             minimum_height: 0.0,
