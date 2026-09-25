@@ -56,7 +56,11 @@ impl FlowCursor {
                     }
                     result.next.space_left = None;
                 }
-                FlowBlock::Lines { height, lines } => {
+                FlowBlock::Lines {
+                    height,
+                    advance,
+                    lines,
+                } => {
                     if area.y + pen + height > area.y + area.height {
                         result.required = *height;
                         break;
@@ -70,7 +74,8 @@ impl FlowCursor {
                             height: line.bounds.height,
                         },
                     }));
-                    pen += height;
+                    result.height = result.height.max(pen + height);
+                    pen += advance;
                 }
                 FlowBlock::InlineTables {
                     height,

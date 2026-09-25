@@ -20,6 +20,7 @@ pub enum ParagraphItem {
     End(super::ParagraphEnd),
     Lines {
         height: f64,
+        advance: f64,
         lines: Vec<(usize, Rect)>,
     },
     /// An indivisible painted line and the non-table control slots it consumes.
@@ -229,6 +230,7 @@ fn bind_table(
                             }
                             blocks.push(FlowBlock::Lines {
                                 height: bounds.height,
+                                advance: bounds.height,
                                 lines: vec![LineBox {
                                     owner: LineOwner {
                                         paragraph: pi,
@@ -240,8 +242,13 @@ fn bind_table(
                         }
                         ParagraphItem::Space(h) => blocks.push(FlowBlock::Space(h)),
                         ParagraphItem::End(_) => unreachable!("paragraph end already lowered"),
-                        ParagraphItem::Lines { height, lines } => blocks.push(FlowBlock::Lines {
+                        ParagraphItem::Lines {
                             height,
+                            advance,
+                            lines,
+                        } => blocks.push(FlowBlock::Lines {
+                            height,
+                            advance,
                             lines: lines
                                 .into_iter()
                                 .map(|(line, bounds)| LineBox {

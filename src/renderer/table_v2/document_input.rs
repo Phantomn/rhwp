@@ -294,9 +294,11 @@ pub(super) fn prepare(
                 ParagraphItem::End(_) => unreachable!("paragraph end already lowered"),
                 ParagraphItem::Lines {
                     height,
+                    advance,
                     lines: owned,
                 } => blocks.push(FlowBlock::Lines {
                     height,
+                    advance,
                     lines: owned
                         .into_iter()
                         .map(|(li, bounds)| LineBox {

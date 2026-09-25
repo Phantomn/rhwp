@@ -47,7 +47,7 @@ pub(super) struct CellTrack {
 impl FlowBlock {
     pub(super) fn advance(&self) -> f64 {
         match self {
-            Self::InlineTables { advance, .. } => *advance,
+            Self::InlineTables { advance, .. } | Self::Lines { advance, .. } => *advance,
             _ => self.height(),
         }
     }
@@ -97,6 +97,7 @@ impl TableContentPlan {
                             width: cell.content.width,
                             blocks: vec![FlowBlock::Lines {
                                 height: cell.content.height,
+                                advance: cell.content.height,
                                 lines: cell.content.lines,
                             }],
                         })
@@ -187,7 +188,17 @@ impl TableContentPlan {
                 for block in &cell.blocks {
                     nonnegative(block.height(), "block height")?;
                     match block {
-                        FlowBlock::Lines { height, lines } => {
+                        FlowBlock::Lines {
+                            height,
+                            advance,
+                            lines,
+                        } => {
+                            nonnegative(*advance, "line advance")?;
+                            if *advance > *height {
+                                return Err(GeometryError::Unsupported(
+                                    "line advance outside envelope",
+                                ));
+                            }
                             for line in lines {
                                 let b = line.bounds;
                                 for v in [b.x, b.y, b.width, b.height] {

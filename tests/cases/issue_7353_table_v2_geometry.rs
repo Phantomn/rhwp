@@ -26,6 +26,7 @@ fn exact_fractional_padding_fit_is_independent_of_page_origin() {
                     width: 100.0,
                     blocks: vec![FlowBlock::Lines {
                         height: 4.0,
+                        advance: 4.0,
                         lines: vec![line(0, 0.0, 4.0)],
                     }],
                 }],

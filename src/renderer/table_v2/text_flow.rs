@@ -129,21 +129,24 @@ impl PreparedTextTable {
                                     ParagraphItem::End(_) => {
                                         unreachable!("paragraph end already lowered")
                                     }
-                                    ParagraphItem::Lines { height, lines } => {
-                                        blocks.push(FlowBlock::Lines {
-                                            height,
-                                            lines: lines
-                                                .into_iter()
-                                                .map(|(line, bounds)| LineBox {
-                                                    owner: LineOwner {
-                                                        paragraph: owner,
-                                                        line,
-                                                    },
-                                                    bounds,
-                                                })
-                                                .collect(),
-                                        })
-                                    }
+                                    ParagraphItem::Lines {
+                                        height,
+                                        advance,
+                                        lines,
+                                    } => blocks.push(FlowBlock::Lines {
+                                        height,
+                                        advance,
+                                        lines: lines
+                                            .into_iter()
+                                            .map(|(line, bounds)| LineBox {
+                                                owner: LineOwner {
+                                                    paragraph: owner,
+                                                    line,
+                                                },
+                                                bounds,
+                                            })
+                                            .collect(),
+                                    }),
                                     ParagraphItem::ObjectRow { .. }
                                     | ParagraphItem::TableControl(_)
                                     | ParagraphItem::InlineTables { .. } => {

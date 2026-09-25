@@ -33,11 +33,12 @@ impl ParagraphEnd {
         let mut flow_end = 0.0;
         for item in items {
             let (height, advance) = match item {
-                ParagraphItem::Space(height) | ParagraphItem::Lines { height, .. } => {
-                    (*height, *height)
-                }
+                ParagraphItem::Space(height) => (*height, *height),
                 ParagraphItem::ObjectRow { bounds, .. } => (bounds.height, bounds.height),
-                ParagraphItem::InlineTables {
+                ParagraphItem::Lines {
+                    height, advance, ..
+                }
+                | ParagraphItem::InlineTables {
                     height, advance, ..
                 } => (*height, *advance),
                 ParagraphItem::TableControl(_) | ParagraphItem::End(_) => {
@@ -109,6 +110,15 @@ pub(super) fn into_flow_items_at_end(
         match item {
             ParagraphItem::End(end) => {
                 let spaces = if final_paragraph && policy == CellEndPolicy::OmitFinalLineGap {
+                    // A negative final text gap is carried by its row advance,
+                    // not a negative physical Space. Omit it at this same
+                    // producer-owned boundary, retaining paragraph-after.
+                    if let Some(ParagraphItem::Lines {
+                        height, advance, ..
+                    }) = resolved.last_mut()
+                    {
+                        *advance = *height;
+                    }
                     end.terminal_spaces
                 } else {
                     end.tail_spaces

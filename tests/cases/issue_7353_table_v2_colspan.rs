@@ -377,6 +377,7 @@ fn composition_receives_full_merged_width_minus_resolved_padding() {
         fn compose(&self, _: &Paragraph, width: f64) -> Result<Vec<ParagraphItem>, GeometryError> {
             Ok(vec![ParagraphItem::Lines {
                 height: 10.0,
+                advance: 10.0,
                 lines: vec![(
                     0,
                     Rect {

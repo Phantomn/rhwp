@@ -76,6 +76,93 @@ fn area(height: f64) -> PageArea {
     }
 }
 
+#[test]
+fn negative_stored_gap_keeps_line_boxes_and_continuation_ownership() {
+    // Independent synthetic HU geometry: two 12-high rows start 10HU apart.
+    // The second row cannot fit a 21HU budget although its advance ends at 20.
+    let mut t = table(&["AB", "C"]);
+    t.padding = Padding::default();
+    let p = &mut t.cells[0].paragraphs[0];
+    p.line_segs = (0..2)
+        .map(|i| LineSeg {
+            text_start: i,
+            vertical_pos: i as i32 * 10,
+            line_height: 12,
+            text_height: 12,
+            baseline_distance: 10,
+            line_spacing: -2,
+            segment_width: 212,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            ..Default::default()
+        })
+        .collect();
+    let prepared = PreparedTextTable::prepare(&t, &styles(), 7200.0).unwrap();
+    let first = placed(&prepared.start(), 21.0);
+    let (_, first_lines) = render(&first);
+    assert_eq!(first_lines.len(), 1);
+    assert_eq!(text(&first_lines[0]), "A");
+    assert_eq!(first_lines[0].bbox.height, 12.0);
+    let second = placed(&first.continuation(), 40.0);
+    let (_, second_lines) = render(&second);
+    assert_eq!(
+        second_lines.iter().map(text).collect::<Vec<_>>(),
+        ["B", "C"]
+    );
+    assert_eq!(second_lines[0].bbox.y, 30.0);
+    assert_eq!(second_lines[1].bbox.y, 40.0);
+    assert!(matches!(
+        second.continuation().fit(area(40.0)).unwrap(),
+        TextFragmentFit::Complete
+    ));
+    let whole = placed(&prepared.start(), 40.0);
+    let (_, lines) = render(&whole);
+    assert_eq!(
+        lines.iter().map(|n| n.bbox.y).collect::<Vec<_>>(),
+        [30.0, 40.0, 50.0]
+    );
+    assert!(lines.iter().all(|n| n.bbox.height == 12.0));
+
+    let mut invalid = t.clone();
+    invalid.cells[0].paragraphs[0].line_segs[0].line_spacing = -12;
+    assert!(PreparedTextTable::prepare(&invalid, &styles(), 7200.0).is_err());
+    invalid = t.clone();
+    invalid.cells[0].paragraphs[0].line_segs[1].vertical_pos = 9;
+    assert!(PreparedTextTable::prepare(&invalid, &styles(), 7200.0).is_err());
+}
+
+#[test]
+fn fresh_negative_gap_preserves_blank_lines_and_terminal_after_spacing() {
+    let mut s = styles();
+    // 16HU at75% gives an exact -4HU gap, independent of HU quantization.
+    s.char_styles[0].font_size = 16.0;
+    s.para_styles[0].line_spacing_type = rhwp::model::style::LineSpacingType::Percent;
+    s.para_styles[0].line_spacing = 75.0;
+    s.para_styles[0].spacing_after = 3.0;
+    let mut t = table(&["A", "", "B"]);
+    t.padding = Padding::default();
+    for policy in [
+        CellEndPolicy::PreserveAdvance,
+        CellEndPolicy::OmitFinalLineGap,
+    ] {
+        let prepared =
+            PreparedTextTable::prepare_with_end_policy(&t, &s, 7200.0, &[], policy).unwrap();
+        let fragment = placed(&prepared.start(), 60.0);
+        let (_, lines) = render(&fragment);
+        assert_eq!(lines.len(), 3);
+        // 16HU glyph box, advance12HU + authored after3HU.
+        for (n, y) in lines.iter().zip([30.0, 45.0, 60.0]) {
+            assert!((n.bbox.y - y).abs() < 1e-7);
+            assert_eq!(n.bbox.height, 16.0);
+        }
+        let expected = if policy == CellEndPolicy::PreserveAdvance {
+            46.0
+        } else {
+            49.0
+        };
+        assert!((fragment.geometry().reserved_height() - expected).abs() < 1e-7);
+    }
+}
+
 fn placed(cursor: &TextTableCursor, height: f64) -> TextFragment {
     match cursor.fit(area(height)).unwrap() {
         TextFragmentFit::Placed(f) => f,

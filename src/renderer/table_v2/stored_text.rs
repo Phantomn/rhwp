@@ -54,7 +54,7 @@ pub(super) fn localize(
             || row.text_height != row.line_height
             || row.baseline_distance < 0
             || row.baseline_distance > row.line_height
-            || row.line_spacing < 0
+            || i64::from(row.line_height) + i64::from(row.line_spacing) <= 0
             || row.column_start < 0
             || row.segment_width <= 0
             || (left < content.start && !same(left, content.start))
@@ -66,7 +66,9 @@ pub(super) fn localize(
         if i > 0 {
             let previous = &para.line_segs[i - 1];
             if i64::from(row.vertical_pos)
-                < i64::from(previous.vertical_pos) + i64::from(previous.line_height)
+                < i64::from(previous.vertical_pos)
+                    + i64::from(previous.line_height)
+                    + i64::from(previous.line_spacing.min(0))
                 || para.line_seg_text_start(i) <= para.line_seg_text_start(i - 1)
                 || !para.char_offsets.contains(&para.line_seg_text_start(i))
             {

@@ -1646,3 +1646,72 @@ tree·SVG 일치, isolation/rejection/rollback/termination PASS.
 텍스트의 stored_text::localize는 음수 간격을 거부한다. 이를0으로 보정하지 않고 줄 점유와
 다음 전진의 계약을 조사해야 한다. 원본 전체/A·R5 완료가 아니다. Legacy/default·
 baseline/golden/ignore 변경 및 원격 push/PR은 없다.
+
+### 음수 텍스트 줄간격의 점유/전진 분리 — 진행 기록
+
+시작 head `4bd1fcb27beb64a7db2374279ee20e24c5af40f9`. 증적은
+`output/7353/r19/signed-text/` 아래다. 원본 index4는 높이1400HU와 간격-140HU를
+저장하며 다음 문단의 vpos17288HU는16028+1400-140과 일치한다. 원본 HWP 앞5문단을
+그대로 보존하고 뒤에 원본 빈 문단을 복사한 파생 입력을 사용했다. 재직렬화/재파싱 뒤
+앞5문단 JSON 동일성을 검사한다. 대응 PDF p1의 두 부제까지가 독립 출력 비교 범위다.
+뒤에 붙인 빈 문단과 원본 후속 표는 이 파생 출력의 피델리티 판정 범위가 아니다.
+
+`stored_text::localize`는 전체 높이+간격이 양수이고 저장 원점이 해당 전진보다 앞서지
+않는 줄을 수용한다. 페이지/단 재시작, 소유권 손상, 역행·비전진 줄은 여전히 거부한다.
+`TextComposer::compose`의 공통 paint 노드/문단 끝 → `ParagraphItem::Lines {height, advance}`
+→ `ParagraphEnd::from_composed` 및 `TableContentPlan::physical_extent`
+→ `FlowCursor::fit` → 본문/셀 최종 노드로 같은 점유/전진 결과를 전달한다.
+공통 paint 뒤에 높이를 축소하거나 원점을 clamp하지 않는다. 저장 정보 경로는 실제 paint의
+원점·높이·기준선·줄 소유·다음 전진까지 원본과 다시 대조한다.
+
+본문 `document_input`, IR 셀 `ir::bind_table`, 명시적 셀 `text_flow` 모두 같은 Lines
+결과를 낮춘다. 각 줄은 전체 소유 유닛이다. `FlowCursor::fit`는 pen+height로 수용 여부를
+판단하고, 예약 끝은 max(기존 끝, pen+height), 다음 pen은 pen+advance다. 맞지 않으면 줄의
+cursor/내용을 소비하지 않고 다음 쪽에서 그대로 배치한다. 셀 끝 정책은 마지막 줄의 음수 gap만
+제외할 때 advance를 그 줄의 물리 높이로 복원하며, 문단 뒤 간격은 보존한다. TAC 분기·rowspan
+컷·caption/각주 지원 범위에는 변경이 없다. 일반 본문/셀 모두 같은 fit 경로를 사용한다.
+
+합성 저장 계약은12HU 줄2개, 시작0/10HU, gap-2HU와 후속 문단을 사용한다. 예산21HU에는
+첫 줄만 들어가며 둘째 줄의 전체 끝22HU를 숨겨 넣지 않는다. 이어받기/전체 배치에서 A/B/C
+소유, 실제 y/높이, 종료를 검사한다. 비전진 gap과 저장 시작9HU 반례는 거부한다.
+재조판 계약은16HU·75%의 정확한 -4HU gap을 사용하여 빈 문단과 문단 뒤3HU를 보존한다.
+본문29px 예산에는16px 줄2개만 들어가고 세 번째는 다음 쪽으로 이동한다. 셀 끝 정책별 실제
+예약46/49HU도 검사한다. 이 수치는 마지막 줄의 물리 끝과 독립적인 입력 간격에서 도출한다.
+초기 합성90% 테스트는 공유 구성기의4HU 양자화를 반영하지 않아 실패했다. 이어 시도한
+고정 간격도 최소 줄높이를 보장하는 기존 계약과 달랐다. 이 입력 가정을 보존된 실패 로그에
+남기고, 양자화가 필요 없는75% 입력으로 검증했다. 기존 golden/허용치를 갱신하지 않았다.
+
+`before.log`는 수정 전 저장 경로의 의도한 거부로 FAIL이다. 최초 테스트 작성 중 API 인자
+오류는 빌드 오류이며 결함 재현으로 세지 않는다. `before-wasm.json/log`는 직전 패키지
+`156d1831f32c3201a5e48e51e03392fa892ccbb577b2f5612274bbf45c91e887`에서 원본 파생 입력은
+저장 음수 간격 거부, 재조판 파생 입력은 물리 끝 거부로 실패함을 확인한다.
+최종 `focused-final.log`49/49, `selected-pass.log`237/237 PASS다. 명령은 로그 첫 줄 및
+직전 절편의 `run-extent/run-selected.mjs`에 고정했다. 중간 실패 로그는 삭제하지 않는다.
+원본 전체의 수용 경계 계약은 실제 index5 `stored body anchor ownership` 거부를 확인한 뒤
+갱신했다. 이 변경은 전체 원본의 성공이나 출력 baseline 변경이 아니다.
+
+review worktree의 `fmt-final.log`, `clippy-{native,wasm,tests}.log` 모두 PASS다. 변경한
+integration source5개가 속한 suite를 대상으로 Clippy를 실행했다. `policy.log`는 고정 base
+`7a95e46e025470a4d7a7b59ad68ec02958bda738` 대비 PASS다. 파생 suite는 커밋하지 않는다.
+source unit test 변경은 없고, 전체 workspace 제출 게이트는 이번 내부 절편에서 미실행이다.
+
+Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm`7분16초 성공
+(`docker-wasm.log`). WASM SHA256은
+`ea2c53487a2bdaac013bdbb5e0a92d6020251169be6e3805dec47ee3b4b03703`이다.
+기존 browser 명령에 `--signed-text`를 추가하고 fixtures/out을 `signed-text/fixtures`,
+`signed-text/browser`로 지정했다. `browser.log`:217쪽 exact Native/WASM tree·SVG 일치,
+isolation/rejection/rollback/termination PASS. `preservation.json`: 기존 Native118개와
+review PNG214개 byte 동일. `source-comparison.json`: 제품/review Rust·루트 Cargo1049개
+차이0, 주요 테스트와 패키지 hash를 기록한다. Docker 시작 후 렌더러 변경은 없다.
+
+`pdf-review.png`, standalone `pdf-{native,wasm}-overlay.png`,
+`browser/document-negative-{source-0,fresh-0,fresh-1}.review.png`를 직접 확인했다.
+동일96dpi 원본 좌표(x72,y90,w660,h240)만 잘라 두 부제까지 대조하며 위치/크기를 맞추는
+변형은 하지 않았다. 원본 저장 줄의 높이와 다음 원점은 실제 tree 계약으로 확인했고,
+기존 로고 유무·글꼴 굵기/자간 차이는 남는다. 빈 줄의 점유는 PNG의 가시 글자 유무로
+판정하지 않는다. CLI 전체 Visual Sweep/자동 fidelity 점수는 미실행이며 합성 좌표 및
+Native/WASM 일치를 한컴 피델리티 최종 통과로 승격하지 않는다.
+
+다음 원본 경계는 index5의1x1 자리차지 표다. 저장 host 줄600HU/간격240HU,
+문단 기준 세로720HU·바깥여백283HU·RowBreak를 가진다. 이 소유/앵커 해석은 아직 미지원이다.
+원본 전체/A·R5 완료가 아니다. Legacy/default·baseline/golden/ignore 및 원격 상태는 유지한다.

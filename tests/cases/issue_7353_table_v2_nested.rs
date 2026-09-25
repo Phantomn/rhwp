@@ -12,6 +12,7 @@ use std::sync::Arc;
 fn lines(paragraph: usize, height: f64) -> FlowBlock {
     FlowBlock::Lines {
         height,
+        advance: height,
         lines: vec![LineBox {
             owner: LineOwner { paragraph, line: 0 },
             bounds: Rect {
@@ -383,6 +384,7 @@ impl CellParagraphComposer for SyntheticComposer {
     fn compose(&self, p: &Paragraph, width: f64) -> Result<Vec<ParagraphItem>, GeometryError> {
         let mut items = vec![ParagraphItem::Lines {
             height: 10.0,
+            advance: 10.0,
             lines: vec![(
                 0,
                 Rect {

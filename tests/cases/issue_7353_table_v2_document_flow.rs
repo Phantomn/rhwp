@@ -224,9 +224,9 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
     assert!(matches!(
         error,
         DocumentV2Error::Paragraph {
-            index: 4,
+            index: 5,
             reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "stored text requires intact single-segment rows"
+                "stored body anchor ownership"
             )
         }
     ));
@@ -238,7 +238,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         )
         .unwrap();
         let original = rhwp::parse_document(&data).unwrap();
-        let p = &original.sections[0].paragraphs[4];
+        let p = &original.sections[0].paragraphs[5];
         let shape = &original.doc_info.para_shapes[p.para_shape_id as usize];
         std::fs::write(
             format!("{dir}/6923-terminal-next-source.json"),
@@ -432,6 +432,58 @@ fn document_original_title_keeps_trailing_space_and_saved_flow() {
     }
     capture_terminal("document-trailing-source", &encoded, &pages);
 }
+#[test]
+fn document_original_negative_gap_preserves_source_and_following_origin() {
+    let data = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"
+    ))
+    .unwrap();
+    let mut d = rhwp::parse_document(&data).unwrap();
+    let original = serde_json::to_value(&d.sections[0].paragraphs[..5]).unwrap();
+    d.sections[0].paragraphs.truncate(5);
+    let blank = d.sections[0].paragraphs[1].clone();
+    d.sections[0].paragraphs.push(blank);
+    let encoded = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+    let reparsed = rhwp::parse_document(&encoded).unwrap();
+    assert_eq!(
+        serde_json::to_value(&reparsed.sections[0].paragraphs[..5]).unwrap(),
+        original
+    );
+    let pages = drain(&mut DocumentV2Session::from_bytes(&encoded, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    let mut lines = Vec::new();
+    collect(nodes(&pages[0], "Body")[0], "TextLine", &mut lines);
+    let subtitle = lines[lines.len() - 2];
+    // Unmodified saved vpos16028, height1400, gap-140HU; body origin7087HU.
+    near(&subtitle["bbox"]["y"], 23115.0 / 75.0);
+    near(&subtitle["bbox"]["height"], 1400.0 / 75.0);
+    near(&lines.last().unwrap()["bbox"]["y"], 24375.0 / 75.0);
+    capture_terminal("document-negative-source", &encoded, &pages);
+}
+
+#[test]
+fn document_fresh_negative_gap_fits_occupied_boxes_not_only_advance() {
+    let mut d = source(vec![p("A"), p(""), p("B")]);
+    // 1200HU at75% gives an exact -300HU gap without fractional quantization.
+    d.doc_info.char_shapes[0].base_size = 1200;
+    d.doc_info.para_shapes[0].line_spacing_type = LineSpacingType::Percent;
+    d.doc_info.para_shapes[0].line_spacing = 75;
+    // 29px body: 16px rows at12px pitch fit two, not three.
+    d.sections[0].section_def.page_def.height = 11775;
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 2);
+    for (page, ys) in pages.iter().zip([vec![30.0, 42.0], vec![30.0]]) {
+        let lines = nodes(page, "TextLine");
+        assert_eq!(lines.len(), ys.len());
+        for (line, y) in lines.iter().zip(ys) {
+            near(&line["bbox"]["y"], y);
+            near(&line["bbox"]["height"], 16.0);
+        }
+    }
+    capture("document-negative-fresh", &d, &pages);
+}
+
 fn drain(session: &mut DocumentV2Session) -> Vec<Value> {
     let mut pages = Vec::new();
     while let Some(page) = session.next_page_json().unwrap() {

@@ -80,6 +80,8 @@ pub enum FlowBlock {
     Space(f64),
     Lines {
         height: f64,
+        /// Following origin, distinct from the complete occupied envelope.
+        advance: f64,
         lines: Vec<LineBox>,
     },
     InlineTables {

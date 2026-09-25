@@ -473,6 +473,16 @@ impl CellParagraphComposer for TextComposer<'_> {
         }
         let mut items = Vec::new();
         let mut cursor = 0.0;
+        // Final nodes and shared paragraph end own the actual origin sequence.
+        // Physical fit uses the full line box even when source spacing makes
+        // the following origin precede that box's bottom.
+        let following: Vec<_> = column
+            .children
+            .iter()
+            .skip(1)
+            .map(|n| n.bbox.y)
+            .chain(std::iter::once(end - style.spacing_after))
+            .collect();
         for (i, node) in column.children.iter_mut().enumerate() {
             if !matches!(node.node_type, RenderNodeType::TextLine(_))
                 || node
@@ -485,7 +495,7 @@ impl CellParagraphComposer for TextComposer<'_> {
                 ));
             }
             let b = &node.bbox;
-            if b.y < cursor || b.x < 0.0 || b.x + b.width > width + 1e-7 {
+            if b.y < cursor - 1e-7 || b.x < 0.0 || b.x + b.width > width + 1e-7 {
                 return Err(GeometryError::Unsupported(
                     "text preview overlapping or overflowing rows",
                 ));
@@ -517,8 +527,14 @@ impl CellParagraphComposer for TextComposer<'_> {
             if b.y > cursor {
                 items.push(ParagraphItem::Space(b.y - cursor));
             }
+            let advance = b.height.min(following[i] - b.y);
+            super::contracts::nonnegative(advance, "composed line advance")?;
+            if advance == 0.0 {
+                return Err(GeometryError::Unsupported("non-progressing text line"));
+            }
             items.push(ParagraphItem::Lines {
                 height: b.height,
+                advance,
                 lines: vec![(
                     i,
                     Rect {
@@ -529,7 +545,7 @@ impl CellParagraphComposer for TextComposer<'_> {
                     },
                 )],
             });
-            cursor = b.y + b.height;
+            cursor = b.y + advance;
         }
         if column.children.is_empty() || end < cursor {
             return Err(GeometryError::Unsupported(
