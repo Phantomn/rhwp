@@ -44,6 +44,7 @@ pub(super) struct TextPaint {
     pub background: super::decoration::Background,
     pub cells: HashMap<(usize, usize), super::decoration::Background>,
     pub borders: Option<super::borders::CellBorders>,
+    pub zones: Vec<super::zones::Zone>,
 }
 
 /// The payload snapshot cannot be exchanged independently of its geometry cursor.
@@ -184,6 +185,9 @@ impl TextPaint {
             bbox(placement.bounds),
         );
         self.background.append(&mut table, placement.bounds);
+        for zone in &self.zones {
+            zone.append_background(placement, &mut table)?;
+        }
         for cell in &placement.cells {
             let background = self.cells.get(&(cell.row, cell.column));
             let mut node = RenderNode::new(
@@ -238,7 +242,7 @@ impl TextPaint {
             table.children.push(node);
         }
         if let Some(borders) = &self.borders {
-            borders.append(placement, &mut table)?;
+            borders.append(placement, &self.zones, &mut table)?;
         }
         Ok(table)
     }

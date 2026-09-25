@@ -226,7 +226,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         DocumentV2Error::Paragraph {
             index: 5,
             reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "V2 table background zones"
+                "V2 source decoration effect"
             )
         }
     ));
@@ -879,6 +879,308 @@ fn labels(page: &Value) -> Vec<&str> {
 fn near(value: &Value, expected: f64) {
     let value = value.as_f64().unwrap();
     assert!((value - expected).abs() < 1e-6, "{value} != {expected}");
+}
+
+fn zone_fixture() -> Vec<u8> {
+    std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue7353_zone_review/zone-lines-saved.hwp"
+    ))
+    .unwrap()
+}
+
+#[test]
+fn hancom_zone_background_and_perimeter_follow_both_fragments() {
+    // Untouched Hancom saved HWP and its PDF, not hand-authored LineSegs.
+    // PDF: p1 rows1..19, p2 rows20..24; last cell spans both columns.
+    let pages =
+        drain(&mut DocumentV2Session::from_bytes(&zone_fixture(), TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 2);
+    let x = 3969.0 / 75.0;
+    let width = 32000.0 / 75.0;
+    let row = 2326.0 / 75.0;
+    for (index, (top, count)) in [(8787.0 / 75.0, 19), (5952.0 / 75.0, 5)]
+        .into_iter()
+        .enumerate()
+    {
+        let page = &pages[index];
+        let tables = nodes(page, "Table");
+        assert_eq!(tables.len(), 1);
+        near(&tables[0]["bbox"]["x"], x);
+        near(&tables[0]["bbox"]["y"], top);
+        near(&tables[0]["bbox"]["height"], row * f64::from(count));
+        let background = &tables[0]["children"][0];
+        assert_eq!(
+            background["node_type"]["Rectangle"]["style"]["fill_color"],
+            0xffeeee
+        );
+        let zone_top = top + if index == 0 { row } else { 0.0 };
+        let zone_bottom = top + row * f64::from(count);
+        near(&background["bbox"]["x"], x);
+        near(&background["bbox"]["width"], width);
+        near(&background["bbox"]["y"], zone_top);
+        near(&background["bbox"]["height"], zone_bottom - zone_top);
+        let red: Vec<_> = nodes(page, "Line")
+            .into_iter()
+            .filter(|n| n["node_type"]["Line"]["style"]["color"] == 255)
+            .collect();
+        assert_eq!(red.len(), 4, "one perimeter, no duplicate cell edge paint");
+        for (x1, y1, x2, y2) in [
+            (x, zone_top, x, zone_bottom),
+            (x + width, zone_top, x + width, zone_bottom),
+            (x, zone_top, x + width, zone_top),
+            (x, zone_bottom, x + width, zone_bottom),
+        ] {
+            assert!(red.iter().any(|n| {
+                let l = &n["node_type"]["Line"];
+                [("x1", x1), ("y1", y1), ("x2", x2), ("y2", y2)]
+                    .iter()
+                    .all(|(k, v)| (l[*k].as_f64().unwrap() - v).abs() < 1e-6)
+            }));
+        }
+        for line in nodes(page, "Line") {
+            let l = &line["node_type"]["Line"];
+            if l["style"]["color"] != 0 {
+                continue;
+            }
+            let y1 = l["y1"].as_f64().unwrap();
+            let y2 = l["y2"].as_f64().unwrap();
+            let x1 = l["x1"].as_f64().unwrap();
+            let x2 = l["x2"].as_f64().unwrap();
+            assert!(
+                !(y1 >= zone_top - 1e-6
+                    && y2 > zone_top + 1e-6
+                    && (x1 - x2).abs() < 1e-6
+                    && ((x1 - x).abs() < 1e-6 || (x1 - x - width).abs() < 1e-6)),
+                "black perimeter must be replaced"
+            );
+        }
+    }
+    let yellow = nodes(&pages[0], "TableCell")
+        .into_iter()
+        .find(|n| {
+            n["node_type"]["TableCell"]["row"] == 2 && n["node_type"]["TableCell"]["col"] == 0
+        })
+        .unwrap();
+    let rect = &yellow["children"][0];
+    assert_eq!(
+        rect["node_type"]["Rectangle"]["style"]["fill_color"],
+        0xffff
+    );
+    assert_eq!(
+        rect["bbox"], yellow["bbox"],
+        "cell fill paints over zone, within the same cell"
+    );
+    for row in 1..=24 {
+        for col in 1..=if row == 24 { 1 } else { 2 } {
+            let label = format!("ROW {row} / COL {col}");
+            assert_eq!(
+                pages
+                    .iter()
+                    .flat_map(labels)
+                    .filter(|s| *s == label)
+                    .count(),
+                1
+            );
+        }
+    }
+    assert_eq!(labels(&pages[1]).last(), Some(&"AFTER ZONE TABLE"));
+    near(
+        &nodes(&pages[1], "TextLine").last().unwrap()["bbox"]["y"],
+        18149.0 / 75.0,
+    );
+}
+
+fn synthetic_zone_source() -> Document {
+    use rhwp::model::{
+        style::{Fill, FillType, SolidFill},
+        table::TableZone,
+    };
+    let mut t = table(&[], TablePageBreak::RowBreak);
+    t.row_count = 2;
+    t.col_count = 2;
+    t.cells = (0..2)
+        .flat_map(|r| {
+            (0..2).map(move |c| Cell {
+                row: r,
+                col: c,
+                row_span: 1,
+                col_span: 1,
+                width: 7500,
+                height: 2250,
+                border_fill_id: 1,
+                paragraphs: vec![p("cell")],
+                ..Default::default()
+            })
+        })
+        .collect();
+    t.zones = vec![TableZone {
+        start_row: 0,
+        start_col: 0,
+        end_row: 1,
+        end_col: 1,
+        border_fill_id: 2,
+    }];
+    let mut d = source(vec![host("", t), p("after")]);
+    d.doc_info.border_fills.push(BorderFill {
+        borders: [BorderLine {
+            line_type: BorderLineType::None,
+            ..Default::default()
+        }; 4],
+        fill: Fill {
+            fill_type: FillType::Solid,
+            solid: Some(SolidFill {
+                background_color: 0xffeeee,
+                pattern_type: -1,
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    d
+}
+
+#[test]
+fn zone_none_edges_preserve_cells_and_do_not_change_layout() {
+    let d = synthetic_zone_source();
+    let actual = drain(&mut open(&d));
+    let mut control = d.clone();
+    let Control::Table(t) = &mut control.sections[0].paragraphs[0].controls[0] else {
+        panic!()
+    };
+    t.zones.clear();
+    let expected = drain(&mut open(&control));
+    assert_eq!(actual.len(), expected.len());
+    for (a, b) in actual.iter().zip(&expected) {
+        for kind in ["Table", "TableCell", "TextLine", "TextRun", "Line"] {
+            let values = |p: &Value| {
+                nodes(p, kind)
+                    .iter()
+                    .map(|n| json!([n["bbox"], n["node_type"]]))
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(
+                values(a),
+                values(b),
+                "{kind}: decoration must not alter flow or preserved None edges"
+            );
+        }
+    }
+}
+
+#[test]
+fn nested_zone_uses_child_page_coordinates_once() {
+    let mut d = synthetic_zone_source();
+    let child = d.sections[0].paragraphs.remove(0);
+    let mut parent = table(&[], TablePageBreak::CellBreak);
+    parent.cells[0].width = 18000;
+    parent.cells[0].apply_inner_margin = true;
+    parent.cells[0].padding.left = 750;
+    parent.cells[0].paragraphs = vec![child];
+    d.sections[0].paragraphs.insert(0, host("", parent));
+    let pages = drain(&mut open(&d));
+    for page in &pages {
+        for t in nodes(page, "Table")
+            .into_iter()
+            .filter(|n| n["node_type"]["Table"]["col_count"] == 2)
+        {
+            let rect = &t["children"][0];
+            for key in ["x", "y", "width", "height"] {
+                near(&rect["bbox"][key], t["bbox"][key].as_f64().unwrap());
+            }
+            assert_eq!(
+                rect["node_type"]["Rectangle"]["style"]["fill_color"],
+                0xffeeee
+            );
+        }
+    }
+    assert_eq!(
+        pages
+            .iter()
+            .flat_map(labels)
+            .filter(|s| *s == "cell")
+            .count(),
+        4
+    );
+}
+
+#[test]
+fn zone_missing_reference_effects_and_invalid_ranges_are_not_silently_dropped() {
+    for mode in 0..5 {
+        let mut d = synthetic_zone_source();
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            panic!()
+        };
+        match mode {
+            0 => t.zones[0].border_fill_id = 999,
+            1 => t.zones[0].end_row = 9,
+            2 => t.zones[0].start_col = 2,
+            3 => d.doc_info.border_fills[1].attr = 8,
+            _ => t.zones.push(t.zones[0].clone()),
+        }
+        assert!(
+            DocumentV2Session::from_bytes(&bytes(&d), TERMINAL_OPTIONS).is_err(),
+            "mode {mode}"
+        );
+    }
+}
+
+#[test]
+fn zone_background_tracks_cell_internal_cut_without_repeating_lines() {
+    let mut d = synthetic_zone_source();
+    let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+        panic!()
+    };
+    t.row_count = 1;
+    t.col_count = 1;
+    t.page_break = TablePageBreak::CellBreak;
+    t.cells.truncate(1);
+    t.cells[0].width = 15000;
+    t.cells[0].height = 0;
+    t.cells[0].paragraphs = (1..=5).map(|i| p(&format!("line-{i}"))).collect();
+    t.zones[0].end_row = 0;
+    t.zones[0].end_col = 0;
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 2);
+    for (page, height) in pages.iter().zip([72.0, 18.0]) {
+        let t = nodes(page, "Table")[0];
+        let bg = &t["children"][0];
+        near(&bg["bbox"]["height"], height);
+        for key in ["x", "y", "width", "height"] {
+            near(&bg["bbox"][key], t["bbox"][key].as_f64().unwrap());
+        }
+    }
+    for i in 1..=5 {
+        assert_eq!(
+            pages
+                .iter()
+                .flat_map(labels)
+                .filter(|s| *s == format!("line-{i}"))
+                .count(),
+            1
+        );
+    }
+    assert_eq!(labels(&pages[1]).last(), Some(&"after"));
+}
+
+#[test]
+fn zone_range_cannot_silently_crop_a_merged_cell() {
+    let mut d = synthetic_zone_source();
+    let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+        panic!()
+    };
+    t.cells[0].col_span = 2;
+    t.cells[0].width = 15000;
+    t.cells.remove(1);
+    t.zones[0].end_col = 0;
+    let error = DocumentV2Session::from_bytes(&bytes(&d), TERMINAL_OPTIONS)
+        .err()
+        .unwrap();
+    assert!(
+        error.to_string().contains("V2 zone cuts merged cell"),
+        "{error}"
+    );
 }
 fn capture(name: &str, d: &Document, pages: &[Value]) {
     if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {

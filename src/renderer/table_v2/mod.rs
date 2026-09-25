@@ -32,6 +32,7 @@ mod tac;
 mod text;
 mod text_flow;
 mod text_ir;
+mod zones;
 
 pub use content::TableContentPlan;
 pub use contracts::{

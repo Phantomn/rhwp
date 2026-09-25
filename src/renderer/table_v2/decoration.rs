@@ -123,11 +123,9 @@ pub(super) fn validate_source(table: &Table, info: &DocInfo) -> Result<(), Geome
         if depth >= 64 {
             return Err(GeometryError::Unsupported("table nesting resource limit"));
         }
-        if !table.zones.is_empty() {
-            return Err(GeometryError::Unsupported("V2 table background zones"));
-        }
         for id in std::iter::once(table.border_fill_id)
             .chain(table.cells.iter().map(|c| c.border_fill_id))
+            .chain(table.zones.iter().map(|z| z.border_fill_id))
         {
             if id == 0 {
                 continue;

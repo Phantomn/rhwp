@@ -1,6 +1,7 @@
 //! Solid edges of accepted table/cell fragments, including cell-internal cuts.
 //! Each physical fragment uses its source cell's four edges (None stays absent).
-//! Matching table outlines share those edges; override/priority is unsupported.
+//! Matching table outlines share those edges. Qualified solid zone perimeters
+//! override cell edges; other border-priority rules remain unsupported.
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{GeometryError, TablePlacement};
@@ -43,7 +44,7 @@ impl CellBorders {
                 cells.insert((usize::from(cell.row), usize::from(cell.col)), edges);
             }
         }
-        if cells.is_empty() && outline.is_none() {
+        if cells.is_empty() && outline.is_none() && table.zones.is_empty() {
             return Ok(None);
         }
         Ok(Some(Self {
@@ -56,6 +57,7 @@ impl CellBorders {
     pub fn append(
         &self,
         placement: &TablePlacement,
+        zones: &[super::zones::Zone],
         node: &mut RenderNode,
     ) -> Result<(), GeometryError> {
         // The IR adapter guarantees a contiguous complete grid and
@@ -127,7 +129,7 @@ impl CellBorders {
                 }
             }
         }
-        let edges: BTreeMap<_, _> = groups
+        let mut edges: BTreeMap<_, _> = groups
             .into_iter()
             .map(|(key, spans)| Ok((key, union(&spans)?)))
             .collect::<Result<_, GeometryError>>()?;
@@ -167,6 +169,54 @@ impl CellBorders {
             // The outline is the same geometric set, not another paint layer.
             // Drawing it again would change coverage/opacity at coincident edges.
         }
+        // Visible zone perimeter overrides cell edges; None keeps cell edges.
+        // Same physical bounds as the background, including continuation cuts.
+        // Independent evidence: zone-lines Hancom PDF, both fragment perimeters.
+        let coordinate = |axis: &BTreeMap<usize, f64>, value: f64| {
+            axis.iter()
+                .find_map(|(k, v)| ((*v - value).abs() < 1e-7).then_some(*k))
+                .ok_or(GeometryError::Unsupported(
+                    "V2 zone boundary without cell edge",
+                ))
+        };
+        for zone in zones {
+            let Some(styles) = zone.edges else {
+                continue;
+            };
+            let Some(b) = zone.bounds(placement)? else {
+                continue;
+            };
+            let left = coordinate(&xs, b.x)?;
+            let right = coordinate(&xs, b.x + b.width)?;
+            let top = coordinate(&ys, b.y)?;
+            let bottom = coordinate(&ys, b.y + b.height)?;
+            for (key, start, end, style) in [
+                ((false, left), top, bottom, styles[0]),
+                ((false, right), top, bottom, styles[1]),
+                ((true, top), left, right, styles[2]),
+                ((true, bottom), left, right, styles[3]),
+            ] {
+                if style.line_type == BorderLineType::None {
+                    continue;
+                }
+                let spans = edges.entry(key).or_default();
+                let mut replaced = Vec::new();
+                for old in spans.iter() {
+                    if old.end <= start || old.start >= end {
+                        replaced.push(*old);
+                        continue;
+                    }
+                    if old.start < start {
+                        replaced.push(Span { end: start, ..*old });
+                    }
+                    if old.end > end {
+                        replaced.push(Span { start: end, ..*old });
+                    }
+                }
+                replaced.push(Span { start, end, style });
+                *spans = union(&replaced)?;
+            }
+        }
         let mut nodes = Vec::new();
         for ((horizontal, boundary), spans) in edges {
             for span in spans {
@@ -197,7 +247,7 @@ impl CellBorders {
     }
 }
 
-fn resolve_edges(
+pub(super) fn resolve_edges(
     id: u16,
     styles: &ResolvedStyleSet,
 ) -> Result<Option<[BorderLine; 4]>, GeometryError> {

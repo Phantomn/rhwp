@@ -1,0 +1,126 @@
+//! Cell-addressed solid area decorations. Geometry comes from accepted cells,
+//! never from declared heights or a second pagination pass.
+use super::{decoration::Background, GeometryError, Rect, TablePlacement};
+use crate::{
+    model::{style::BorderLine, table::Table},
+    renderer::{render_tree::RenderNode, style_resolver::ResolvedStyleSet},
+};
+
+pub(super) struct Zone {
+    row: usize,
+    end_row: usize,
+    column: usize,
+    end_column: usize,
+    background: Background,
+    pub edges: Option<[BorderLine; 4]>,
+}
+
+impl Zone {
+    pub fn prepare(table: &Table, styles: &ResolvedStyleSet) -> Result<Vec<Self>, GeometryError> {
+        let mut result: Vec<Self> = Vec::new();
+        for source in &table.zones {
+            let row = usize::from(source.start_row);
+            let column = usize::from(source.start_col);
+            let end_cell = table
+                .cells
+                .iter()
+                .find(|c| c.row == source.end_row && c.col == source.end_col)
+                .ok_or(GeometryError::Unsupported("V2 zone end cell address"))?;
+            // Addresses name cells, not the last occupied grid square. The
+            // Hancom zone-lines fixture ends at a two-column merged cell.
+            let end_row = usize::from(end_cell.row) + usize::from(end_cell.row_span);
+            let end_column = usize::from(end_cell.col) + usize::from(end_cell.col_span);
+            if row >= end_row
+                || column >= end_column
+                || end_row > usize::from(table.row_count)
+                || end_column > usize::from(table.col_count)
+                || !table
+                    .cells
+                    .iter()
+                    .any(|c| usize::from(c.row) == row && usize::from(c.col) == column)
+            {
+                return Err(GeometryError::Unsupported("V2 zone cell range"));
+            }
+            for cell in &table.cells {
+                let r = usize::from(cell.row);
+                let c = usize::from(cell.col);
+                let er = r + usize::from(cell.row_span);
+                let ec = c + usize::from(cell.col_span);
+                if r < end_row
+                    && er > row
+                    && c < end_column
+                    && ec > column
+                    && !(r >= row && er <= end_row && c >= column && ec <= end_column)
+                {
+                    return Err(GeometryError::Unsupported("V2 zone cuts merged cell"));
+                }
+            }
+            // Overlapping zone precedence is not established by the independent
+            // single-zone reference. Do not silently choose declaration order.
+            if result.iter().any(|z| {
+                row <= z.end_row
+                    && end_row >= z.row
+                    && column <= z.end_column
+                    && end_column >= z.column
+            }) {
+                return Err(GeometryError::Unsupported(
+                    "V2 overlapping zone decorations",
+                ));
+            }
+            let background = Background::resolve(source.border_fill_id, styles, false)?;
+            result.push(Self {
+                row,
+                end_row,
+                column,
+                end_column,
+                background,
+                edges: super::borders::resolve_edges(source.border_fill_id, styles)?,
+            });
+        }
+        Ok(result)
+    }
+
+    /// Project the source area onto this physical fragment. Repeated headers
+    /// separated from their body zone require multiple areas and remain explicit.
+    pub fn bounds(&self, placement: &TablePlacement) -> Result<Option<Rect>, GeometryError> {
+        let cells: Vec<_> = placement
+            .cells
+            .iter()
+            .filter(|c| {
+                c.row >= self.row
+                    && c.row + c.row_span <= self.end_row
+                    && c.column >= self.column
+                    && c.column + c.column_span <= self.end_column
+            })
+            .collect();
+        let Some(first) = cells.first() else {
+            return Ok(None);
+        };
+        let mut bounds = first.bounds;
+        let mut area = 0.0;
+        for cell in cells {
+            let right = (bounds.x + bounds.width).max(cell.bounds.x + cell.bounds.width);
+            let bottom = (bounds.y + bounds.height).max(cell.bounds.y + cell.bounds.height);
+            bounds.x = bounds.x.min(cell.bounds.x);
+            bounds.y = bounds.y.min(cell.bounds.y);
+            bounds.width = right - bounds.x;
+            bounds.height = bottom - bounds.y;
+            area += cell.bounds.width * cell.bounds.height;
+        }
+        if (area - bounds.width * bounds.height).abs() > 1e-7 * area.max(1.0) {
+            return Err(GeometryError::Unsupported("V2 disconnected zone fragment"));
+        }
+        Ok(Some(bounds))
+    }
+
+    pub fn append_background(
+        &self,
+        placement: &TablePlacement,
+        node: &mut RenderNode,
+    ) -> Result<(), GeometryError> {
+        if let Some(bounds) = self.bounds(placement)? {
+            self.background.append(node, bounds);
+        }
+        Ok(())
+    }
+}

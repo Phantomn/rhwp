@@ -177,9 +177,7 @@ fn bind_paint(
     payloads: &mut impl Iterator<Item = ParagraphPaint>,
 ) -> Result<TextPaint, GeometryError> {
     // Depth/grid/one-control admission has already succeeded in from_ir_contents.
-    if !table.zones.is_empty() {
-        return Err(GeometryError::Unsupported("V2 table background zones"));
-    }
+    let zones = super::zones::Zone::prepare(table, styles)?;
     let mut paint = TextPaint {
         rows: table.row_count,
         columns: table.col_count,
@@ -192,6 +190,7 @@ fn bind_paint(
         )?,
         cells: HashMap::new(),
         borders: super::borders::CellBorders::prepare(table, styles, dpi)?,
+        zones,
     };
     let mut cells: Vec<_> = table.cells.iter().collect();
     cells.sort_by_key(|c| (c.row, c.col));

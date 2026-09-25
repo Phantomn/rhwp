@@ -2153,3 +2153,143 @@ node output/7353/r19/anchor-story/verify.mjs
 이후 다음 절편 진행 승인을 받았다. 이는 별도의 명시적 시각 통과 발언과 구분한다.
 검증한 소스 변경 없이 위 결과를 재사용하며, 다음 대상은 원본 #6923 문단 index5의
 표 영역별 배경/테두리 수용 경계다. 원본 속성을 제거하는 우회는 하지 않는다.
+
+### 다음 절편 — 영역 배경과 테두리의 최종 셀 좌표 적용
+
+이전 본문/이월 절편은 검증된 코드 그대로 `b7678520e`로 로컬 체크포인트했다.
+이번 절편은 `table_v2`의 영역 장식 구현이며 Legacy/default engine을 바꾸지 않는다.
+
+#### 규칙·근거·입력
+
+원본 #6923의 `s0p5/cell0/p26` 8×9표에는 `(1,3)..(1,3)` 영역(borderFill29)이,
+`p37` 7×10표에는 borderFill2를 사용하는 두 영역이 있다. 영역을 일괄 거부하던 경계가
+해제되어도 다른 source 효과와 저장 문단 수용 검사를 통과해야 한다. 현재 다음 거부는
+`s0p5/cell0/p26`의 셀 borderFill31(attr8)에서 발생하는 `V2 source decoration effect`다.
+원본을 수정하거나 장식 속성을 지워 통과시키지 않는다.
+
+독립 기준은 [영역 대조 fixture](../../tests/fixtures/issue7353_zone_review/README.md)의
+한컴 저장 HWP와 그 HWP의 PDF다. 생성기 HWPX에는 수동 LineSeg를 넣지 않았다.
+셀 주소 `(1,0)..(23,0)`의 끝 셀은2열 병합이며,1쪽은1~19행/2쪽은20~24행이다.
+한컴에서 관측한 규칙:
+
+- 영역 면은 셀 자체 면 아래, 영역의 유효 외곽선은 셀 선 위에 적용한다.
+- 끝 셀 주소는 병합 셀 전체 범위를 포함한다. 끝 열+1로 축소하지 않는다.
+- 페이지의 수용된 표 조각에서 영역 면과 외곽이 이어지며2쪽 조각도 닫힌다.
+
+별도 합성 계약에서는 영역 선 없음이 기존 셀 선을 바꾸지 않는 보존 불변식을 검사한다.
+이 None 조합과 복수 영역 우선순위의 한컴 출력 대조는 이번 독립 fixture가 입증하지 않는다.
+
+24행 대조에 앞서 높이7000HU인8행 대조도 만들었다. 한컴은7행의 빈 물리 공간을
+쪽 경계에서 나누지만 V2 RowBreak는6행/2행으로 나눈다. 해당 입력·저장본·PDF를
+fixture의 `diagnostic/`에 그대로 보존하며 **이 대조는 미통과**다. 통과 문서로 바꾸어
+보고하지 않는다. 기존 승인2326HU 줄 프레임을 사용하는24행 대조를 별도로 생성해
+장식 검증을 분리했다.8행의 영역만 제거한 진단 입력은 이전/현재 코드 SVG2쪽이 모두
+동일했다(`zones/tall-nozone-before`, `tall-nozone-after`). 이는 이번 paint 변경이
+행 분할을 변경하지 않았다는 증거이지, 수정된 진단 입력을 원본 fidelity로 판정한 것이 아니다.
+
+#### 공통 결과와 실제 호출 경로
+
+`zones.rs::Zone::prepare`는 원본 셀 주소·병합 범위와 style을 바인딩한다.
+`text_ir.rs::bind_paint`가 중첩 표까지 같은 영역 paint를 준비하며,
+`decoration.rs::validate_source`는 영역 borderFill도 셀/table과 동일하게 검증한다.
+
+변경 값은 **영역의 최종 물리 사각형**이다. 기존 `TableCursor::fit`의
+`TablePlacement.cells[].bounds` → `Zone::bounds` →
+`TextPaint::build_node`의 배경 / `CellBorders::append`의 외곽으로 연결된다.
+배경과 테두리가 같은 셀 집합의 같은 bounds를 쓰며, 선언 높이 재합산·문단 재조판·
+parent 원점 재가산·clamp·cut 변경은 없다. 마지막에 원점을 덮어쓰는 분기도 없다.
+`DocumentV2Session::next_page`의 build_node 후 SVG/JSON 성공 시 cursor commit과
+TablePreview의 `TextFragment::append_to` 모두 이 경로를 소비한다.
+
+분할 유닛·요구 높이·예약·이월 계산은 기존 fit 결과 그대로이며 이번 수정은 관여하지 않는다.
+row/within-cell 조각의 실제 사각형을 배경/외곽에 투영한다. 중첩도 fit이 반환한 page 좌표를
+한 번만 쓴다. zone/None은 선을 없애지 않고, 보이는 영역 선만 교체하여 중복 paint를 막는다.
+겹치거나 맞닿는 복수 영역, 병합 셀을 가르는 영역, 분리된 물리 영역, gradient/패턴/이미지/
+대각선 등은 명시적 Unsupported로 남는다. 관련 효과를 조용히 생략하지 않는다.
+
+#### 경계 검사와 진단
+
+`tests/cases/issue_7353_table_v2_document_flow.rs`에6건을 추가했다.
+
+| 주장 | 실제 검사 및 독립 기대 근거 |
+| --- | --- |
+| 한컴 영역 적용 | 같은 저장 HWP의2쪽 면 좌표·빨간 외곽4개·노란 셀의 layer·원래 검정 외곽 제거; PDF+저장2326HU |
+| 끝 병합 셀 |24행의 오른쪽 끝은32000HU 전체 폭; 각 셀 텍스트1회, 후속 본문 좌표18149HU |
+| None과 비영향 경로 | 영역 없는 정상 대조와 Table/Cell/TextLine/TextRun/Line 좌표·속성 동일 |
+| 중첩 영역 | 최종 child bounds와 영역 면 일치, padding 원점 중복 적용 없음 |
+| 셀 내부 분할 |72px 예산/18px 줄5개 →72+18 조각,5줄 각1회, 후속 문단 보존(합성 계약) |
+| 무효·미지원 | 참조 누락, 역전/범위 초과, 효과, 겹친 영역, 병합 셀 중간 컷은 거부 |
+
+이전 release-test 라이브러리에 새 독립 HWP 검사를 링크하면
+`Unsupported("V2 table background zones")`로 FAIL한다(`zones/test-before.log`).
+debug 구현 후 document-flow **49 passed / 0 failed**(`zones/test-after.log`).
+첫 debug 검사에서는 합성 None 선 설정의 누락과 부동소수점 exact 비교 오류2건을 바로잡았다.
+구현 결함을 baseline 변경으로 감춘 것이 아니며 이전 FAIL을 결함 검출 근거로 과장하지 않는다.
+Native2쪽 review를 직접 확인한 뒤 release 집중 회귀/fresh Docker WASM을 시작했다.
+최종 실행 결과와 시각 판정 자료는 아래에 기록한다.
+
+#### 최종 집중 회귀와 fresh WASM
+
+검증 source는 `b7678520e`+이번7개 renderer 파일(신규 `zones.rs` 포함)과
+document-flow 테스트다. `output/7353/r19/zones/source.sha256`로 고정했고 제품/review의
+V2 소스가 동일함을 확인했다. 새 fixture의 저장 HWP도 review worktree에 복사했다.
+
+```sh
+# rhwp-review-7353: 이미 준비된 파생 suite 사용, 생성 파일은 제출하지 않음
+CARGO_BUILD_JOBS=2 cargo nextest run --locked --cargo-profile release-test \
+  --test regression_suite_003 --test regression_suite_004 --test regression_suite_005 \
+  --test regression_suite_015 --test regression_suite_027 --test regression_suite_028 \
+  -E 'test(issue_7353_table_v2)' --no-fail-fast \
+  --target-dir /home/edward/mygithub/rhwp/target/pr-review
+# rhwp-task-7353
+docker compose --env-file .env.docker -p rhwp run --rm wasm
+```
+
+- `zones/focused-final.log`: **170 passed / 0 failed / 1122 skipped**, 빌드6분54초.
+  border/split-border/text/IR/export/document/nested/alignment/geometry 대상이며 전체 CI가 아니다.
+  nextest0.9.137 권장버전0.9.140/관측용 설정 경고는 기존과 같다.
+- `zones/docker-wasm.log`: **7분44초 성공**. WASM SHA-256
+  `efcff6e39c2e6eb26ef60c24889f9e7340352097f7beef79605dfa0256aa3074`.
+- 최종 release-test 라이브러리에 Native probe를 링크해 같은 HWP를 렌더하고,
+  그 뒤 코드 변경 없이 새 WASM으로 `DocumentV2`를 브라우저에서 실행했다.
+  default Legacy engine은 전환하지 않았다.
+- changed-file rustfmt check, `git diff --check`, source hash 검사 통과.
+  전체 PR lint/회귀·원본 #6923 전체 조판은 미검증이다.
+
+```sh
+output/7353/r19/zones/probe tests/fixtures/issue7353_zone_review/zone-lines-saved.hwp \
+  output/7353/r19/zones/review/actual render
+output/7353/r19/zones/probe tests/fixtures/issue7353_stored_anchor_review/anchor-review-saved.hwp \
+  output/7353/r19/zones/control render
+# 기준 PDF를 pdftoppm -png -r96으로 동일 페이지에 출력한 뒤
+node output/7353/r19/zones/review.mjs --wasm
+node output/7353/r19/zones/control.mjs
+```
+
+영역 대조의 최종 Native/fresh WASM SVG는2쪽 모두 동일하다. JSON은 숫자171곳에서
+최대5.684e-14 차이만 있고 다른 차이는0(`review/backend-comparison.json`).
+영역 없는 정상 대조는 변경 전후 Native/WASM 각각2쪽 SVG가 byte-identical이며
+backend 간에도 동일하다(`control/comparison.json`). 첫 control 브라우저 실행은
+Chrome 프로세스 시작 오류로 실패했고 같은 명령 재실행은 성공했다. 이를 조판 실패로 세지 않았다.
+
+동일 입력·PDF·페이지의 최종 Native/WASM review1·2와 WASM standalone overlay1·2를
+직접 열어 확인했다. 위치 맞춤 변환 없이 면/외곽·줄 소속·24행 병합·후속 문단을 비교했다.
+폰트 외형 차이 자체는 사용자 지시대로 이번 조판 실패에서 분리한다. Source/PDF/WASM 해시는
+`review/run.json`에 있다. 점수나 페이지 수만으로 시각 통과를 선언하지 않는다.
+
+판정 요청:
+
+- [1쪽 WASM review](../../output/7353/r19/zones/review/wasm-review-1.png):2행부터 파란 영역과
+  빨간 외곽,3행 왼쪽 셀의 노란 면,1~19행 내용/경계.
+- [2쪽 WASM review](../../output/7353/r19/zones/review/wasm-review-2.png):20~24행,
+  마지막 병합 셀 전체 폭과 표 뒤 문단. [standalone overlay](../../output/7353/r19/zones/review/wasm-overlay-2.png).
+- [판정용 HWP](../../tests/fixtures/issue7353_zone_review/zone-lines-saved.hwp),
+  [동일 HWP의 한컴 PDF](../../tests/fixtures/issue7353_zone_review/zone-lines-2020.pdf).
+
+상태: **단색 영역 배경·외곽 구현/집중 회귀/fresh WASM 완료, 메인테이너 시각 판정 대기**.
+미해결 큰 고정행 분할 대조, 원본의 대각선 등 source 효과, 겹친 영역 우선순위는 별도로 남는다.
+이 결과를 R5 완료나 원본 #6923 전체 통과로 기록하지 않는다.
+
+다음 절편 진행 승인을 받아 위 검증 완료분을 로컬 체크포인트로 보존한다.
+진행 승인을 별도의 시각 판정 통과로 해석하지 않는다. 다음 대상은 원본의
+borderFill31/29 `attr=8` 대각선 효과이며, 적용 단위와 분할 경계는 독립 출력으로 확인한다.
