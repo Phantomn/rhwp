@@ -674,6 +674,61 @@ fn original_6923_margin_cells_keep_saved_frames() {
 }
 
 #[test]
+fn original_first_table_consumption_is_invariant_under_unit_scale() {
+    let data = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"
+    ))
+    .unwrap();
+    let mut unit_page = None;
+    // Same untouched HWP, same physical page: integer source units first, then
+    // ordinary96dpi. This protects complete cell consumption, NOT the still
+    // unqualified table height/fidelity of the terminal-line-spacing prototype.
+    for (dpi, name) in [
+        (7200.0, "fractional-source-units"),
+        (96.0, "fractional-source"),
+    ] {
+        let ratio = dpi / 96.0;
+        let mut config = options(&data);
+        config["dpi"] = json!(dpi);
+        config["pages"] = json!({"width":800.0*ratio,"height":400.0*ratio,
+            "body":{"x":20.0*ratio,"y":30.0*ratio,"width":700.0*ratio,"height":300.0*ratio},
+            "first_y":30.0*ratio});
+        let mut session = open(&data, &config);
+        let raw = session.next_page_json().unwrap().unwrap();
+        assert!(session.next_page_json().unwrap().is_none());
+        let page: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(collect(&page, "Table").len(), 1);
+        assert_eq!(collect(&page, "TableCell").len(), 12);
+        assert_eq!(collect(&page, "Image").len(), 2);
+        if let Some(unit) = &unit_page {
+            for kind in ["Table", "TableCell", "TextLine", "Image"] {
+                let reference = collect(unit, kind);
+                let actual = collect(&page, kind);
+                assert_eq!(actual.len(), reference.len());
+                for (a, b) in actual.iter().zip(reference) {
+                    for key in ["x", "y", "width", "height"] {
+                        let expected = b["bbox"][key].as_f64().unwrap() / 75.0;
+                        let observed = a["bbox"][key].as_f64().unwrap();
+                        assert!(
+                            (observed - expected).abs()
+                                <= 32.0 * f64::EPSILON * expected.abs().max(1.0),
+                            "{kind}.{key}: {observed} != {expected}"
+                        );
+                    }
+                }
+            }
+            assert_eq!(labels(&page), labels(unit));
+        }
+        capture(name, &data, &config, std::slice::from_ref(&page));
+        if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
+            std::fs::write(format!("{dir}/{name}.native.json"), format!("[{raw}]")).unwrap();
+        }
+        unit_page = Some(page);
+    }
+}
+
+#[test]
 fn stored_line_frames_export_without_replacing_their_width_or_origin() {
     use rhwp::model::style::Alignment;
     for (name, alignment) in [

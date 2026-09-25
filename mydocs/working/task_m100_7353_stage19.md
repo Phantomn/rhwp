@@ -1041,3 +1041,103 @@ fixtures/out을 `margins/` 아래로 지정했다. `browser.log`/`browser/manife
 미완료다. 다음은 `tac::bind`의 저장 상자와 실제 `TableContentPlan.height` 차이를
 셀 끝 줄간격·padding·선언 높이 및 기준 PDF와 대조하는 작업이다. 기본값 전환·원격
 push/PR은 수행하지 않았다. 내부 커밋 SHA는 `verified-commit.txt`에 연결한다.
+
+### A 후속 — 셀 종료 높이 후보 조사와 원점 독립적인 여백 소비
+
+원본 #6923 첫 표를 수정하지 않고 조사한다. 마지막 줄의 `line_spacing`은 다음 줄
+원점으로의 전진이며 셀의 종료 뒤에 존재하는 줄 상자는 아니다. 빈 마지막 문단의
+line_height, 명시적인 spacing_after, 셀 padding과 선언 최소 높이는 별도로 보존한다.
+후보 구현에서는 저장/재조판 일반 텍스트 모두 같은 종료 규칙을 적용하고 본문의 전진 계약은
+변경하지 않았다. **이 후보는 아래 영향 검사 뒤 활성 소스에서 분리해 보관했다.**
+
+독립 수치 근거: 원본 첫 표 common.height=11102HU. 비-spanning 셀로 정한 행 최소 높이는
+371/2282/3042/1922/3274HU이며 첫 빈 셀의 실제 줄300+padding282=582HU가 첫 행을
+확장한다. 마지막 줄간격을 셀 점유로 더하지 않은 합은582+2282+3042+1922+3274=11102HU다.
+첫 행을 저장371HU로 축소하거나 표 전체를 선언 높이로 clamp하는 처리는 하지 않는다.
+셀5는1560+1200+282=3042HU, 셀6은1300+282=1582HU보다 큰 선언1922HU를 유지한다.
+원본 PDF1의 표 외곽/셀 배치와 함께 검증할 대상이며 이 산술만으로 시각 통과를 주장하지 않는다.
+
+값 경로는 TextComposer의 공용 실제 줄 노드/다음 문단 원점 → 셀 종료 문맥의
+ParagraphItem → ir::bind_table/명시적 text_flow → content::physical_extent/행 높이 →
+FlowCursor::fit/row_groups의 수용 및 이어받기 → TextPaint의 동일 payload 평행 이동이다.
+그림/TAC carrier도 마지막 양수 줄간격과 paragraph-after를 분리한다. TAC 음수 전진은
+셀 내부 후속 줄에는 유지하고 셀 종료에서는 물리 상자 끝을 사용한다. 본문에는 기존 전진을
+유지한다. 공용 Legacy paragraph compositor, 기본 엔진, TAC 저장 상자 검증은 바꾸지 않는다.
+
+증적 위치는 `output/7353/r19/terminal/`. 새 합성 검사에서 빈 마지막 줄과 spacing_after,
+저장/재조판 및 종료를 검사하고 원본 binary 전체 첫 표의 선언 envelope를 별도 검사한다.
+`before.log`의 합성 검사는 끝 간격 잔여로 미종료 FAIL했다. 원본 선택 표는 배치 중
+InconsistentAtomicPlan으로 실패했으므로 이것은 높이 assert 실패 증거와 구별한다.
+
+후보의 새 저장/재조판 빈 마지막 줄 검사는 PASS했고 원본의 첫 TAC 표 높이 검증도 통과해
+문단1의 decoration/keep 거부까지 이동했다. 정수 HWPUNIT 좌표의 원본 선택 표는
+11102HU를 정확히 산출했다. 격리7셀의 높이는 모두 원본 선언값과 일치했다. 그러나
+`recheck.log`는216건 중109 PASS/107 FAIL이다. 기존 합성 계약의 끝 줄간격·정렬·분할
+기대값 차이와 TAC 합성 입력의 저장 envelope 불일치 등이 함께 검출됐다. 이를107건의
+실제 회귀 또는107건의 잘못된 기대값으로 일괄 판정하지 않는다. `after.log`의203건은
+fmt 뒤 파생 suite가 갱신되기 전의 불완전 선택이며 최종 집계로 사용하지 않는다.
+기존 기대값·baseline·ignore를 변경하지 않고 후보를 `terminal-height-prototype.patch`로
+보존했다. 이 패치의 실험 결과는 현재 체크포인트의 검증 결과와 구분한다.
+
+선행 보정은 별개의 수치 결함이다. 후보 실험 빌드의 `atomic-gdb.log`에서 원본 첫 빈 셀(행0/열0)의
+7.76px 예산을 소비한 뒤 bottom padding이2.2204460492503131e-16px 남아
+row_groups.rs의 완전 소비 검사가 실패함을 확인했다. 원인은 같은 물리 높이의 비교에
+page y를 양변에 더하며 계산 순서가 달라진 것이다. `flow.rs::fit`의 **Space 소비 완료**
+비교를 측정과 같은 로컬 좌표 `pen+left <= area.height`로 바꾼다.
+실제 배치의 원점 평행 이동은 유지한다. clamp·추가 epsilon·선언 높이 보정은 없다.
+
+정식 반례는141HU 위/아래 padding과300HU 빈 줄을 실제 변환 순서
+`HU*(96/7200)`로 만든다. y=0/30/1000에서 동일한 정확 예산의 완료와 실제 줄 원점을
+검사하고1HU 부족한 예산은 거부한다. 처음 작성한`HU/75`는 IEEE754 표현이 달라 수정
+전에도 통과했다(`fractional-before.log`). 이를 검출 증거로 세지 않았고 실제 source
+변환 순서로 고친 `fractional-before-source-scale.log`에서 해당 원인의 FAIL을 확인했다.
+
+값/컷 경로: content::physical_extent가 padding/줄의 로컬 합으로 행 요구 높이를
+생성하고 row_groups::fit_row_groups 또는 fit_rows가 동일 높이를 예산으로 넘긴다.
+FlowCursor의 Space 잔여량과 Lines/InlineTables 소유 유닛은 성공한 fit에서만 소비하며,
+실패한 줄은 그대로 이월한다. 실제 line/table bounds는 기존처럼 area 원점을 더해 배치한다.
+이 보정은 row/rowspan 컷·제목 반복·최소 높이·종료 뒤 내용을 바꾸지 않는다.
+
+추가 원본 계약은 같은 바이너리의7200dpi/96dpi에서 선택 표1개·셀12개·그림2개와
+모든 Table/TableCell/TextLine/Image bbox의 물리 배율 및 텍스트 보존/완료를 검사한다.
+이 배율 불변식은 독립 기하 계약이며 기존의 잘못된 끝 줄간격 높이를 승인하는 계약이 아니다.
+기존 원본 admission은 첫 TAC 높이 불일치로 남겨두며 이슈 종단 완료를 주장하지 않는다.
+
+중간 `checkpoint-tests.log`는215건 중214 PASS/1 FAIL이었다. Space 외에 Lines/
+InlineTables까지 로컬 비교로 바꾸면 기존`fractional_page_budget_does_not_split_an_atomic_nested_table`
+계약(부모1.2, 선행1.0, atomic 자식0.2)의 차감 예산0.199999...와 충돌한다. 이 검사는
+그대로 보존하고 Lines/InlineTables 변경은 철회했다. 원점 오판의 확인된 원인인 Space
+소비만 보정한다. 일반적인 분할 예산의 수치 표현 통일은 이번 완료 범위에 포함하지 않는다.
+
+최종 활성 소스의 `final-tests.log`는 **215 PASS**(V2 193 + Legacy/저장 inline 대조22)다.
+review overlay에서 fmt 뒤 파생 suite를 준비하고 기존 V2 전체 및 같은22건 대조군을
+`cargo nextest run --locked --no-fail-fast`의 case filter로 실행했다. `prior-native-final.log`는
+직전 margins 단계의 기존109개 Native export가 byte 동일함을 확인한다. 새2건은 원점별
+정확 예산/부족 예산과 원본 전체 첫 표의 단위 배율·완전 소비 계약이다.
+
+`fmt.log`, `clippy-{native,wasm,test}.log`는 fmt check, Native root/WASM32 lib 및
+변경 integration target Clippy(-D warnings) 통과다. `policy.log`는 고정 base
+`7a95e46e025470a4d7a7b59ad68ec02958bda738` 대비 manifest check 통과다. source-side
+unit test는 변경하지 않았다. 이 내부 체크포인트는 전체 workspace 제출 CI의 완료가 아니다.
+검증 소스는 HEAD `0e2e2fd36`에 이번 변경을 적용한 상태이며 네 코드/테스트/script 파일의
+해시를 `checkpoint-source.sha256`에 고정했다. `post-build-source-check.log`도 모두 OK다.
+
+`docker compose --env-file .env.docker -p rhwp run --rm wasm`은7분11초에 완료했다.
+`pkg/rhwp_bg.wasm` SHA256은
+`e02672c2784d0b890eed2080347bb36e69c362ffbf0b316bc7a26526ecb93daf`이다.
+브라우저 명령은 직전 margins 검증의 flags에 `--fractional-cell-fit`을 추가하고
+`--fixtures output/7353/r19/terminal/checkpoint-fixtures`,
+`--out output/7353/r19/terminal/browser`를 사용했다. `browser.log`와
+`browser/manifest.json`은 **207쪽 PASS**(기존206 + 원본 선택 표1)의 정확한 Native/fresh
+WASM tree·SVG 일치와 입력 격리·거부·rollback·종료 검사 증거다.
+`prior-visual-final.log`에서 기존206쪽 review PNG도 byte 동일하다.
+
+`browser/fractional-source-0.review.png`와 `fractional-source-0.overlay.png`를 직접 열어
+표 외곽,12셀, 두 그림과 텍스트의 backend 일치를 확인했다. 원본 PDF1과는 셀 끝 줄간격에
+따른 높이 차이와 왼쪽 로고 표시 차이가 남아 있다. 이 출력은 선택 표의 소비 완료/수치
+불변식 검증이며 원본 전체 조판이나 한컴 피델리티 통과가 아니다. 원본 종단 admission의
+`TAC content changed stored occupied box` 거부도 그대로다.
+
+기존 엔진과 기대값·baseline·ignore는 변경하지 않았다. 다음 작업은 보관한 종료 높이
+후보의 실패107건을 독립 규칙/입력 근거로 분류하는 것이다. A/R5는 아직 미완료이며
+기본값 전환·원격 push/PR은 하지 않았다. 이번 내부 커밋은 `verified-commit.txt`에 연결한다.

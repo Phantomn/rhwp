@@ -1,9 +1,67 @@
 //! Synthetic geometry contracts, not evidence of HWP/Hancom fidelity.
 //! Expected positions are derived from explicit boxes/padding/page budgets.
 use rhwp::renderer::table_v2::{
-    CellInput, ComposedCell, FragmentFit, GeometryError, Insets, LineBox, LineOwner, PageArea,
-    Rect, RowInput, SplitPolicy, TableContentPlan, TableCursor, TableFragmentPlan,
+    CellInput, ComposedCell, FlowBlock, FlowCellInput, FlowRowInput, FragmentFit, GeometryError,
+    Insets, LineBox, LineOwner, PageArea, Rect, RowInput, SplitPolicy, TableContentPlan,
+    TableCursor, TableFragmentPlan,
 };
+
+#[test]
+fn exact_fractional_padding_fit_is_independent_of_page_origin() {
+    // Source-style units at96dpi:141HU padding +300HU blank line +141HU padding.
+    // End coordinates must not turn the same measured band into a partial band.
+    let padding = 141.0 * (96.0 / 7200.0);
+    let h = padding + 4.0 + padding;
+    for y in [0.0, 30.0, 1000.0] {
+        let cursor = TableContentPlan::from_flow_rows(
+            vec![100.0],
+            vec![FlowRowInput {
+                cells: vec![FlowCellInput {
+                    padding: Insets {
+                        top: padding,
+                        bottom: padding,
+                        ..Default::default()
+                    },
+                    minimum_height: 0.0,
+                    width: 100.0,
+                    blocks: vec![FlowBlock::Lines {
+                        height: 4.0,
+                        lines: vec![line(0, 0.0, 4.0)],
+                    }],
+                }],
+            }],
+            0.0,
+            SplitPolicy::Never,
+        )
+        .unwrap()
+        .start();
+        let a = PageArea {
+            bounds: Rect {
+                x: 10.0,
+                y,
+                width: 100.0,
+                height: h,
+            },
+        };
+        let FragmentFit::Placed(f) = cursor.fit(a).unwrap() else {
+            panic!("exact budget")
+        };
+        assert!(f.continuation().is_complete());
+        assert_eq!(f.reserved_height(), h);
+        assert_eq!(f.placement().cells[0].lines[0].bounds.y, y + padding);
+        assert!(matches!(
+            cursor
+                .fit(PageArea {
+                    bounds: Rect {
+                        height: h - 1.0 / 75.0,
+                        ..a.bounds
+                    }
+                })
+                .unwrap(),
+            FragmentFit::DoesNotFit { .. }
+        ));
+    }
+}
 
 fn area(width: f64, height: f64) -> PageArea {
     PageArea {

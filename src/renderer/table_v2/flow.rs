@@ -38,7 +38,10 @@ impl FlowCursor {
             match block {
                 FlowBlock::Space(height) => {
                     let left = result.next.space_left.unwrap_or(*height);
-                    let taken = if area.y + pen + left <= area.y + area.height {
+                    // Compare in the same local frame used to measure content.
+                    // Adding an unrelated page origin on both sides changes
+                    // rounding and can leave a phantom fraction of padding.
+                    let taken = if pen + left <= area.height {
                         left
                     } else {
                         left.min(available)

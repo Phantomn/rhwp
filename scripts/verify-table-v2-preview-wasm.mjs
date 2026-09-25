@@ -86,6 +86,7 @@ async function main() {
     negative.push('fill-border', 'fill-pattern');
   }
   const paintFailures = [];
+  if (process.argv.includes('--fractional-cell-fit')) positive.push('fractional-source');
   if (process.argv.includes('--stored-margins')) {
     positive.push('stored-margin-left','stored-margin-center','stored-margin-right',
       ...[2,4,5,6,7,10,11].map(i=>`stored-margin-source-${i}`));
@@ -248,6 +249,10 @@ async function main() {
       11:['과  장 이원두 051)460-1030','조사관 이효권 051)460-1034 '],
     };
     for (const [i,rows] of Object.entries(marginSource)) expected[`stored-margin-source-${i}`]=[rows];
+    expected['fractional-source']=[['','','','www.ftc.go.kr','보 도 자 료',
+      '함께 하는 공정사회!','더 큰 희망 대한민국','보도일시',...marginSource[5],
+      '담당부서','부산지방공정거래사무소 소비자과','','배포일시','2012.8.28(화)',
+      '담당자',...marginSource[11]]];
     expected['fill-merged'] = expected.merged;
     expected['fill-nested'] = expected.nested;
     expected['fill-split'] = [['A', ''], ['B', 'C']];
@@ -326,7 +331,7 @@ async function main() {
         assert.equal(output.page_index, index + (name === 'partial' ? 1 : 0));
         const rootNode = output.render_tree.root;
         const lines = collect(rootNode, 'TextLine');
-        assert.deepEqual(name.startsWith('stored-margin-source-')
+        assert.deepEqual(name.startsWith('stored-margin-source-') || name==='fractional-source'
           ? lines.map(n=>collect(n,'TextRun').map(r=>r.node_type.TextRun.text).join(''))
           : collect(rootNode, 'TextRun').map(n => n.node_type.TextRun.text), expected[name][index]);
         const aligned = name.startsWith('align-');
@@ -335,7 +340,18 @@ async function main() {
         const bordered = name.startsWith('border-');
         const cut = name.startsWith('cut-');
         const borderTail = name === 'border-nested' && index === 2;
-        if (name.startsWith('stored-margin-source-')) {
+        if (name==='fractional-source') {
+          // Integer-HWP-unit output of the SAME unmodified binary. Scale
+          // invariance is not a Hancom fidelity/terminal-height approval.
+          const unit=JSON.parse(readFileSync(join(fixtures,'fractional-source-units.native.json')))[0].render_tree.root;
+          assert.equal(collect(rootNode,'Table').length,1);
+          assert.equal(collect(rootNode,'TableCell').length,12);
+          assert.equal(collect(rootNode,'Image').length,2);
+          for(const kind of ['Table','TableCell','TextLine','Image']) {
+            assertDocumentGeometry(collect(rootNode,kind).map(n=>n.bbox),
+              collect(unit,kind).map(n=>Object.fromEntries(Object.entries(n.bbox).map(([k,v])=>[k,v/75]))));
+          }
+        } else if (name.startsWith('stored-margin-source-')) {
           const ci=Number(name.split('-').at(-1));
           const sw=ci===2?25652:[4,6,10].includes(ci)?5036:19832;
           for (const line of lines) {
@@ -643,7 +659,8 @@ async function main() {
         const stem = `${fixtureName}-${index}`;
         writeFileSync(join(out, `${stem}.svg`), output.svg);
         // Preserve evidence even if a backend comparison fails below.
-        await raster.setViewport({ width: 400, height: 400, deviceScaleFactor: 1 });
+        const rasterWidth=name==='fractional-source'?800:400;
+        await raster.setViewport({ width: rasterWidth, height: 400, deviceScaleFactor: 1 });
         for (const [backend, svg] of [['native', native[index].svg], ['wasm', output.svg]]) {
           await raster.setContent(`<body style="margin:0;background:white">${svg}</body>`);
           await raster.evaluate(() => document.fonts.ready);
@@ -706,22 +723,22 @@ async function main() {
             assert.ok(sample[1].slice(0,3).every(v => v > 225), `${stem}: light end`);
           }
         }
-        const overlay = await raster.evaluate(async imgs => {
+        const overlay = await raster.evaluate(async ({imgs,width}) => {
           const canvases = await Promise.all(imgs.map(async url => {
             const image = new Image(); image.src = url; await image.decode();
-            const c = document.createElement('canvas'); c.width = 400; c.height = 400;
+            const c = document.createElement('canvas'); c.width = width; c.height = 400;
             c.getContext('2d').drawImage(image, 0, 0); return c;
           }));
-          const context = canvases[0].getContext('2d'), a = context.getImageData(0, 0, 400, 400), b = canvases[1].getContext('2d').getImageData(0, 0, 400, 400);
+          const context = canvases[0].getContext('2d'), a = context.getImageData(0, 0, width, 400), b = canvases[1].getContext('2d').getImageData(0, 0, width, 400);
           for (let i = 0; i < a.data.length; i += 4) {
             const r = Math.round((a.data[i] + a.data[i + 1] + a.data[i + 2]) / 3);
             const g = Math.round((b.data[i] + b.data[i + 1] + b.data[i + 2]) / 3);
             a.data[i] = r; a.data[i + 1] = g; a.data[i + 2] = g; a.data[i + 3] = 255;
           }
           context.putImageData(a, 0, 0); return canvases[0].toDataURL();
-        }, imgs);
+        }, {imgs,width:rasterWidth});
         writeFileSync(join(out, `${stem}.overlay.png`), Buffer.from(overlay.split(',')[1], 'base64'));
-        await raster.setViewport({ width: 1200, height: 430, deviceScaleFactor: 1 });
+        await raster.setViewport({ width: rasterWidth*3, height: 430, deviceScaleFactor: 1 });
         await raster.setContent(`<body style="margin:0;display:flex;background:white;font:16px sans-serif">${[...imgs, overlay].map((url, i) => `<div><div style="height:30px">${['Native', 'Fresh WASM', 'Native/WASM overlay'][i]} ${stem}</div><img src="${url}"></div>`).join('')}</body>`);
         await raster.evaluate(() => Promise.all([...document.images].map(image => image.decode())));
         await raster.screenshot({ path: join(out, `${stem}.review.png`) });
