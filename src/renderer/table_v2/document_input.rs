@@ -107,6 +107,8 @@ pub(super) fn prepare(
     let mut page_number = None;
     for (pi, source) in section.paragraphs.iter().enumerate() {
         let fail = |reason| DocumentV2Error::Paragraph { index: pi, reason };
+        super::decoration::validate_paragraph_source(source.para_shape_id, &document.doc_info)
+            .map_err(fail)?;
         if source.column_type != ColumnBreakType::None
             && !(pi == 0 && source.column_type == ColumnBreakType::Section)
         {

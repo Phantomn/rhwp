@@ -1513,3 +1513,72 @@ Native113개·review PNG208개 byte 동일을 확인한다. `bridge-source-compa
 다음은 이 참조의 실제 표시 의미와 빈 문단의 저장 줄 수용을 확인하는 일이다. ID를 지우거나
 빈 문단을 건너뛰어 수용시키지 않는다. 원본 전체 성공/메인테이너 시각 통과/A·R5 완료가 아니다.
 기본 V2/Legacy·baseline/golden/ignore는 그대로이며 원격 push/PR·전체 CI 상당 검증은 하지 않았다.
+
+### 비표시 문단 장식 참조와 원본 빈 줄 — 진행 기록
+
+시작 head `b846a0cd4`. 본문 두 번째 문단은 borderFill1을 참조하지만4방향 선은None,
+solid 색은0xffffffff(CLR_INVALID), 패턴은없음이다. 공통 style resolver도 fill_color=None으로
+해석한다. 참조 번호 자체를 실제 표시 효과와 구분하며 원본 IR/참조를 지우지 않는다.
+입력은 기존 원본 HWP와 대응 PDF를 유지한다. HWPX 합성 no-fill은 FillType::None으로
+표현하며 원본 HWP sentinel은 원본 저장 속성을 그대로 보존한 별도 계약으로 검사한다.
+
+`document_input`/표 재귀 `decoration::validate_source`가 원본 paragraph borderFill의
+누락·실제 선·배경·source-only 효과를 먼저 검사한다. `TextComposer`는 resolved 참조도
+비표시인지 확인한다. 원본 빈 문단의 내어쓰기는 글자 배치가 없으므로 저장 물리 줄을 보존한다.
+문자가 있는 저장 들여쓰기 문단은 기존 제한 유지다. `stored_text::localize` → 공통
+physical-frame paint → `validate_paint` → ParagraphEnd/FlowBlock → body/cell의 동일
+payload·fragment를 소비하며 높이를0으로 만들거나 끝 원점을 재추정하지 않는다.
+저장 줄 높이1000HU·간격200HU, 본문 원점7087HU+첫 TAC 전진10868HU에 따라
+빈 줄 y17955/75px, 뒤 합성 문단 y19155/75px가 독립 기대값이다.
+
+원본 첫2문단을 그대로 보존하고 합성after만 붙인 파생 문서로 연결을 확인한다. 첫2문단의
+HWP 재파싱 JSON 동일성과 빈 줄 상자 x/width/y/height·후속 원점을 검사하며 원본 전체
+피델리티의 증거로 확대하지 않는다. 합성 HWPX는 ID0과 비표시 ID2의 전체 출력 동일성을,
+반례는 실제 선/흰 배경/3D/중심선/패턴/누락 참조를 본문과 셀에서 검사한다.
+초기 합성 테스트는 BorderLine 기본값이Solid인 입력 오류가 있었다. 이를None으로 명시하고,
+3D의 직렬화 원본 attr도 명시했다. 수정 전 native 기록은 이 초기 입력이므로 최종 음성 대조는
+보존한 직전 WASM과 최종 두 입력으로 다시 수행했다(`noop/before-wasm.json`): 두 입력 모두
+문단 장식 거부를 확인했다. 기존3D 등 반례는 해당 원본 속성이 표현되는 입력으로 확인한다.
+
+#### 결과와 검증 범위
+
+증적은 `output/7353/r19/noop/` 아래다. `before-wasm.log/json`은 직전 WASM
+`028a077752792612442c6e2c2dd5849518c526ee79b8bc95a1ba57bc600a2dec`에 최종 입력을
+넣어 두 양성 사례의 수정 전 거부를 확인한다. 새 구현은 두 입력을 수용하고 저장 빈 줄·
+후속 원점 계약을 통과한다. `tests-final.log`의 선별231건 중229건 통과/2건 실패는 위 합성
+입력 오류와 기존 원본 probe의 정확히6건 수용 제한이었다. 후자는225개 원본 문단의 개별
+수용으로 확대됐지만 기대 수를225로 바꾸지 않았다. 비표시 참조만 제거한 테스트 대조군과
+수용 여부·전체 최종 출력 동일성을 검사하고, 기존 무장식6건 및 저장 줄 좌표 검사를 유지했다.
+이는 고립 문단 probe이지 원본 전체 수용이나 한컴 피델리티 판정이 아니다.
+최종 `document-final.log`27/27과 `text-final.log`16/16을 재실행했다. 동일 렌더러에서 이미
+통과한 나머지188건과 합쳐231건을 검증했으며, 최종231건 단일 실행으로 보고하지 않는다.
+
+review worktree에서 `node scripts/run-rust-test.mjs`로 위 두 case를 실행했다.
+`fmt-final.log`, `clippy-native.log`, `clippy-wasm.log`, `clippy-tests.log`는 fmt check,
+native/WASM lib/해당 integration target Clippy(`--locked`, `-D warnings`) PASS다.
+마지막 테스트 주석 정정 뒤 review의 파생 suite를 다시 준비했다. `policy-final.log`는
+`--check --base-ref 7a95e46e025470a4d7a7b59ad68ec02958bda738` PASS다.
+파생 suite는 stage하지 않는다. source unit test 변경은 없다. 전체 workspace 제출 게이트는
+이번 내부 절편에서 실행하지 않았다. `source-comparison.json`은 제품/review Rust·Cargo
+1074개 차이0과 최종 테스트 동일성, 테스트 후 주석만 정정한 범위를 기록한다.
+
+Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm` 성공(7분31초,
+`docker-wasm.log`). WASM SHA256은
+`3afd9baead27374bb4fc4d96cb57fb0e667f0c9ec8a6307b29b79e08b26f4304`다.
+기존 browser 검증 명령에 `--noop-paragraph-border`를 추가하고 fixtures/out을
+`noop/fixtures`, `noop/browser`로 지정했다. `browser.log`는213쪽 exact Native/WASM
+tree·SVG 일치 및 isolation/rejection/rollback/termination PASS다. `preservation.json`은
+이전 Native115개와 review PNG210개 byte 동일을 확인한다. Docker 시작 후 렌더러 변경은 없다.
+
+`pdf-review.png`, `pdf-native-overlay.png`, `pdf-wasm-overlay.png` 및
+`browser/document-noop-{source,border}-*.review.png`를 직접 확인했다. PDF 비교는 원본 첫
+표 영역의 동일96dpi 좌표(x72,y90,w660,h160)이며 위치·크기 정렬 변형은 없다.
+외곽/셀 경계는 가깝고 기존 로고 표시·글꼴 차이는 남는다. 합성after와 원본 나머지 본문은
+PDF 비교 범위 밖이다(`pdf-scope.json`). 빈 줄의 높이는 보이지 않는 PNG만으로 추정하지 않고
+최종 tree 좌표로 검사한다. 일반 CLI 전체 Visual Sweep/자동 fidelity 점수는 미실행이며
+메인테이너의 최종 시각 통과를 대신하지 않는다.
+
+원본 전체의 다음 거부는 index2의 `text preview run outside occupied line`이다.
+해당 제목 문단은 저장 높이1900HU/간격380HU, 가운데 정렬이며, 다음 조사는 실제 glyph
+점유와 저장 줄 상자의 관계다. 원인은 아직 확정하지 않았다. 기본 V2/Legacy·baseline·golden·
+ignore는 유지하며 원격 push/PR은 수행하지 않았다. 원본 전체 수용 및 A/R5 완료가 아니다.

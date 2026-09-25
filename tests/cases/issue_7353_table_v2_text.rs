@@ -710,6 +710,7 @@ fn original_6923_stored_paragraphs_keep_source_metrics_in_v2_fragments() {
     let mut paragraphs = Vec::new();
     visit(&document.sections[0].paragraphs, &mut paragraphs);
     let mut admitted = 0;
+    let mut previously_unadorned = 0;
     let mut reasons = std::collections::BTreeMap::new();
     for p in paragraphs {
         let source = serde_json::to_value(p).unwrap();
@@ -730,7 +731,43 @@ fn original_6923_stored_paragraphs_keep_source_metrics_in_v2_fragments() {
             }],
             ..Default::default()
         };
-        let prepared = match PreparedTextTable::prepare(&t, &styles, 96.0) {
+        // A no-paint reference must be observationally identical to no
+        // decoration, including rejection on unrelated stored-layout limits.
+        // This comparison replaces the old support-count cap, not geometry.
+        let id = document.doc_info.para_shapes[p.para_shape_id as usize].border_fill_id;
+        let unpainted = id == 0
+            || document
+                .doc_info
+                .border_fills
+                .get(id as usize - 1)
+                .is_some_and(|b| {
+                    use rhwp::model::style::{BorderLineType, CenterLine, FillType};
+                    b.attr == 0
+                        && !b.three_d
+                        && b.center_line == CenterLine::None
+                        && b.borders
+                            .iter()
+                            .all(|line| line.line_type == BorderLineType::None)
+                        && (b.fill.fill_type == FillType::None
+                            || b.fill.fill_type == FillType::Solid
+                                && b.fill.solid.is_some_and(|s| {
+                                    s.pattern_type <= 0 && s.background_color >> 24 != 0
+                                }))
+                });
+        let reference = unpainted.then(|| {
+            let mut reference_styles = styles.clone();
+            reference_styles.para_styles[p.para_shape_id as usize].border_fill_id = 0;
+            PreparedTextTable::prepare(&t, &reference_styles, 96.0)
+        });
+        let actual = PreparedTextTable::prepare(&t, &styles, 96.0);
+        if let Some(reference) = &reference {
+            assert_eq!(
+                actual.is_ok(),
+                reference.is_ok(),
+                "no-paint reference changed admission"
+            );
+        }
+        let prepared = match actual {
             Ok(v) => v,
             Err(e) => {
                 *reasons.entry(format!("{e:?}")).or_insert(0usize) += 1;
@@ -750,6 +787,17 @@ fn original_6923_stored_paragraphs_keep_source_metrics_in_v2_fragments() {
         };
         let mut page = PageRenderTree::new(0, 1000.0, 2200.0);
         fragment.append_to(&mut page).unwrap();
+        if let Some(Ok(reference)) = reference {
+            let TextFragmentFit::Placed(fragment) = reference.start().fit(a).unwrap() else {
+                panic!("reference must fit the same area")
+            };
+            let mut expected = PageRenderTree::new(0, 1000.0, 2200.0);
+            fragment.append_to(&mut expected).unwrap();
+            assert_eq!(
+                serde_json::to_value(&page).unwrap(),
+                serde_json::to_value(&expected).unwrap()
+            );
+        }
         let mut lines = Vec::new();
         collect_lines(&page.root, &mut lines);
         assert_eq!(lines.len(), p.line_segs.len());
@@ -766,11 +814,16 @@ fn original_6923_stored_paragraphs_keep_source_metrics_in_v2_fragments() {
         }
         assert_eq!(serde_json::to_value(p).unwrap(), source);
         admitted += 1;
+        previously_unadorned += usize::from(id == 0);
     }
     eprintln!("original stored paragraphs admitted={admitted}, unsupported={reasons:?}");
     assert_eq!(
-        admitted, 6,
+        previously_unadorned, 6,
         "actual source admission must not silently disappear"
+    );
+    assert!(
+        admitted > previously_unadorned,
+        "non-painting references must be exercised"
     );
 }
 

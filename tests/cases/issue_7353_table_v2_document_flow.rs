@@ -224,9 +224,9 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
     assert!(matches!(
         error,
         DocumentV2Error::Paragraph {
-            index: 1,
+            index: 2,
             reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "text preview paragraph decoration or keep"
+                "text preview run outside occupied line"
             )
         }
     ));
@@ -238,7 +238,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         )
         .unwrap();
         let original = rhwp::parse_document(&data).unwrap();
-        let p = &original.sections[0].paragraphs[1];
+        let p = &original.sections[0].paragraphs[2];
         let shape = &original.doc_info.para_shapes[p.para_shape_id as usize];
         std::fs::write(
             format!("{dir}/6923-terminal-next-source.json"),
@@ -251,6 +251,136 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
 }
 fn open(d: &Document) -> DocumentV2Session {
     DocumentV2Session::from_bytes(&bytes(d), r#"{"dpi":96,"max_pages":20}"#).unwrap()
+}
+
+#[test]
+fn document_noop_border_reference_preserves_body_and_cell_lines() {
+    let mut d = source(vec![
+        p(""),
+        host("host", table(&["A", ""], TablePageBreak::CellBreak)),
+        p("after"),
+    ]);
+    let reference = drain(&mut open(&d));
+    d.doc_info.border_fills.push(BorderFill {
+        borders: [BorderLine {
+            line_type: BorderLineType::None,
+            ..Default::default()
+        }; 4],
+        ..Default::default()
+    });
+    // HWPX explicitly encodes no fill. Original HWP CLR_INVALID is exercised
+    // separately by the unchanged source paragraph below.
+    d.doc_info.para_shapes[0].border_fill_id = 2;
+    let actual = drain(&mut open(&d));
+    assert_eq!(
+        actual, reference,
+        "a non-painting reference must not alter any line or advance"
+    );
+    capture("document-noop-border", &d, &actual);
+}
+
+#[test]
+fn document_noop_border_original_blank_keeps_saved_height_and_advance() {
+    let data = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"
+    ))
+    .unwrap();
+    let mut d = rhwp::parse_document(&data).unwrap();
+    let original = serde_json::to_value(&d.sections[0].paragraphs[..2]).unwrap();
+    d.sections[0].paragraphs.truncate(2);
+    let char_id = d.doc_info.char_shapes.len() as u32;
+    d.doc_info.char_shapes.push(CharShape {
+        base_size: 900,
+        ..Default::default()
+    });
+    let para_id = d.doc_info.para_shapes.len() as u16;
+    d.doc_info.para_shapes.push(ParaShape {
+        line_spacing_type: LineSpacingType::Fixed,
+        line_spacing: 2700,
+        ..Default::default()
+    });
+    let mut after = p("after");
+    after.para_shape_id = para_id;
+    after.char_shapes[0].char_shape_id = char_id;
+    d.sections[0].paragraphs.push(after);
+    let encoded = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+    let reparsed = rhwp::parse_document(&encoded).unwrap();
+    assert_eq!(
+        serde_json::to_value(&reparsed.sections[0].paragraphs[..2]).unwrap(),
+        original
+    );
+    let pages = drain(&mut DocumentV2Session::from_bytes(&encoded, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    let mut lines = Vec::new();
+    collect(nodes(&pages[0], "Body")[0], "TextLine", &mut lines);
+    let end = &lines[lines.len() - 2..];
+    // Original body7087HU + TAC advance10868HU; blank height1000/gap200HU.
+    near(&end[0]["bbox"]["y"], 17955.0 / 75.0);
+    near(&end[0]["bbox"]["height"], 1000.0 / 75.0);
+    near(&end[0]["bbox"]["x"], 5669.0 / 75.0);
+    near(&end[0]["bbox"]["width"], 48188.0 / 75.0);
+    near(&end[1]["bbox"]["y"], 19155.0 / 75.0);
+    assert_eq!(
+        labels(&pages[0]).iter().filter(|t| **t == "after").count(),
+        1
+    );
+    capture_terminal("document-noop-source", &encoded, &pages);
+}
+
+#[test]
+fn document_noop_border_does_not_admit_visible_or_lost_effects() {
+    use rhwp::model::style::{CenterLine, FillType, SolidFill};
+    for variant in 0..6 {
+        let mut d = source(vec![p("text")]);
+        d.doc_info.border_fills.push(BorderFill {
+            borders: [BorderLine {
+                line_type: BorderLineType::None,
+                ..Default::default()
+            }; 4],
+            ..Default::default()
+        });
+        d.doc_info.para_shapes[0].border_fill_id = 2;
+        let b = &mut d.doc_info.border_fills[1];
+        match variant {
+            0 => b.borders[0].line_type = BorderLineType::Solid,
+            1 => {
+                b.fill.fill_type = FillType::Solid;
+                b.fill.solid = Some(SolidFill {
+                    background_color: 0xffffff,
+                    ..Default::default()
+                });
+            }
+            2 => {
+                b.three_d = true;
+                b.attr = 1;
+            }
+            3 => b.center_line = CenterLine::Cross,
+            4 => {
+                b.fill.fill_type = FillType::Solid;
+                b.fill.solid = Some(SolidFill {
+                    background_color: 0xffffffff,
+                    pattern_type: 1,
+                    ..Default::default()
+                });
+            }
+            _ => d.doc_info.para_shapes[0].border_fill_id = 99,
+        }
+        assert!(
+            DocumentV2Session::from_bytes(&bytes(&d), TERMINAL_OPTIONS).is_err(),
+            "variant {variant}"
+        );
+        let bad_style = d.doc_info.para_shapes[0].clone();
+        d.doc_info.para_shapes[0].border_fill_id = 0;
+        d.doc_info.para_shapes.push(bad_style);
+        let mut nested = table(&["inside"], TablePageBreak::CellBreak);
+        nested.cells[0].paragraphs[0].para_shape_id = 1;
+        d.sections[0].paragraphs = vec![host("host", nested)];
+        assert!(
+            DocumentV2Session::from_bytes(&bytes(&d), TERMINAL_OPTIONS).is_err(),
+            "nested variant {variant}"
+        );
+    }
 }
 fn drain(session: &mut DocumentV2Session) -> Vec<Value> {
     let mut pages = Vec::new();

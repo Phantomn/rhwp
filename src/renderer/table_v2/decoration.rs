@@ -5,7 +5,7 @@ use crate::{
     model::{
         control::Control,
         document::DocInfo,
-        style::{CenterLine, FillType},
+        style::{BorderLineType, CenterLine, FillType},
         table::Table,
         ColorRef,
     },
@@ -174,6 +174,9 @@ pub(super) fn validate_source(table: &Table, info: &DocInfo) -> Result<(), Geome
                 }
             }
         }
+        for paragraph in table.cells.iter().flat_map(|c| &c.paragraphs) {
+            validate_paragraph_source(paragraph.para_shape_id, info)?;
+        }
         for child in table
             .cells
             .iter()
@@ -187,4 +190,62 @@ pub(super) fn validate_source(table: &Table, info: &DocInfo) -> Result<(), Geome
         Ok(())
     }
     visit(table, info, 0)
+}
+
+/// A reference is not a decoration by itself. Qualify source-only effects
+/// before style resolution can discard them; never erase the original ID.
+pub(super) fn validate_paragraph_source(id: u16, info: &DocInfo) -> Result<(), GeometryError> {
+    let para = info
+        .para_shapes
+        .get(usize::from(id))
+        .ok_or(GeometryError::Unsupported("missing paragraph style"))?;
+    if para.border_fill_id == 0 {
+        return Ok(());
+    }
+    let b = info
+        .border_fills
+        .get(usize::from(para.border_fill_id) - 1)
+        .ok_or(GeometryError::Unsupported(
+            "missing paragraph borderFill reference",
+        ))?;
+    let no_fill = match b.fill.fill_type {
+        FillType::None => true,
+        FillType::Solid => b
+            .fill
+            .solid
+            .as_ref()
+            .is_some_and(|s| s.pattern_type <= 0 && s.background_color >> 24 != 0),
+        _ => false,
+    };
+    if b.three_d
+        || b.attr != 0
+        || b.center_line != CenterLine::None
+        || b.borders
+            .iter()
+            .any(|p| p.line_type != BorderLineType::None)
+        || !no_fill
+    {
+        return Err(GeometryError::Unsupported("V2 paragraph decoration"));
+    }
+    Ok(())
+}
+
+/// Resolved-only callers also reject every visible decoration. Pen widths or
+/// colors on a None edge, and spacing around a nonexistent border, do not paint.
+pub(super) fn paragraph_is_unpainted(id: u16, styles: &ResolvedStyleSet) -> bool {
+    id == 0
+        || styles
+            .border_styles
+            .get(usize::from(id) - 1)
+            .is_some_and(|b| {
+                b.borders
+                    .iter()
+                    .all(|p| p.line_type == BorderLineType::None)
+                    && b.diagonal_attr == 0
+                    && b.center_line == CenterLine::None
+                    && b.fill_color.is_none()
+                    && b.pattern.is_none()
+                    && b.gradient.is_none()
+                    && b.image_fill.is_none()
+            })
 }

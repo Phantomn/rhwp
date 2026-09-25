@@ -311,7 +311,7 @@ impl CellParagraphComposer for TextComposer<'_> {
             .para_styles
             .get(para.para_shape_id as usize)
             .ok_or(GeometryError::Unsupported("missing paragraph style"))?;
-        if style.border_fill_id != 0
+        if !super::decoration::paragraph_is_unpainted(style.border_fill_id, self.styles)
             || style.head_type != HeadType::None
             || style.keep_lines
             || style.keep_with_next
@@ -356,7 +356,10 @@ impl CellParagraphComposer for TextComposer<'_> {
         }
         let stored = !para.line_segs.is_empty();
         let fresh = if stored {
-            if style.indent != 0.0 {
+            // Indentation can affect glyph placement, but an empty saved row
+            // still owns its physical line box and advance without any glyphs.
+            // Text-bearing indented rows require a separate qualification.
+            if style.indent != 0.0 && !para.text.is_empty() {
                 return Err(GeometryError::Unsupported("stored text indentation"));
             }
             super::stored_text::localize(
