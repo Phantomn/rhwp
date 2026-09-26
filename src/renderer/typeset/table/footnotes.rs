@@ -33,9 +33,12 @@ impl TypesetEngine {
         source: FootnoteSource,
         content_height: f64,
     ) {
-        let split = st
-            .profile
-            .hwp5_stored_pagination_layout()
+        // Whole-table registration must preserve the same validated stored
+        // footer boundary as the fragment queue. Container format does not
+        // change ownership of a repeated page-top line; edited HWPX does.
+        let saved_note_layout = st.profile.hwp5_stored_pagination_layout()
+            || (st.profile.hwpx_stored_layout() && !st.profile.session_edited());
+        let split = saved_note_layout
             .then(|| native_hwp5_footnote_reset_fragments(footnote, self.dpi))
             .flatten()
             .filter(|split| split.force_next_page && st.col_count == 1);

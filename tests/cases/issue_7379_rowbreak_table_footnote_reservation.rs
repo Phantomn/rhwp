@@ -747,3 +747,76 @@ fn single_cell_saved_frame_border_and_following_heading_match_pdf() {
         );
     }
 }
+
+/// 실제 HWPX note234는 저장 두 줄의 vpos0/0을 보존한다. 독립 PDF176에는
+/// 번호와 첫 줄,177에는 번호/구분선 없는 꼬리와 뒤 각주235가 있다.
+#[test]
+fn unqueued_cell_note_preserves_repeated_page_top_prefix_and_tail() {
+    let core = core();
+    let first = core.build_page_render_tree(175).expect("176쪽");
+    let next = core.build_page_render_tree(176).expect("177쪽");
+    let prefix = text(notes(&first.root).expect("176쪽 각주"));
+    let suffix = text(notes(&next.root).expect("177쪽 각주"));
+    assert!(prefix.contains("234)"), "234 번호는 표시 소유 쪽");
+    assert!(
+        !prefix.contains("severely steatotic"),
+        "234 꼬리는 다음 물리 쪽"
+    );
+    assert!(suffix.contains("severely steatotic"), "234 꼬리 누락 금지");
+    assert!(!suffix.contains("234)"), "이월 꼬리 번호 중복 금지");
+    assert!(suffix.contains("235)"), "다음 정상 각주 보존");
+    for (label, actual, expected) in [
+        (
+            "176 첫 각주",
+            line_top(&first.root, "Dare AJ").expect("232 첫 줄"),
+            949.169,
+        ),
+        (
+            "177 이월 꼬리",
+            line_top(&next.root, "severely steatotic").expect("234 꼬리"),
+            996.209,
+        ),
+    ] {
+        assert!(
+            (actual - expected).abs() <= 1.5,
+            "{label}: 실제{actual}, 독립PDF{expected}"
+        );
+    }
+}
+
+/// 수동 합성 0/0은 원본 저장 경계의 증거가 아니다. 물리 분할을 강제하지 않는다.
+#[test]
+fn synthetic_cell_note_zero_positions_do_not_force_a_physical_tail() {
+    use rhwp::model::{control::Control, paragraph::LineSeg};
+    let mut core = core();
+    let mut doc = core.document().clone();
+    let Control::Table(table) = &mut doc.sections[0].paragraphs[1832].controls[0] else {
+        panic!("원표");
+    };
+    let mut changed = false;
+    for cell in &mut table.cells {
+        for p in &mut cell.paragraphs {
+            for c in &mut p.controls {
+                if let Control::Footnote(note) = c {
+                    if note.number == 234 {
+                        for para in &mut note.paragraphs {
+                            for line in &mut para.line_segs {
+                                line.tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
+                            }
+                        }
+                        changed = true;
+                    }
+                }
+            }
+        }
+    }
+    assert!(changed, "반례의 원본 각주를 실제 변경");
+    core.set_document(doc);
+    let first = core.build_page_render_tree(175).expect("표시 쪽");
+    let prefix = text(notes(&first.root).expect("각주"));
+    assert!(prefix.contains("234)"));
+    assert!(
+        prefix.contains("severely steatotic"),
+        "합성 위치로 실제 저장 경계를 발명하지 않음"
+    );
+}
