@@ -71,6 +71,10 @@ impl CellParagraphComposer for IrTextComposer<'_> {
         let mut slots = Vec::new();
         for item in &items {
             match item {
+                ParagraphItem::ExcludedTable { control, line, .. } => {
+                    slots.push(PaintSlot::Line(*line));
+                    slots.push(PaintSlot::Table(*control));
+                }
                 ParagraphItem::ObjectRow { line, .. } => slots.push(PaintSlot::Line(*line)),
                 ParagraphItem::Lines { lines, .. } => {
                     slots.extend(lines.iter().map(|(line, _)| PaintSlot::Line(*line)))
@@ -102,6 +106,12 @@ impl IrTextComposer<'_> {
         para: &Paragraph,
         width: f64,
     ) -> Result<Vec<ParagraphItem>, GeometryError> {
+        if super::cell_anchor::candidate(para) {
+            let (item, node) =
+                super::cell_anchor::compose(para, width, self.text.styles, self.text.dpi)?;
+            self.text.payloads.borrow_mut().push(vec![node]);
+            return Ok(vec![item]);
+        }
         if para.controls.is_empty() {
             return self.text.compose(para, width);
         }

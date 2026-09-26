@@ -15,6 +15,15 @@ use super::{
 /// Output of a width-bound paragraph composer. A table slot refers to the actual
 /// Paragraph.controls index; it never contains an independently rebuilt table.
 pub enum ParagraphItem {
+    ExcludedTable {
+        control: usize,
+        line: usize,
+        host: Rect,
+        host_advance: f64,
+        x: f64,
+        top: f64,
+        bottom: f64,
+    },
     Space(f64),
     /// Producer-owned paragraph ending, distinct from additional cell space.
     End(super::ParagraphEnd),
@@ -208,7 +217,7 @@ fn bind_table(
                     let Control::Table(child) = ctrl else {
                         return Err(GeometryError::Unsupported("non-table cell control"));
                     };
-                    if !child.common.treat_as_char {
+                    if !child.common.treat_as_char && !super::cell_anchor::candidate(para) {
                         validate_anchor(child)?;
                     }
                 }
@@ -219,6 +228,52 @@ fn bind_table(
                     pi + 1 == cell.paragraphs.len(),
                 ) {
                     match item {
+                        ParagraphItem::ExcludedTable {
+                            control: ci,
+                            line,
+                            host,
+                            host_advance,
+                            x,
+                            top,
+                            bottom,
+                        } => {
+                            if seen.get(ci).copied() != Some(false) {
+                                return Err(GeometryError::Unsupported(
+                                    "invalid anchored table slot",
+                                ));
+                            }
+                            let Control::Table(child) = &para.controls[ci] else {
+                                return Err(GeometryError::Unsupported("non-table anchor slot"));
+                            };
+                            let plan = bind_table(child, scale, composer, depth + 1, policy)?;
+                            if x + plan.width + f64::from(child.common.margin.right) * scale
+                                > inner_width
+                            {
+                                return Err(GeometryError::ContentWidth {
+                                    row: r,
+                                    column: resolved.tracks[r][c].column,
+                                });
+                            }
+                            blocks.push(FlowBlock::AnchoredTable {
+                                owner: ControlOwner {
+                                    paragraph: pi,
+                                    control: ci,
+                                },
+                                host: LineBox {
+                                    owner: LineOwner {
+                                        paragraph: pi,
+                                        line,
+                                    },
+                                    bounds: host,
+                                },
+                                host_advance,
+                                offset_x: x,
+                                top,
+                                bottom,
+                                plan: Arc::new(plan),
+                            });
+                            seen[ci] = true;
+                        }
                         ParagraphItem::ObjectRow {
                             line,
                             bounds,

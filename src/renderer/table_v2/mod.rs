@@ -13,6 +13,7 @@
 mod body_anchor;
 mod body_flow;
 mod borders;
+mod cell_anchor;
 mod content;
 mod contracts;
 mod decoration;

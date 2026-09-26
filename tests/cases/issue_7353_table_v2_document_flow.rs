@@ -377,7 +377,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         DocumentV2Error::Paragraph {
             index: 5,
             reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "nested anchor, TAC, wrap or outer margin"
+                "rowspan height needs redistribution"
             )
         }
     ));
@@ -2685,6 +2685,192 @@ fn hancom_narrow_nested_cell_keeps_minimum_text_lane_without_widening_table() {
         &after["bbox"]["y"],
         (7087.0 + f64::from(source.sections[0].paragraphs[1].line_segs[0].vertical_pos)) / 75.0,
     );
+}
+
+#[test]
+fn hancom_excluded_cell_anchor_preserves_child_and_authored_blank_line() {
+    let input = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue7353_cell_anchor_review/anchor-saved.hwp"
+    ))
+    .unwrap();
+    let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    assert_eq!(
+        labels(&pages[0]),
+        [
+            "POSITIONED CHILD",
+            "",
+            "AFTER ANCHOR",
+            "AFTER CELL: no missing or duplicated text"
+        ]
+    );
+    let tables = nodes(&pages[0], "Table");
+    assert_eq!(tables.len(), 2);
+    let x = tables[0]["bbox"]["x"].as_f64().unwrap() + 283.0 / 75.0;
+    let y = tables[0]["bbox"]["y"].as_f64().unwrap() + 283.0 / 75.0;
+    // Hancom normal-save: owner vpos0/sw0, child5000HU with141HU margins,
+    // following authored blank at5282, following ink at7426 (1500+644 later).
+    near(&tables[1]["bbox"]["x"], x + (1980.0 + 141.0) / 75.0);
+    near(&tables[1]["bbox"]["y"], y + 141.0 / 75.0);
+    near(&tables[1]["bbox"]["width"], 44957.0 / 75.0);
+    near(&tables[1]["bbox"]["height"], 5000.0 / 75.0);
+    let lines = nodes(&pages[0], "TextLine");
+    let owner = lines
+        .iter()
+        .find(|l| l["bbox"]["width"].as_f64() == Some(0.0))
+        .unwrap();
+    near(&owner["bbox"]["y"], y);
+    near(&owner["bbox"]["height"], 1500.0 / 75.0);
+    assert!(lines
+        .iter()
+        .any(|l| (l["bbox"]["y"].as_f64().unwrap() - (y + 5282.0 / 75.0)).abs() < 1e-9));
+    let after = lines
+        .iter()
+        .find(|l| {
+            l["children"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|r| r["node_type"]["TextRun"]["text"] == "AFTER ANCHOR")
+        })
+        .unwrap();
+    near(&after["bbox"]["y"], y + 7426.0 / 75.0);
+}
+
+#[test]
+fn excluded_cell_anchor_cuts_preserve_host_child_tail_and_following_lines() {
+    use rhwp::renderer::{style_resolver::resolve_styles, table_v2::*};
+    let d = rhwp::parse_document(
+        &std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/issue7353_cell_anchor_review/anchor-saved.hwp"
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    let Control::Table(t) = &d.sections[0].paragraphs[0].controls[2] else {
+        panic!()
+    };
+    let styles = resolve_styles(&d.doc_info, 96.0);
+    let mut t = t.clone();
+    t.page_break = TablePageBreak::CellBreak;
+    t.cells[0].height = 0;
+    t.padding = Default::default();
+    t.cells[0].padding = Default::default();
+    let Control::Table(child) = &mut t.cells[0].paragraphs[0].controls[0] else {
+        panic!()
+    };
+    child.page_break = TablePageBreak::CellBreak;
+    child.padding = Default::default();
+    child.cells[0].padding = Default::default();
+    let prepared = PreparedTextTable::prepare_with_end_policy(
+        &t,
+        &styles,
+        96.0,
+        &[],
+        CellEndPolicy::OmitFinalParagraphGap,
+    )
+    .unwrap();
+    let area = |height| PageArea {
+        bounds: Rect {
+            x: 20.0,
+            y: 30.0,
+            width: 800.0,
+            height,
+        },
+    };
+    let cursor = prepared.start();
+    // Host line alone fits20px, but child line+top padding do not. No host-only
+    // fragment may commit and separate the source owner from the deferred child.
+    assert!(matches!(
+        cursor.fit(area(20.0)).unwrap(),
+        TextFragmentFit::DoesNotFit { .. }
+    ));
+    let whole = match cursor.fit(area(1000.0)).unwrap() {
+        TextFragmentFit::Placed(f) => f,
+        TextFragmentFit::DoesNotFit {
+            required_height, ..
+        } => panic!("whole requires {required_height}"),
+        TextFragmentFit::Complete => panic!("whole already complete"),
+    };
+    let render = |part: &TextFragment| {
+        let mut page = rhwp::renderer::render_tree::PageRenderTree::new(0, 800.0, 1000.0);
+        part.append_to(&mut page).unwrap();
+        json!({"render_tree":page})
+    };
+    let raw = render(&whole);
+    assert_eq!(labels(&raw), ["POSITIONED CHILD", "", "AFTER ANCHOR"]);
+    for budget in [30.0, 40.0, 50.0] {
+        let mut cursor = prepared.start();
+        let mut text = Vec::new();
+        let mut hosts = 0;
+        let mut blank = 0;
+        let mut done = false;
+        for _ in 0..20 {
+            match cursor.fit(area(budget)).unwrap() {
+                TextFragmentFit::Complete => {
+                    done = true;
+                    break;
+                }
+                TextFragmentFit::Placed(part) => {
+                    assert!(part.geometry().reserved_height() <= budget + 1e-9);
+                    let raw = render(&part);
+                    text.extend(labels(&raw).into_iter().map(str::to_owned));
+                    for line in nodes(&raw, "TextLine") {
+                        let b = &line["bbox"];
+                        assert!(b["y"].as_f64().unwrap() >= 30.0 - 1e-9);
+                        assert!(
+                            b["y"].as_f64().unwrap() + b["height"].as_f64().unwrap()
+                                <= 30.0 + budget + 1e-9
+                        );
+                        if b["width"].as_f64() == Some(0.0) {
+                            hosts += 1;
+                        } else if line["children"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .all(|r| r["node_type"]["TextRun"]["text"] == "")
+                        {
+                            blank += 1;
+                        }
+                    }
+                    cursor = part.continuation();
+                }
+                _ => panic!("unexpected blocked cut"),
+            }
+        }
+        assert!(done);
+        assert_eq!(text, ["POSITIONED CHILD", "", "AFTER ANCHOR"]);
+        assert_eq!(hosts, 1);
+        assert_eq!(blank, 1);
+    }
+    // Qualifying a normally saved blank host cannot admit ink, side wrap,
+    // stale widths or conflicting margin records by the same shortcut.
+    for kind in 0..4 {
+        let mut bad = t.clone();
+        let p = &mut bad.cells[0].paragraphs[0];
+        match kind {
+            0 => {
+                p.text = "X".into();
+                p.char_offsets = vec![8];
+            }
+            1 => {
+                let Control::Table(c) = &mut p.controls[0] else {
+                    panic!()
+                };
+                c.common.text_wrap = TextWrap::Square;
+            }
+            2 => p.line_segs[0].segment_width = 1,
+            _ => {
+                let Control::Table(c) = &mut p.controls[0] else {
+                    panic!()
+                };
+                c.outer_margin_left += 1;
+            }
+        }
+        assert!(PreparedTextTable::prepare(&bad, &styles, 96.0).is_err());
+    }
 }
 
 #[test]

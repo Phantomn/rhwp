@@ -361,7 +361,8 @@ pub(super) fn prepare(
                         })
                         .collect(),
                 }),
-                ParagraphItem::ObjectRow { .. }
+                ParagraphItem::ExcludedTable { .. }
+                | ParagraphItem::ObjectRow { .. }
                 | ParagraphItem::TableControl(_)
                 | ParagraphItem::InlineTables { .. } => {
                     return Err(fail(GeometryError::InconsistentAtomicPlan))

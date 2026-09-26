@@ -77,6 +77,17 @@ pub struct InlineTableInput {
 /// Composition owns atomic line groups; pagination never infers them from ink.
 #[derive(Debug)]
 pub enum FlowBlock {
+    /// A stored exclusion host and its floating child share an origin, not a
+    /// vertical stack. The child can continue while the host is consumed once.
+    AnchoredTable {
+        owner: ControlOwner,
+        host: LineBox,
+        host_advance: f64,
+        offset_x: f64,
+        top: f64,
+        bottom: f64,
+        plan: std::sync::Arc<super::TableContentPlan>,
+    },
     Space(f64),
     Lines {
         height: f64,

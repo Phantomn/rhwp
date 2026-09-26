@@ -11,6 +11,8 @@ pub(super) struct FlowCursor {
     pub block: usize,
     space_left: Option<f64>,
     child: Option<Box<TableCursor>>,
+    anchor_started: bool,
+    anchor_tail: Option<f64>,
 }
 
 pub(super) struct FlowFit {
@@ -48,6 +50,110 @@ impl FlowCursor {
         while let Some(block) = cell.blocks[..end].get(result.next.block) {
             let available = (area.height - pen).max(0.0);
             match block {
+                FlowBlock::AnchoredTable {
+                    owner,
+                    host,
+                    host_advance,
+                    offset_x,
+                    top,
+                    bottom,
+                    plan,
+                } => {
+                    if result.next.anchor_tail.is_none() {
+                        let first = !result.next.anchor_started;
+                        // Host and first child fragment are one acceptance transaction.
+                        if first && host.bounds.height > available {
+                            result.required = host.bounds.height;
+                            break;
+                        }
+                        let cursor = result
+                            .next
+                            .child
+                            .as_deref()
+                            .cloned()
+                            .unwrap_or_else(|| TableCursor::new(Arc::clone(plan)));
+                        // This rule has zero source vertical offset. Top margin is
+                        // physical on every fragment, including deferred first fit.
+                        if *top > available {
+                            result.required = *top;
+                            break;
+                        }
+                        match cursor.fit(PageArea {
+                            bounds: Rect {
+                                x: area.x + offset_x,
+                                y: area.y + pen + top,
+                                width: area.width - offset_x,
+                                height: available - top,
+                            },
+                        })? {
+                            FragmentFit::Placed(fragment) => {
+                                let child_end = *top + fragment.reserved_height();
+                                let used = if first {
+                                    child_end.max(host.bounds.height)
+                                } else {
+                                    child_end
+                                };
+                                if first {
+                                    result.lines.push(LinePlacement {
+                                        owner: host.owner,
+                                        bounds: Rect {
+                                            x: area.x,
+                                            y: area.y + pen,
+                                            ..host.bounds
+                                        },
+                                    });
+                                }
+                                result.tables.push(NestedTablePlacement {
+                                    owner: *owner,
+                                    placement: Box::new(fragment.placement().clone()),
+                                });
+                                pen += used;
+                                result.height = result.height.max(pen);
+                                result.progressed = true;
+                                result.next.anchor_started = true;
+                                let next = fragment.continuation();
+                                if !next.is_complete() {
+                                    result.next.child = Some(Box::new(next));
+                                    break;
+                                }
+                                result.next.child = None;
+                                let end = if first {
+                                    (child_end + bottom).max(*host_advance).max(used)
+                                } else {
+                                    child_end + bottom
+                                };
+                                result.next.anchor_tail = Some(end - used);
+                            }
+                            FragmentFit::DoesNotFit {
+                                required_height, ..
+                            } => {
+                                result.required = (*top + required_height).max(if first {
+                                    host.bounds.height
+                                } else {
+                                    0.0
+                                });
+                                break;
+                            }
+                            FragmentFit::Complete => {
+                                return Err(GeometryError::InconsistentAtomicPlan)
+                            }
+                        }
+                    }
+                    // Trailing physical margin is not child content. Carry only
+                    // its remainder; never restart the already completed child.
+                    let tail = result.next.anchor_tail.unwrap();
+                    let take = tail.min((area.height - pen).max(0.0));
+                    pen += take;
+                    result.height = result.height.max(pen);
+                    result.progressed |= take > 0.0;
+                    if take < tail {
+                        result.next.anchor_tail = Some(tail - take);
+                        result.required = tail - take;
+                        break;
+                    }
+                    result.next.anchor_tail = None;
+                    result.next.anchor_started = false;
+                }
                 FlowBlock::Space(height) => {
                     let left = result.next.space_left.unwrap_or(*height);
                     // Compare in the same local frame used to measure content.

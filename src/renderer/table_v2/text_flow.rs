@@ -150,7 +150,8 @@ impl PreparedTextTable {
                                             })
                                             .collect(),
                                     }),
-                                    ParagraphItem::ObjectRow { .. }
+                                    ParagraphItem::ExcludedTable { .. }
+                                    | ParagraphItem::ObjectRow { .. }
                                     | ParagraphItem::TableControl(_)
                                     | ParagraphItem::InlineTables { .. } => {
                                         return Err(GeometryError::InconsistentAtomicPlan)

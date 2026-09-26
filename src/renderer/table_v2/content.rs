@@ -50,12 +50,20 @@ pub(super) struct CellTrack {
 impl FlowBlock {
     pub(super) fn advance(&self) -> f64 {
         match self {
+            Self::AnchoredTable { host_advance, .. } => self.height().max(*host_advance),
             Self::InlineTables { advance, .. } | Self::Lines { advance, .. } => *advance,
             _ => self.height(),
         }
     }
     pub(super) fn height(&self) -> f64 {
         match self {
+            Self::AnchoredTable {
+                host,
+                top,
+                bottom,
+                plan,
+                ..
+            } => host.bounds.height.max(top + plan.height + bottom),
             Self::Space(height)
             | Self::Lines { height, .. }
             | Self::InlineTables { height, .. } => *height,
@@ -194,6 +202,33 @@ impl TableContentPlan {
                 for block in &cell.blocks {
                     nonnegative(block.height(), "block height")?;
                     match block {
+                        FlowBlock::AnchoredTable {
+                            owner,
+                            host,
+                            host_advance,
+                            offset_x,
+                            top,
+                            bottom,
+                            plan,
+                        } => {
+                            depth = depth.max(plan.depth + 1);
+                            for v in [*host_advance, *offset_x, *top, *bottom, host.bounds.height] {
+                                nonnegative(v, "anchored cell geometry")?;
+                            }
+                            if depth > 64
+                                || host.bounds.x != 0.0
+                                || host.bounds.y != 0.0
+                                || host.bounds.width != 0.0
+                                || host.bounds.height <= 0.0
+                                || !(*offset_x + plan.width).is_finite()
+                                || *offset_x + plan.width > inner_width
+                            {
+                                return Err(GeometryError::ContentBounds { row, column });
+                            }
+                            if !owners.insert(host.owner) || !controls.insert(*owner) {
+                                return Err(GeometryError::DuplicateLineOwner { row, column });
+                            }
+                        }
                         FlowBlock::Lines {
                             height,
                             advance,
