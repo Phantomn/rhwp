@@ -59,11 +59,12 @@ impl FlowCursor {
                     bottom,
                     plan,
                 } => {
+                    let host_height = host.as_ref().map_or(0.0, |h| h.bounds.height);
                     if result.next.anchor_tail.is_none() {
                         let first = !result.next.anchor_started;
                         // Host and first child fragment are one acceptance transaction.
-                        if first && host.bounds.height > available {
-                            result.required = host.bounds.height;
+                        if first && host_height > available {
+                            result.required = host_height;
                             break;
                         }
                         let cursor = result
@@ -89,19 +90,21 @@ impl FlowCursor {
                             FragmentFit::Placed(fragment) => {
                                 let child_end = *top + fragment.reserved_height();
                                 let used = if first {
-                                    child_end.max(host.bounds.height)
+                                    child_end.max(host_height)
                                 } else {
                                     child_end
                                 };
                                 if first {
-                                    result.lines.push(LinePlacement {
-                                        owner: host.owner,
-                                        bounds: Rect {
-                                            x: area.x,
-                                            y: area.y + pen,
-                                            ..host.bounds
-                                        },
-                                    });
+                                    if let Some(host) = host {
+                                        result.lines.push(LinePlacement {
+                                            owner: host.owner,
+                                            bounds: Rect {
+                                                x: area.x,
+                                                y: area.y + pen,
+                                                ..host.bounds
+                                            },
+                                        });
+                                    }
                                 }
                                 result.tables.push(NestedTablePlacement {
                                     owner: *owner,
@@ -128,7 +131,7 @@ impl FlowCursor {
                                 required_height, ..
                             } => {
                                 result.required = (*top + required_height).max(if first {
-                                    host.bounds.height
+                                    host_height
                                 } else {
                                     0.0
                                 });

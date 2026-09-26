@@ -24,6 +24,78 @@ pub(super) fn candidate(p: &Paragraph) -> bool {
         && matches!(&p.controls[0], Control::Table(t) if !t.common.treat_as_char)
 }
 
+pub(super) fn following_candidate(p: &Paragraph) -> bool {
+    // This slice qualifies saved text-bearing hosts (including literal spaces).
+    // Truly empty, positive-width control carriers need independent evidence;
+    // they are not converted from the zero-width exclusion contract.
+    !p.text.is_empty()
+        && p.controls.len() == 1
+        && p.line_segs.len() == 1
+        && p.line_segs[0].segment_width > 0
+        && matches!(&p.controls[0], Control::Table(t) if !t.common.treat_as_char)
+}
+
+/// A full-width saved host follows the paragraph-top exclusion. TextComposer
+/// independently qualifies its stored partition and supplies the real line
+/// envelope/advance; no visibility test or inferred zero-height spacer is used.
+pub(super) fn compose_following(
+    p: &Paragraph,
+    width: f64,
+    styles: &ResolvedStyleSet,
+    dpi: f64,
+) -> Result<ParagraphItem, GeometryError> {
+    let fail = || GeometryError::Unsupported("stored following cell anchor");
+    if !following_candidate(p) {
+        return Err(fail());
+    }
+    let Control::Table(t) = &p.controls[0] else {
+        return Err(fail());
+    };
+    let a = &t.common;
+    let style = styles
+        .para_styles
+        .get(p.para_shape_id as usize)
+        .ok_or_else(fail)?;
+    if a.text_wrap != TextWrap::TopAndBottom
+        || a.vert_rel_to != VertRelTo::Para
+        || a.vert_align != VertAlign::Top
+        || a.horz_rel_to != HorzRelTo::Para
+        || a.horz_align != HorzAlign::Left
+        || a.vertical_offset != 0
+        || (a.horizontal_offset as i32) < 0
+        || !a.flow_with_text
+        || a.allow_overlap
+        || a.prevent_page_break != 0
+        || style.margin_left != 0.0
+        || style.margin_right != 0.0
+        || style.spacing_before != 0.0
+        || style.spacing_after != 0.0
+    {
+        return Err(fail());
+    }
+    for (value, mirror) in [
+        (a.margin.left, t.outer_margin_left),
+        (a.margin.right, t.outer_margin_right),
+        (a.margin.top, t.outer_margin_top),
+        (a.margin.bottom, t.outer_margin_bottom),
+    ] {
+        if value < 0 || value != mirror {
+            return Err(fail());
+        }
+    }
+    let x = hwpunit_to_px(a.horizontal_offset as i32, dpi)
+        + hwpunit_to_px(i32::from(a.margin.left), dpi);
+    if x > width {
+        return Err(fail());
+    }
+    Ok(ParagraphItem::PositionedTable {
+        control: 0,
+        x,
+        top: hwpunit_to_px(i32::from(a.margin.top), dpi),
+        bottom: hwpunit_to_px(i32::from(a.margin.bottom), dpi),
+    })
+}
+
 pub(super) fn compose(
     p: &Paragraph,
     width: f64,

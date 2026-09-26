@@ -63,7 +63,10 @@ impl FlowBlock {
                 bottom,
                 plan,
                 ..
-            } => host.bounds.height.max(top + plan.height + bottom),
+            } => host
+                .as_ref()
+                .map_or(0.0, |h| h.bounds.height)
+                .max(top + plan.height + bottom),
             Self::Space(height)
             | Self::Lines { height, .. }
             | Self::InlineTables { height, .. } => *height,
@@ -212,20 +215,30 @@ impl TableContentPlan {
                             plan,
                         } => {
                             depth = depth.max(plan.depth + 1);
-                            for v in [*host_advance, *offset_x, *top, *bottom, host.bounds.height] {
+                            for v in [*host_advance, *offset_x, *top, *bottom] {
                                 nonnegative(v, "anchored cell geometry")?;
                             }
                             if depth > 64
-                                || host.bounds.x != 0.0
-                                || host.bounds.y != 0.0
-                                || host.bounds.width != 0.0
-                                || host.bounds.height <= 0.0
+                                || (host.is_none() && *host_advance != 0.0)
                                 || !(*offset_x + plan.width).is_finite()
                                 || *offset_x + plan.width > inner_width
                             {
                                 return Err(GeometryError::ContentBounds { row, column });
                             }
-                            if !owners.insert(host.owner) || !controls.insert(*owner) {
+                            if let Some(host) = host {
+                                nonnegative(host.bounds.height, "anchored host height")?;
+                                if host.bounds.x != 0.0
+                                    || host.bounds.y != 0.0
+                                    || host.bounds.width != 0.0
+                                    || host.bounds.height <= 0.0
+                                {
+                                    return Err(GeometryError::ContentBounds { row, column });
+                                }
+                                if !owners.insert(host.owner) {
+                                    return Err(GeometryError::DuplicateLineOwner { row, column });
+                                }
+                            }
+                            if !controls.insert(*owner) {
                                 return Err(GeometryError::DuplicateLineOwner { row, column });
                             }
                         }

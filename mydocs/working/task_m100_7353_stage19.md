@@ -3200,3 +3200,84 @@ fresh WASM·집중 회귀 검증 결과는 아래에 이어 기록한다.
 
 메인테이너 시각 판정 대기. 전체 PR lint/CI·원격 게시·기본 엔진 전환은 수행하지 않았다.
 메인테이너가 병합 셀 높이 연산 오차 절편의 시각 판정 통과와 다음 절편 진행을 승인했다.
+
+### 후속 절편 — 자리차지 표 뒤의 저장 호스트 줄 보존
+
+직전 승인 절편은 `96532f132`로 커밋했다. 이번 대상은 #6923 원본의
+`s0/p5/t0/c0/p37/t0`다.67개 공백 문자가 있는 문단에 Para/Top, 세로0,
+TopAndBottom 표가 연결되어 있다. 원본을 수정하지 않았다.
+
+독립 근거: 앞 문단의 다음 원점22540HU에 자식 높이15107과 위/아래283HU를
+더하면38213HU로, 저장 호스트 LineSeg vpos와 정확히 같다. 호스트 높이1400,
+줄간격-280(80%)을 적용하면 다음 빈 문단39333HU, 그 뒤 문단40533HU다.
+즉 표가 줄을 대체하거나 공백이 사라지는 것이 아니라 **표 제외 영역 뒤에 실제 줄이 이어진다**.
+
+원본 속성을 분리한 두 HWPX를 한컴에서 정상 HWP로 저장하고 그 HWP로 PDF를 만들었다.
+한 대조군은 공백 문자를 보존하고, 다른 대조군은 같은 속성의 `HOST TEXT`를 사용한다.
+자식 표 내용은1x1 표로 단순화했다. 정상 생성본의 저장 좌표와 PDF 모두 같은 배치 순서를
+확인했다. 생성 절차·변경점·job·해시는
+`tests/fixtures/issue7353_following_anchor_review/README.md`에 있다.
+이는 원본 전체 일치의 증거가 아니다.
+
+| 실제 호출 경로 | 규칙·소비 결과 |
+| --- | --- |
+| `cell_anchor.rs::compose_following` → `text_ir.rs::compose_items` | Para/Top 세로0 자리차지 표의 x·바깥여백을 생성하고, 저장 호스트는 기존 `TextComposer`가 줄 구성·signed gap을 보존한다. 텍스트 존재를 줄 높이로 대체하지 않는다. |
+| `ir.rs::bind_table` → `FlowBlock::AnchoredTable` | 자식의 실제 plan과 margin을 바인딩한다. 이번 경로는 공유 원점의 가짜 줄을 만들지 않고 `host: None`; 실제 호스트 Lines가 뒤따른다. 기존 폭0 exclusion은 `Some(host)`로 유지된다. |
+| `content.rs` → `flow.rs::FlowCursor` | 측정도 fit도 같은 child plan과 top/bottom을 소비한다. 첫 child가 안 맞으면 top만 먼저 소비하지 않는다. 자식 내용 컷·남은 선언 높이·tail은 기존 재개 상태를 공유한다. tail 소진 뒤에만 호스트 줄로 이동한다. |
+| `TextFragment::append_to` → `TextPaint` | 확정 placement를 사용한다. 뒤에서 child 원점을 다시 선택하거나 줄을 숨기는 보정은 없다. 최종 부모/자식 외곽·줄 원점·뒤 본문 위치를 회귀 계약으로 검사한다. |
+
+정식 계약2건을 `tests/cases/issue_7353_table_v2_document_flow.rs`에 추가했다.
+직전 승인 라이브러리에서는 둘 다 기존 미지원 앵커 오류로 FAIL, 변경 후 PASS다.
+정상 저장본은 한컴에서 관측한6766/7886/9086HU 줄 원점과10568HU 부모 외곽을 검사한다.
+별도의 합성 분할 계약은 top alignment/CellBreak/패딩0으로 바꾼 입력에서20/30/40px 예산과
+전체 배치를 대조한다. 내용 순서·무중복, 자식 물리 높이5000HU의 완전 소비, 실제 줄/외곽의
+페이지 영역 준수, 첫 child를 못 넣을 때 top-only 소비 없음, 마지막 Complete를 확인한다.
+이 분할 입력을 한컴 정상 페이지네이션 증거로 주장하지 않는다.
+
+다른 세로 앵커·어울림·불일치 margin은 계속 거부한다. 여러 저장 줄, 완전히 빈 문자열의
+positive-width control carrier는 독립 근거 미확보로 미검증/미지원이다.
+저장 줄이 없는 기존 fresh 경로는 수정하지 않았으며, 이번 확장의 fresh 재조판은 미완료다.
+원본 전체는 다음 `text preview stored rows or controls`(자식 문단의 탭 등)로 진행했다.
+전체 admission 계약은 이 다음 미지원 경계를 기록하도록 바꿨으며 성공이나 fallback으로
+바꾸지 않았다. rowspan·반복 헤더·캡션·각주 알고리즘은 이번에 변경하지 않았다.
+
+검증 산출: `output/7353/r19/next-anchor2/`.
+코드 기준은 `96532f132`+`source.sha256`의 working patch다.
+Native 문서 흐름70건 통과. 두 대조군의 Native compare/overlay/review를 직접 열어
+표 위치·외곽·호스트 뒤 빈 줄과 AFTER HOST/CELL을 확인했다. 선 농도·글리프 외형 차이는 남는다.
+집중 release-test 회귀와 fresh Docker WASM 검증 결과는 아래에 이어 기록한다.
+
+최종 결과:
+
+- review worktree의 실제 source/test 동기화 후 파생 suite 준비.
+  `cargo nextest run --locked --cargo-profile release-test <해당 --test targets>
+  -E 'test(issue_7353_table_v2) | test(issue_7353_rowspan_roundoff) | test(issue_4755) |
+  test(issue_6102) | test(issue_3128)' --no-fail-fast
+  --target-dir /home/edward/mygithub/rhwp/target/pr-review`: **271 passed /0 failed**,
+  3057 skipped. 현재 nextest 권장 버전/설정 경고는 기존과 같다. `focused.log` 참조.
+- 새 계약은 수정 전2FAIL(`test-before.log`), 수정 후 문서 흐름70PASS
+  (`test-after.log`). 정식 집중 suite에서도 두 계약을 실행했다.
+- `docker compose --env-file .env.docker -p rhwp run --rm wasm`: **성공7분50초**.
+  WASM SHA-256: `893ba1d048bc87f5c1da1309bc95904990d001adefa09acd5e33a411430e741b`.
+- `review.mjs --wasm`, `visible.mjs --wasm`: 두 정상 저장 대조군 각1쪽에서
+  Native/fresh WASM SVG·RenderTree 동일, 수치 차이0. 각 `run.json`과
+  `backend-comparison.json`에 source/input/PDF/WASM 연결을 기록했다.
+- `controls.mjs`: 기존 diagonal/저장 indent/fresh indent/justify/TAC 공백/좁은 셀/
+  폭0 셀 앵커 × 끝 간격 정책2종, **14조합**의 승인 SVG 보존 및 Native/WASM 동일성 통과.
+- `focus.mjs native`, `focus.mjs wasm`(review/visible 각각) 생성 후 확대 review와
+  standalone overlay를 직접 확인했다. 표·호스트·뒤 문단 원점은 맞으며 기존 선 농도·글리프
+  외형 차이는 남는다. 위치 보정 없이 같은 영역을 비교했다. 자동 점수를 시각 통과로 해석하지 않는다.
+- `cargo fmt --all -- --check`, `git diff --check`, source/test SHA 검사 통과.
+  검증 이후 제품 코드 변경 없음. 전체 PR lint/CI·push·기본 엔진 전환은 수행하지 않았다.
+
+메인테이너 판정 대상은 아래 두 **분리 대조군1쪽**이다. 원본 전체 다쪽 조판은 미완료다.
+
+- [공백 호스트 확대 review](../../output/7353/r19/next-anchor2/review/wasm-focus-review.png)
+- [실제 글자 호스트 확대 review](../../output/7353/r19/next-anchor2/visible/wasm-focus-review.png)
+- [공백 호스트 전체 compare](../../output/7353/r19/next-anchor2/review/wasm-compare-1.png)
+- [공백 호스트 standalone overlay](../../output/7353/r19/next-anchor2/review/wasm-overlay-1.png)
+- [실제 글자 호스트 standalone overlay](../../output/7353/r19/next-anchor2/visible/wasm-overlay-1.png)
+- [정상 한컴 저장 HWP·PDF 및 생성 기록](../../tests/fixtures/issue7353_following_anchor_review/README.md)
+
+메인테이너 시각 판정 대기. 다음 원본 차단점은 자식 표 내부의 탭/저장 텍스트 처리다.
+메인테이너가 두 대조군의 시각 판정 통과와 다음 절편 진행을 승인했다.

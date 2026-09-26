@@ -81,7 +81,9 @@ pub enum FlowBlock {
     /// vertical stack. The child can continue while the host is consumed once.
     AnchoredTable {
         owner: ControlOwner,
-        host: LineBox,
+        /// A zero-width excluded line may share the child origin. A normal
+        /// host line instead follows the child as a separate Lines block.
+        host: Option<LineBox>,
         host_advance: f64,
         offset_x: f64,
         top: f64,

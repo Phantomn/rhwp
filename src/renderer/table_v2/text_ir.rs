@@ -71,6 +71,9 @@ impl CellParagraphComposer for IrTextComposer<'_> {
         let mut slots = Vec::new();
         for item in &items {
             match item {
+                ParagraphItem::PositionedTable { control, .. } => {
+                    slots.push(PaintSlot::Table(*control))
+                }
                 ParagraphItem::ExcludedTable { control, line, .. } => {
                     slots.push(PaintSlot::Line(*line));
                     slots.push(PaintSlot::Table(*control));
@@ -111,6 +114,22 @@ impl IrTextComposer<'_> {
                 super::cell_anchor::compose(para, width, self.text.styles, self.text.dpi)?;
             self.text.payloads.borrow_mut().push(vec![node]);
             return Ok(vec![item]);
+        }
+        if super::cell_anchor::following_candidate(para) {
+            let item = super::cell_anchor::compose_following(
+                para,
+                width,
+                self.text.styles,
+                self.text.dpi,
+            )?;
+            let mut text_only = para.clone();
+            text_only.controls.clear();
+            text_only.ctrl_data_records.clear();
+            // Keep stored line partition, offsets and signed spacing. The child
+            // excludes the lane; visible and whitespace-only hosts are equal.
+            let mut items = vec![item];
+            items.extend(self.text.compose(&text_only, width)?);
+            return Ok(items);
         }
         if para.controls.is_empty() {
             return self.text.compose(para, width);

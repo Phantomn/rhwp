@@ -46,7 +46,8 @@ impl ParagraphEnd {
                 | ParagraphItem::InlineTables {
                     height, advance, ..
                 } => (*height, *advance),
-                ParagraphItem::ExcludedTable { .. }
+                ParagraphItem::PositionedTable { .. }
+                | ParagraphItem::ExcludedTable { .. }
                 | ParagraphItem::TableControl(_)
                 | ParagraphItem::End(_) => {
                     return Err(GeometryError::Unsupported("unresolved paragraph ending"));

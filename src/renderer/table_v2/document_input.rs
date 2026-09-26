@@ -361,7 +361,8 @@ pub(super) fn prepare(
                         })
                         .collect(),
                 }),
-                ParagraphItem::ExcludedTable { .. }
+                ParagraphItem::PositionedTable { .. }
+                | ParagraphItem::ExcludedTable { .. }
                 | ParagraphItem::ObjectRow { .. }
                 | ParagraphItem::TableControl(_)
                 | ParagraphItem::InlineTables { .. } => {
