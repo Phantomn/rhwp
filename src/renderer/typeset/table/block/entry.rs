@@ -135,8 +135,20 @@ impl TypesetEngine {
         // 본문 위치에서 실제 다음-쪽 되감김이 확인된 ordinary-row 형상만 첫 조각
         // scan에 실제 footnote boundary를 준다. scan은 그 경계를 넘어 행을 자르지
         // 않으므로 각주와의 물리 overlap을 허용하지 않는다.
-        let native_ordinary_rowbreak_rewind_uses_actual_footnote_boundary =
-            st.profile.hwp5_stored_pagination_layout()
+        // 원본 HWPX도 후속 문단의 저장 되감김으로 같은 물리 분할 경계를 입증한다.
+        // 편집·재조판·합성 줄은 이 저장 계약의 근거가 아니므로 기존 예산을 유지한다.
+        let original_hwpx_ordinary_rowbreak = st.profile.hwpx_stored_layout()
+            && !st.profile.session_edited()
+            && st.col_count == 1
+            && !self.render_normalization.table_text_reflowed(table)
+            && !para.stored_text_partition_is_dirty()
+            && !para.line_segs.is_empty()
+            && para
+                .line_segs
+                .iter()
+                .all(|line| !is_synthetic_line_seg(line));
+        let stored_ordinary_rowbreak_rewind_uses_actual_footnote_boundary =
+            (st.profile.hwp5_stored_pagination_layout() || original_hwpx_ordinary_rowbreak)
                 && !table.common.treat_as_char
                 && is_para_topbottom_float(&table.common)
                 && matches!(
@@ -1532,7 +1544,7 @@ impl TypesetEngine {
             next_rewinds_after_table,
             host_spacing_total,
             table_total,
-            native_ordinary_rowbreak_rewind_uses_actual_footnote_boundary,
+            stored_ordinary_rowbreak_rewind_uses_actual_footnote_boundary,
             fn_margin,
             available,
             declared_object_total,

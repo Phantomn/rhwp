@@ -38,7 +38,7 @@ struct SplitTableEntry<'a> {
     next_rewinds_after_table: bool,
     host_spacing_total: f64,
     table_total: f64,
-    native_ordinary_rowbreak_rewind_uses_actual_footnote_boundary: bool,
+    stored_ordinary_rowbreak_rewind_uses_actual_footnote_boundary: bool,
     fn_margin: f64,
     available: f64,
     declared_object_total: f64,

@@ -44,7 +44,7 @@ impl TypesetEngine {
             next_rewinds_after_table,
             host_spacing_total,
             mut table_total,
-            native_ordinary_rowbreak_rewind_uses_actual_footnote_boundary,
+            stored_ordinary_rowbreak_rewind_uses_actual_footnote_boundary,
             mut fn_margin,
             mut available,
             declared_object_total,
@@ -943,7 +943,7 @@ impl TypesetEngine {
             budget_para_start_height,
             first_fragment_actual_footnote_boundary:
                 (native_picture_caption_fits_actual_footnote_boundary
-                    || native_ordinary_rowbreak_rewind_uses_actual_footnote_boundary
+                    || stored_ordinary_rowbreak_rewind_uses_actual_footnote_boundary
                     || native_hwp5_internal_reset_rewind_needs_anchor_resync)
                     .then(|| {
                         st.base_available_height()

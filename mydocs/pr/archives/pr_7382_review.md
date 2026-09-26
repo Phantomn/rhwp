@@ -9,7 +9,7 @@ last_verified: 2026-09-26
 
 ## 현재 판정
 
-**머지 보류.** 원 변경은 기준 PDF의 행·각주 소유와 전체 페이지 수를 충족하지 않는다. 보정14 통합 후보는215쪽을 유지하고 선택66/67·30/31·178/179쪽을 개선했지만, 전체 시각 비교의 본문 소유 차이와 최종 필수 게이트가 남았다. 통합 PR 생성·승인을 완료했다고 보고하지 않는다.
+**머지 보류.** 보정22 후보는 원본 HWP/HWPX215쪽과 선택90/91쪽 자동 gate를 통과했으나, 직접 비교에서 HWPX91 캡션 각주142 누락이 남았다. 전체 Native/fresh WASM 및 최종 필수 게이트도 미완료다. 통합 PR 생성·승인을 완료했다고 보고하지 않는다.
 
 ## 접수와 provenance
 
@@ -532,3 +532,28 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 ![Native91 끝 행·뒤 본문 보존](../assets/pr7382_20260926/stage21_native_hwp_review_091.png)
 ![HWPX106 원점·위여백 보존](../assets/pr7382_20260926/stage21_native_hwpx_review_106.png)
 ![HWPX107 이어받기·뒤 본문 보존](../assets/pr7382_20260926/stage21_native_hwpx_review_107.png)
+
+## 메인터너 보정22 — 저장 목록 줄 원점과 뒤 표의 실제 각주 경계
+
+- 사전 근거: Native957의 비합성 저장9줄 원점496HU/폭44856HU는 해소 여백으로 계산한496..45352HU와 같다. 기존 목록 원점 차단이0..44856HU로 바꾸어 정확 프레임 수용이 실패했고,90쪽꼬리8줄이7줄로 재조판됐다. 독립 PDF는 마지막269.861px/후행958 첫296.421px다. [독립 입력·좌표](../assets/pr7382_20260926/stage22_independent_geometry.json).
+- 생산→소비: `ParagraphBox::for_stored_body_rows`가 가시·비합성·유효 원본 분할의 실제 여백 원점과 첫 저장 원점 일치를 확인해 물리 상자를 복원한다. 공통 composer와 증거 probe가 같은 상자를 받고, 기존 전체행 폭/원점·stale/controls/float 수용 검사는 유지한다. typeset 확정 컷과 paint는 같은 구성 줄을 소비한다. 편집·빈 목록·NO_LS·합성·다른 원점은 기존 경로다.
+- 첫 후보는 Native 목표/빈 목록 커서 통과이나 HWPX216쪽 및19FAIL이었다. 본문 복원 후 뒤 표962가 실제 각주 영역 외40px를 이중 예약해 관계 행을 밀었다. 목록 조건을 Native 예외로 좁히지 않았다. 원본 HWPX의 같은 ordinary RowBreak/후속 저장 되감김/기존 각주/셀 각주·rowspan 없음 경로를 실제 각주 경계 소비에 연결했다. 편집·표 재조판·합성·다단은 새 HWPX 저장 계약에서 제외했다.
+
+| 검사 | 실제 전후 결과 | 판정 |
+| --- | --- | --- |
+| Native90 원본 꼬리/후행 문단 | 1FAIL(exit100,0.205s):7≠8 → PASS | 충족 |
+| HWPX90 괘선/관계 행/이어받기 | 첫 후보1FAIL(exit100,0.289s):하단931.947≠995.711 → PASS | 충족 |
+| 집중·정상 대조군 | 최종96PASS/0FAIL(exit0,5.424s),threads8 | 충족 |
+| 잘못된 폭·합성 목록/빈 목록 편집 커서 | 원본 줄 수용 거절·내용 보존 및 기존#1329/#5677 통과 | 충족 |
+| fmt/소스 단위검사 정책 | exit0 / base eb9142dd7,4205검사·298모듈 | 충족 |
+| 새 CLI / 쪽수 | exit0,1m45s / Native HWP215·HWPX215,각 PDF215 | 충족 |
+| Native HWP90/91 | 94.09514%/96.28253%,gate passed,exit0 | 선택 자동 gate 충족 |
+| Native HWPX90/91 | 94.09514%/95.99030%,gate passed,exit0 | 선택 자동 gate 충족 |
+| 직접 판독 | 양 입력90/91 review·standalone overlay 8개 확인; 본문 꼬리·관계 행·캡션/괘선 개선 | 해당 보정 의미 충족 |
+| 남은 직접 차이 | HWPX91의 캡션 각주142 누락, 목록 표식/본문 가로 시작 차이 | 미충족, 별도 후속 보정 |
+| 전체 회귀·세 Clippy·fresh WASM·전체 시각 | 아직 실행 전 | 미검증 |
+
+- [최종 source 해시·명령·결과](../assets/pr7382_20260926/stage22_validation.json). source producer `865d9e8605ae70e1dbb54d8566e462683d988725`, Rust/test diff SHA256 `87afc5898223467cf57df1dc05b84df50f09c642b142b0e71f4dc85bed706f1e`. 글꼴 예외와 허용치 변경 없음.
+- [HWP90 review](../assets/pr7382_20260926/stage22_native_hwp_review_090.png) · [overlay](../assets/pr7382_20260926/stage22_native_hwp_overlay_090.png) · [HWP91 review](../assets/pr7382_20260926/stage22_native_hwp_review_091.png) · [overlay](../assets/pr7382_20260926/stage22_native_hwp_overlay_091.png).
+- [HWPX90 review](../assets/pr7382_20260926/stage22_native_hwpx_review_090.png) · [overlay](../assets/pr7382_20260926/stage22_native_hwpx_overlay_090.png) · [HWPX91 review](../assets/pr7382_20260926/stage22_native_hwpx_review_091.png) · [overlay](../assets/pr7382_20260926/stage22_native_hwpx_overlay_091.png).
+- 해결 범위는 저장 줄 소유와 실제 표 분할 경계다. 자동90% 이상을 캡션 각주 소유의 완료 증거로 삼지 않으며, 각주142 누락을 다음 개별 단계로 추적한다. 영어 설명 주석 추가 없음. 로그·진단·generated suite는 output/ignored 작업 증적이며 커밋하지 않는다.

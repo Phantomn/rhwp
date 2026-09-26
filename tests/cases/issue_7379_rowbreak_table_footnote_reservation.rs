@@ -1702,19 +1702,23 @@ fn taller_body_line_box_prevents_completed_page_note_intrusion() {
 /// Native 원본 PDF90의 캡션과 표 괘선은 서로 다른 물리 원점을 가진다.
 #[test]
 fn native_pre_emitted_caption_and_table_share_saved_paragraph_reference() {
-    assert_native_caption_table_reference(0);
+    assert_saved_caption_table_reference(0, false);
 }
 
 /// 문단 기준 양수 오프셋을 바꾸면 표만 이동하며 캡션 소유는 그대로다.
 /// 수동 오프셋 변형은 원본 PDF의 대용이 아닌 좌표 계약 대조군이다.
 #[test]
 fn native_pre_emitted_caption_preserves_positive_table_offset_change() {
-    assert_native_caption_table_reference(500);
+    assert_saved_caption_table_reference(500, false);
 }
 
-fn assert_native_caption_table_reference(extra_offset: u32) {
+fn assert_saved_caption_table_reference(extra_offset: u32, hwpx: bool) {
     use rhwp::model::control::Control;
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE.replace(".hwpx", ".hwp"));
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(if hwpx {
+        SAMPLE.to_owned()
+    } else {
+        SAMPLE.replace(".hwpx", ".hwp")
+    });
     let bytes = std::fs::read(path).expect("원본 HWP");
     let mut core = DocumentCore::from_bytes(&bytes).expect("HWP 로드");
     let mut doc = core.document().clone();
@@ -1739,6 +1743,11 @@ fn assert_native_caption_table_reference(extra_offset: u32) {
             table.bbox.y + table.bbox.height
         );
     }
+    let area = notes(&first.root).expect("첫 쪽 기존 각주 영역");
+    assert!(
+        table.bbox.y + table.bbox.height <= area.bbox.y + 0.5,
+        "표가 실제 각주 영역을 침범하면 안 됨"
+    );
     let caption = line_top(&first.root, "표 27.").expect("첫 쪽 캡션");
     assert!((caption - 696.421061).abs() <= 1.5, "캡션 원점: {caption}");
     assert!(
@@ -1753,4 +1762,89 @@ fn assert_native_caption_table_reference(extra_offset: u32) {
         "끝 행만 한 번 소비"
     );
     assert!(line_top(&next.root, "표 27.").is_none(), "캡션 중복 없음");
+}
+
+/// 독립 HWP 기준 PDF90은 문단957의 저장 꼬리 여덟 줄과 뒤 문단을 보존한다.
+#[test]
+fn native_stored_bullet_tail_preserves_saved_rows_and_following_paragraph() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE.replace(".hwpx", ".hwp"));
+    let bytes = std::fs::read(path).expect("원본 HWP");
+    let core = DocumentCore::from_bytes(&bytes).expect("HWP 로드");
+    let para = &core.document().sections[0].paragraphs[957];
+    assert_eq!(para.line_segs.len(), 9, "원본 저장 줄");
+    assert!(para
+        .line_segs
+        .iter()
+        .all(|line| line.column_start == 496 && line.segment_width == 44856));
+    let page = core.build_page_render_tree(89).expect("Native 90쪽");
+    fn collect<'a>(node: &'a RenderNode, pi: usize, lines: &mut Vec<&'a RenderNode>) {
+        if matches!(&node.node_type, RenderNodeType::TextLine(line) if line.para_index == Some(pi))
+        {
+            lines.push(node);
+        }
+        for child in &node.children {
+            collect(child, pi, lines);
+        }
+    }
+    let mut lines = Vec::new();
+    collect(&page.root, 957, &mut lines);
+    assert_eq!(lines.len(), 8, "저장 줄1..9의 꼬리 소유");
+    assert!(text(lines[0]).starts_with("Human Rights and Biomedicine)"));
+    assert_eq!(text(lines[7]).trim(), "부재함.");
+    assert!(
+        (lines[7].bbox.y - 269.861).abs() <= 1.5,
+        "꼬리 줄 원점: {}",
+        lines[7].bbox.y
+    );
+    let mut following = Vec::new();
+    collect(&page.root, 958, &mut following);
+    assert_eq!(following.len(), 4, "후행 문단 저장 네 줄");
+    assert!(
+        (following[0].bbox.y - 296.421).abs() <= 1.5,
+        "후행 본문 원점: {}",
+        following[0].bbox.y
+    );
+}
+
+/// HWPX 기준 PDF90도 관계 행까지 실제 각주 영역 앞에 보존한다.
+#[test]
+fn hwpx_stored_caption_table_keeps_relationship_row_above_actual_footnote_area() {
+    assert_saved_caption_table_reference(0, true);
+}
+
+/// 수동 폭 변형과 합성 저장 줄은 원본 목록 분할의 수용 증거가 아니다.
+#[test]
+fn stored_bullet_origin_does_not_admit_wrong_width_or_synthetic_rows() {
+    use rhwp::model::paragraph::LineSeg;
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE.replace(".hwpx", ".hwp"));
+    let bytes = std::fs::read(path).expect("원본 HWP");
+    for synthetic in [false, true] {
+        let mut core = DocumentCore::from_bytes(&bytes).expect("HWP 로드");
+        let mut doc = core.document().clone();
+        for line in &mut doc.sections[0].paragraphs[957].line_segs {
+            if synthetic {
+                line.tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
+            } else {
+                line.segment_width -= 1;
+            }
+        }
+        core.set_document(doc);
+        let page = core
+            .build_page_render_tree(89)
+            .expect("원본 분할을 수용하지 않는 쪽");
+        fn count(node: &RenderNode) -> usize {
+            usize::from(
+                matches!(&node.node_type, RenderNodeType::TextLine(line) if line.para_index == Some(957)),
+            ) + node.children.iter().map(count).sum::<usize>()
+        }
+        assert_ne!(
+            count(&page.root),
+            8,
+            "원본 여덟 저장 줄을 그대로 수용하면 안 됨: synthetic={synthetic}"
+        );
+        assert!(
+            text(&page.root).contains("부재함."),
+            "재조판이 꼬리 내용을 잃으면 안 됨"
+        );
+    }
 }

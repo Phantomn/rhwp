@@ -2580,6 +2580,8 @@ pub(crate) fn recompose_stored_lines_in_frame_with_known_square_band(
         return None;
     }
 
+    // 저장 원점 복원은 측정·배치와 읽기 전용 증거 프로브가 같은 상자를 사용한다.
+    let paragraph_box = paragraph_box.for_stored_body_rows(para);
     let mut frame = paragraph_box.frame(
         para.line_segs
             .first()
@@ -2719,6 +2721,8 @@ pub(crate) fn probe_stored_row_disposition(
     let composed = compose_paragraph_in_context(para, styles);
     let inner_width_px = paragraph_box.width_px(dpi);
     let stale = stored_rows_are_stale(&composed, para, inner_width_px, styles);
+    // 저장 원점 복원은 측정·배치와 읽기 전용 증거 프로브가 같은 상자를 사용한다.
+    let paragraph_box = paragraph_box.for_stored_body_rows(para);
     let mut frame = paragraph_box.frame(
         para.line_segs
             .first()
