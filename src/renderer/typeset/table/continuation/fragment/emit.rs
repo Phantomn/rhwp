@@ -66,9 +66,41 @@ impl TypesetEngine {
             split_end_limit,
             mut end_row_height_override,
         } = scan;
-        // [Task #1022] walk 가 consumed 에 분할 행 기여까지 누적하므로
-        // partial_height = consumed + header_overhead 로 단일화.
+        // 행 컷이 소비한 내용과 header의 요구 높이. 저장 상자의 빈 밴드는
+        // 아래에서 별도로 물리 점유에 포함하며 컷 유닛을 더 소비하지 않는다.
         let mut partial_height: f64 = consumed + header_overhead;
+        // 저장 첫 조각의 상자는 내용 컷만으로 표현되지 않는 빈 하단 밴드도 소유한다.
+        // 뒤 조각의 유닛은 그대로 남기며, 이 밴드를 내용 tail에서 차감하지 않는다.
+        let saved_opening_frame = layout_engine.saved_multirow_opening_frame_height(
+            table,
+            cursor_row,
+            end_row,
+            start_cut,
+            &split_end_cut,
+            styles,
+        );
+        let first_fragment_blank_band = !is_continuation
+            && split_block_start.is_none()
+            && end_row_height_override.is_none()
+            && std::ptr::eq(table, row_geometry_table)
+            && crate::renderer::float_placement::object_only_saved_table_anchor(
+                input.source.paragraph,
+                table,
+            )
+            && saved_opening_frame.is_some_and(|frame_height| {
+                frame_height > partial_height + 0.5
+                    && frame_height <= avail_for_rows + header_overhead
+            });
+        if first_fragment_blank_band {
+            let frame_height = saved_opening_frame.expect("accepted saved opening frame");
+            let before_last = cut_row_h
+                .iter()
+                .take(end_row.saturating_sub(1))
+                .sum::<f64>()
+                + mt.cell_spacing * end_row.saturating_sub(2) as f64;
+            end_row_height_override = Some((frame_height - before_last).max(0.0));
+            partial_height = frame_height;
+        }
         let commit_fragment = |st: &mut TypesetState, owner_height: f64, terminal: bool| {
             if let Some(mut placement) = fragment_placement {
                 placement.occupied_bottom = placement.table_top
@@ -449,7 +481,9 @@ impl TypesetEngine {
         } else {
             Vec::new()
         };
-        let next_start_row_height_override = end_row_height_override.and_then(|limit| {
+        let next_start_row_height_override = end_row_height_override
+            .filter(|_| !first_fragment_blank_band)
+            .and_then(|limit| {
             let full = cut_row_h.get(end_row.saturating_sub(1)).copied()?;
             let tail = (full - limit).max(0.0);
             // [#5714] 압축된 끝행의 빈 tail 밴드는 **물리적으로 이어지는

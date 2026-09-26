@@ -13922,6 +13922,55 @@ impl LayoutEngine {
         })
     }
 
+    /// A saved multirow opening frame owns a physical band independently of
+    /// the text units consumed at its plain-paragraph reset. Pagination and
+    /// painting query the same source frame; the caller still checks capacity.
+    pub(crate) fn saved_multirow_opening_frame_height(
+        &self,
+        table: &crate::model::table::Table,
+        start_row: usize,
+        end_row: usize,
+        start_cut: &[usize],
+        end_cut: &[usize],
+        styles: &ResolvedStyleSet,
+    ) -> Option<f64> {
+        let profile = self.profile.get();
+        if !(profile.hwpx_stored_layout() || profile.hwp5_stored_pagination_layout())
+            || profile.session_edited()
+            || self
+                .render_normalization
+                .borrow()
+                .table_text_reflowed(table)
+            || table.common.treat_as_char
+            || !matches!(
+                table.common.text_wrap,
+                crate::model::shape::TextWrap::TopAndBottom
+            )
+            || !matches!(
+                table.page_break,
+                crate::model::table::TablePageBreak::RowBreak
+            )
+            || start_row != 0
+            || !start_cut.is_empty()
+            || end_cut.is_empty()
+            || end_row == 0
+            || table.row_count <= 1
+            || table.cells.iter().any(|cell| cell.row_span != 1)
+            || table.common.height == 0
+            || table.common.height > i32::MAX as u32
+            || !self.row_cut_ends_at_plain_text_saved_reset(
+                table,
+                end_row - 1,
+                start_cut,
+                end_cut,
+                styles,
+            )
+        {
+            return None;
+        }
+        Some(hwpunit_to_px(table.common.height as i32, self.dpi))
+    }
+
     /// Return the physical height of a saved opening frame at its exact cut.
     /// The scanner and the partial-table painter must consume the same height.
     pub(crate) fn saved_single_cell_opening_frame_height(

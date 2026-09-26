@@ -506,3 +506,89 @@ fn footnote_free_rowbreak_table_keeps_splitting() {
         "두 조각이 연속한 쪽에 있지 않다: {pages:?}"
     );
 }
+
+/// 실제 한컴 PDF78 표25 첫 조각의 마지막 가로선970.937px.
+/// 유닛 컷의 내용 소유가 맞아도 빈 밴드/셀 배치를 잃으면 물리 끝점이 다르다.
+#[test]
+fn first_large_table_fragment_preserves_pdf_physical_bottom() {
+    let core = core();
+    let tree = core.build_page_render_tree(77).expect("78쪽");
+    let table = table_for_para(&tree.root, 885).expect("표25 첫 조각");
+    assert!(
+        (table.bbox.y - 527.104).abs() <= 1.5,
+        "표25 위={}",
+        table.bbox.y
+    );
+    let bottom = table.bbox.y + table.bbox.height;
+    assert!(
+        (bottom - 970.937).abs() <= 1.5,
+        "표25 첫 끝={bottom}, 독립PDF970.937"
+    );
+}
+
+/// 수용 예산보다 큰 수동 선언은 실제 저장 컷을 늘리는 근거가 아니다.
+/// 합성 거부 대조군이며 한컴 출력 일치의 대용으로 쓰지 않는다.
+#[test]
+fn declared_opening_frame_cannot_spend_unavailable_body_space() {
+    let mut core = core();
+    let mut doc = core.document().clone();
+    let rhwp::model::control::Control::Table(table) =
+        &mut doc.sections[0].paragraphs[885].controls[0]
+    else {
+        panic!("표25")
+    };
+    table.common.height = 75_000; // 1000px: 한 쪽의 본문 높이보다 큰 거부 입력.
+    core.set_document(doc);
+    let tree = core.build_page_render_tree(77).expect("78쪽");
+    let table = table_for_para(&tree.root, 885).expect("내용 앞 조각");
+    let area = notes(&tree.root).expect("기존 각주 lane");
+    assert!(
+        table.bbox.y + table.bbox.height <= area.bbox.y + 0.5,
+        "선언 상자의 강제 수용 금지: 표={:?}, 각주={:?}",
+        table.bbox,
+        area.bbox
+    );
+    assert!(
+        table.bbox.height < 1000.0,
+        "무효 선언을 실제 조각 높이로 수용하면 안 됨"
+    );
+}
+
+/// 유한한 저장 첫 조각 안에서는 실제 소비한 셀 내용으로 원래 Center를 지킨다.
+/// 내용 높이는 원본 세 문단의8개 저장 줄(900+272HU)에서 독립적으로 계산한다.
+#[test]
+fn saved_opening_frame_aligns_the_consumed_cell_prefix() {
+    use rhwp::model::{control::Control, table::VerticalAlign};
+    let core = core();
+    let tree = core.build_page_render_tree(77).expect("78쪽");
+    let node = table_for_para(&tree.root, 885).expect("첫 조각");
+    let cell_node = node
+        .children
+        .iter()
+        .find(|n| matches!(&n.node_type, RenderNodeType::TableCell(c) if c.row == 3 && c.col == 2))
+        .expect("분할 셀");
+    let Control::Table(table) = &core.document().sections[0].paragraphs[885].controls[0] else {
+        panic!("표25")
+    };
+    let cell = table
+        .cells
+        .iter()
+        .find(|c| c.row == 3 && c.col == 2)
+        .expect("원본 셀");
+    assert_eq!(cell.vertical_align, VerticalAlign::Center);
+    let content: f64 = cell
+        .paragraphs
+        .iter()
+        .take(3)
+        .flat_map(|p| &p.line_segs)
+        .map(|l| f64::from(l.line_height + l.line_spacing) / 75.0)
+        .sum();
+    let pad = cell.effective_padding(&table.padding);
+    let top = f64::from(pad.top) / 75.0;
+    let bottom = f64::from(pad.bottom) / 75.0;
+    let expected = cell_node.bbox.y + top + (cell_node.bbox.height - top - bottom - content) / 2.0;
+    let actual = line_top(cell_node, "[공통]").expect("첫 prefix 줄");
+    assert!((actual - expected).abs() <= 0.5,
+        "분할 뒤 내용의 높이가 아니라 소비한8줄로 Center: 실제{actual}, 기대{expected}, 원줄{content}");
+    assert!((actual - 839.52).abs() <= 1.5, "독립 PDF 첫 prefix 위치");
+}

@@ -1079,6 +1079,7 @@ impl LayoutEngine {
         // [#7095] 쪽이 상자를 정한 비끝 1×1 조각 — 칸 `valign` 을 조각 내용으로 적용한다.
         center_pinned_single_cell: bool,
         center_saved_spanning_cell: Option<usize>,
+        align_saved_opening_frame: bool,
     ) {
         for (cell_idx, cell) in table.cells.iter().enumerate() {
             // [#4149] 프로브: 대상 셀만 방출. 셀 방출 루프는 셀-간 캐리가 없어
@@ -1288,7 +1289,14 @@ impl LayoutEngine {
             // 소비한다. 다중줄은 padding shrink의 조기 반환, split_proven은 Top
             // 정렬을 보장하므로 창 밖의 compose/높이 합산은 결과에 쓰이지 않는다.
             // rowspan·세로쓰기·실제로 잘리지 않는 셀은 기존 전량 경로를 유지한다.
-            let composition_window = if let Some(p) = probe.filter(|p| p.windowed) {
+            // A finite saved frame can preserve Center/Bottom. The Top-only
+            // probe optimization cannot skip the selected prefix's height.
+            let saved_frame_needs_alignment = align_saved_opening_frame
+                && cell_row + 1 == end_row
+                && cell.vertical_align != crate::model::table::VerticalAlign::Top;
+            let composition_window = if saved_frame_needs_alignment {
+                None
+            } else if let Some(p) = probe.filter(|p| p.windowed) {
                 Some(p.window_paras)
             } else if probe.is_none()
                 && cell.text_direction == 0
@@ -1671,6 +1679,13 @@ impl LayoutEngine {
                 && self.cell_units_content_height(cell, table, styles) > inner_height + 0.5;
             let effective_align = if center_saved_spanning_cell == Some(cell_idx) {
                 VerticalAlign::Center
+            } else if align_saved_opening_frame
+                && cell_row + 1 == end_row
+                && !cell_content_cut_by_slice
+            {
+                // This finite saved frame owns only the selected prefix. Its
+                // original alignment uses line_ranges, never the remaining tail.
+                cell.vertical_align
             } else if (is_in_split_row || is_rowbreak_straddle)
                 && (cell_was_split || cell_content_cut_by_slice)
             {
@@ -4986,6 +5001,16 @@ impl LayoutEngine {
             }
         }
 
+        let align_saved_opening_frame = !is_continuation
+            && !is_block_split
+            && enclosing_cell_ctx.is_none()
+            && end_row_height_override.is_some()
+            && self
+                .saved_multirow_opening_frame_height(
+                    table, start_row, end_row, start_cut, end_cut, styles,
+                )
+                .is_some_and(|frame_height| (partial_table_height - frame_height).abs() <= 0.5);
+
         // ── 6. 셀 렌더링 (render_rows 범위 내 셀만) ──
         self.layout_partial_table_cells(
             tree,
@@ -5027,6 +5052,7 @@ impl LayoutEngine {
             probe,
             center_pinned_single_cell,
             center_saved_spanning_cell,
+            align_saved_opening_frame,
         );
 
         // A recovered terminal Square-flow line also owns the final frame edge.
