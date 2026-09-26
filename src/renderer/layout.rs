@@ -11439,7 +11439,12 @@ impl LayoutEngine {
                         stored_topbottom_flow_advance_hu(para, paragraphs.get(para_index + 1), t)
                             .map(|height| hwpunit_to_px(height as i32, self.dpi))
                     });
-                    let raw_top = if is_current_empty_square_sibling_float {
+                    let raw_top = if let Some(placement) = ctx
+                        .paragraph_float_placements
+                        .get(&(para_index, control_index))
+                    {
+                        col_area.y + placement.table_top
+                    } else if is_current_empty_square_sibling_float {
                         // 이 pair는 같은 저장 LINE_SEG의 page-relative 좌표를 공유한다.
                         // 현재 흐름 y를 쓰면 첫 표 아래에 둘째 표를 수직으로 쌓아
                         // 본문·각주를 침범한다.
@@ -13181,7 +13186,14 @@ impl LayoutEngine {
                         .unwrap_or(0);
                     lanes.max_bottom() + hwpunit_to_px(outer_bottom, self.dpi)
                 });
-                let lane_flow_bottom = if let Some(bottom) = deferred_empty_offset_float_bottom {
+                let lane_flow_bottom = if let Some(placement) = ctx
+                    .paragraph_float_placements
+                    .get(&(para_index, control_index))
+                {
+                    // The same accepted frame owns both paint origin and flow.
+                    // Later anchor/host-tail branches must not replace its end.
+                    col_area.y + placement.occupied_bottom
+                } else if let Some(bottom) = deferred_empty_offset_float_bottom {
                     // 생성 본문을 먼저 gap에 배치한 뒤에는 offset을 뺀 예약 높이가 아니라
                     // 실제 표 하단과 바깥 아래 여백까지 흐름을 진행해야 다음 문단이 표와
                     // 겹치지 않는다.

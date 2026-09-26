@@ -846,3 +846,62 @@ fn whole_single_cell_rowbreak_border_includes_saved_outer_top() {
         );
     }
 }
+
+/// 원본 guide 뒤 vpos50822 = 표높이50256 + 바깥여백283+283HU.
+/// 독립 PDF182의 그림67과 뒤 본문,183의 그림68을 같은 페이지/좌표에서 검사한다.
+#[test]
+fn deferred_float_closed_source_frame_preserves_figure_and_following_body() {
+    let core = core();
+    let first = core.build_page_render_tree(181).expect("182쪽");
+    let next = core.build_page_render_tree(182).expect("183쪽");
+    let table = table_for_para(&first.root, 1904).expect("그림67 표");
+    assert!(
+        (table.bbox.y - 86.945).abs() <= 1.5,
+        "그림67 첫 원점: {}",
+        table.bbox.y
+    );
+    for (label, needle, expected) in [
+        ("그림67 캡션", "그림 67.", 741.701),
+        ("첫 뒤 본문", "매독 전파 사례", 787.461),
+        ("다음 뒤 본문", "기생충 질환:", 894.021),
+    ] {
+        let actual = line_top(&first.root, needle).expect(label);
+        assert!(
+            (actual - expected).abs() <= 1.5,
+            "{label}: 실제{actual}, 독립PDF{expected}"
+        );
+    }
+    assert_eq!(
+        text(&first.root).matches("기생충 질환:").count(),
+        1,
+        "원본 본문 누락/중복 금지"
+    );
+    assert!(
+        !text(&next.root).contains("기생충 질환:"),
+        "뒤 본문을 새 쪽에 다시 방출하지 않음"
+    );
+    assert!(table_for_para(&next.root, 1914).is_some(), "그림68은183쪽");
+    assert_eq!(core.page_count(), 215, "독립 원본 PDF의 전체215쪽");
+}
+
+/// 같은 guide 좌표만으로 개체 소유를 증명할 수 없다. 종료 사다리 등식이
+/// 깨진 합성 입력에서는 새 쪽 원점을 발명하지 않고 원래 앵커 오프셋을 유지한다.
+#[test]
+fn guide_overlap_without_closed_source_frame_keeps_anchor_offset() {
+    let mut core = core();
+    let mut doc = core.document().clone();
+    assert_eq!(
+        doc.sections[0].paragraphs[1910].line_segs[0].vertical_pos,
+        50822
+    );
+    doc.sections[0].paragraphs[1910].line_segs[0].vertical_pos += 1000;
+    core.set_document(doc);
+    let page = core.build_page_render_tree(181).expect("합성 반례 쪽");
+    let table = table_for_para(&page.root, 1904).expect("원표");
+    // 본문 상단83.1733 + 원래 문단 오프셋3022/75 =123.4667px.
+    assert!(
+        (table.bbox.y - 123.4667).abs() <= 0.1,
+        "guide 겹침만으로 새 원점을 수용하지 않음: {}",
+        table.bbox.y
+    );
+}

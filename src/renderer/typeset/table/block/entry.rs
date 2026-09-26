@@ -1171,6 +1171,7 @@ impl TypesetEngine {
             hwpx_noninline_tac_measured_fit,
             declared_table_whole_fits,
             saved_table_source_frame,
+            closed_source_frame_placement,
         } = self.query_whole_table_fit(
             st,
             input,
@@ -1193,18 +1194,19 @@ impl TypesetEngine {
             // 스택 첫 표 배치 전에 걸려야 렌더 순서가 표→줄로 나온다.
             st.defer_host_line(Some(para_idx));
         }
-        let whole_placement_height =
-            if let Some((source_top, source_bottom)) = saved_table_source_frame {
-                source_bottom - source_top
-            } else if let Some(advance) = single_row_object_height_advance {
-                advance
-            } else if is_para_topbottom_float(&table.common)
-                && (para_has_non_whitespace_text(para) || hwpx_noninline_tac_measured_fit)
-            {
-                ft.effective_height
-            } else {
-                table_total
-            };
+        let whole_placement_height = if let Some(placement) = closed_source_frame_placement {
+            placement.occupied_bottom - st.current_height
+        } else if let Some((source_top, source_bottom)) = saved_table_source_frame {
+            source_bottom - source_top
+        } else if let Some(advance) = single_row_object_height_advance {
+            advance
+        } else if is_para_topbottom_float(&table.common)
+            && (para_has_non_whitespace_text(para) || hwpx_noninline_tac_measured_fit)
+        {
+            ft.effective_height
+        } else {
+            table_total
+        };
         let unconstrained_host_placement = para_has_non_whitespace_text(para)
             .then(|| {
                 let text_origin = placement_para_start_height
@@ -1291,8 +1293,9 @@ impl TypesetEngine {
             has_preceding_coanchored_float,
             dpi: self.dpi,
         };
-        let resolved_host_placement =
-            unconstrained_host_placement.map(|p| constrain_host_placement.constrain(p, st));
+        let resolved_host_placement = closed_source_frame_placement.or_else(|| {
+            unconstrained_host_placement.map(|p| constrain_host_placement.constrain(p, st))
+        });
         // [#7390] A stored RowBreak object declaration can describe only the
         // first physical fragment.  It cannot grant whole-table ownership when
         // the measured rows, painted from the current flow position, would pass

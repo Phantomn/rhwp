@@ -4798,6 +4798,14 @@ impl TypesetEngine {
                 };
                 st.align_flow_to(st.current_height.max(table_bottom + inter_float_gap));
             }
+        } else if let Some(placement) = st
+            .paragraph_float_placements
+            .get(&(para_idx, ctrl_idx))
+            .copied()
+        {
+            // Empty stored hosts can own a closed source frame too. Consume
+            // the accepted physical bottom, not a second host/guide advance.
+            st.align_flow_to(placement.occupied_bottom);
         } else if tac_wrap_split {
             st.advance_flow_by(table_total_height);
         } else if let Some(host_spacing_px) = if st.profile.hwpx_stored_layout()

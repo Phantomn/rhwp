@@ -158,6 +158,100 @@ pub(crate) fn hwpx_after_picture_caption_shared_spacing_px(
     }
 }
 
+/// A restarted successor exactly closes the declared object outer box.
+/// The intervening saved empty ladder belongs to that frame, not additional
+/// paragraph flow. This source proof also gives a new-column object origin;
+/// the original paragraph-relative offset was consumed before deferral.
+#[derive(Debug, Clone)]
+pub(crate) struct StoredTableFrameWithGuides {
+    pub guide_range: Range<usize>,
+    pub top_hu: i32,
+    pub bottom_hu: i32,
+}
+
+pub(crate) fn stored_table_frame_with_guides(
+    paragraphs: &[Paragraph],
+    host_index: usize,
+    table: &Table,
+) -> Option<StoredTableFrameWithGuides> {
+    use crate::model::paragraph::{ColumnBreakType, LineSeg};
+    let host = paragraphs.get(host_index)?;
+    if !host.text.is_empty()
+        || !matches!(host.controls.as_slice(), [Control::Table(_)])
+        || host.column_type != ColumnBreakType::None
+        || host.stored_text_partition_is_dirty()
+        || table.common.treat_as_char
+        || !is_para_topbottom_float(&table.common)
+        || !matches!(table.common.vert_align, VertAlign::Top | VertAlign::Inside)
+        || table.common.vert_rel_to != VertRelTo::Para
+        || table.common.horz_rel_to != HorzRelTo::Column
+        || table.page_break != TablePageBreak::RowBreak
+        || signed_hwpunit(table.common.vertical_offset) <= 0
+        || table.common.height == 0
+        || table.common.height > i32::MAX as u32
+    {
+        return None;
+    }
+    let [anchor] = host.line_segs.as_slice() else {
+        return None;
+    };
+    if anchor.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0 || anchor.vertical_pos <= 0 {
+        return None;
+    }
+    let top_hu = i32::from(table.outer_margin_top);
+    let bottom_hu = i32::try_from(
+        i64::from(top_hu) + i64::from(table.common.height) + i64::from(table.outer_margin_bottom),
+    )
+    .ok()?;
+    let mut end = host_index + 1;
+    let mut previous = anchor;
+    while let Some(guide) = paragraphs.get(end) {
+        if guide.para_shape_id != host.para_shape_id
+            || !guide.text.is_empty()
+            || !guide.controls.is_empty()
+            || guide.column_type != ColumnBreakType::None
+            || guide.stored_text_partition_is_dirty()
+        {
+            break;
+        }
+        let [line] = guide.line_segs.as_slice() else {
+            return None;
+        };
+        if line.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
+            || previous.line_height.saturating_add(previous.line_spacing) <= 0
+            || line.vertical_pos
+                != previous
+                    .vertical_pos
+                    .checked_add(previous.line_height)?
+                    .checked_add(previous.line_spacing)?
+        {
+            return None;
+        }
+        previous = line;
+        end += 1;
+    }
+    if end == host_index + 1 {
+        return None;
+    }
+    let successor = paragraphs.get(end)?;
+    if successor.stored_text_partition_is_dirty() || successor.column_type != ColumnBreakType::None
+    {
+        return None;
+    }
+    let first = successor.line_segs.first()?;
+    if first.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
+        || first.vertical_pos != bottom_hu
+        || first.vertical_pos >= anchor.vertical_pos
+    {
+        return None;
+    }
+    Some(StoredTableFrameWithGuides {
+        guide_range: host_index + 1..end,
+        top_hu,
+        bottom_hu,
+    })
+}
+
 /// 문단 상대 자리차지 개체의 확정된 세로 배치. 모든 값은 단 상대 px다.
 /// 예약과 출력이 같은 결과를 사용하므로 renderer에서 원점을 다시 더하지 않는다.
 #[derive(Debug, Clone, Copy, PartialEq)]

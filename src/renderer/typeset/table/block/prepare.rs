@@ -885,6 +885,30 @@ impl TypesetEngine {
             self.dpi,
         ) + layout_engine
             .saved_single_cell_terminal_host_spacing_px(table, para, styles);
+        // Clean deferral may have changed the fragment since host placement was
+        // first queried. Resolve the closed source box in that actual new frame,
+        // then let the scanner budget and commit share its origin and flow end.
+        let closed_source_frame_placement = self.query_closed_source_frame_placement(
+            st,
+            paragraphs_all,
+            para_idx,
+            table,
+            ft.effective_height,
+            table_available,
+        );
+        let (fragment_host_placement, host_frame) =
+            if let Some(placement) = closed_source_frame_placement {
+                (
+                    Some(placement),
+                    (
+                        st.pages.len(),
+                        st.current_column,
+                        st.current_zone_y_offset.to_bits(),
+                    ),
+                )
+            } else {
+                (fragment_host_placement, host_frame)
+            };
         let prepared = BlockTableContinuationPreparedState {
             host_placement: fragment_host_placement,
             host_frame,

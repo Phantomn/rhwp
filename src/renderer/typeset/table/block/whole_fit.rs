@@ -30,9 +30,46 @@ pub(super) struct WholeFit {
     pub(super) hwpx_noninline_tac_measured_fit: bool,
     pub(super) declared_table_whole_fits: bool,
     pub(super) saved_table_source_frame: Option<(f64, f64)>,
+    pub(super) closed_source_frame_placement:
+        Option<crate::renderer::float_placement::ParagraphFloatPlacement>,
 }
 
 impl TypesetEngine {
+    /// Validate a stored closed object frame against the actual fragment budget.
+    /// Whole placement and the scanner's post-deferral entry consume this result.
+    pub(super) fn query_closed_source_frame_placement(
+        &self,
+        st: &TypesetState,
+        paragraphs: &[crate::model::paragraph::Paragraph],
+        para_idx: usize,
+        table: &crate::model::table::Table,
+        effective_height: f64,
+        available: f64,
+    ) -> Option<crate::renderer::float_placement::ParagraphFloatPlacement> {
+        if st.col_count != 1
+            || st.current_height > 0.5
+            || !(st.profile.hwp5_stored_pagination_layout() || st.profile.hwpx_stored_layout())
+            || st.profile.session_edited()
+            || self.render_normalization.table_text_reflowed(table)
+        {
+            return None;
+        }
+        let frame = crate::renderer::float_placement::stored_table_frame_with_guides(
+            paragraphs, para_idx, table,
+        )?;
+        if (effective_height - hwpunit_to_px(table.common.height as i32, self.dpi)).abs() > 0.5 {
+            return None;
+        }
+        let bottom = hwpunit_to_px(frame.bottom_hu, self.dpi);
+        (bottom <= available).then_some(crate::renderer::float_placement::ParagraphFloatPlacement {
+            flow: crate::renderer::float_placement::ParagraphFloatFlow::NextLine,
+            anchor_y: 0.0,
+            stored_host_origin: None,
+            table_top: hwpunit_to_px(frame.top_hu, self.dpi),
+            occupied_bottom: bottom,
+        })
+    }
+
     pub(super) fn query_whole_table_fit(
         &self,
         st: &TypesetState,
@@ -46,6 +83,7 @@ impl TypesetEngine {
             ft,
             fmt,
             mt,
+            paragraphs_all,
             ..
         } = input;
         let WholeFitInput {
@@ -369,6 +407,14 @@ impl TypesetEngine {
         });
         let saved_table_source_frame =
             saved_single_inline_table_source_frame.or(saved_rowbreak_object_frame);
+        let closed_source_frame_placement = self.query_closed_source_frame_placement(
+            st,
+            paragraphs_all,
+            para_idx,
+            table,
+            ft.effective_height,
+            available,
+        );
         WholeFit {
             para_has_stored_line_seg,
             single_row_object_height_advance,
@@ -378,6 +424,7 @@ impl TypesetEngine {
             hwpx_noninline_tac_measured_fit,
             declared_table_whole_fits,
             saved_table_source_frame,
+            closed_source_frame_placement,
         }
     }
 }
