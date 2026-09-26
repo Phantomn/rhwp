@@ -718,6 +718,19 @@ impl TypesetState {
     /// 확정된 조각을 항목 추가 → trim 초기화 → 높이 전진 순서로 반영한다.
     /// 페이지 전환과 다음 컷 선택은 조정자의 책임이다.
     pub(super) fn commit_split_paragraph_fragment(&mut self, fragment: ParagraphFragment) {
+        if let (
+            PageItem::PartialParagraph {
+                para_index,
+                end_line,
+                ..
+            },
+            Some(height),
+        ) = (&fragment.item, fragment.content_height)
+        {
+            self.data
+                .paragraph_fragment_content_bottoms
+                .insert((*para_index, *end_line), self.data.current_height + height);
+        }
         self.data.current_items.push(fragment.item);
         self.data.vpos_prev_trimmed_sb_px = 0.0;
         self.data.current_height += fragment.height;

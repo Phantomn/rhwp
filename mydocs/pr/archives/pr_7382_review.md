@@ -466,3 +466,38 @@ Producer `369b17e2b` + Rust/test diff SHA256 `5720b4e171e66ca36855cf155f5198a462
 ![Native44 형제 표 바깥 여백 보정](../assets/pr7382_20260926/stage19_native_review_044.png)
 ![Native44 overlay](../assets/pr7382_20260926/stage19_native_overlay_044.png)
 ![Native45 뒤 본문·표 보존](../assets/pr7382_20260926/stage19_native_review_045.png)
+
+
+## 메인터너 보정 20: 표시 쪽 본문 점유와 각주 소급 예약 공유
+
+원본 문단1297은 첫 문장 뒤에 각주160 표시가 있고, 저장 앞7줄과 뒤3줄이 121/122쪽에 나뉜다. [원본 XML·동일 입력 HWP/HWPX 기준 PDF 좌표](../assets/pr7382_20260926/stage20_independent_geometry.json)에서 121쪽은 각주159/160, 122쪽은161만이다. 본문 컷은 맞았지만 통째 각주 소급 등록이 Native 전용이어서 HWPX의160을 꼬리 쪽122에 잘못 붙였다. 자동 점수98%도 이 소유 결함을 잡지 못했다.
+
+기존 `native_hwp5_body_footnote_tail_reset`가 단단·단일 각주·비합성 표시와 양수→0 저장 경계 및 실제 꼬리 컷을 입증한 HWPX에 완료 표시 쪽 등록을 연결했다. 소급 등록은 기존 각주가 있는 쪽에 한정하며, 첫 각주·두 줄 충돌·별도 표시 reset의 우선순위를 유지한다. Native 등록에는 새 HWPX fit 조건을 적용하지 않는다.
+
+공통 `plan_fragment`는 같은 `FormattedParagraph` 메트릭으로 흐름 전진량과 수용한 모든 줄 상자의 최대 점유 끝을 함께 생산한다. `commit_split_paragraph_fragment`가 `(문단, 끝 줄)`의 단 상대 점유 끝을 보존하고, `completed_body_fragment_note_fits`는 완료 단의 마지막 실제 조각을 확인한 뒤 그 끝과 단 원점, 기존 각주 영역·추가 예약량으로 공존을 판단한다. 예약 조회와 확정은 같은 `completed_page_note_added_height`를 소비하며 실제 본문·각주는 확정된 조각/영역에서 배치한다. 값이 없는 다단·데코 호스트는 새 경로로 승격하지 않는다. 음수 줄간격이 전진량을 줄여도 앞의 큰 줄 상자의 점유 끝을 잃지 않으며, 뒤 문단 간격은 본문 점유 끝으로 잘못 가산하지 않는다.
+
+Producer `5375b1f33` + 최종 Rust/test diff SHA256 `481af03a6f15c74cdc470c25dc88b379a22e0d94fe284f0fe36a55d93649c472`; [명령·소스별 해시·전후 결과·잔여](../assets/pr7382_20260926/stage20_validation.json).
+
+| 검사 | 결과 | 의미 |
+| --- | --- | --- |
+| 수정 전 실제 각주 소유 회귀 |1FAIL/1PASS, exit100,0.413s |159 상단1027.347 vs 독립PDF1011.729, 잘못된160 이월 검출 |
+| 최종 관련·정상 대조군 |86PASS/1FAIL, exit100,5.771s | 대상45PASS, 정상 대조41PASS; 잔여1개는 아래 별도 캡션 결함 |
+| 큰 각주·합성 저장 줄·큰 줄 상자 |PASS | 완료 쪽 강제 예약 거절. 수정 전에도 통과한 대조군을 결함 검출로 세지 않음 |
+| Native HWP 동일 원본 |PASS |121/122의 기존 번호·좌표·본문 소유 보존 |
+| CLI·쪽수 |build exit0,1m50s;215/PDF215 | 동일 입력, 최종 검증 코드 |
+| fmt·source 단위 테스트 정책 |exit0;4205검사/298모듈 | 고정 base `eb9142dd7c` 대비 검사 |
+| Native120/123 |99.67776/95.08258% | 앞뒤 표·본문·각주 직접 판독 |
+| Native121/122 |98.96031/99.37751% |121에159/160,122에161만 표시됨을 직접 판독 |
+
+점유 생산식의 임시 단위 계약은 줄 상자0..30/5..15px와 흐름 끝15px로 수정 전1FAIL(0.015s)→수정 후1PASS(0.014s)를 확인했다. 신규 `src` 단위 검사 정책이 거절해 진단 소스·로그는 `output`에 보존하고 제출 소스에서는 제거했다. 추가 실물 배치 반례는 `tests/cases/`에 두었다. 수동 큰 줄 반례 두 구성은 보완 전에도 통과해 최대 점유 생산식의 결함 검출 증거로 확대하지 않으며 정상 거절 대조로만 남긴다. 첫 suite 실행은 준비 후005→003 재배정을 놓친 내 오류로0검사/exit4였고, 위 실제 결과와 구분했다.
+
+선택4쪽의 review/standalone overlay8개를 직접 확인했다. gate `passed`, sweep exit0, 글꼴 예외 없음이다. 글자 외곽·간격과123쪽 각주 줄바꿈 차이는 남아 완전 일치를 주장하지 않는다. [수정 전 manifest](../assets/pr7382_20260926/stage20_before_native_manifest.json)·[수정 후 manifest](../assets/pr7382_20260926/stage20_native_manifest.json)·[summary](../assets/pr7382_20260926/stage20_native_summary.json)·[metrics](../assets/pr7382_20260926/stage20_native_overlay_metrics.json).
+
+정상 대조에서 Native HWP90의 표27 캡션 겹침을 발견했고, [보정20 전 정확한 커밋의 대조](../assets/pr7382_20260926/stage20_native90_prior_control.json)에서도 같은 검사1FAIL/exit100/0.208s로 재현했다. devel 실패나 이번 각주 변경의 회귀로 분류하지 않는다. 앞선 통합·보정에서 놓친 결함으로 다음 개별 보정에서 해결한다. 전체 최종 회귀·lint·fresh WASM·전체 시각 gate도 미완료여서 통합 PR 생성·승인 보류를 유지한다.
+
+![121쪽 수정 전 각주160 누락](../assets/pr7382_20260926/stage20_before_native_review_121.png)
+![121쪽 각주159·160 소유 복원](../assets/pr7382_20260926/stage20_native_review_121.png)
+![121쪽 overlay](../assets/pr7382_20260926/stage20_native_overlay_121.png)
+![122쪽 수정 전 각주160 잘못 이월](../assets/pr7382_20260926/stage20_before_native_review_122.png)
+![122쪽 각주161만 보존](../assets/pr7382_20260926/stage20_native_review_122.png)
+![122쪽 overlay](../assets/pr7382_20260926/stage20_native_overlay_122.png)

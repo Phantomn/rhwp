@@ -160,10 +160,15 @@ impl TypesetEngine {
             // 든 PartialParagraph의 owner를 따라야 한다. 그렇지 않으면 p52의
             // note 60처럼 marker는 p52에 남고 각주는 tail page p53에 등록된다.
             // 첫 각주가 없는 page까지 일반화하면 p62 note 74처럼 기존 흐름에서
-            // reserve하던 각주가 빠져 후속 page break를 바꾼다. native HWP5의
-            // multi-note stored LINE_SEG ownership만 대상으로 하여 다른 profile과
-            // first-note 흐름은 바꾸지 않는다.
-            let multi_note_routed = if st.profile.hwp5_stored_pagination_layout() {
+            // reserve하던 각주가 빠져 후속 page break를 바꾼다. Native 경로와 함께
+            // 유효한 본문 reset을 입증한 HWPX도 같은 표시 쪽 소유를 사용한다.
+            // HWPX의 소급 예약은 이미 수용한 본문 점유 끝과 실제 각주 예산이
+            // 양립할 때만 허용하며 첫 각주가 없는 쪽은 기존 흐름을 유지한다.
+            let saved_hwpx_tail = !st.profile.hwp5_stored_pagination_layout()
+                && st.profile.hwpx_stored_layout()
+                && body_tail_reset.is_some();
+            let multi_note_routed = if st.profile.hwp5_stored_pagination_layout() || saved_hwpx_tail
+            {
                 crate::renderer::pagination::find_inline_control_target_page(
                     &st.pages,
                     &st.current_items,
@@ -171,10 +176,14 @@ impl TypesetEngine {
                     ctrl_idx,
                     para,
                 )
-                .filter(|(page_idx, _)| {
+                .filter(|(page_idx, col_idx)| {
                     st.pages
                         .get(*page_idx)
                         .is_some_and(|page| !page.footnotes.is_empty())
+                        && (!saved_hwpx_tail
+                            || st.completed_body_fragment_note_fits(
+                                *page_idx, *col_idx, para_idx, fn_height,
+                            ))
                 })
             } else {
                 None

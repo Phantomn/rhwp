@@ -1588,3 +1588,113 @@ fn empty_host_sibling_tables_preserve_outer_margin_and_caption_origins() {
     assert!((body_y - 919.301025).abs() <= 1.5, "뒤 본문{body_y}");
     assert_eq!(core.page_count(), 215);
 }
+
+/// 한컴 PDF121의 표시와 각주159/160은 같은 쪽에 있고122에는161만 있다.
+/// 문단1297의 앞7줄·뒤3줄 소유와 각주의 등록 시점을 구분한다.
+fn assert_stored_body_multi_note_owner(core: DocumentCore) {
+    let first = core.build_page_render_tree(120).expect("표시와 각주121쪽");
+    let next = core.build_page_render_tree(121).expect("본문 꼬리122쪽");
+    let area = notes(&first.root).expect("121쪽 각주");
+    let following = notes(&next.root).expect("122쪽 각주");
+    for (needle, expected) in [("159)", 1011.728597), ("160)", 1027.568604)] {
+        let y = line_top(area, needle).expect("독립 PDF의 표시 쪽 각주");
+        assert!(
+            (y - expected).abs() <= 1.5,
+            "각주{needle} 원점{y} vs 독립 PDF{expected}"
+        );
+    }
+    assert!(
+        !text(following).contains("160)"),
+        "각주160 꼬리 쪽 중복·잘못된 소유 금지"
+    );
+    assert!(text(following).contains("161)"), "후행 정상 각주 보존");
+    let y = line_top(&first.root, "Royal Decree 2070/1999").expect("실제 표시 첫 줄");
+    assert!((y - 803.012614).abs() <= 1.5, "각주 표시의 본문 원점{y}");
+    let y = line_top(&next.root, "야 함이 조건으로 추가됨.(Article 11)").expect("실제 뒤 본문");
+    assert!((y - 136.421071).abs() <= 1.5, "다음 쪽 본문{y}");
+    assert_eq!(core.page_count(), 215);
+}
+
+/// 합성 위치는 표시가 앞쪽에 있더라도 저장 쪽 경계로 승격하지 않는다.
+#[test]
+fn synthetic_body_tail_does_not_enable_saved_multi_note_routing() {
+    use rhwp::model::paragraph::LineSeg;
+    let mut core = core();
+    let mut doc = core.document().clone();
+    for line in &mut doc.sections[0].paragraphs[1297].line_segs {
+        line.tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
+    }
+    core.set_document(doc);
+    let first = core.build_page_render_tree(120).expect("합성 앞쪽");
+    let next = core.build_page_render_tree(121).expect("합성 꼬리 쪽");
+    assert!(!text(notes(&first.root).expect("기존 각주")).contains("160)"));
+    assert!(text(notes(&next.root).expect("일반 각주 소유")).contains("160)"));
+}
+
+/// 소급 등록할 공간이 없는 큰 각주는 완료된 표시 쪽 본문을 침범하지 않는다.
+/// 수동 대조군이며 한컴의 원본 출력 일치 증거로 사용하지 않는다.
+#[test]
+fn oversized_body_note_does_not_intrude_into_completed_marker_page() {
+    use rhwp::model::{control::Control, paragraph::LineSeg};
+    let mut core = core();
+    let mut doc = core.document().clone();
+    let Control::Footnote(note) = &mut doc.sections[0].paragraphs[1297].controls[0] else {
+        panic!("원본 각주160");
+    };
+    let original = note.paragraphs[0].clone();
+    for _ in 0..7 {
+        let mut added = original.clone();
+        added.controls.clear();
+        for line in &mut added.line_segs {
+            line.tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
+        }
+        note.paragraphs.push(added);
+    }
+    core.set_document(doc);
+    let first = core.build_page_render_tree(120).expect("완료된 표시 쪽");
+    let area = notes(&first.root).expect("기존 각주159 영역");
+    assert!(
+        !text(area).contains("160)"),
+        "큰 각주를 완료 쪽에 강제 예약하면 안 됨"
+    );
+    let next = core.build_page_render_tree(121).expect("후행 소유 쪽");
+    assert!(text(notes(&next.root).expect("큰 각주 영역")).contains("160)"));
+}
+
+/// 동일 원본 HWPX의 표시 쪽 각주와 뒤 본문을 함께 확인한다.
+#[test]
+fn stored_body_marker_keeps_whole_note_with_prior_notes_on_its_page() {
+    assert_stored_body_multi_note_owner(core());
+}
+
+/// Native HWP의 기존 소유 계약은 독립 HWP 기준 PDF121/122와 같다.
+#[test]
+fn native_hwp_multi_note_owner_remains_on_original_marker_page() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE.replace(".hwpx", ".hwp"));
+    let bytes = std::fs::read(path).expect("동일 보고서 원본 HWP");
+    assert_stored_body_multi_note_owner(DocumentCore::from_bytes(&bytes).expect("HWP 로드"));
+}
+
+/// 음수 줄간격으로 흐름은 그대로여도 앞의 큰 줄 상자가 각주 영역을 점유한다.
+/// 수동 메트릭 반례이며 한컴 원본 출력 일치 증거로 사용하지 않는다.
+#[test]
+fn taller_body_line_box_prevents_completed_page_note_intrusion() {
+    let mut core = core();
+    let mut doc = core.document().clone();
+    let first = &mut doc.sections[0].paragraphs[1297].line_segs[0];
+    // 원래 다음 줄까지의 2000HU 전진을 보존하되 첫 줄 상자는 15000HU다.
+    first.line_height = 15_000;
+    first.line_spacing = -13_000;
+    core.set_document(doc);
+    let first = core
+        .build_page_render_tree(120)
+        .expect("큰 줄 상자의 표시 쪽");
+    let next = core
+        .build_page_render_tree(121)
+        .expect("각주를 수용할 꼬리 쪽");
+    assert!(
+        !text(notes(&first.root).expect("기존 각주159")).contains("160)"),
+        "전진량이 작아도 큰 본문 줄 상자에 각주160을 소급 예약하면 안 됨"
+    );
+    assert!(text(notes(&next.root).expect("꼬리 쪽 각주")).contains("160)"));
+}

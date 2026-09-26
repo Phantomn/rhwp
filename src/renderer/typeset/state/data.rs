@@ -8,6 +8,9 @@ pub(in crate::renderer::typeset) struct StateView {
     pub(in crate::renderer::typeset) pages: Vec<PageContent>,
     /// 현재 단에 쌓이는 항목
     pub(in crate::renderer::typeset) current_items: Vec<PageItem>,
+    /// 수용한 일반 본문 조각의 (문단, 끝 줄)별 단 상대 점유 하단.
+    pub(in crate::renderer::typeset) paragraph_fragment_content_bottoms:
+        std::collections::HashMap<(usize, usize), f64>,
     /// 현재 단에서 소비된 높이 (px)
     pub(in crate::renderer::typeset) current_height: f64,
     /// 현재 단 시작 시점의 논리 높이 (px)
