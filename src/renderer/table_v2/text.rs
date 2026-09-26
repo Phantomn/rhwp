@@ -427,7 +427,7 @@ impl CellParagraphComposer for TextComposer<'_> {
             ));
         }
         let stored = !para.line_segs.is_empty();
-        let fresh = if stored {
+        let mut fresh = if stored {
             super::stored_text::localize(
                 para,
                 style.margin_left..width - style.margin_right,
@@ -445,6 +445,7 @@ impl CellParagraphComposer for TextComposer<'_> {
             .ok_or(GeometryError::Unsupported("text preview frame composition"))?;
             fresh
         };
+        super::stored_text::resolve_vertical_alignment(&mut fresh, self.styles, self.dpi, stored)?;
         let composed = compose_paragraph(&fresh);
         let mut frame = PageLayoutContext::new(0, width, 0.0);
         let mut column = RenderNode::new(

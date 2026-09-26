@@ -3898,3 +3898,98 @@ Native에서 정상 저장 두 문서의 review와192dpi 동일 영역 확대를
 이전 SVG 보존과 Native/WASM동일을 모두 확인했다(`controls-final.log`). 기본 엔진은
 Legacy로 유지하며 push/PR/원격 상태를 변경하지 않았다. 다음 종단 차단점은 위에
 기록한 원본 문단24의 저장 paint 메트릭 불일치다.
+
+### CENTER 글줄 기준점 해석 — 원본 문단24의 다음 경계
+
+작업지시자는 직전0% 줄간격 절편에 **시각 판정 통과**와 다음 진행을 승인했다.
+기존 §5.1 실행 묶음 안에서 조사·구현·집중 검증을 계속한다. 아래 결과는 원본 전체나
+R5 완료를 의미하지 않는다. 증적 디렉터리는 `output/7353/r19/stored-paint/`다.
+
+원본 문단24의13×8 시장점유율 표에서 첫 셀 `순위`의 저장 줄은
+height/textheight1200HU, baseline600HU다. `ParaShape.attr1`의20..21비트가2,
+즉 HWPX `align@vertical=CENTER`다. 가로 가운데 정렬이나 셀 수직정렬과 다른 속성이다.
+파서/IR/직렬화기는 보존하지만 `ResolvedParaStyle`은 이 값을 전달하지 않았다.
+공통 배치의 `ensure_min_baseline`이600HU(8px)를12.8px로 올리면서, V2의
+`stored_text::validate_paint`가 저장 결과와의 불일치를 검출했다. bbox/폭/줄 소속이
+아니라 기준선 하나의 불일치였으며, `before-input.log`/`center-before.log`에 남겼다.
+
+독립 근거를 먼저 확보했다. 원본 그대로 한컴 HWP 재저장 및 저장 LineSeg를 모두 지운
+HWPX의 정상 재조판 저장본에도600HU가 나왔다. 단순 stale-cache로 볼 수 없다.
+한컴 정상 저장 CENTER/BASELINE 대조군은 동일12pt 제목 셀에서600/1020HU를 각각
+기록하지만 PDF 제목 셀 글자 위치는 같다.600은 글꼴 ascent가 아니라 가운데 정렬의
+기준점이다. 그대로 paint한 임시 진단은 글자를 위로 올렸으므로 폐기했다. 이 진단용
+`paragraph_layout.rs` 변경과 출력 logging은 제품 코드에 남기지 않았다.
+
+| 값의 경로 | 이번 처리와 검증 |
+| --- | --- |
+| `ParaShape.attr1[20..21] → style_resolver` | `ParagraphVerticalAlignment`로 보존. Legacy 소비 동작은 바꾸지 않음 |
+| `stored_text::localize → resolve_vertical_alignment` | 줄 partition/점유 높이/간격/원점은 보존. 동등한 resolved em의 CENTER 기준점을 공통 `frame_metrics_for_line`의 glyph baseline으로 해석. 원본 IR은 불변 |
+| `TextComposer::compose → shared physical-frame paint → validate_paint` | 해석한 줄 메트릭을 실제 paint도 그대로 사용했는지 검사. 기존 불일치 검사를 완화하거나 생략하지 않음 |
+| paint nodes → `ParagraphItem::Text → FlowCursor → fragment append` | 같은 최종 노드의 점유 높이와 원점을 측정/배치가 소비. 표/셀/후속 문단의 최종 bbox를 검사 |
+
+이는 텍스트 기준점 지원이며 컷·rowspan·예약/이월·clipping·종료 알고리즘은 변경하지
+않았다. 혼합 resolved em/첨자, TOP/BOTTOM, em과 맞지 않는 저장 CENTER 기준점은
+명시적 미지원이다. fresh uniform-em 경로는 공통 재조판이 이미 glyph baseline을 만들므로
+저장 CENTER 참조 변환을 이중 적용하지 않는다. 일반 BASELINE의 잘못된 낮은 값을
+CENTER로 추정하여 고치는 예외는 추가하지 않았다.
+
+시각 대조군은 `tests/fixtures/issue7353_center_reference_review/`에 생성 코드와
+출처를 함께 보존했다. 원본p6 문단21~25(제목/단위/빈 줄/표 전체/자료출처)를 추출하되,
+**모든 표·셀 테두리를 동일 실선으로 변경하고 zone을 비운 대조군**이다. 원본은 인접
+테두리 충돌 때문에 실제 paint가 아직 거부된다. 이를 원본 통과나 테두리 해결로
+보고하지 않는다. 두 대조군의 차이는 셀 문단 세로 CENTER/BASELINE뿐이다. 모든
+LineSeg는 한컴에서 다시 만들었으며 HWP→PDF도 그 정상 저장본에서 생성했다.
+MCP engine2020 / Hancom11.0.0.9136 / direct32bit / preprocessing none,
+job 및 생성법은 fixture README와 `*-status.json`에 연결했다.
+
+정식 테스트는 같은12pt 제목의 실제 glyph baseline1020HU, 전체 줄/표/셀 bbox와
+뒤 자료출처, 텍스트 보존을 독립 정렬 불변식으로 검사한다. BASELINE의 낮은값은
+거부, CENTER는 수용, 잘못된 CENTER 참조는 거부, source IR불변, fresh uniform-em
+동등성과 mixed-em 미지원을 함께 잠갔다. 수정 전 실행파일은 CENTER를 명시적으로
+거부하고 BASELINE은1쪽을 출력했다. 새 지원의 전/후 증거이지 이전에 그려진 문서의
+회귀 복구 주장과 혼동하지 않는다. 초기 단독 rustc 명령의 roxmltree 인자 누락은
+환경/하네스 실패이며 조판 결함 재현으로 세지 않는다.
+
+18개 집중 하네스 중 새 계약은 통과했고, 유일한 실패는 다음 차단점을24로 기대하던
+원본 admission 진단이었다. 생성 단계의 관측은 이제 문단35
+`TAC row exceeds stored width`다. 진단을 관측값으로 갱신한 document-flow81PASS와
+나머지 하네스 결과를 합하면 **297PASS/0FAIL**이다(`tests-summary.log`,
+`document-final.log`). 기준 페이지수/허용치/ignore를 변경한 것이 아니다.
+원본 문단24만 추출한 실제 paint의 인접 테두리 충돌도 별도로 남는다.
+
+Native compare/review와192dpi 확대를 직접 확인했다. 셀 글자가 위쪽으로 올라가던
+진단과 달리, 정렬 해석 후 제목/단위/표 각 행/자료출처의 위치를 비교할 수 있다.
+대체 글꼴 폭·굵기와 기존 상대크기 처리는 이번 해결 주장에 포함하지 않는다. 특히
+`하이트`는 독립 PDF의 CENTER/BASELINE간 yMin 차이가0.359607pt이며, 현재 공통
+폰트 투영의 상대크기 차이가 남아 있다. 이 부분을 glyph 완전 일치로 판정하지 않는다.
+전체 workspace/CI 상당 검증 및 Studio 수동 검증은 아직 수행하지 않았다.
+
+최종 검증은 동일 source manifest(`source.sha256`, base `f73bd4c02`+이번 patch)로
+수행했다. fmt, Native lib Clippy, WASM lib Clippy는 모두 통과했다. 표준 Docker
+WASM 빌드는7분13초에 완료했고 `pkg/rhwp_bg.wasm` SHA-256은
+`b5431433b9422d2ada4ddcab1f831e7bb4dce09370cee09a38ab67dfd2b31135`다.
+`REVIEW_CASE=center|baseline node output/7353/r19/stored-paint/review.mjs --wasm`로
+새 바이너리를 브라우저에서 실행했다. 두 대조군 모두1쪽이며 Native/fresh WASM
+JSON 수치 차이0, 기타 차이0, SVG 동일이다(`*/backend-comparison.json`, `*/run.json`).
+`controls.mjs`의 기존14대조군×2종 셀 끝 간격 정책 **28조합**도 이전 Native SVG를
+보존하고 현재 Native/WASM SVG 및 예상 페이지수를 모두 일치시켰다(`controls-final.log`).
+이는 집중 무회귀 증거이며 전체 CI 통과로 보고하지 않는다.
+
+fresh WASM review·standalone overlay·확대 비교와 BASELINE 정상 대조군을 직접
+열어 표 외곽/모든 행/뒤 자료출처의 위치와 누락 여부를 확인했다. 판정 대상은
+글줄 세로 CENTER 기준점 해석이며 글꼴 폭·굵기·상대크기의 완전 일치가 아니다.
+
+- 확대 비교: `output/7353/r19/stored-paint/wasm-center-detail.png`
+- compare: `output/7353/r19/stored-paint/center/wasm-compare-1.png`
+- standalone overlay: `output/7353/r19/stored-paint/center/wasm-overlay-1.png`
+- review: `output/7353/r19/stored-paint/center/wasm-review-1.png`
+- 정상 대조군 review: `output/7353/r19/stored-paint/baseline/wasm-review-1.png`
+
+코멘트: 내용 픽셀 중심 자동 일치율 보조값 = 약14.89%.
+높을수록 기준 PDF와 rhwp PNG가 더 비슷합니다.
+낮은 값은 잉크 위치나 형태 차이의 검토 신호입니다.
+사람의 판정 정확도가 아닌 자동 보조값입니다.
+
+이번 절편의 사람 시각 판정은 대기다. Legacy 기본 경로·페이지수 golden·ignore는
+변경하지 않았고 원격 push/PR도 하지 않는다. 다음 원본 경계는 표24의 공유 테두리
+충돌과 문단35의 TAC 저장 폭 제한이며, 이번 대조군 통과로 해결된 것으로 간주하지 않는다.

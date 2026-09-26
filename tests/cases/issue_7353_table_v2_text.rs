@@ -461,6 +461,78 @@ fn text(line: &RenderNode) -> String {
 }
 
 #[test]
+fn center_reference_is_not_a_generic_baseline_clamp() {
+    use rhwp::renderer::style_resolver::ParagraphVerticalAlignment;
+    let mut t = table(&["AB"]);
+    t.cells[0].paragraphs[0].line_segs = vec![LineSeg {
+        text_start: 0,
+        vertical_pos: 0,
+        line_height: 12,
+        text_height: 12,
+        baseline_distance: 6,
+        line_spacing: 6,
+        column_start: 0,
+        segment_width: 200,
+        tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+    }];
+    let mut s = styles();
+    assert!(matches!(
+        PreparedTextTable::prepare(&t, &s, 7200.0),
+        Err(GeometryError::Unsupported(
+            "shared text paint changes stored metrics"
+        ))
+    ));
+    s.para_styles[0].vertical_alignment = ParagraphVerticalAlignment::Center;
+    let prepared = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+    let TextFragmentFit::Placed(fragment) = prepared.start().fit(area(100.0)).unwrap() else {
+        panic!()
+    };
+    let (_, lines) = render(&fragment);
+    let RenderNodeType::TextLine(l) = &lines[0].node_type else {
+        panic!()
+    };
+    assert_eq!(l.baseline, 10.0); // shared nominal12HU em baseline rounds10.2HU
+    assert_eq!(t.cells[0].paragraphs[0].line_segs[0].baseline_distance, 6);
+    t.cells[0].paragraphs[0].line_segs[0].baseline_distance = 5;
+    assert!(matches!(
+        PreparedTextTable::prepare(&t, &s, 7200.0),
+        Err(GeometryError::Unsupported("stored CENTER reference"))
+    ));
+}
+
+#[test]
+fn center_fresh_uniform_em_matches_baseline_but_mixed_em_remains_explicit() {
+    use rhwp::renderer::style_resolver::ParagraphVerticalAlignment;
+    let mut t = table(&["AB"]);
+    let mut s = styles();
+    let plain = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+    let TextFragmentFit::Placed(plain) = plain.start().fit(area(100.0)).unwrap() else {
+        panic!()
+    };
+    s.para_styles[0].vertical_alignment = ParagraphVerticalAlignment::Center;
+    let center = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+    let TextFragmentFit::Placed(center) = center.start().fit(area(100.0)).unwrap() else {
+        panic!()
+    };
+    assert_eq!(
+        serde_json::to_value(render(&center).0).unwrap(),
+        serde_json::to_value(render(&plain).0).unwrap()
+    );
+    s.char_styles.push(ResolvedCharStyle {
+        font_size: 8.0,
+        ..Default::default()
+    });
+    t.cells[0].paragraphs[0].char_shapes.push(CharShapeRef {
+        start_pos: 1,
+        char_shape_id: 1,
+    });
+    assert!(matches!(
+        PreparedTextTable::prepare(&t, &s, 7200.0),
+        Err(GeometryError::Unsupported("mixed-em CENTER text"))
+    ));
+}
+
+#[test]
 fn fresh_indent_preserves_breaks_blank_lines_and_fragment_coordinates() {
     use rhwp::model::style::Alignment;
     for indent in [0.0, 20.0, -20.0] {

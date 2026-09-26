@@ -10,6 +10,59 @@ use crate::{
 
 use super::GeometryError;
 
+/// Convert a saved CENTER alignment reference to the glyph baseline consumed
+/// by shared text paint. Source IR is untouched. With a uniform em box, CENTER
+/// and BASELINE have identical glyph placement; Hancom stores half the em for
+/// the former and the font baseline for the latter. Do not mistake the CENTER
+/// reference for an undersized glyph ascent and clamp it.
+/// Mixed resolved em sizes/scripts need per-run vertical placement and remain
+/// explicit. This reuses the common font projection, not a new font engine.
+pub(super) fn resolve_vertical_alignment(
+    para: &mut Paragraph,
+    styles: &crate::renderer::style_resolver::ResolvedStyleSet,
+    dpi: f64,
+    stored: bool,
+) -> Result<(), GeometryError> {
+    use crate::renderer::{composer, style_resolver::ParagraphVerticalAlignment};
+    let style = &styles.para_styles[para.para_shape_id as usize];
+    match style.vertical_alignment {
+        ParagraphVerticalAlignment::Baseline => return Ok(()),
+        ParagraphVerticalAlignment::Center => {}
+        _ => return Err(GeometryError::Unsupported("text vertical alignment")),
+    }
+    let composed = composer::compose_paragraph(para);
+    for (row, line) in para.line_segs.iter_mut().zip(&composed.lines) {
+        let fonts: Vec<_> = line.runs.iter().map(|r| r.text_style(styles)).collect();
+        let size = fonts.first().map(|f| f.font_size).unwrap_or_else(|| {
+            styles.char_styles[para.char_shapes[0].char_shape_id as usize].font_size
+        });
+        if fonts
+            .iter()
+            .any(|f| !same(f.font_size, size) || f.superscript || f.subscript)
+        {
+            return Err(GeometryError::Unsupported("mixed-em CENTER text"));
+        }
+        let metrics = composer::frame_metrics_for_line(
+            size,
+            size,
+            style.line_spacing_type,
+            style.line_spacing,
+            dpi,
+        );
+        if stored {
+            // Qualified normal saves only: a CENTER reference inside an em box.
+            // Larger object-owned boxes and stale metrics are separate contracts.
+            if row.text_height != metrics.text_height
+                || i64::from(row.baseline_distance) * 2 != i64::from(row.text_height)
+            {
+                return Err(GeometryError::Unsupported("stored CENTER reference"));
+            }
+            row.baseline_distance = metrics.baseline_distance;
+        }
+    }
+    Ok(())
+}
+
 /// A normal Hancom save can retain a minimum-width text lane even when the
 /// padded cell is narrower. Reuse the common rule, not a maximum observed sw.
 /// This extension qualifies saved plain rows only; it does not enlarge object

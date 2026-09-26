@@ -194,10 +194,22 @@ impl ResolvedCharStyle {
 }
 
 /// 해소된 문단 스타일 (ParaShape → 렌더링용)
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ParagraphVerticalAlignment {
+    #[default]
+    Baseline,
+    Top,
+    Center,
+    Bottom,
+}
+
+/// Resolved paragraph properties. Vertical alignment is distinct from horizontal
+/// justification and from a table cell's vertical alignment.
 #[derive(Debug, Clone)]
 pub struct ResolvedParaStyle {
     /// 정렬 방식
     pub alignment: Alignment,
+    pub vertical_alignment: ParagraphVerticalAlignment,
     /// 줄간격 값 (px 또는 비율)
     pub line_spacing: f64,
     /// 줄간격 종류
@@ -251,6 +263,7 @@ impl Default for ResolvedParaStyle {
     fn default() -> Self {
         Self {
             alignment: Alignment::Justify,
+            vertical_alignment: ParagraphVerticalAlignment::Baseline,
             line_spacing: 160.0, // 기본 160%
             line_spacing_type: LineSpacingType::Percent,
             margin_left: 0.0,
@@ -969,6 +982,12 @@ fn resolve_single_para_style(
     let variant_div = 2.0;
     ResolvedParaStyle {
         alignment: ps.alignment,
+        vertical_alignment: match (ps.attr1 >> 20) & 3 {
+            1 => ParagraphVerticalAlignment::Top,
+            2 => ParagraphVerticalAlignment::Center,
+            3 => ParagraphVerticalAlignment::Bottom,
+            _ => ParagraphVerticalAlignment::Baseline,
+        },
         line_spacing,
         line_spacing_type: ps.line_spacing_type,
         margin_left: hwpunit_to_px(ps.margin_left, dpi) / variant_div,
