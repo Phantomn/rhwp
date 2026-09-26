@@ -35,6 +35,66 @@ pub(super) struct WholeFit {
 }
 
 impl TypesetEngine {
+    /// 선방출한 Native 캡션과 첫 표 조각은 저장 문단 앵커를 함께 사용한다.
+    /// 줄 전진량을 뺀 오프셋을 문단 기준 좌표로 다시 해석하지 않는다.
+    pub(in crate::renderer::typeset) fn query_pre_emitted_caption_rowbreak_placement(
+        &self,
+        st: &TypesetState,
+        para_idx: usize,
+        para: &crate::model::paragraph::Paragraph,
+        table: &crate::model::table::Table,
+    ) -> Option<crate::renderer::float_placement::ParagraphFloatPlacement> {
+        use crate::renderer::float_placement as placement;
+        if !st.profile.hwp5_stored_pagination_layout()
+            || st.profile.session_edited()
+            || st.col_count != 1
+            || para.stored_text_partition_is_dirty()
+            || !crate::renderer::typeset::native_hwp5_rowbreak_host_precedes_first_fragment(
+                para, table,
+            )
+            || !matches!(table.common.vert_align, crate::model::shape::VertAlign::Top)
+            || para.line_segs.iter().any(is_synthetic_line_seg)
+            || para.line_segs.windows(2).any(|pair| {
+                pair[1].vertical_pos < pair[0].vertical_pos
+                    || pair[1].text_start < pair[0].text_start
+            })
+            || !st.current_items.iter().any(|item| {
+                matches!(item,
+                PageItem::PartialParagraph { para_index, start_line: 0, end_line }
+                    if *para_index == para_idx && *end_line == para.line_segs.len())
+            })
+        {
+            return None;
+        }
+        let first = para.line_segs.iter().find(|seg| seg.line_height > 0)?;
+        let last = para
+            .line_segs
+            .iter()
+            .rev()
+            .find(|seg| seg.line_height > 0)?;
+        let frame_vpos = st.vpos_page_base.unwrap_or(0);
+        let (anchor, _) = line_seg_visible_bounds_px(first, frame_vpos, self.dpi)?;
+        let (_, end) = line_seg_visible_bounds_px(last, frame_vpos, self.dpi)?;
+        if end > st.base_available_height() + 0.5 {
+            return None;
+        }
+        // 저장 위치는 쪽 본문 기준이고 공통 계획은 현재 단 영역 기준이다.
+        let anchor = anchor - st.current_zone_y_offset;
+        if anchor < 0.0 {
+            return None;
+        }
+        let top = anchor
+            + hwpunit_to_px(signed_hwpunit(table.common.vertical_offset), self.dpi)
+            + hwpunit_to_px(table.outer_margin_top as i32, self.dpi);
+        Some(placement::ParagraphFloatPlacement {
+            flow: placement::ParagraphFloatFlow::NextLine,
+            anchor_y: anchor,
+            stored_host_origin: Some(anchor),
+            table_top: top,
+            occupied_bottom: top,
+        })
+    }
+
     /// 실제 조각 예산으로 저장된 닫힌 개체 프레임의 유효성을 확인한다.
     /// 통째 배치와 이월 후 스캐너 진입이 이 결과를 함께 소비한다.
     pub(super) fn query_closed_source_frame_placement(

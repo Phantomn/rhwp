@@ -389,6 +389,13 @@ impl TypesetEngine {
         // 바깥 상자를 다시 연다. 이 원점과 끝 여백을 예산·확정·배치가 함께 소비한다.
         // 행 내부 컷과 쪽 중간 조각은 해당 원점을 이미 소유하므로 재개하지 않는다.
         let fragment_placement = fragment_placement.or_else(|| {
+            (!is_continuation && cursor_row == 0 && start_cut.is_empty())
+                .then(|| {
+                    self.query_pre_emitted_caption_rowbreak_placement(st, para_idx, para, table)
+                })
+                .flatten()
+        });
+        let fragment_placement = fragment_placement.or_else(|| {
             (prepared.stored_rewinding_rowbreak_uses_painted_row_footprint
                 && start_cut.is_empty()
                 && ((!is_continuation && cursor_row == 0)

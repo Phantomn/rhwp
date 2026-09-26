@@ -501,3 +501,34 @@ Producer `5375b1f33` + 최종 Rust/test diff SHA256 `481af03a6f15c74cdc470c25dc8
 ![122쪽 수정 전 각주160 잘못 이월](../assets/pr7382_20260926/stage20_before_native_review_122.png)
 ![122쪽 각주161만 보존](../assets/pr7382_20260926/stage20_native_review_122.png)
 ![122쪽 overlay](../assets/pr7382_20260926/stage20_native_overlay_122.png)
+
+
+## 메인터너 보정 21: 선방출 Native 캡션과 첫 표 조각의 문단 기준 공유
+
+[동일 원본 HWP·한컴 PDF90](../assets/pr7382_20260926/stage21_independent_geometry.json)의 표27은 캡션696.421..709.701px 뒤에718.095px에서 시작한다. 저장 문단962의 vpos46000HU, 표의 문단 기준 양수 오프셋1390HU와 바깥 위여백283HU가 이를 뒷받침한다. 앞 보정에서 첫 조각까지 넓힌 일반 흐름 원점은 선방출 호스트 전진량을 뺀 offset을 사용해700.267px에서 표를 칠했고, 이미 정상 위치에 있는 캡션과 겹쳤다. 단순히 Native를 fallback 대상에서 빼거나 paint에서 clamp하지 않고, 실제 문단 기준 좌표의 생산 결과를 마련했다.
+
+`query_pre_emitted_caption_rowbreak_placement`는 기존 Native 번호 캡션 선방출 조건과 현재 단의 실제 `PartialParagraph` 소유, 비합성·연속 저장 줄, 미편집 단단/문단 상단 정렬을 확인한다. 저장 캡션 앵커를 현재 단 영역 좌표로 변환하고 signed offset·바깥 위여백으로 `ParagraphFloatPlacement`를 생산한다. 첫 조각 budget은 같은 table_top으로 가용 높이·컷을 고르고, commit은 같은 원점과 확정 조각 높이로 점유 끝을 기록한다. layout의 호스트 줄은 같은 stored_host_origin, 표는 resolved_table_top을 소비하므로 별도 para_start_y가 뒤에서 덮어쓰지 않는다. 새 쪽 이어받기는 이 first-only 계획을 재사용하지 않고 기존 실제 바깥여백·소유 계약을 유지한다. 앞 캡션이 현재 단에 없는 이월, 합성/편집/무효 저장 프레임과 다른 정렬은 이 계획으로 승격하지 않는다.
+
+Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7871333f6d7d328a35dd95109759394710337f`; [정확한 명령·해시·전후 결과](../assets/pr7382_20260926/stage21_validation.json).
+
+| 검사 | 결과 | 의미 |
+| --- | --- | --- |
+| 수정 전 원본/양수 오프셋 정식 회귀 |2FAIL, exit100,0.498s | 원본 표 상단700.267 vs 독립PDF718.095 검출 |
+| 최종 대상·정상 대조군 |89PASS, exit0,6.583s | 대상47와 정상42. 앞 단계의 Native90 캡션 실패도 PASS |
+| 실제 표·뒤 내용 |PASS | 원본 첫 조각 하단995.711, 캡션 불겹침,90 관계 행/91 끝 행·캡션 무중복 |
+| signed 양수 offset 변형 |PASS |500HU 증가에 표만6.667px 이동, 캡션 원점·뒤 행 소유 보존. 수동 좌표 계약 |
+| CLI·쪽수 |build exit0,1m55s;HWP/HWPX215/PDF215 | 검증 코드와 동일 입력 |
+| fmt·source 단위 테스트 정책 |exit0;4205검사/298모듈 | 고정 base `eb9142dd7c` 비교 |
+| Native HWP90/91 |83.32319/96.28253% | 캡션·표 겹침 해소.90 본문 줄바꿈 차이는 보류 |
+| Native HWPX106/107 |99.94111/99.02564% | 앞 보정의 공통 첫 표 여백·이어받기 배치 보존 |
+
+새 Native HWP90/91과 HWPX106/107의 review/standalone overlay8개를 직접 확인했다.90은68.56281→83.32319%로 개선됐지만 앞 본문의 줄바꿈 차이가 남아 HWP gate `re_review_required`, sweep exit1이다. HWPX 선택 gate는 `passed`, exit0이다. 글꼴 예외를 쓰지 않고 본문 잔여 원인을 다음 개별 보정으로 조사한다. 표·캡션 부분 개선을 문서 전체 승인으로 확대하지 않으며 전체 최종 회귀·lints·fresh WASM·시각 gate 미완료로 통합 PR을 만들지 않는다.
+
+[HWP manifest](../assets/pr7382_20260926/stage21_native_hwp_manifest.json)·[summary](../assets/pr7382_20260926/stage21_native_hwp_summary.json)·[metrics](../assets/pr7382_20260926/stage21_native_hwp_overlay_metrics.json), [HWPX manifest](../assets/pr7382_20260926/stage21_native_hwpx_manifest.json)·[metrics](../assets/pr7382_20260926/stage21_native_hwpx_overlay_metrics.json).
+
+![Native90 수정 전 캡션 겹침](../assets/pr7382_20260926/stage21_before_native_hwp_review_090.png)
+![Native90 캡션·표 보정 및 본문 잔여](../assets/pr7382_20260926/stage21_native_hwp_review_090.png)
+![Native90 overlay](../assets/pr7382_20260926/stage21_native_hwp_overlay_090.png)
+![Native91 끝 행·뒤 본문 보존](../assets/pr7382_20260926/stage21_native_hwp_review_091.png)
+![HWPX106 원점·위여백 보존](../assets/pr7382_20260926/stage21_native_hwpx_review_106.png)
+![HWPX107 이어받기·뒤 본문 보존](../assets/pr7382_20260926/stage21_native_hwpx_review_107.png)

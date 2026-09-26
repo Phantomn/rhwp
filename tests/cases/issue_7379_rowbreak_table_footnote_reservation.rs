@@ -1698,3 +1698,59 @@ fn taller_body_line_box_prevents_completed_page_note_intrusion() {
     );
     assert!(text(notes(&next.root).expect("꼬리 쪽 각주")).contains("160)"));
 }
+
+/// Native 원본 PDF90의 캡션과 표 괘선은 서로 다른 물리 원점을 가진다.
+#[test]
+fn native_pre_emitted_caption_and_table_share_saved_paragraph_reference() {
+    assert_native_caption_table_reference(0);
+}
+
+/// 문단 기준 양수 오프셋을 바꾸면 표만 이동하며 캡션 소유는 그대로다.
+/// 수동 오프셋 변형은 원본 PDF의 대용이 아닌 좌표 계약 대조군이다.
+#[test]
+fn native_pre_emitted_caption_preserves_positive_table_offset_change() {
+    assert_native_caption_table_reference(500);
+}
+
+fn assert_native_caption_table_reference(extra_offset: u32) {
+    use rhwp::model::control::Control;
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE.replace(".hwpx", ".hwp"));
+    let bytes = std::fs::read(path).expect("원본 HWP");
+    let mut core = DocumentCore::from_bytes(&bytes).expect("HWP 로드");
+    let mut doc = core.document().clone();
+    let Control::Table(table) = &mut doc.sections[0].paragraphs[962].controls[0] else {
+        panic!("원본 표27");
+    };
+    table.common.vertical_offset += extra_offset;
+    core.set_document(doc);
+    let first = core.build_page_render_tree(89).expect("캡션과 첫 조각");
+    let next = core.build_page_render_tree(90).expect("이어받는 끝 행");
+    let table = table_for_para(&first.root, 962).expect("첫 표 조각");
+    let expected_top = 718.094727 + extra_offset as f64 * 96.0 / 7200.0;
+    assert!(
+        (table.bbox.y - expected_top).abs() <= 1.5,
+        "문단 기준 표 상단: {} vs {expected_top}",
+        table.bbox.y
+    );
+    if extra_offset == 0 {
+        assert!(
+            (table.bbox.y + table.bbox.height - 995.710693).abs() <= 1.5,
+            "첫 조각 하단: {}",
+            table.bbox.y + table.bbox.height
+        );
+    }
+    let caption = line_top(&first.root, "표 27.").expect("첫 쪽 캡션");
+    assert!((caption - 696.421061).abs() <= 1.5, "캡션 원점: {caption}");
+    assert!(
+        caption + 13.333333 <= table.bbox.y + 0.5,
+        "캡션 줄 상자가 표 괘선과 겹치면 안 됨"
+    );
+    assert!(visible_rows(table).contains(&5), "첫 쪽 관계 행 소유");
+    let tail = table_for_para(&next.root, 962).expect("이어받기 표");
+    assert_eq!(
+        visible_rows(tail),
+        BTreeSet::from([6]),
+        "끝 행만 한 번 소비"
+    );
+    assert!(line_top(&next.root, "표 27.").is_none(), "캡션 중복 없음");
+}
