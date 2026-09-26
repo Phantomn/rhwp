@@ -315,11 +315,82 @@ fn negative_stored_gap_keeps_line_boxes_and_continuation_ownership() {
     assert!(lines.iter().all(|n| n.bbox.height == 12.0));
 
     let mut invalid = t.clone();
-    invalid.cells[0].paragraphs[0].line_segs[0].line_spacing = -12;
+    invalid.cells[0].paragraphs[0].line_segs[0].line_spacing = -13;
     assert!(PreparedTextTable::prepare(&invalid, &styles(), 7200.0).is_err());
     invalid = t.clone();
     invalid.cells[0].paragraphs[0].line_segs[1].vertical_pos = 9;
     assert!(PreparedTextTable::prepare(&invalid, &styles(), 7200.0).is_err());
+}
+
+#[test]
+fn stored_zero_pitch_rows_preserve_source_partitions_at_same_origin() {
+    let mut t = table(&["AB"]);
+    t.padding = Padding::default();
+    t.cells[0].paragraphs[0].line_segs = (0..2)
+        .map(|i| LineSeg {
+            text_start: i,
+            line_height: 12,
+            text_height: 12,
+            baseline_distance: 10,
+            line_spacing: -12,
+            segment_width: 212,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            ..Default::default()
+        })
+        .collect();
+    let prepared = PreparedTextTable::prepare(&t, &styles(), 7200.0).unwrap();
+    let f = placed(&prepared.start(), 12.0);
+    let (_, lines) = render(&f);
+    assert_eq!(lines.iter().map(text).collect::<Vec<_>>(), ["A", "B"]);
+    assert!(lines
+        .iter()
+        .all(|l| l.bbox.y == 30.0 && l.bbox.height == 12.0));
+    assert_eq!(f.geometry().reserved_height(), 12.0);
+    assert!(matches!(
+        f.continuation().fit(area(12.0)).unwrap(),
+        TextFragmentFit::Complete
+    ));
+}
+
+#[test]
+fn zero_pitch_cell_lines_keep_occupied_height_and_distinct_owners() {
+    let mut t = table(&["A", "", "B"]);
+    t.padding = Padding::default();
+    for p in &mut t.cells[0].paragraphs {
+        p.line_segs = vec![LineSeg {
+            line_height: 12,
+            text_height: 12,
+            baseline_distance: 10,
+            line_spacing: -12,
+            segment_width: 212,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            ..Default::default()
+        }];
+    }
+    for policy in [
+        CellEndPolicy::PreserveAdvance,
+        CellEndPolicy::OmitFinalLineGap,
+        CellEndPolicy::OmitFinalParagraphGap,
+    ] {
+        let prepared =
+            PreparedTextTable::prepare_with_end_policy(&t, &styles(), 7200.0, &[], policy).unwrap();
+        assert!(matches!(
+            prepared.start().fit(area(11.0)).unwrap(),
+            TextFragmentFit::DoesNotFit { .. }
+        ));
+        let f = placed(&prepared.start(), 12.0);
+        let (tree, lines) = render(&f);
+        assert_eq!(lines.iter().map(text).collect::<Vec<_>>(), ["A", "", "B"]);
+        assert!(lines
+            .iter()
+            .all(|l| l.bbox.y == 30.0 && l.bbox.height == 12.0));
+        assert_eq!(tree.root.children[0].bbox.height, 12.0);
+        assert_eq!(f.geometry().reserved_height(), 12.0);
+        assert!(matches!(
+            f.continuation().fit(area(12.0)).unwrap(),
+            TextFragmentFit::Complete
+        ));
+    }
 }
 
 #[test]

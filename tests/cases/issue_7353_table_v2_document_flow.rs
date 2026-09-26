@@ -372,14 +372,14 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         panic!("qualify full source output before updating admission")
     };
     eprintln!("original terminal admission: {error}");
-    // Cell edge ownership and compatible zones now reach the next unsupported feature;
+    // Zero-pitch units now reach the next unsupported feature;
     // this remains an admission diagnostic, not a layout acceptance baseline.
     assert!(matches!(
         error,
         DocumentV2Error::Paragraph {
-            index: 22,
+            index: 24,
             reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "stored text requires intact single-segment rows"
+                "shared text paint changes stored metrics"
             )
         }
     ));
@@ -391,7 +391,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         )
         .unwrap();
         let original = rhwp::parse_document(&data).unwrap();
-        let p = &original.sections[0].paragraphs[22];
+        let p = &original.sections[0].paragraphs[24];
         let shape = &original.doc_info.para_shapes[p.para_shape_id as usize];
         std::fs::write(
             format!("{dir}/6923-terminal-next-source.json"),
@@ -635,6 +635,108 @@ fn document_fresh_negative_gap_fits_occupied_boxes_not_only_advance() {
         }
     }
     capture("document-negative-fresh", &d, &pages);
+}
+
+#[test]
+fn original_zero_pitch_keeps_visible_box_and_authored_blank_at_same_origin() {
+    let data = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"
+    ))
+    .unwrap();
+    let mut d = rhwp::parse_document(&data).unwrap();
+    // Original PDF p6: title, right-aligned units, blank, then the market table.
+    // Original stored origins:17512,19852,19852HU. The units have height1000,
+    // gap-1000, while the authored blank has height1300 and gap-260.
+    let selected = d.sections[0].paragraphs[21..24].to_vec();
+    assert_eq!(selected[1].line_segs[0].line_spacing, -1000);
+    assert_eq!(
+        d.doc_info.para_shapes[selected[1].para_shape_id as usize].line_spacing,
+        0
+    );
+    d.sections[0].paragraphs = selected.clone();
+    let input = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+    let reparsed = rhwp::parse_document(&input).unwrap();
+    // Serializer installs the section control / last-paragraph bit. Source
+    // text, style and stored row metrics of units/blank remain unchanged.
+    for (after, before) in reparsed.sections[0].paragraphs[1..]
+        .iter()
+        .zip(&selected[1..])
+    {
+        assert_eq!(after.text, before.text);
+        assert_eq!(after.para_shape_id, before.para_shape_id);
+        assert_eq!(
+            serde_json::to_value(&after.line_segs).unwrap(),
+            serde_json::to_value(&before.line_segs).unwrap()
+        );
+    }
+    let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    let lines = nodes(&pages[0], "TextLine");
+    assert_eq!(lines.len(), 3);
+    let y = lines[0]["bbox"]["y"].as_f64().unwrap();
+    near(&lines[1]["bbox"]["y"], y + 2340.0 / 75.0);
+    near(&lines[2]["bbox"]["y"], y + 2340.0 / 75.0);
+    near(&lines[1]["bbox"]["height"], 1000.0 / 75.0);
+    near(&lines[2]["bbox"]["height"], 1300.0 / 75.0);
+    assert!(labels(&pages[0]).concat().contains("(단위 : kl, %)"));
+}
+
+#[test]
+fn hancom_zero_pitch_and_positive_control_keep_following_paragraph_origins() {
+    for (name, pitch) in [("zero", 0), ("normal", 1000)] {
+        let input = std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+                "tests/fixtures/issue7353_zero_pitch_review/{name}-saved.hwp"
+            )),
+        )
+        .unwrap();
+        let d = rhwp::parse_document(&input).unwrap();
+        let p = &d.sections[0].paragraphs;
+        assert_eq!(p[1].line_segs[0].line_spacing, pitch - 1000);
+        // Independent Hancom regenerated rows, not an engine-derived golden.
+        let ys = [0, 2340, 2340 + pitch, 3380 + pitch];
+        for (p, y) in p.iter().zip(ys) {
+            assert_eq!(p.line_segs[0].vertical_pos, y);
+        }
+        let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+        assert_eq!(pages.len(), 1);
+        let lines = nodes(&pages[0], "TextLine");
+        assert_eq!(lines.len(), 4);
+        for ((line, y), height) in lines.iter().zip(ys).zip([1300, 1000, 1300, 1100]) {
+            near(&line["bbox"]["y"], (7087 + y) as f64 / 75.0);
+            near(&line["bbox"]["height"], height as f64 / 75.0);
+        }
+        assert_eq!(
+            labels(&pages[0]).concat(),
+            p.iter().map(|p| p.text.as_str()).collect::<String>()
+        );
+    }
+}
+
+#[test]
+fn zero_pitch_requires_full_physical_budget_and_consumes_each_line_once() {
+    for text in ["ZERO", ""] {
+        let mut d = source(vec![p("BEFORE"), p(text), p("AFTER")]);
+        d.doc_info.para_shapes.push(ParaShape {
+            line_spacing_type: LineSpacingType::Percent,
+            line_spacing: 0,
+            ..Default::default()
+        });
+        d.sections[0].paragraphs[1].para_shape_id = 1;
+        // body20px: first line occupies12/advances18; zero-pitch line needs12,
+        // not0, so must move to page2. AFTER shares its origin and advances18.
+        d.sections[0].section_def.page_def.height = 11100;
+        let pages = drain(&mut open(&d));
+        assert_eq!(pages.len(), 2);
+        assert_eq!(nodes(&pages[0], "TextLine").len(), 1);
+        let lines = nodes(&pages[1], "TextLine");
+        assert_eq!(lines.len(), 2);
+        for line in lines {
+            near(&line["bbox"]["y"], 30.0);
+            near(&line["bbox"]["height"], 12.0);
+        }
+    }
 }
 
 fn drain(session: &mut DocumentV2Session) -> Vec<Value> {

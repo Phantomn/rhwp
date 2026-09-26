@@ -3809,3 +3809,92 @@ rows`까지 진행한다(`original.log`). 이는 다음 수용 차단점 진단�
 
 다음 대상은 원본 문단22의 저장 줄 구성 경로다. 이번 절편에서는 그 수용 조건이나
 페이지 수 기준을 변경하지 않았고, push/PR/원격 갱신도 수행하지 않았다.
+
+### 2026-09-26 — 원본 단위 문단의 0% 줄간격: 점유 높이와 전진량 분리
+
+작업지시자가 앞 절편(장식 우선순위)의 시각 판정 통과와 다음 진행을 승인했다.
+그 판정은 위의 장식 대조군에 기록하며 원본 전체 조판 통과로 확대하지 않는다.
+이번 소스 시작점은 `4139473e6`, 증적은 `output/7353/r19/stored-body-rows/`다.
+
+원본 #6923 PDF 물리6쪽의 본문 문단22(0-based)는 `(단위 : kl, %)`이며,
+ParaShape134의 Percent0, 저장 높이1000HU/간격−1000HU로 **전진량이0**이다.
+이는 높이0인 공백이 아니다. 다음 빈 문단23은 같은 vpos19852HU에서 높이1300HU/
+간격−260HU를 점유하고, 문단24의 표는20892HU에서 시작한다. 원본 문서의 저장값과
+대응 PDF의 위치를 대조했다. 거부 사유의 `single-segment rows` 문구와 달리 실제
+차단 조건은 `height + spacing <= 0`이었다. 문서 ID·특정 문자열 분기는 넣지 않았다.
+
+공통 결과의 생산·소비 경로:
+
+| 단계 | 실제 경로와 계약 |
+| --- | --- |
+| 수용/공통 배치 생산 | `stored_text.rs:109 localize`는0전진을 허용하되 음수 전진·비양수 줄 높이를 계속 거부. `text.rs:431–491`의 공유 문단 배치와 `validate_paint`가 저장 줄·실제 bbox·끝점을 대조 |
+| 공통 결과 | `text.rs:498–580`: 실제 TextLine bbox에서 `height`와 다음 원점까지의 `advance`를 분리. advance0도 Lines/LineOwner를 보존하며 Space(0)으로 바꾸지 않음 |
+| 측정 | `content.rs:78 physical_extent`와 `paragraph_end.rs:from_composed`: max(pen+height)는 물리 점유, pen+=advance는 후속 원점. 기존 공통 측정을 그대로 소비 |
+| 문서/셀 수용 | `document_input.rs`/IR cell lowering → `FlowBlock::Lines`; `flow.rs:193–213`은 height 전부가 예산에 맞아야 수용. 실패하면 컷을 소비하지 않고 이월. 수용 시 소유 블록 인덱스를 전진시켜0pitch도 정확히 한 번 소비 |
+| 실제 출력 | 같은 fit의 LinePlacement → document payload translate / TextPaint 셀 배치. height를 다시 축소하거나 좌표를 clamp하지 않음. 셀 마지막 줄의 기존 명시적 end-policy는 그대로 유지 |
+
+TAC/anchor/rowspan 예약 알고리즘은 바꾸지 않았다. 일반 텍스트 본문 및 셀 경로의
+같은 Lines 결과를 사용하며, inline TAC의 non-forward advance 제한을 풀지 않는다.
+행 소유 단위를 바꾸거나 본문 높이·페이지 수를 맞추는 보정도 추가하지 않았다.
+
+독립 대조군은 `tests/fixtures/issue7353_zero_pitch_review/`의 생성 코드·README로
+재현한다. 원본 문단21/22/23/25(제목·단위·빈 줄·자료출처)를 추출하고 큰 표24는
+**생략한 문단 간격 대조군**이다. 표 조판 개선 증거로 제출하지 않는다. HWPX의 저장
+LineSeg는 모두 지운 뒤 MCP 한컴으로 HWP를 정상 저장하고 그 HWP에서 PDF를 생성했다.
+`zero`는 원래0%, `normal`은 단위 문단만100%로 변경했다. 생성된 vpos는 각각
+`[0,2340,2340,3380]` / `[0,2340,3340,4380]`HU다. PDF 자료출처 yMin은
+93.042318pt /102.991445pt(양자화 포함)로 이동하고 제목·단위 위치는 같다.
+이 정상 저장본은 손으로 만든 LineSeg 수용 근거가 아니다.
+
+수정 전 `original-before.log`와 `saved-before.log`는 기존 실행파일로 원본 추출본과
+한컴 정상 저장본 모두 해당0pitch를 거부한 결과다. `before.log`의 fresh 경계 계약은
+`non-progressing text line`으로 실패했다. 초기 테스트 작성 중 타입 오류와 serializer의
+section-control/마지막 문단 bit 차이를 잘못 전수 비교한 실패는 조판 결함 재현에서 제외했다.
+현재 검사는 원본의 텍스트·스타일·저장 줄 메트릭 보존과 실제 최종 좌표를 직접 검사한다.
+
+정식 `tests/cases/`에는 원본0pitch, 정상 한컴0/100% 위치 대조,20px 본문에서
+12px 줄이 남은2px에 들어가지 않는 경계, 빈/보이는 줄의 각1회 소비, 셀11/12px
+예산과3개 terminal정책, 한 문단의 동일 원점 저장2줄을 포함한다. 기존 negative-gap
+반례는 이제 유효한−12 대신 역방향 전진이 되는−13을 검사한다. 허용치/페이지 수
+baseline은 바꾸지 않았다. 원본 전체의 다음 진단은 문단24의
+`shared text paint changes stored metrics`이며 아직 전체 V2 출력은 미검증이다.
+
+Native에서 정상 저장 두 문서의 review와192dpi 동일 영역 확대를 직접 열어 제목·단위
+위치와 자료출처의10pt 차이를 확인했다. 대체 글꼴 외형 차이는 남는다. 최종 fresh WASM,
+대조군 무회귀와 메인테이너 시각 판정 결과는 아래에 이어 기록한다.
+
+최종 집중 회귀는 기존18 harness에서 **294PASS/0FAIL**이다
+(`tests-final-summary.log`, document-flow80/text34 포함). Native/WASM lib Clippy는
+`clippy-native.log`/`clippy-wasm.log` 모두 exit0, 최종 fmt는 `fmt-final.log`다.
+이는 내부 절편 검증이며 전체 workspace/CI 상당 검증이나 실제 Studio 수동 판정은
+수행하지 않았다. Docker fresh WASM은7분20초/exit0(`docker.log`), SHA-256은
+`d36ac12829eaff93c0df71e5b7c35600908126e4706c94e9a7d676917a7ba8c3`이다.
+
+`REVIEW_CASE={zero,normal} node output/7353/r19/stored-body-rows/review.mjs --wasm`
+결과 두 문서는 각각1쪽이며 Native/WASM JSON수치/기타 차이0, SVG동일이다.
+각 run.json의 입력·PDF·WASM hash와 `source.sha256`으로 최종 제품 소스를 고정했다.
+제품 코드 동결 후 추가한 테스트/문서만 변경했으며 빌드 후 제품 소스 hash도 확인했다.
+
+동일 영역192dpi 확대와 Native/fresh WASM review, 대표 standalone overlay를 직접
+열어 제목·단위 표시·자료출처의 위치를 확인했다.0%와100%의 후속 원점 차이는
+1000HU(10pt)이며 빈 줄은 양쪽 모두 실제 줄로 남는다. 글꼴 굵기/폭과antialias 차이는
+남아 full-page 내용 픽셀 proxy는0%10.39%,100%10.64%다. 자동 점수를 위치 판정이나
+사람의 정확도로 해석하지 않는다. 표24는 자료에서 제외했으므로 표/전체 문서 통과를
+의미하지 않는다. 메인테이너 시각 판정은 다음 자료로 요청한다.
+
+- [두 간격 비교 확대](../../output/7353/r19/stored-body-rows/wasm-spacing-review.png):
+  위0%/아래100%, 왼쪽한컴/오른쪽fresh WASM. 제목·단위가 같은 원점인 상태에서
+  자료출처가 아래 대조군에서10pt 내려가는지 확인한다.
+- [0% review](../../output/7353/r19/stored-body-rows/zero/wasm-review-1.png),
+  [compare](../../output/7353/r19/stored-body-rows/zero/wasm-compare-1.png),
+  [overlay](../../output/7353/r19/stored-body-rows/zero/wasm-overlay-1.png).
+- [100% review](../../output/7353/r19/stored-body-rows/normal/wasm-review-1.png),
+  [compare](../../output/7353/r19/stored-body-rows/normal/wasm-compare-1.png),
+  [overlay](../../output/7353/r19/stored-body-rows/normal/wasm-overlay-1.png).
+- 실제 입력/기준PDF는 `tests/fixtures/issue7353_zero_pitch_review/{zero,normal}-saved.hwp`,
+  `{zero,normal}-2020.pdf`. Native 자료는 같은 output의 `native-*`다.
+
+마지막 `controls.mjs`는 기존7대조군+Double4+직전장식3 ×2 cell-end정책 =28조합에서
+이전 SVG 보존과 Native/WASM동일을 모두 확인했다(`controls-final.log`). 기본 엔진은
+Legacy로 유지하며 push/PR/원격 상태를 변경하지 않았다. 다음 종단 차단점은 위에
+기록한 원본 문단24의 저장 paint 메트릭 불일치다.

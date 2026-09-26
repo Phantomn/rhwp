@@ -145,7 +145,7 @@ pub(super) fn localize(
             || row.text_height != row.line_height
             || row.baseline_distance < 0
             || row.baseline_distance > row.line_height
-            || i64::from(row.line_height) + i64::from(row.line_spacing) <= 0
+            || i64::from(row.line_height) + i64::from(row.line_spacing) < 0
             || row.column_start < 0
             || row.segment_width <= 0
             || (left < content.start && !same(left, content.start))

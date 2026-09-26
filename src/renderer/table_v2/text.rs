@@ -548,9 +548,9 @@ impl CellParagraphComposer for TextComposer<'_> {
             }
             let advance = b.height.min(following[i] - b.y);
             super::contracts::nonnegative(advance, "composed line advance")?;
-            if advance == 0.0 {
-                return Err(GeometryError::Unsupported("non-progressing text line"));
-            }
+            // Zero pitch is an authored spacing choice, not an absent line.
+            // Flow consumes the line owner once and fits its full physical box;
+            // only the next origin stays here (e.g. a right-aligned units label).
             items.push(ParagraphItem::Lines {
                 height: b.height,
                 advance,
