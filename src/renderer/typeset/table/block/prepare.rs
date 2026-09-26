@@ -896,8 +896,15 @@ impl TypesetEngine {
             ft.effective_height,
             table_available,
         );
+        let captioned_column_placement = self.query_captioned_column_rowbreak_placement(
+            st,
+            para,
+            table,
+            ft.host_spacing.before,
+            ft.effective_height,
+        );
         let (fragment_host_placement, host_frame) =
-            if let Some(placement) = closed_source_frame_placement {
+            if let Some(placement) = closed_source_frame_placement.or(captioned_column_placement) {
                 (
                     Some(placement),
                     (

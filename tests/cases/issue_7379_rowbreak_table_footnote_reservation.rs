@@ -130,45 +130,277 @@ fn split_table_outer_origin_caption_gap_and_following_body_match_pdf() {
 /// 모든 행을 한 번씩 보존하고 캡션과 끝 바깥여백도 각주 lane 밖에 수용해야 한다.
 #[test]
 fn terminal_caption_margin_budget_preserves_rows_and_footer_space() {
-    for (margin, gap) in [(283, 850), (30_000, 850), (30_000, 31_000)] {
-        let mut core = core();
-        let mut doc = core.document().clone();
-        let rhwp::model::control::Control::Table(table) =
-            &mut doc.sections[0].paragraphs[HOST_PARA].controls[0]
-        else {
-            panic!("표23")
-        };
-        table.outer_margin_bottom = margin;
-        table.caption.as_mut().expect("아래 캡션").spacing = gap;
-        core.set_document(doc);
-        let mut rows = Vec::new();
-        let mut caption_count = 0;
-        for page in 65..70 {
-            let tree = core.build_page_render_tree(page).expect("변형 경계 쪽");
-            if let Some(table) = host_table(&tree.root) {
-                rows.extend(visible_rows(table));
-            }
-            if let Some(caption_y) = line_top(&tree.root, "표 23.") {
-                caption_count += 1;
-                let body = tree
-                    .root
-                    .children
+    for (margin, gap, reduced_body_hu) in [
+        (283, 850, 0),
+        (30_000, 850, 0),
+        (30_000, 31_000, 0),
+        (32_700, 32_700, 1_500),
+    ] {
+        assert_terminal_caption_budget(margin, gap, reduced_body_hu, false);
+    }
+}
+
+#[test]
+fn terminal_caption_withholds_the_last_rowspan_unit_together() {
+    assert_terminal_caption_budget(32_700, 32_700, 0, true);
+}
+
+/// Only the current fragment budget is short: one final row and its caption
+/// fit a fresh page. Deferral must preserve that row and the following body.
+#[test]
+fn terminal_caption_last_single_row_defers_without_consuming_it() {
+    assert_single_row_caption_deferral(rhwp::model::shape::CaptionDirection::Bottom, 0);
+}
+
+#[test]
+fn opening_caption_last_single_row_reserves_its_full_object_frame() {
+    assert_single_row_caption_deferral(rhwp::model::shape::CaptionDirection::Top, 0);
+}
+
+#[test]
+fn paragraph_caption_frame_preserves_positive_vertical_offset() {
+    assert_single_row_caption_deferral(rhwp::model::shape::CaptionDirection::Bottom, 2_250);
+    assert_single_row_caption_deferral(rhwp::model::shape::CaptionDirection::Top, 2_250);
+}
+
+fn assert_single_row_caption_deferral(
+    direction: rhwp::model::shape::CaptionDirection,
+    vertical_offset: u32,
+) {
+    use rhwp::model::control::Control;
+    let mut core = core();
+    let mut doc = core.document().clone();
+    let Control::Table(table) = &mut doc.sections[0].paragraphs[HOST_PARA].controls[0] else {
+        panic!("원표");
+    };
+    table.cells.retain(|cell| cell.row == 6);
+    for cell in &mut table.cells {
+        cell.row = 0;
+        for paragraph in &mut cell.paragraphs {
+            paragraph
+                .controls
+                .retain(|control| !matches!(control, Control::Footnote(_)));
+        }
+    }
+    table.row_count = 1;
+    table.common.vertical_offset = vertical_offset;
+    table.common.height = table
+        .cells
+        .iter()
+        .map(|cell| cell.height)
+        .max()
+        .expect("마지막 행 높이");
+    table.outer_margin_bottom = 32_700;
+    let caption = table.caption.as_mut().expect("캡션");
+    caption.spacing = 32_700;
+    caption.direction = direction;
+    let outer_top = f64::from(table.outer_margin_top) / 75.0;
+    let following_para = doc.sections[0]
+        .paragraphs
+        .iter()
+        .enumerate()
+        .skip(HOST_PARA + 1)
+        .find(|(_, para)| para.text.contains("42 CFR Part 482"))
+        .map(|(index, _)| index)
+        .expect("뒤 본문 원본");
+    core.set_document(doc);
+    let dump = core.dump_page_items_json(None);
+    let owners: Vec<_> = dump
+        .as_array()
+        .expect("쪽")
+        .iter()
+        .filter(|page| {
+            page["columns"].as_array().expect("단").iter().any(|col| {
+                col["items"]
+                    .as_array()
+                    .expect("항목")
                     .iter()
-                    .find(|node| matches!(node.node_type, RenderNodeType::Body { .. }))
-                    .expect("본문 영역");
-                let boundary =
-                    notes(&tree.root).map_or(body.bbox.y + body.bbox.height, |area| area.bbox.y);
-                let occupied_end = caption_y + 1000.0 / 75.0 + f64::from(margin) / 75.0;
-                assert!(
-                    occupied_end <= boundary + 1.0,
-                    "margin={margin}, page={}, caption end={occupied_end}, footer={boundary}",
-                    page + 1
-                );
+                    .any(|item| item["paraIndex"].as_u64() == Some(HOST_PARA as u64))
+            })
+        })
+        .collect();
+    assert_eq!(
+        owners.len(),
+        1,
+        "한 행을 누락/중복/빈 조각 없이 한 쪽에 보존"
+    );
+    let page = owners[0]["pageIndex"].as_u64().expect("쪽 번호") as u32;
+    let tree = core.build_page_render_tree(page).expect("실제 소유 쪽");
+    let table = host_table(&tree.root).expect("마지막 행");
+    assert_eq!(visible_rows(table), BTreeSet::from([0]));
+    let body_top = owners[0]["bodyArea"]["y"].as_f64().expect("본문 상단");
+    let opening_caption_height = if matches!(direction, rhwp::model::shape::CaptionDirection::Top) {
+        (1_000.0 + 32_700.0) / 75.0
+    } else {
+        0.0
+    };
+    let expected_table_top =
+        body_top + outer_top + opening_caption_height + f64::from(vertical_offset) / 75.0;
+    assert!(
+        (table.bbox.y - expected_table_top).abs() <= 1.5,
+        "중간 쪽에 과수용하지 않고 새 쪽에서 시작: table={}, body={body_top}",
+        table.bbox.y
+    );
+    let caption_y = line_top(&tree.root, "표 23.").expect("최종 캡션");
+    let body_bottom = body_top + owners[0]["bodyArea"]["height"].as_f64().expect("본문 높이");
+    let occupied_end = if matches!(direction, rhwp::model::shape::CaptionDirection::Top) {
+        assert!(
+            caption_y >= body_top - 0.5 && caption_y < table.bbox.y,
+            "위 캡션은 본문 안에서 표보다 앞에 배치: {caption_y}/{}",
+            table.bbox.y
+        );
+        table.bbox.y + table.bbox.height + 32_700.0 / 75.0
+    } else {
+        caption_y + (1_000.0 + 32_700.0) / 75.0
+    };
+    assert!(
+        occupied_end <= body_bottom + 1.0,
+        "캡션/표/바깥 여백 전체 수용: {occupied_end}/{body_bottom}"
+    );
+    let following_owner = dump
+        .as_array()
+        .expect("전체 쪽")
+        .iter()
+        .find(|candidate| {
+            candidate["columns"]
+                .as_array()
+                .expect("단")
+                .iter()
+                .any(|column| {
+                    column["items"]
+                        .as_array()
+                        .expect("항목")
+                        .iter()
+                        .any(|item| item["paraIndex"].as_u64() == Some(following_para as u64))
+                })
+        })
+        .expect("뒤 본문 소유 쪽");
+    let following_page = following_owner["pageIndex"].as_u64().expect("뒤 쪽") as u32;
+    assert!(
+        following_page >= page,
+        "뒤 본문은 캡션보다 앞 쪽으로 가지 않음"
+    );
+    let following_tree = core
+        .build_page_render_tree(following_page)
+        .expect("뒤 본문 출력");
+    let following_y = line_top(&following_tree.root, "○ 42 CFR Part 482").expect("뒤 본문 보존");
+    if following_page == page {
+        assert!(
+            following_y >= occupied_end - 1.5,
+            "표/캡션 종료 뒤 본문 비충돌: {following_y}/{occupied_end}"
+        );
+    }
+}
+
+fn assert_terminal_caption_budget(
+    margin: i16,
+    gap: i16,
+    reduced_body_hu: u32,
+    protect_terminal_rows: bool,
+) {
+    let mut core = core();
+    let mut doc = core.document().clone();
+    let rhwp::model::control::Control::Table(table) =
+        &mut doc.sections[0].paragraphs[HOST_PARA].controls[0]
+    else {
+        panic!("표23")
+    };
+    if protect_terminal_rows {
+        // This counterexample isolates an atomic caption unit that fits a fresh
+        // page. The source table's six notes plus the enlarged caption cannot
+        // jointly fit there; their ownership is checked by separate real tests.
+        for cell in &mut table.cells {
+            for paragraph in &mut cell.paragraphs {
+                paragraph.controls.retain(|control| {
+                    !matches!(control, rhwp::model::control::Control::Footnote(_))
+                });
             }
         }
-        assert_eq!(rows, (0..7).collect::<Vec<_>>(), "행 소유 margin={margin}");
-        assert_eq!(caption_count, 1, "캡션 중복/누락 margin={margin}");
+        // The final rowspan is one row-break unit, including both rows' text.
+        let lower = table
+            .cells
+            .iter()
+            .position(|cell| cell.row == 6 && cell.col == 0)
+            .expect("끝행 첫 셀");
+        let tail = table.cells.remove(lower);
+        let upper = table
+            .cells
+            .iter_mut()
+            .find(|cell| cell.row == 5 && cell.col == 0)
+            .expect("끝행 보호 블록 시작");
+        upper.row_span = 2;
+        upper.height += tail.height;
+        upper.paragraphs.extend(tail.paragraphs);
     }
+    table.outer_margin_bottom = margin;
+    table.caption.as_mut().expect("아래 캡션").spacing = gap;
+    doc.sections[0].section_def.page_def.margin_bottom += reduced_body_hu;
+    core.set_document(doc);
+    let mut rows = Vec::new();
+    let mut caption_count = 0;
+    // A smaller physical budget can move preceding body paragraphs too.
+    // Locate the table's actual owners; synthetic input has no PDF page ID.
+    let owners: Vec<u32> = core
+        .dump_page_items_json(None)
+        .as_array()
+        .expect("물리 페이지")
+        .iter()
+        .filter(|page| {
+            page["columns"].as_array().expect("단").iter().any(|col| {
+                col["items"]
+                    .as_array()
+                    .expect("항목")
+                    .iter()
+                    .any(|item| item["paraIndex"].as_u64() == Some(HOST_PARA as u64))
+            })
+        })
+        .map(|page| page["pageIndex"].as_u64().expect("페이지 번호") as u32)
+        .collect();
+    for page in owners {
+        let tree = core.build_page_render_tree(page).expect("변형 경계 쪽");
+        if let Some(table) = host_table(&tree.root) {
+            let owned_rows = visible_rows(table);
+            if protect_terminal_rows && (owned_rows.contains(&5) || owned_rows.contains(&6)) {
+                assert!(
+                    owned_rows.contains(&5) && owned_rows.contains(&6),
+                    "캡션 예산 때문에 마지막 rowspan 소유 유닛을 절단하지 않음: {owned_rows:?}"
+                );
+            }
+            rows.extend(owned_rows.iter().copied());
+            if reduced_body_hu > 0 && !owned_rows.contains(&6) {
+                let dump = core.dump_page_items_json(Some(page));
+                let column = &dump[0]["columns"][0];
+                if column["itemCount"].as_u64() == Some(1) {
+                    let body_y = dump[0]["bodyArea"]["y"].as_f64().expect("본문 원점");
+                    let reserved = column["usedHeight"].as_f64().expect("예약 높이");
+                    let painted_end = table.bbox.y + table.bbox.height - body_y;
+                    // A nonterminal fragment owns only its accepted rows;
+                    // caption and terminal bottom margin are still pending.
+                    assert!((reserved - painted_end).abs() <= 0.5,
+                        "중간 조각 내용/물리 공간: page={}, rows={owned_rows:?}, reserved={reserved}, painted_end={painted_end}", page + 1);
+                }
+            }
+        }
+        if let Some(caption_y) = line_top(&tree.root, "표 23.") {
+            caption_count += 1;
+            let body = tree
+                .root
+                .children
+                .iter()
+                .find(|node| matches!(node.node_type, RenderNodeType::Body { .. }))
+                .expect("본문 영역");
+            let boundary =
+                notes(&tree.root).map_or(body.bbox.y + body.bbox.height, |area| area.bbox.y);
+            let occupied_end = caption_y + 1000.0 / 75.0 + f64::from(margin) / 75.0;
+            assert!(
+                occupied_end <= boundary + 1.0,
+                "margin={margin}, page={}, caption end={occupied_end}, footer={boundary}",
+                page + 1
+            );
+        }
+    }
+    assert_eq!(rows, (0..7).collect::<Vec<_>>(), "행 소유 margin={margin}");
+    assert_eq!(caption_count, 1, "캡션 중복/누락 margin={margin}");
 }
 
 /// 원본 row4의 [0,1620,3240,0] 저장 줄과 PDF76/77의 prefix/tail 소유.

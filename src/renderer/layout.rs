@@ -13935,6 +13935,30 @@ impl LayoutEngine {
         // 페이지 바닥의 후행 간격을 콘텐츠 초과로 오판하지 않도록 한다.
         self.last_item_content_bottom.set(y_offset);
         if let Some(para) = paragraphs.get(para_index) {
+            if let Some(Control::Table(table)) = para.controls.get(control_index) {
+                let opens =
+                    crate::renderer::float_placement::hwpx_column_rowbreak_fragment_opens_outer_top(
+                        self.profile.get().hwpx_stored_layout(),
+                        table,
+                        false,
+                        0,
+                        &[],
+                        true,
+                    );
+                if crate::renderer::float_placement::column_rowbreak_caption_outer_spacing_px(
+                    opens, para, table, self.dpi,
+                ) > 0.0
+                {
+                    if let Some(placement) = ctx
+                        .paragraph_float_placements
+                        .get(&(para_index, control_index))
+                    {
+                        // Resolved caption frames share both origin and flow end.
+                        // The terminal margin is trailing flow, not table content.
+                        y_offset = col_area.y + placement.occupied_bottom;
+                    }
+                }
+            }
             let comp = composed.get(para_index);
             let para_style_id = comp
                 .map(|c| c.para_style_id as usize)

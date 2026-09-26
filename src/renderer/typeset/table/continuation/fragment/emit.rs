@@ -100,11 +100,28 @@ impl TypesetEngine {
             end_row_height_override = Some((frame_height - before_last).max(0.0));
             partial_height = frame_height;
         }
+        let captioned_object_frame = self
+            .query_captioned_column_rowbreak_placement(
+                st,
+                input.source.paragraph,
+                table,
+                host_before_overhead,
+                0.0,
+            )
+            .is_some();
         let commit_fragment = |st: &mut TypesetState, owner_height: f64, terminal: bool| {
             if let Some(mut placement) = fragment_placement {
                 placement.occupied_bottom = placement.table_top
                     + owner_height
-                    + hwpunit_to_px(table.outer_margin_bottom as i32, self.dpi);
+                    + if captioned_object_frame {
+                        if terminal {
+                            terminal_outer_bottom_overhead
+                        } else {
+                            fragment_outer_bottom_overhead
+                        }
+                    } else {
+                        hwpunit_to_px(table.outer_margin_bottom as i32, self.dpi)
+                    };
                 st.record_paragraph_float_placement((para_idx, ctrl_idx), placement);
                 st.align_flow_to(
                     placement.occupied_bottom
@@ -131,28 +148,6 @@ impl TypesetEngine {
                 para_idx, st.section_index, cursor_row, end_row, consumed, partial_height,
                 split_end_limit, avail_for_rows, consumed <= avail_for_rows + 0.1,
             );
-        }
-
-        // 마지막 파트에 Bottom 캡션 공간 확보
-        if end_row >= row_count
-            && split_end_limit == 0.0
-            && !caption_is_top
-            && caption_overhead > 0.0
-        {
-            let total_with_caption = partial_height
-                + caption_overhead
-                + (terminal_outer_bottom_overhead - fragment_outer_bottom_overhead).max(0.0);
-            let avail = if is_continuation {
-                (page_avail - header_overhead).max(0.0)
-            } else {
-                page_avail
-            };
-            if total_with_caption > avail {
-                end_row = end_row.saturating_sub(1);
-                if end_row <= cursor_row {
-                    end_row = cursor_row + 1;
-                }
-            }
         }
 
         if end_row >= row_count && split_end_limit == 0.0 {

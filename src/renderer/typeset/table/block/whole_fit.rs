@@ -70,6 +70,76 @@ impl TypesetEngine {
         })
     }
 
+    /// A zero-width object anchor owns the table/caption outer box. Its declared
+    /// table height alone cannot accept a caption that exceeds the body budget.
+    pub(in crate::renderer::typeset) fn query_captioned_column_rowbreak_placement(
+        &self,
+        st: &TypesetState,
+        para: &crate::model::paragraph::Paragraph,
+        table: &crate::model::table::Table,
+        host_before: f64,
+        table_and_caption_height: f64,
+    ) -> Option<crate::renderer::float_placement::ParagraphFloatPlacement> {
+        use crate::renderer::float_placement as placement;
+        let opens = placement::hwpx_column_rowbreak_fragment_opens_outer_top(
+            st.profile.hwpx_stored_layout(),
+            table,
+            false,
+            0,
+            &[],
+            st.current_height <= 0.5,
+        );
+        let signed_offset = signed_hwpunit(table.common.vertical_offset);
+        // This plan advances a paragraph-anchored object. Absolute references,
+        // center/bottom alignment and backward anchors retain their positioned
+        // object resolver rather than being reinterpreted as a forward flow box.
+        if !opens
+            || !matches!(
+                table.common.vert_rel_to,
+                crate::model::shape::VertRelTo::Para
+            )
+            || !matches!(
+                table.common.vert_align,
+                crate::model::shape::VertAlign::Top | crate::model::shape::VertAlign::Inside
+            )
+            || signed_offset < 0
+            || !placement::object_only_saved_table_anchor(para, table)
+            || !table.caption.as_ref().is_some_and(|caption| {
+                matches!(
+                    caption.direction,
+                    crate::model::shape::CaptionDirection::Top
+                        | crate::model::shape::CaptionDirection::Bottom
+                )
+            })
+        {
+            return None;
+        }
+        let offset_consumed = st.current_items.is_empty()
+            && st.current_height < 1.0
+            && placement::para_offset_consumed_by_page_break(
+                para,
+                &table.common,
+                st.base_available_height(),
+                self.dpi,
+            );
+        let top = st.current_height
+            + host_before
+            + if offset_consumed {
+                0.0
+            } else {
+                hwpunit_to_px(signed_offset, self.dpi)
+            };
+        Some(placement::ParagraphFloatPlacement {
+            flow: placement::ParagraphFloatFlow::NextLine,
+            anchor_y: st.current_height,
+            stored_host_origin: None,
+            table_top: top,
+            occupied_bottom: top
+                + table_and_caption_height
+                + placement::column_rowbreak_caption_outer_spacing_px(opens, para, table, self.dpi),
+        })
+    }
+
     pub(super) fn query_whole_table_fit(
         &self,
         st: &TypesetState,

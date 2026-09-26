@@ -328,6 +328,14 @@ impl TypesetEngine {
         } else {
             page_avail
         };
+        let captioned_current_placement = self.query_captioned_column_rowbreak_placement(
+            st,
+            para,
+            table,
+            host_before_overhead,
+            0.0,
+        );
+        let captioned_object_frame = captioned_current_placement.is_some();
         let fragment_placement = prepared.host_placement.map(|original| {
             if !is_continuation
                 && prepared.host_frame
@@ -340,13 +348,19 @@ impl TypesetEngine {
                 original
             } else {
                 // 첫 조각 전체가 이월된 경우에도 이전 frame의 거리를 재가산하지 않는다.
-                crate::renderer::float_placement::ParagraphFloatPlacement {
-                    flow: original.flow,
-                    anchor_y: st.current_height,
-                    stored_host_origin: None,
-                    table_top: st.current_height + host_before_overhead,
-                    occupied_bottom: st.current_height + host_before_overhead,
-                }
+                let unanchored_fragment =
+                    crate::renderer::float_placement::ParagraphFloatPlacement {
+                        flow: original.flow,
+                        anchor_y: st.current_height,
+                        stored_host_origin: None,
+                        table_top: st.current_height + host_before_overhead,
+                        occupied_bottom: st.current_height + host_before_overhead,
+                    };
+                // An unchanged first unit still owns its paragraph offset after
+                // clean deferral. A continuation has already consumed that anchor.
+                captioned_current_placement
+                    .filter(|_| !is_continuation)
+                    .unwrap_or(unanchored_fragment)
             }
         });
         // A resolved host origin is shared with paint. Single-cell fragments
@@ -386,7 +400,13 @@ impl TypesetEngine {
             (boundary
                 - p.table_top
                 - caption_extra
-                - hwpunit_to_px(table.outer_margin_bottom as i32, self.dpi)
+                - if captioned_object_frame {
+                    // Closing caption margin belongs only to the terminal unit;
+                    // scan reserves it when accepting that unit.
+                    fragment_outer_bottom_overhead
+                } else {
+                    hwpunit_to_px(table.outer_margin_bottom as i32, self.dpi)
+                }
                 - if !is_continuation && start_cut.is_empty() {
                     first_fragment_painted_row_footer_guard
                 } else {

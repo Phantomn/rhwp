@@ -75,6 +75,45 @@ impl TypesetEngine {
         };
         // [Task #1025] split_block_start: 블록 분할 시 연속분 커서 복귀 기록.
         let issue2424_scan_started = profile.enabled.then(std::time::Instant::now);
+        let scan_vars = BlockRowScanVars {
+            cursor_row,
+            row_count: scan_row_count,
+            cs,
+            can_intra_split,
+            is_continuation,
+            avail_for_rows,
+            header_overhead,
+            landscape_rowbreak_bleed,
+            landscape_whole_row_tolerance,
+            landscape_short_row_tolerance,
+            landscape_short_row_max_height,
+            strict_painted_bottom_fit: strict_following_plain_text_fit,
+            source_first_fragment_overflow_allowance,
+            source_first_fragment_row_end,
+            start_row_height_override,
+        };
+        let run_scan = |vars| {
+            self.scan_block_table_split_rows(
+                st,
+                layout_engine,
+                mt,
+                row_geometry_table,
+                styles,
+                cut_row_h,
+                whole_row_fit_h,
+                rowspan_touched,
+                &start_cut,
+                vars,
+                BlockTableRowScan {
+                    consumed: 0.0,
+                    end_row: cursor_row,
+                    split_block_start: None,
+                    split_end_cut: Vec::new(),
+                    split_end_limit: 0.0,
+                    end_row_height_override: None,
+                },
+            )
+        };
         let BlockTableRowScan {
             mut consumed,
             mut end_row,
@@ -82,42 +121,7 @@ impl TypesetEngine {
             mut split_end_cut,
             mut split_end_limit,
             mut end_row_height_override,
-        } = self.scan_block_table_split_rows(
-            st,
-            layout_engine,
-            mt,
-            row_geometry_table,
-            styles,
-            cut_row_h,
-            whole_row_fit_h,
-            rowspan_touched,
-            &start_cut,
-            BlockRowScanVars {
-                cursor_row,
-                row_count: scan_row_count,
-                cs,
-                can_intra_split,
-                is_continuation,
-                avail_for_rows,
-                header_overhead,
-                landscape_rowbreak_bleed,
-                landscape_whole_row_tolerance,
-                landscape_short_row_tolerance,
-                landscape_short_row_max_height,
-                strict_painted_bottom_fit: strict_following_plain_text_fit,
-                source_first_fragment_overflow_allowance,
-                source_first_fragment_row_end,
-                start_row_height_override,
-            },
-            BlockTableRowScan {
-                consumed: 0.0,
-                end_row: cursor_row,
-                split_block_start: None,
-                split_end_cut: Vec::new(),
-                split_end_limit: 0.0,
-                end_row_height_override: None,
-            },
-        );
+        } = run_scan(scan_vars);
         if let Some(started) = issue2424_scan_started {
             profile.scan.0 += started.elapsed();
             profile.scan.1 += 1;
@@ -212,42 +216,10 @@ impl TypesetEngine {
                 let avail_refit = (avail_for_rows + table_fn_reserved).min(min_anchor + pad + 0.1);
                 if avail_refit > avail_for_rows + 0.5 {
                     let issue2424_refit_started = profile.enabled.then(std::time::Instant::now);
-                    let refit = self.scan_block_table_split_rows(
-                        st,
-                        layout_engine,
-                        mt,
-                        row_geometry_table,
-                        styles,
-                        cut_row_h,
-                        whole_row_fit_h,
-                        rowspan_touched,
-                        &start_cut,
-                        BlockRowScanVars {
-                            cursor_row,
-                            row_count: scan_row_count,
-                            cs,
-                            can_intra_split,
-                            is_continuation,
-                            avail_for_rows: avail_refit,
-                            header_overhead,
-                            landscape_rowbreak_bleed,
-                            landscape_whole_row_tolerance,
-                            landscape_short_row_tolerance,
-                            landscape_short_row_max_height,
-                            strict_painted_bottom_fit: strict_following_plain_text_fit,
-                            source_first_fragment_overflow_allowance,
-                            source_first_fragment_row_end,
-                            start_row_height_override,
-                        },
-                        BlockTableRowScan {
-                            consumed: 0.0,
-                            end_row: cursor_row,
-                            split_block_start: None,
-                            split_end_cut: Vec::new(),
-                            split_end_limit: 0.0,
-                            end_row_height_override: None,
-                        },
-                    );
+                    let refit = run_scan(BlockRowScanVars {
+                        avail_for_rows: avail_refit,
+                        ..scan_vars
+                    });
                     if let Some(started) = issue2424_refit_started {
                         profile.refit.0 += started.elapsed();
                         profile.refit.1 += 1;
@@ -275,6 +247,77 @@ impl TypesetEngine {
                             end_row = cursor_row + 1;
                         }
                     }
+                }
+            }
+        }
+
+        // A bottom caption and terminal outer margin close the final unit.
+        // An opening caption is already charged to the first fragment budget.
+        // If that unit cannot close here, rescan the accepted
+        // prefix rather than changing only end_row after heights/cuts were fixed.
+        if end_row >= row_count && split_end_limit == 0.0 && input.prepared.caption_overhead > 0.0 {
+            let closing_overhead = if input.prepared.caption_is_top {
+                // The opening caption is already deducted from page_avail.
+                0.0
+            } else {
+                input.prepared.caption_overhead
+            } + (budget.terminal_outer_bottom_overhead
+                - budget.fragment_outer_bottom_overhead)
+                .max(0.0);
+            let closing_height = consumed + header_overhead + closing_overhead;
+            if closing_height > budget.page_avail {
+                let rows = table::scan::RowBlockQuery {
+                    layout_engine,
+                    mt,
+                    table: row_geometry_table,
+                    styles,
+                    cut_row_h,
+                    rowspan_touched,
+                    cs,
+                };
+                let last_range = rows.candidate(row_count - 1);
+                let last = rows.candidate(last_range.b_start);
+                let terminal_start = if last.protected || last.rowbreak_rowspan_block {
+                    last.b_start
+                } else {
+                    row_count - 1
+                };
+                if terminal_start <= cursor_row
+                    && st.current_height > 0.0
+                    && !st.current_items.is_empty()
+                    && closing_height + budget.caption_extra + budget.host_before_overhead
+                        <= st.base_available_height()
+                {
+                    // No preceding table unit can be committed. Clear actual
+                    // earlier items, preserving the cursor. A saved positive
+                    // anchor on an otherwise empty frame must not loop forever.
+                    return BlockTableRowScan {
+                        consumed: 0.0,
+                        end_row: cursor_row,
+                        split_block_start: None,
+                        split_end_cut: Vec::new(),
+                        split_end_limit: 0.0,
+                        end_row_height_override: None,
+                    };
+                }
+                let refit = run_scan(if terminal_start > cursor_row {
+                    BlockRowScanVars {
+                        row_count: terminal_start,
+                        ..scan_vars
+                    }
+                } else {
+                    BlockRowScanVars {
+                        avail_for_rows: (avail_for_rows - closing_overhead).max(0.0),
+                        ..scan_vars
+                    }
+                });
+                if refit.end_row > cursor_row && refit.consumed > 0.0 {
+                    consumed = refit.consumed;
+                    end_row = refit.end_row;
+                    split_block_start = refit.split_block_start;
+                    split_end_cut = refit.split_end_cut;
+                    split_end_limit = refit.split_end_limit;
+                    end_row_height_override = refit.end_row_height_override;
                 }
             }
         }

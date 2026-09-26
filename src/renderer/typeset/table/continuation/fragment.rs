@@ -114,6 +114,12 @@ impl TypesetEngine {
 
         let budget = self.prepare_table_fragment_budget(st, input);
         let scan = self.scan_table_fragment(st, input, &budget, profile);
+        if scan.end_row == cursor_row && scan.consumed == 0.0 {
+            // Caption closure deferred an intact last unit; no content or
+            // physical height has been consumed in the current fragment.
+            st.advance_column_or_new_page();
+            return TableContinuationIteration::Skipped;
+        }
         self.emit_table_fragment(st, continuation, input, &budget, scan)
     }
 }
