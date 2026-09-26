@@ -16,6 +16,74 @@ use rhwp::{
 };
 use serde_json::{json, Value};
 
+#[test]
+fn saved_market_table_keeps_original_shared_width_intervals_and_following_text() {
+    let data = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue7353_shared_border_review/reflow-saved.hwp"
+    ))
+    .unwrap();
+    let d = rhwp::parse_document(&data).unwrap();
+    let Control::Table(source) = &d.sections[0].paragraphs[3].controls[0] else {
+        panic!()
+    };
+    assert_eq!((source.row_count, source.col_count), (13, 8));
+    assert_eq!(
+        (source.cells[0].width, source.cells[0].height),
+        (3432, 3530)
+    );
+    let mut session = DocumentV2Session::from_bytes(&data, TERMINAL_OPTIONS).unwrap();
+    let pages = drain(&mut session);
+    assert_eq!(pages.len(), 1);
+    let page = &pages[0];
+    assert_eq!(nodes(page, "TableCell").len(), source.cells.len());
+    let table = nodes(page, "Table")[0];
+    let x = table["bbox"]["x"].as_f64().unwrap();
+    let y = table["bbox"]["y"].as_f64().unwrap();
+    let width = table["bbox"]["width"].as_f64().unwrap();
+    let split_x = x + 3432. / 75.;
+    let header_bottom = y + 3530. / 75.;
+    let edges: Vec<_> = nodes(page, "Line")
+        .into_iter()
+        .filter(|n| {
+            let l = &n["node_type"]["Line"];
+            (l["y1"].as_f64().unwrap() - header_bottom).abs() < 1e-7
+                && (l["y2"].as_f64().unwrap() - header_bottom).abs() < 1e-7
+        })
+        .collect();
+    // Independent PDF: thin rank-cell bottom, then overlapping .24/.48pt
+    // black strokes. At96dpi their opaque union is .32/.64px respectively.
+    assert_eq!(edges.len(), 2);
+    for (n, (left, right, thickness)) in edges
+        .iter()
+        .zip([(x, split_x, 0.32), (split_x, x + width, 0.64)])
+    {
+        let l = &n["node_type"]["Line"];
+        assert!((l["x1"].as_f64().unwrap() - left).abs() < 1e-7);
+        assert!((l["x2"].as_f64().unwrap() - right).abs() < 1e-7);
+        assert!((l["style"]["width"].as_f64().unwrap() - thickness).abs() < 1e-7);
+        assert_eq!(l["style"]["color"], 0);
+        assert!((n["bbox"]["height"].as_f64().unwrap() - thickness).abs() < 1e-7);
+    }
+    let runs = nodes(page, "TextRun");
+    let text: String = runs
+        .iter()
+        .map(|n| n["node_type"]["TextRun"]["text"].as_str().unwrap())
+        .collect();
+    assert!(text.contains("자료출처"));
+    let after = runs
+        .iter()
+        .find(|n| {
+            n["node_type"]["TextRun"]["text"]
+                .as_str()
+                .unwrap()
+                .contains("자료출처")
+        })
+        .unwrap();
+    assert!(after["bbox"]["y"].as_f64().unwrap() >= y + table["bbox"]["height"].as_f64().unwrap());
+    assert!(session.next_page_json().unwrap().is_none());
+}
+
 fn p(text: &str) -> Paragraph {
     Paragraph {
         text: text.into(),
@@ -1865,6 +1933,81 @@ fn hancom_saved_overlapping_zones_and_cell_edge_priority_are_renderable() {
                 }
             }
         }
+    }
+}
+
+#[test]
+fn adjacent_zone_solid_width_union_is_declaration_order_independent() {
+    use rhwp::model::table::TableZone;
+    let mut d = synthetic_zone_source();
+    d.doc_info.border_fills[1].borders = [BorderLine {
+        line_type: BorderLineType::Solid,
+        width: 0,
+        color: 0,
+    }; 4];
+    d.doc_info.border_fills[1].borders[1].width = 2;
+    let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+        panic!()
+    };
+    t.zones = (0..2)
+        .map(|col| TableZone {
+            start_row: 0,
+            end_row: 1,
+            start_col: col,
+            end_col: col,
+            border_fill_id: 2,
+        })
+        .collect();
+    let mut previous = None;
+    for _ in 0..2 {
+        let pages = drain(&mut open(&d));
+        assert_eq!(pages.len(), 2);
+        assert_eq!(labels(pages.last().unwrap()).last(), Some(&"after"));
+        let table = nodes(&pages[0], "Table")[0];
+        let shared_x = table["bbox"]["x"].as_f64().unwrap() + 100.0;
+        let shared: Vec<_> = nodes(&pages[0], "Line")
+            .into_iter()
+            .filter(|n| {
+                let l = &n["node_type"]["Line"];
+                (l["x1"].as_f64().unwrap() - shared_x).abs() < 1e-7
+                    && (l["x2"].as_f64().unwrap() - shared_x).abs() < 1e-7
+            })
+            .collect();
+        assert_eq!(shared.len(), 1);
+        let line = &shared[0]["node_type"]["Line"];
+        // width2: 0.15mm -> 4 units on the 600dpi grid -> 0.64px at 96dpi.
+        near(&line["style"]["width"], 0.64);
+        near(&line["y1"], table["bbox"]["y"].as_f64().unwrap());
+        near(
+            &line["y2"],
+            table["bbox"]["y"].as_f64().unwrap() + table["bbox"]["height"].as_f64().unwrap(),
+        );
+        // Zone fill nodes retain declaration order and node IDs. Compare the
+        // painted geometry/styles, not those unrelated serialization details.
+        let mut painted = Vec::new();
+        for (index, page) in pages.iter().enumerate() {
+            for kind in [
+                "Table",
+                "TableCell",
+                "TextLine",
+                "TextRun",
+                "Line",
+                "Rectangle",
+            ] {
+                for node in nodes(page, kind) {
+                    painted.push(json!([index, node["bbox"], node["node_type"]]).to_string());
+                }
+            }
+        }
+        painted.sort();
+        if let Some(expected) = &previous {
+            assert_eq!(&painted, expected);
+        }
+        previous = Some(painted);
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            panic!()
+        };
+        t.zones.reverse();
     }
 }
 

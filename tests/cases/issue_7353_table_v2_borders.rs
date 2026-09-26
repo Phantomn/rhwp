@@ -838,6 +838,7 @@ fn conflicting_edges_reject_before_commit_and_remain_retryable() {
     let mut d = doc(t);
     let mut other = border();
     other.borders[0].width = 8;
+    other.borders[0].color = 0x445566;
     d.doc_info.border_fills.push(other.clone());
     let (data, config) = source(&d);
     capture("border-conflict", &data, &config, &[]);
@@ -868,6 +869,60 @@ fn conflicting_edges_reject_before_commit_and_remain_retryable() {
             .to_string()
             .contains("conflicting shared V2 cell borders"));
         assert_eq!(s.emitted_pages(), 1);
+    }
+}
+
+#[test]
+fn same_color_solid_shared_edges_union_width_per_interval() {
+    let base = doc(grid(2));
+    let baseline = pages("shared-width-control", &base);
+    for reverse in [false, true] {
+        let mut d = base.clone();
+        let mut thick = border();
+        thick.borders[2].width = 8;
+        d.doc_info.border_fills.push(thick);
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            panic!()
+        };
+        t.cells[1].border_fill_id = 2;
+        if reverse {
+            t.cells.reverse();
+        }
+        let actual = pages("shared-width", &d);
+        assert_eq!(actual.len(), 1);
+        let lines = collect(root(&actual[0]), "Line");
+        let shared: Vec<_> = lines
+            .iter()
+            .filter(|l| {
+                let c = coords(l);
+                c[1] == 48. && c[3] == 48.
+            })
+            .collect();
+        assert_eq!(shared.len(), 2);
+        assert_eq!(coords(shared[0]), [20., 48., 120., 48.]);
+        assert_eq!(coords(shared[1]), [120., 48., 220., 48.]);
+        // 0.6/0.5mm round to 14/12 units on Hancom's 600dpi grid: 2.24/1.92px.
+        near(
+            shared[0]["node_type"]["Line"]["style"]["width"]
+                .as_f64()
+                .unwrap(),
+            2.24,
+        );
+        near(
+            shared[1]["node_type"]["Line"]["style"]["width"]
+                .as_f64()
+                .unwrap(),
+            1.92,
+        );
+        for kind in ["Table", "TableCell", "TextLine", "TextRun"] {
+            let boxes = |p: &Value| {
+                collect(root(p), kind)
+                    .iter()
+                    .map(|n| n["bbox"].clone())
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(boxes(&actual[0]), boxes(&baseline[0]), "{kind}");
+        }
     }
 }
 

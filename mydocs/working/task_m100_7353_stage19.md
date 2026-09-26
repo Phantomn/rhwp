@@ -3993,3 +3993,82 @@ fresh WASM review·standalone overlay·확대 비교와 BASELINE 정상 대조�
 이번 절편의 사람 시각 판정은 대기다. Legacy 기본 경로·페이지수 golden·ignore는
 변경하지 않았고 원격 push/PR도 하지 않는다. 다음 원본 경계는 표24의 공유 테두리
 충돌과 문단35의 TAC 저장 폭 제한이며, 이번 대조군 통과로 해결된 것으로 간주하지 않는다.
+
+### 공유 실선의 굵기 결합 — 원본 표24의 paint 경계
+
+작업지시자는 CENTER 기준점 절편(`2134c34ca`)의 시각 판정을 통과시켰다.
+다음 대상은 같은 표의 테두리다. `CellBorders::append`가 셀 소유 경계를 물리 조각의
+topology interval로 수집한 뒤 `union`에서 스타일이 다르면 전부 거부한다. 원본 표는
+제목 아래7개 구간에서 같은 검정 Solid의 width0/2(0.10/0.15mm)가 맞닿는다.
+기존 한컴 정상 재저장 분리본 `stored-paint/table-saved.hwp`와 대응 PDF를 재사용한다.
+이번에는 테두리를 통일하지 않는다. PDF trace(`shared-borders/reference-trace.xml`)의
+y=671.386pt 경계에서0.24pt와0.48pt 검정 실선이 같은 중심선에 겹쳐 그려진다.
+왼쪽 순위 열은0.24pt만 유지되고 제조사 열부터0.48pt가 겹친다. 따라서 동색 불투명
+실선의 점유 합집합을 구간별 큰 굵기 하나로 표현할 수 있다. 다른 색/복선/서로 다른
+선종의 우선순위까지 이 근거로 추정하지 않는다.
+
+변경 값의 경로는 셀 BorderFill → `CellBorders::append`의 span → `union`의 구간별
+스타일 → 공통 LineNode/ink bbox → SVG/Canvas다. 줄·표 측정과 pagination은 선 굵기를
+소비하지 않으며 셀/표/뒤 문단 bbox를 바꾸지 않는다. 분할 시에도 기존 accepted physical
+rectangles의 동일한 중심선에 적용한다. 컷·요구/예약 높이·이월·종료는 변경하지 않는다.
+반례는 부분적으로만 겹치는 병합 셀 경계, 선언 순서 반전, 분할 조각, 색/선종 충돌이다.
+정식 `same_color_solid_shared_edges_union_width_per_interval`는 수정 전 정상 컴파일 후
+`conflicting shared V2 cell borders`로 실패했다(`shared-borders/before.log`).
+
+#### 입력 유효성과 판정 범위
+
+실제 출력에서 추출본 `table-input.hwp`와 그 입력을 직접 출력한 한컴 PDF 사이에 큰
+위치 차이가 보였다. 이를 통과 이미지로 제시하지 않는다. 실패 출력은
+`shared-borders/raw-review/`에, 입력/직접 PDF는
+`tests/fixtures/issue7353_shared_border_review/`에 보존했다. 직접 HWP 재저장본도
+host 저장 폭42520HU < 표46149HU로 별도의 TAC 수용 오류를 낸다. 이번 실선 수정으로
+두 문제를 해결했다고 간주하지 않는다.
+
+최종 판정 입력은 같은 표의 테두리·배경·문자/문단 속성을 유지하고 저장 LineSeg만
+비운 HWPX를 한컴으로 정상 재저장한 `reflow-saved.hwp`와 대응 `reflow-2020.pdf`다.
+이전 CENTER 조사에서 생성한 정상 대조군을 재사용했다. 생성 절차·MCP job·파일 해시와
+HWPX 경유에 따른 한계는 fixture README에 기록했다. 원본 저장 줄 입력의 성공이나
+원본 전체 문서 통과로 대체하지 않는다. 원본 PageDef와 정상 대조군은 같지만
+host vpos20892→3380HU, 직접 HWP 저장/정상 대조군의 폭42520/48188HU 차이가 있다.
+이 위치/폭 문제는 다음 진단 대상으로 남긴다.
+
+#### 실행 증거
+
+검증 source는 `2134c34ca` + 이번 patch이며, 생산 코드
+`src/renderer/table_v2/borders.rs` SHA-256은
+`d7ccc9b15ee6ae3482ab76b0f61bbd4c60049a9d3db93b097a02e35c0b671f35`다.
+`shared-borders/source.sha256`와 fresh WASM `review/run.json`에 고정했다.
+
+| 검증 | 결과 / 증거 |
+| --- | --- |
+| 수정 전→후 | 정식 공유선 구간 계약이 이전 코드에서 거부 오류로 FAIL, 수정 후 PASS (`before.log`, borders harness log) |
+| 18개 정식 harness | 최초299 PASS 후 document harness를81→83건으로 확장·재실행하여 **301 PASS / 0 FAIL** (`tests-summary.log`, `document-final.log`) |
+| 셀/분할/zone 경로 | 부분 공유선 굵기·선 끝점·잉크 bbox·선언 순서 반전·분할 뒤 내용 보존 검사. 다른 색 충돌은 여전히 거부 |
+| 정상 한컴 저장본 | 13×8 표의 원래 공유선 구간0.32/0.64px와 뒤 자료출처 보존, 정상 종료 검사 |
+| 포맷·lint | fmt check, Native/WASM32 library Clippy `-D warnings` PASS (`fmt.log`, `clippy-{native,wasm}.log`) |
+| fresh WASM | Docker 빌드7분15초, WASM SHA `a66177444ede1194bac9868c1fdbf42dbf907cb1b41cd3bbf3de5929969794f8` (`docker.log`) |
+| 대상 backend 비교 | SVG 동일, 구조 차이 없음, 좌표 부동소수 최대차2.28e-13 (`review/backend-comparison.json`) |
+| 기존 대조군 | 14입력×2종 terminal policy=28조합32페이지, 기존 Native SVG 유지 및 fresh WASM SVG 동일 (`controls-final.log`) |
+
+실제 호출 경로에 zone perimeter도 같은 `union`을 소비한다. 동일한 zone 스타일의
+좌/우 실선 굵기가 서로 다른 인접 zone을 합성 계약으로 추가해 최종 공유선의 길이·굵기와
+선언 순서 무관성을 검사했다. 배경 node의 선언 순서/ID가 아닌 실제 geometry/style을
+비교한다. 이는 실선 합집합의 계약이며 한컴의 서로 다른 zone 스타일 우선순위 증거는 아니다.
+기존 `zones::prepare`의 서로 다른 장식 충돌과 복선 junction 제한은 유지한다.
+
+Native와 fresh WASM의 review·standalone overlay·확대 비교를 직접 열어 제목/단위,
+공유선 구간, 모든 행/회색 배경, 외곽과 뒤 자료출처를 확인했다. 글꼴 외형·굵기·상대크기
+차이는 남아 있다. 이번 사람 판정 대상은 **원래 테두리를 보존한 정상 대조군의 공유선**이다.
+
+- 확대 비교: `output/7353/r19/shared-borders/wasm-border-detail.png`
+- compare: `output/7353/r19/shared-borders/review/wasm-compare-1.png`
+- standalone overlay: `output/7353/r19/shared-borders/review/wasm-overlay-1.png`
+- review: `output/7353/r19/shared-borders/review/wasm-review-1.png`
+
+코멘트: 내용 픽셀 중심 자동 일치율 보조값 = 약38.34%.
+높을수록 기준 PDF와 rhwp PNG가 더 비슷합니다.
+낮은 값은 잉크 위치나 형태 차이의 검토 신호입니다.
+사람의 판정 정확도가 아닌 자동 보조값입니다.
+
+이번 공유선 절편은 사람 시각 판정 대기다. 전체 CI/workspace all-targets와 Studio 수동
+조작은 이번에 실행하지 않았다. Legacy 기본 경로·golden·ignore 변경, 원격 push/PR은 없다.

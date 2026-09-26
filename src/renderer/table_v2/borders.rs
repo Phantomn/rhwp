@@ -315,13 +315,32 @@ fn union(spans: &[Span]) -> Result<Vec<Span>, GeometryError> {
         let Some(first) = active.next() else {
             continue;
         };
-        if active.any(|s| s.style != first.style) {
-            return Err(GeometryError::Unsupported(
-                "conflicting shared V2 cell borders",
-            ));
+        let mut style = first.style;
+        for span in active {
+            if span.style == style {
+                continue;
+            }
+            // Coincident opaque solid strokes of one color have the union of
+            // their widths. Resolve each topology interval independently: a
+            // short thick edge must not thicken the rest of a merged cell edge.
+            // Hancom's saved market-share table paints both widths on the same
+            // centerline. This is not a priority rule for colors or line types.
+            if style.line_type != BorderLineType::Solid
+                || span.style.line_type != BorderLineType::Solid
+                || style.color != span.style.color
+            {
+                return Err(GeometryError::Unsupported(
+                    "conflicting shared V2 cell borders",
+                ));
+            }
+            if BORDER_WIDTHS[usize::from(span.style.width)].0
+                > BORDER_WIDTHS[usize::from(style.width)].0
+            {
+                style = span.style;
+            }
         }
         if let Some(last) = result.last_mut() {
-            if last.end == pair[0] && last.style == first.style {
+            if last.end == pair[0] && last.style == style {
                 last.end = pair[1];
                 continue;
             }
@@ -329,7 +348,7 @@ fn union(spans: &[Span]) -> Result<Vec<Span>, GeometryError> {
         result.push(Span {
             start: pair[0],
             end: pair[1],
-            style: first.style,
+            style,
         });
     }
     Ok(result)
