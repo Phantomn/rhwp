@@ -1137,3 +1137,93 @@ fn guide_overlap_without_closed_source_frame_keeps_anchor_offset() {
         table.bbox.y
     );
 }
+
+/// 원본 note240의 두 번째0은 PDF178/179의 실제 물리 각주 경계다.
+#[test]
+fn body_note_repeated_page_top_survives_hwpx_parser() {
+    use rhwp::model::control::Control;
+    let core = core();
+    let Control::Footnote(note) = &core.document().sections[0].paragraphs[1865].controls[0] else {
+        panic!("원본 본문 각주");
+    };
+    assert_eq!(note.number, 240);
+    assert_eq!(
+        note.paragraphs[0]
+            .line_segs
+            .iter()
+            .map(|s| s.vertical_pos)
+            .collect::<Vec<_>>(),
+        vec![0, 0, 1172]
+    );
+}
+
+#[test]
+fn body_note_repeated_page_top_keeps_prefix_tail_and_following_notes() {
+    let core = core();
+    let first = core.build_page_render_tree(177).expect("178쪽");
+    let next = core.build_page_render_tree(178).expect("179쪽");
+    let prefix = text(notes(&first.root).expect("178 각주"));
+    let suffix = text(notes(&next.root).expect("179 각주"));
+    assert!(prefix.contains("240)"));
+    assert!(!prefix.contains("HTLV-1"), "꼬리를 앞쪽에서 소비하지 않음");
+    assert!(
+        suffix.contains("HTLV-1") && suffix.contains("jikeisurgery.jp"),
+        "꼬리 두 줄 보존"
+    );
+    assert!(!suffix.contains("240)"), "번호 중복 금지");
+    assert!(
+        suffix.contains("241)") && suffix.contains("242)"),
+        "뒤 정상 각주 보존"
+    );
+    for (label, actual, expected) in [
+        (
+            "앞 번호 줄",
+            line_top(&first.root, "B형 간염 과거력").expect("앞줄"),
+            1027.569,
+        ),
+        (
+            "꼬리 첫 줄",
+            line_top(&next.root, "HTLV-1").expect("꼬리"),
+            964.689,
+        ),
+        (
+            "꼬리 출처",
+            line_top(&next.root, "jikeisurgery.jp").expect("출처"),
+            980.369,
+        ),
+    ] {
+        assert!(
+            (actual - expected).abs() <= 1.5,
+            "{label}: 실제{actual}, 독립PDF{expected}"
+        );
+    }
+}
+
+/// 합성 위치나 저장 줄이 없는 입력으로 물리 owner를 발명하지 않는다.
+#[test]
+fn body_note_invalid_saved_reset_stays_atomic() {
+    use rhwp::model::{control::Control, paragraph::LineSeg};
+    for synthetic in [true, false] {
+        let mut core = core();
+        let mut doc = core.document().clone();
+        let Control::Footnote(note) = &mut doc.sections[0].paragraphs[1865].controls[0] else {
+            panic!("원본 본문 각주");
+        };
+        if synthetic {
+            for line in &mut note.paragraphs[0].line_segs {
+                line.tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
+            }
+        } else {
+            note.paragraphs[0].line_segs.clear();
+        }
+        core.set_document(doc);
+        let first = core.build_page_render_tree(177).expect("앞쪽");
+        let prefix = text(notes(&first.root).expect("각주"));
+        assert!(
+            prefix.contains("240)")
+                && prefix.contains("HTLV-1")
+                && prefix.contains("jikeisurgery.jp"),
+            "유효하지 않은 저장 줄은 각주를 분할하지 않음: {prefix}"
+        );
+    }
+}

@@ -5887,14 +5887,19 @@ fn normalize_hwpx_note_line_vpos(paragraph: &mut Paragraph, preserve_all_zero: b
     // A footnote starting at its own page origin can restart after positive
     // lines (e.g. 0,1172,0). This is a physical footer-page boundary, not the
     // trailing-zero artifact whose first line already starts above zero.
-    // Keep endnote normalization and the [2344,0] artifact contract unchanged.
+    // Repeated page-top lines (0,0,1172) likewise place the second line
+    // on the next physical footer page. Keep endnote normalization and the
+    // [2344,0] artifact contract unchanged.
     if preserve_all_zero
         && paragraph.line_segs[0].vertical_pos == 0
-        && paragraph.line_segs.windows(2).any(|lines| {
+        && (paragraph.line_segs.windows(2).any(|lines| {
             lines[0].vertical_pos > 0
                 && lines[1].vertical_pos == 0
                 && lines.iter().all(|line| line.tag & 0x8000_0000 == 0)
-        })
+        }) || (paragraph.line_segs[1].vertical_pos == 0
+            && paragraph.line_segs[..2]
+                .iter()
+                .all(|line| line.tag & 0x8000_0000 == 0)))
     {
         return;
     }

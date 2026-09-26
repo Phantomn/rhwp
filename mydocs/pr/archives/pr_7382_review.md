@@ -9,7 +9,7 @@ last_verified: 2026-09-26
 
 ## 현재 판정
 
-**머지 보류.** 원 변경은 기준 PDF의 행·각주 소유와 전체 페이지 수를 충족하지 않는다. 보정11 통합 후보는215쪽을 유지하고 선택66/67쪽 검증을 통과했지만, 전체 시각 비교의 본문 소유 차이와 최종 필수 게이트가 남았다. 통합 PR 생성·승인을 완료했다고 보고하지 않는다.
+**머지 보류.** 원 변경은 기준 PDF의 행·각주 소유와 전체 페이지 수를 충족하지 않는다. 보정12 통합 후보는215쪽을 유지하고 선택66/67·178/179쪽을 개선했지만, 전체 시각 비교의 본문 소유 차이와 최종 필수 게이트가 남았다. 통합 PR 생성·승인을 완료했다고 보고하지 않는다.
 
 ## 접수와 provenance
 
@@ -220,3 +220,36 @@ PDF176/177의 실제 괘선은 각각486.508~903.012px/539.729~689.965px다. 원
 
 ![단계11 Native66 review](../assets/pr7382_20260926/stage11_native_review_066.png)
 ![단계11 Native67 review](../assets/pr7382_20260926/stage11_native_review_067.png)
+
+
+## 메인터너 보정 12: 본문 각주의 반복 페이지 시작 보존
+
+### 사전 분석과 실제 소비 경로
+
+원본 본문1865의 각주240은 `0/0/1172`를 저장한다. 독립 한컴2024 PDF178에는 번호와 첫 줄,179에는 `HTLV-1` 및 출처 꼬리 두 줄과 뒤 각주241/242가 있다. [원본 줄과 PDF 좌표](../assets/pr7382_20260926/stage12_independent_geometry.json)로 기대값을 고정했다. 파서가 두 번째0을1172로 덮고 Body 등록이 HWP5 경로에서만 저장 각주 reset을 소비하는 두 원인을 확인했다.
+
+`section.rs::normalize_hwpx_note_line_vpos` → 동일 stored/composed 줄 대응을 확인하는 `native_hwp5_footnote_reset_fragments` → `body.rs::register_body_footnote`의 현재 prefix 예약/물리 page 전환/다음 suffix 예약 → 실제 `FootnoteArea` 배치로 연결한다. 편집하지 않은 HWPX도 표와 같은 저장 각주 경계를 사용한다. 합성 줄·저장 줄 부재는 physical split의 근거로 쓰지 않는다. 양수로 시작한2344/0의 연속줄 복원과 미주는 기존 계약을 유지한다. 본문 자체의 저장 reset과 충돌 경계는 이번 단계에서 변경하지 않았다.
+
+### 수정 전후 실행과 판정
+
+검증 producer는 `ec8a37a84` + Rust/test diff SHA256 `f3f0d1dc8da845d278f436bec045c5202fbdca8862abe638799ad5227a2544d9`다. [실행 증거](../assets/pr7382_20260926/stage12_validation.json)에 연결한다.
+
+| 검사 | 결과 | 판정 |
+| --- | --- | --- |
+| 원본 parser/실제 각주 소유 수정 전 | 2FAIL, exit100,0.247s | `[0,1172,1172]`와178쪽 꼬리 조기 소비를 실제 검출 |
+| 관련 원본·대조군 수정 후 | 35PASS, exit0,4.820s | 기존 표/각주·HWP5 왕복·미주·정규화 및 합성/저장줄 부재 반례 통과 |
+| 새 CLI | build exit0,2m11s; 215/PDF215 | 중간 후보의 쪽수 계약 충족 |
+| Native178/179 직접 비교 | 94.31041% /97.53225% | 번호/앞줄178, 꼬리179, 뒤 본문·각주 보존. glyph폭·URL색·일부 양쪽정렬 차이가 남아 픽셀 완전 일치를 주장하지 않음 |
+| Native31/32 직접 비교 | 45.37615% /34.68853%, sweep 전체 exit1 | 각주30의 prefix/tail은 개선했으나 앞 본문407/421 소유·표/그림 원점 및32쪽 각주 구분선 차이가 남아 보류 |
+| 전체 중간 Native audit | 215개 완료,50개90%미만, exit1 | [보정10 중간 보류 목록](../assets/pr7382_20260926/stage10_full_native_hold_inventory.json). 최종 head acceptance가 아님 |
+
+추가 반례의 첫 작성에서 저장 줄 하나를 제거하면 composer 줄 수도 함께 줄어 실제 count mismatch가 아니었다(34PASS/1FAIL). 이를 회귀 검출로 세지 않고 저장 줄 부재 반례로 정정하여 재실행했다. 일반 저장/구성 줄 수 불일치 guard 자체를 이번 반례로 검증했다고 확대하지 않는다.
+
+[Native manifest](../assets/pr7382_20260926/stage12_native_manifest.json)·[summary](../assets/pr7382_20260926/stage12_native_summary.json)·[metrics](../assets/pr7382_20260926/stage12_native_overlay_metrics.json). review178/179 및 standalone overlay178/179, review31/32를 직접 판독했다. 전체/fresh WASM/lint/최종 필수 검증은 아직 남았으며 PR 생성·승인은 보류다.
+
+![Native178 review](../assets/pr7382_20260926/stage12_native_review_178.png)
+![Native178 overlay](../assets/pr7382_20260926/stage12_native_overlay_178.png)
+![Native179 review](../assets/pr7382_20260926/stage12_native_review_179.png)
+![Native179 overlay](../assets/pr7382_20260926/stage12_native_overlay_179.png)
+![남은 본문 소유31](../assets/pr7382_20260926/stage12_native_review_031.png)
+![남은 본문 소유32](../assets/pr7382_20260926/stage12_native_review_032.png)

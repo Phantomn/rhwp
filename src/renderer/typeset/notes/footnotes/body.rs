@@ -184,9 +184,12 @@ impl TypesetEngine {
             // tail page가 소유한다(p129 note 176). 표 셀용으로 검증된 같은
             // 보수적 판정을 재사용하되 Body tail과 기존 marker-page 각주를
             // 모두 확인해 일반 각주를 임의 capacity로 나누지 않는다.
-            let source_reset_fragments = st
-                .profile
-                .hwp5_stored_pagination_layout()
+            // An unedited HWPX body note shares the same one-to-one stored
+            // footer reset contract as table notes. Synthetic/recomposed lines
+            // are rejected by the query; edited HWPX retains atomic ownership.
+            let saved_note_layout = st.profile.hwp5_stored_pagination_layout()
+                || (st.profile.hwpx_stored_layout() && !st.profile.session_edited());
+            let source_reset_fragments = saved_note_layout
                 .then(|| native_hwp5_footnote_reset_fragments(fn_ctrl, self.dpi))
                 .flatten();
             let stored_reset_fragments = body_tail_reset
