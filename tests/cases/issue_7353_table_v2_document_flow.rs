@@ -377,7 +377,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         DocumentV2Error::Paragraph {
             index: 5,
             reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "text preview stored rows or controls"
+                "stored TAC carrier requires unambiguous intact rows"
             )
         }
     ));
@@ -2790,6 +2790,62 @@ fn following_cell_anchor_uses_saved_lines_after_exclusion_not_visibility() {
             tables[0]["bbox"]["y"].as_f64().unwrap() + 10568.0 / 75.0,
         );
     }
+}
+
+#[test]
+fn normal_saved_inline_tabs_preserve_rows_outer_box_and_following_body() {
+    let data = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue7353_stored_tab_review/tab-saved.hwp"
+    ))
+    .unwrap();
+    let pages = drain(&mut DocumentV2Session::from_bytes(&data, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    assert_eq!(
+        labels(&pages[0]),
+        [" 창원공장\t  ", "LEFT\tRIGHT", "AFTER TABLE", "- 1 -"]
+    );
+    let tables = nodes(&pages[0], "Table");
+    assert_eq!(tables.len(), 1);
+    let y = tables[0]["bbox"]["y"].as_f64().unwrap();
+    // Two independently authored3000HU rows. Normal save retains1200HU
+    // centered line boxes; PDF has both borders and the following body intact.
+    near(&tables[0]["bbox"]["height"], 6000.0 / 75.0);
+    let lines = nodes(&pages[0], "TextLine");
+    for (i, line) in lines.iter().take(2).enumerate() {
+        near(&line["bbox"]["y"], y + (900.0 + 3000.0 * i as f64) / 75.0);
+        near(&line["bbox"]["height"], 1200.0 / 75.0);
+        near(&line["bbox"]["width"], 22220.0 / 75.0);
+    }
+    near(&lines[2]["bbox"]["y"], y + 6000.0 / 75.0);
+    // Inspect actual SVG glyph origins, not just the existence of a tab in IR.
+    let svg = pages[0]["svg"].as_str().unwrap();
+    let xml = roxmltree::Document::parse(svg).unwrap();
+    let glyphs: Vec<_> = xml
+        .descendants()
+        .filter(|n| n.has_tag_name("text"))
+        .filter_map(|n| Some((n.text()?, n.attribute("x")?.parse::<f64>().ok()?)))
+        .collect();
+    let x = |s: &str| glyphs.iter().find(|(text, _)| *text == s).unwrap().1;
+    // Normal HWP stores1308HU LEFT advance; RIGHT starts after LEFT's
+    // last glyph advance plus that control. Last glyph width comes from the
+    // same resolved font as the SVG; only the tab expectation is source-fixed.
+    let runs = nodes(&pages[0], "TextRun");
+    let run = runs
+        .iter()
+        .find(|r| r["node_type"]["TextRun"]["text"] == "LEFT\tRIGHT")
+        .unwrap();
+    let actual_style = &run["node_type"]["TextRun"]["style"];
+    let style = rhwp::renderer::TextStyle {
+        font_family: actual_style["font_family"].as_str().unwrap().into(),
+        font_size: actual_style["font_size"].as_f64().unwrap(),
+        ratio: actual_style["ratio"].as_f64().unwrap(),
+        letter_spacing: actual_style["letter_spacing"].as_f64().unwrap(),
+        ..Default::default()
+    };
+    use rhwp::renderer::layout::{EmbeddedTextMeasurer, TextMeasurer};
+    let widths = EmbeddedTextMeasurer.compute_char_positions("LEFT", &style);
+    assert!((x("R") - x("L") - widths[4] - 1308.0 / 75.0).abs() < 1e-7);
 }
 
 #[test]

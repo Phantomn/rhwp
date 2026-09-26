@@ -53,6 +53,55 @@ fn unsupported() -> GeometryError {
     GeometryError::Unsupported("stored text requires intact single-segment rows")
 }
 
+/// Explicit stored LEFT advances use the common glyph walk unchanged. Missing
+/// widths, leaders and other tab alignments need separate replay contracts.
+/// The common inline-tab walker currently converts HU at96dpi; do not silently
+/// accept a different scale here. Reserved extension words are not semantics
+/// (normal HWP saves may write either zero or space into them).
+pub(super) fn validate_tabs(para: &Paragraph, dpi: f64) -> Result<(), GeometryError> {
+    let chars: Vec<_> = para.text.chars().collect();
+    let tabs: Vec<_> = chars
+        .iter()
+        .enumerate()
+        .filter_map(|(i, c)| (*c == '\t').then_some(i))
+        .collect();
+    if tabs.is_empty() {
+        return Ok(());
+    }
+    // The common multi-row/run replay does not yet slice tab ordinals for all
+    // consumers. Admit the proven single-row/single-tab path, not a wrong width.
+    if dpi != 96.0
+        || para.line_segs.len() != 1
+        || tabs.len() != 1
+        || para.stored_text_partition_is_dirty()
+        || para.char_offsets.len() != chars.len()
+        || tabs.len() != para.tab_extended.len()
+        || para
+            .tab_extended
+            .iter()
+            .any(|ext| ext[0] == 0 || ext[1] != 0 || ext[2] != 0x0100 || ext[6] != 9)
+        || tabs.iter().any(|&i| {
+            let end = para.char_offsets[i].checked_add(8);
+            end.is_none_or(|end| {
+                para.char_offsets
+                    .get(i + 1)
+                    .copied()
+                    .unwrap_or(para.char_count)
+                    < end
+                    || para
+                        .line_segs
+                        .iter()
+                        .any(|row| row.text_start > para.char_offsets[i] && row.text_start < end)
+            })
+        })
+    {
+        return Err(GeometryError::Unsupported(
+            "stored inline LEFT tab contract",
+        ));
+    }
+    Ok(())
+}
+
 /// Preserve source text partitions and vertical metrics. Resolve the saved
 /// indentation flag into the physical row box once, before shared composition.
 /// The caller owns the paragraph origin; page/column resets need a
@@ -63,8 +112,9 @@ pub(super) fn localize(
     indent: f64,
     dpi: f64,
 ) -> Result<Paragraph, GeometryError> {
+    validate_tabs(para, dpi)?;
     if para.stored_text_partition_is_dirty()
-        || para.text.chars().any(char::is_control)
+        || para.text.chars().any(|c| c.is_control() && c != '\t')
         || para.line_segs.is_empty()
         || para.char_offsets.len() != para.text.chars().count()
         || para.char_offsets.windows(2).any(|p| p[0] >= p[1])

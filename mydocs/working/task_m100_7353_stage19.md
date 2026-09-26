@@ -3281,3 +3281,85 @@ Native 문서 흐름70건 통과. 두 대조군의 Native compare/overlay/review
 
 메인테이너 시각 판정 대기. 다음 원본 차단점은 자식 표 내부의 탭/저장 텍스트 처리다.
 메인테이너가 두 대조군의 시각 판정 통과와 다음 절편 진행을 승인했다.
+
+### 후속 절편 — 단일 저장 LEFT 탭의 공통 텍스트 재생
+
+직전 승인 절편은 `dd33300ab`로 커밋했다. 이번 원본 대상은 #6923의
+`s0/p5/t0/c0/p37/t0/c0/p0`, ` 창원공장\t  ` 문단이다. 원본은 변경하지 않았다.
+LineSeg 폭22220HU, 높이1200, baseline1020, gap720이며 탭 확장에
+폭2924HU/type0x0100(LEFT, leader없음)이 저장되어 있다. char_offsets는
+`[0,1,2,3,4,5,13,14]`로 탭의8-unit 소유 범위를 보존한다.
+
+위반 경계는 `TextComposer::compose`와 `stored_text::localize`의 제어문자 일괄 거부다.
+공통 문단 엔진에는 저장 LEFT 폭을 쓰는 경로가 이미 있다. 새 tab 폭 계산기나 문자 대체를
+추가하지 않고 검증된 입력만 그 경로로 허용했다. 기본 Legacy·편집 재조판은 변경하지 않았다.
+
+독립 근거 확보 과정에서 원본 자식 표 전체를 분리해 정상 저장한 HWP는
+겹치는 zone 장식 미지원으로 거부됐다(`output/7353/r19/tabs/full-table/`). 이를 숨기거나
+이번에 장식 우선순위를 추측하지 않았다. 원본 탭 문단과 눈으로 간격을 확인할 수 있는
+`LEFT\tRIGHT` 문단을2행1열 표로 분리하고 한컴에서 정상 HWP 저장한 뒤 그 HWP로 PDF를
+생성했다. 첫 탭2924HU는 보존됐고 두 번째는 한컴이1308HU로 저장했다.
+원본 reserved extension words는0, 정상 저장본은32이므로 이를 의미 속성으로 제한하지 않았다.
+생성 변경점·job·해시는 `tests/fixtures/issue7353_stored_tab_review/README.md`에 기록했다.
+이 대조군은 원본 전체 조판이나 일반 페이지네이션의 한컴 일치를 입증하지 않는다.
+
+| 값의 실제 호출 경로 | 소비와 검사 |
+| --- | --- |
+| 입력 tab_extended·char_offsets → `stored_text::validate_tabs/localize` | intact 저장 줄1개, LEFT 탭1개, 양수 low-word 폭, leader없음,96dpi만 허용. 줄 경계·원래 메트릭을 보존한다. |
+| `compose_paragraph` → `layout_composed_paragraph_in_frame` → `paragraph_layout::emit_line_runs` | 같은 저장 확장을 `TextStyle.inline_tabs`로 전달한다. `text_measurement::compute_char_positions_walk`가 실제 탭 advance를 소비한다. |
+| `stored_text::validate_paint` → `ParagraphItem::Text` → `FlowCursor` | 공통 엔진의 최종 줄 상자·다음 원점으로 높이를 결정한다. 저장 줄 소속·원점·baseline을 다시 검사하며 별도 탭 기반 높이를 추측하지 않는다. |
+| `TextPaint` → SVG/fresh WASM | 확정 run과 좌표를 재생한다. 실제 SVG의 L→R 위치 차이에서 LEFT의 폰트 advance를 뺀 값이1308/75px인지 검사한다. 표 외곽6000/75px·줄 중심·뒤 AFTER TABLE도 검사한다. |
+
+반례에서 공통 엔진의 한 문단 여러 저장 줄에 다른 탭 폭을 넣으면 뒤 줄이 첫 확장 폭을
+다시 소비함을 확인했다(두 번째2250HU 대신1500HU). 일반 지원으로 확장하지 않고
+다중 줄·다중 탭을 명시적 미지원으로 남겼다. RIGHT/CENTER/DECIMAL, leader,
+placeholder, high-word 폭, non96dpi, fresh/recomputed 탭도 미검증/미지원이다.
+이는 잘못된 배치를 허용하는 높이 보정이 아니라 V2 preview admission의 한계다.
+
+정식 `tests/cases/`에4개 계약을 추가했다. 정상 저장본의 실제 SVG/외곽/뒤 본문,
+합성 두 문단의 서로 다른 탭 폭과13px 분할 예산에서의 줄/유닛 보존·종료,
+탭 앞뒤 텍스트·공백·글자모양 run 경계, 미지원 입력 거부를 검사한다.
+분할/rowspan/반복 헤더/캡션/각주 알고리즘은 수정하지 않았으며 기존 줄 단위 fit과
+동일 payload의 continuation을 소비한다. 새 합성 분할 사례는 한컴 출력 증거와 구분한다.
+새 정상 저장본 계약은 수정 전 라이브러리에서 `text preview stored rows or controls`로
+FAIL(`test-before.log`), 수정 후 PASS다. 원본 전체 admission은 다음
+`stored TAC carrier requires unambiguous intact rows`로 이동했고 계속 명시적으로 거부한다.
+
+산출은 `output/7353/r19/tabs/`, source는 `dd33300ab`+`source.sha256`의 working patch다.
+Native 문서 흐름71건, 텍스트29건 통과. 같은 영역의 Native compare·standalone overlay·
+확대 review를 직접 확인했다. 탭 간격·셀/표 외곽·뒤 문단은 보존되며 선 농도·글리프 외형
+차이는 남는다. 집중 회귀/fresh Docker WASM 결과와 판정 링크는 아래에 이어 기록한다.
+
+최종 검증:
+
+- review worktree에 이번 source/test/fixture만 동기화하고 `node
+  scripts/rust-test-suite-manifest.mjs --prepare` 실행. `cargo nextest run --locked
+  --cargo-profile release-test <선택된14개 --test targets> -E
+  'test(issue_7353_table_v2) | test(issue_7353_rowspan_roundoff) | test(issue_4755) |
+  test(issue_6102) | test(issue_3128)' --no-fail-fast --target-dir
+  /home/edward/mygithub/rhwp/target/pr-review`: **275 passed /0 failed**,
+  2757 skipped, 빌드8분53초. `focused.log`/`prepare.log` 참조.
+- `docker compose --env-file .env.docker -p rhwp run --rm wasm`: **성공7분43초**.
+  WASM SHA-256 `5f0cda59a5076af84c98bd723cf23c5be427bf6a0fe99cb14190d40737319dfe`.
+- `review.mjs --wasm`: 정상 저장 HWP의1쪽 Native/fresh WASM SVG·RenderTree 동일,
+  수치 차이0. `review/run.json`과`backend-comparison.json`에 입력/PDF/source/WASM 연결.
+- `focus.mjs wasm`: 첫 브라우저 시작 오류 뒤 캡처만 재시도해 성공했다. 코드/빌드 재실행이나
+  과거 캡처 재사용은 없었다. Native와fresh WASM의 확대 review·standalone overlay를 직접 열어
+  제목과 LEFT/RIGHT 간격, 셀 경계, 뒤 본문을 확인했다. 자동 픽셀 점수로 판정을 대체하지 않았다.
+- `controls.mjs`: 기존 diagonal/indent/fresh indent/justify/TAC 공백/좁은 셀/폭0 셀 앵커 ×
+  두 끝 간격 정책 **14조합**에서 승인 SVG 보존 및 Native/WASM 동일성 통과(`controls.log`).
+- `cargo fmt --all -- --check`, `git diff --check`, `source.sha256` 및 review worktree와의
+  source/test 해시 일치 확인. 검증 후 제품 코드 변경 없음. 전체 PR lint/CI·remote push·
+  기본 엔진 전환은 수행하지 않았다.
+
+메인테이너 시각 판정 대상은 **단일 저장 탭을 분리한 정상 한컴 대조군1쪽**이다.
+
+- [fresh WASM 확대 review](../../output/7353/r19/tabs/review/wasm-focus-review.png)
+- [전체 compare](../../output/7353/r19/tabs/review/wasm-compare-1.png)
+- [standalone overlay](../../output/7353/r19/tabs/review/wasm-overlay-1.png)
+- [정상 저장 HWP](../../tests/fixtures/issue7353_stored_tab_review/tab-saved.hwp)
+- [동일 HWP의 한컴 PDF](../../tests/fixtures/issue7353_stored_tab_review/tab-2020.pdf)
+
+메인테이너가 위치 일치로 판정하고 다음 절편 진행을 승인했다. 글리프 외형의 완전 일치나
+원본 전체 통과로 확대 해석하지 않는다. 원본 #6923 전체는 다음 저장 TAC 줄 소속 경계로
+진행했으며 아직 미완료다.

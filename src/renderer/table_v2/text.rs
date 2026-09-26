@@ -353,6 +353,7 @@ fn painted_inline_ends(nodes: &[RenderNode], styles: &ResolvedStyleSet) -> Vec<O
 
 impl CellParagraphComposer for TextComposer<'_> {
     fn compose(&self, para: &Paragraph, width: f64) -> Result<Vec<ParagraphItem>, GeometryError> {
+        super::stored_text::validate_tabs(para, self.dpi)?;
         if para.column_type != crate::model::paragraph::ColumnBreakType::None
             || !para.controls.is_empty()
             || para.source_line_seg_vertical_pos.is_some()
@@ -364,7 +365,7 @@ impl CellParagraphComposer for TextComposer<'_> {
             || para
                 .text
                 .chars()
-                .any(|c| c.is_control() && c != '\n' && c != '\r')
+                .any(|c| c.is_control() && c != '\n' && c != '\r' && c != '\t')
         {
             return Err(GeometryError::Unsupported(
                 "text preview stored rows or controls",

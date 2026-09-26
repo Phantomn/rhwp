@@ -1777,3 +1777,163 @@ fn four_point_empty_paragraph_uses_156_percent_pitch_at_normal_dpi() {
     assert!((lines[2].bbox.y - lines[1].bbox.y - pitch).abs() < 1e-9);
     assert!((fragment.geometry().reserved_height() - (3.0 + 3.0 * pitch + 4.0)).abs() < 1e-9);
 }
+
+fn stored_tab_table() -> Table {
+    let mut t = table(&["A\tB", "C\tD"]);
+    t.cells[0].width = 15000;
+    for (i, p) in t.cells[0].paragraphs.iter_mut().enumerate() {
+        p.char_offsets = vec![0, 1, 9];
+        p.char_count = 11;
+        // One8-unit control per tab, two distinct paragraph-owned payloads.
+        p.tab_extended = vec![[1500 + i as u16 * 750, 0, 0x100, 32, 32, 32, 9]];
+        p.line_segs = vec![LineSeg {
+            text_start: 0,
+            vertical_pos: 0,
+            line_height: 900,
+            text_height: 900,
+            baseline_distance: 765,
+            line_spacing: 450,
+            segment_width: 14988,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            ..Default::default()
+        }];
+    }
+    t
+}
+
+#[test]
+fn saved_left_tabs_keep_advance_line_membership_and_split_payload() {
+    let t = stored_tab_table();
+    let prepared = PreparedTextTable::prepare(&t, &styles(), 96.0).unwrap();
+    let (_, lines) = render(&placed(&prepared.start(), 100.0));
+    assert_eq!(lines.iter().map(text).collect::<Vec<_>>(), ["A\tB", "C\tD"]);
+    for (line, advance) in lines.iter().zip([20.0, 30.0]) {
+        let run = line
+            .children
+            .iter()
+            .find_map(|n| match &n.node_type {
+                RenderNodeType::TextRun(r) if r.text.contains('\t') => Some(r),
+                _ => None,
+            })
+            .unwrap();
+        use rhwp::renderer::layout::{EmbeddedTextMeasurer, TextMeasurer};
+        let pos = run
+            .layout_positions
+            .clone()
+            .unwrap_or_else(|| EmbeddedTextMeasurer.compute_char_positions(&run.text, &run.style));
+        let tab = run.text.chars().position(|c| c == '\t').unwrap();
+        // Independently declared1500/2250HU advances, not glyph width estimates.
+        assert!(
+            (pos[tab + 1] - pos[tab] - advance).abs() < 1e-9,
+            "text={:?} positions={pos:?} tabs={:?}",
+            run.text,
+            run.style.inline_tabs
+        );
+    }
+    let first = placed(&prepared.start(), 13.0);
+    let (_, first_lines) = render(&first);
+    assert_eq!(first_lines.iter().map(text).collect::<Vec<_>>(), ["A\tB"]);
+    let next = first.continuation();
+    let second = placed(&next, 100.0);
+    assert!(matches!(
+        second.continuation().fit(area(100.0)).unwrap(),
+        TextFragmentFit::Complete
+    ));
+    let (_, second_lines) = render(&second);
+    assert_eq!(second_lines.iter().map(text).collect::<Vec<_>>(), ["C\tD"]);
+    let payloads = |line: &RenderNode| {
+        line.children
+            .iter()
+            .map(|n| match &n.node_type {
+                RenderNodeType::TextRun(r) => r.clone(),
+                _ => panic!("text run"),
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(payloads(&lines[1]), payloads(&second_lines[0]));
+}
+
+#[test]
+fn unqualified_tabs_do_not_silently_use_fallback_stops() {
+    for case in 0..9 {
+        let mut t = stored_tab_table();
+        let p = &mut t.cells[0].paragraphs[0];
+        match case {
+            0 => p.line_segs.clear(), // fresh composition is a different contract
+            1 => {
+                p.tab_extended.pop();
+            }
+            2 => p.tab_extended[0][0] = 0,     // placeholder
+            3 => p.tab_extended[0][1] = 1,     // common walker does not consume high word
+            4 => p.tab_extended[0][2] = 0x200, // RIGHT
+            5 => p.tab_extended[0][2] = 0x101, // leader
+            6 => p.char_offsets[2] = 2,        // invalid raw source ownership
+            7 => p.line_segs.push(p.line_segs[0].clone()),
+            _ => {
+                p.text.push('\t');
+                p.char_offsets.push(10);
+                p.char_count = 19;
+                p.tab_extended.push(p.tab_extended[0]);
+            }
+        }
+        assert!(matches!(
+            PreparedTextTable::prepare(&t, &styles(), 96.0),
+            Err(GeometryError::Unsupported(
+                "stored inline LEFT tab contract"
+            ))
+        ));
+    }
+    assert!(matches!(
+        PreparedTextTable::prepare(&stored_tab_table(), &styles(), 144.0),
+        Err(GeometryError::Unsupported(
+            "stored inline LEFT tab contract"
+        ))
+    ));
+}
+
+#[test]
+fn single_saved_tab_keeps_advance_before_after_and_between_styled_text() {
+    use rhwp::renderer::layout::{EmbeddedTextMeasurer, TextMeasurer};
+    for value in ["\tA", "A\t", "A\tB", " \t "] {
+        let mut t = stored_tab_table();
+        t.cells[0].paragraphs.truncate(1);
+        let p = &mut t.cells[0].paragraphs[0];
+        p.text = value.into();
+        let mut offset = 0;
+        p.char_offsets = value
+            .chars()
+            .map(|c| {
+                let start = offset;
+                offset += if c == '\t' { 8 } else { 1 };
+                start
+            })
+            .collect();
+        p.char_count = offset + 1;
+        p.char_shapes.push(CharShapeRef {
+            start_pos: p.char_offsets[1],
+            char_shape_id: 1,
+        });
+        let mut s = styles();
+        let mut alternate = s.char_styles[0].clone();
+        alternate.bold = true;
+        s.char_styles.push(alternate);
+        let prepared = PreparedTextTable::prepare(&t, &s, 96.0).unwrap();
+        let (_, lines) = render(&placed(&prepared.start(), 100.0));
+        assert_eq!(lines.len(), 1);
+        assert_eq!(text(&lines[0]), value);
+        let mut tab_count = 0;
+        for node in &lines[0].children {
+            let RenderNodeType::TextRun(run) = &node.node_type else {
+                panic!("run")
+            };
+            if let Some(tab) = run.text.chars().position(|c| c == '\t') {
+                let positions = run.layout_positions.clone().unwrap_or_else(|| {
+                    EmbeddedTextMeasurer.compute_char_positions(&run.text, &run.style)
+                });
+                assert!((positions[tab + 1] - positions[tab] - 20.0).abs() < 1e-9);
+                tab_count += 1;
+            }
+        }
+        assert_eq!(tab_count, 1);
+    }
+}
