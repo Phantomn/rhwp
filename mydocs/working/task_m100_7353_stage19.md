@@ -4072,3 +4072,83 @@ Native와 fresh WASM의 review·standalone overlay·확대 비교를 직접 열�
 
 이번 공유선 절편은 사람 시각 판정 대기다. 전체 CI/workspace all-targets와 Studio 수동
 조작은 이번에 실행하지 않았다. Legacy 기본 경로·golden·ignore 변경, 원격 push/PR은 없다.
+
+### 저장된 단일 TAC 객체의 줄 폭 초과 — 원본 문단35
+
+작업지시자는 공유 실선 절편(`6e640239d`)을 시각 통과시켰다. 다음 원본 수용 경계는
+문단35의 단일 TAC 표다. 표48083HU + 좌/우 바깥여백141HU씩 =48365HU가 저장 줄48188HU보다
+크며, 표 뒤 UTF-16 위치8에는 편집자 공백이 남아 있다. 원본 PDF p7은 표를 축소하거나
+지우지 않고 줄 시작에 배치한다(x≈58.05pt). 기존 `tac::object_rows`는 음수 free를
+무조건 거부하므로 정상 저장된 단일 원자 객체를 수용하지 못한다.
+
+같은 의미를 한컴으로 정상 저장한 대조군은 원본 문단33..36의 HWPX 분리본이다. 저장
+LineSeg·PageDef·표/내용을 수동 보정하지 않았으며, 한컴 HWP 재저장 후에도 폭/높이와
+후행 공백이 유지된다(`tac-overflow/sales-saved.hwp`). 원본 PDF p7과 이 저장본의
+PDF가 독립 근거다. 앞 절편 HWP 직접 추출본의 위치 차이는 별개다: 실제 한컴 재저장 시
+PageDef 좌우 여백이5669→8504HU로 바뀌어 본문 폭이 달라졌다. 원본의 저장 vpos도
+분리 후 재계산되므로 원본 전체 배치를 이 추출본 위치에 맞추지 않는다.
+
+변경 경로는 저장 줄의 `segment_width`와 단일 객체의 바깥여백 포함 advance →
+`object_rows`의 정렬 offset → `compose`의 InlineTables 공통 rectangle → body FlowCursor의
+동일 원점 → TableCursor의 자식 선언 폭 → paint다. 단일 객체 자체가 줄보다 큰 경우에만
+남는 정렬 공간이 없다고 처리하며, 객체 폭/여백·후행 공백·세로 점유를 줄이지 않는다.
+여러 객체나 선행 공백 때문에만 초과한 줄, 그림, 미검증 정렬은 종전처럼 거부한다.
+중첩 셀의 물리 가용 폭 검사는 `TableContentPlan`에 별도로 남아 있어 본문 overhang 수용을
+셀 밖 출력 허용으로 확대하지 않는다. pagination/세로 예약/종료는 변경하지 않는다.
+
+#### 결과와 다음 미지원 경계
+
+원본 문단35 및 `sales-saved.hwp`는 폭 검사를 통과한 뒤 셀72 문단0의
+`Field(Formula, =SUM(ABOVE)??%g,;;100)`에서 거부된다. 필드를 삭제하거나 결과 문자열로
+치환하지 않았다. 원본 전체/저도주 표의 최종 배치는 **미검증**이다. 정상 저장 추출본과
+독립 PDF, 생성 절차·MCP job·해시는 `tests/fixtures/issue7353_tac_overflow_review/README.md`에
+보존했다. 이 fixture의 테스트는 미지원 경계 검사이며 정상 조판 통과로 합산하지 않는다.
+
+이번 실제 시각 판정 입력은 기존 `issue7353_shared_border_review/table-saved.hwp`와
+`table-2020.pdf`다. 앞 절편의 `reflow-saved.hwp`와 다른 파일이다. Right 문단의 표46149HU와
+좌우 여백282HU가 저장 줄42520HU보다 크지만 PDF는 x≈86.473pt에서 선언 폭을 보존한다.
+이번 V2는1쪽을 출력하며 표 원점(8645,13441)HU, 크기(46149,23511)HU, 뒤 자료출처
+원점 y37593HU를 검사한다. 마지막 값은 본문 시작9920+저장 줄 시작3380+높이23793+간격500이다.
+
+실제 소비 경로: `tac.rs:object_rows` → `tac.rs:compose`의 InlineTables rectangle →
+`body_flow`/`flow::FlowCursor`의 동일 객체 box → `TableCursor` → paint.
+중첩은 `content.rs`의 InlineTables 물리 경계 검사도 소비하며, 세 정렬 모두 실제
+`ContentBounds { row:0,column:0 }`를 검사한다. 일반 흐름과 중첩의 적용 범위를 혼동하지 않는다.
+시작/끝 컷·예약 높이·이월·종료는 이 절편에서 변경하지 않았다.
+
+검증 source는 `6e640239d` + 이번 patch. `tac.rs` SHA-256:
+`48e23fad07cd8d788a64c850b32a5e363b5f9d2413f17bc2c6552b53d2eb9677`.
+이하 로그/산출물의 공통 경로는 `output/7353/r19/tac-overflow/`다.
+
+| 검증 | 결과 / 증거 |
+| --- | --- |
+| 수정 전→후 | 같은 정상 저장 시장 표가 이전 코드에서 폭 거부로 FAIL, 수정 후 실제 배치 계약 PASS (`before.log`, `document-final.log`) |
+| 정식 focused 검사 | 17 harness218건 + 최종 document harness88건 = **306 PASS / 0 FAIL**. 전체 CI가 아니다 (`tests-summary.log`, `document-final.log`) |
+| 경계 | 단일 Left/Justify/Right·후행 공백의 소유와 실제 위치·뒤 문단 원점·중첩 물리 경계. 여러 객체/선행 공백/후행 공백만의 초과/Center는 미지원 유지 |
+| 포맷·lint | fmt check 및 Native/WASM32 library Clippy `-D warnings` PASS (`fmt.log`, `clippy-{native,wasm}.log`) |
+| fresh WASM | Docker 빌드7분15초, SHA `766670ec83a1c1a82a5ee2fa49f691e4dae447b03819775f0aa5308b94c2fd4d` (`docker.log`) |
+| 대상 backend | Native/fresh WASM SVG 동일, 구조 차이0, 부동소수 최대차2.28e-13 (`market/backend-comparison.json`) |
+| 기존 대조군 | 14입력×2종 terminal policy=28조합32페이지. 이전 Native SVG 유지 및 fresh WASM SVG 동일 (`controls-final.log`) |
+
+후행 공백의 합성 계약은 HWP 직렬화 경로를 쓴다. HWPX의 선두 control-slot 축 변환 및
+HWP 첫 문단의 SectionDef 삽입을 별개 입력 조건으로 확인하고, 별도 선행 문단을 둔
+유효한 계약으로 구성했다. 문자열 소유 축이나 terminal 정책을 생산 코드에서 완화하지 않았다.
+이는 합성 계약이지 조합별 한컴 출력 일치 증거가 아니다.
+
+Native/fresh WASM의 compare·review·standalone overlay·확대 PNG를 직접 열어
+왼쪽 시작, 전체 폭, 모든 행/외곽, 뒤 자료출처를 확인했다. 표를 축소하거나 잘라 숨기지 않는다.
+글꼴 외형·굵기·자폭의 기존 차이는 남아 있다.
+
+- 확대 비교: `tac-overflow/wasm-width-detail.png`
+- compare: `tac-overflow/market/wasm-compare-1.png`
+- standalone overlay: `tac-overflow/market/wasm-overlay-1.png`
+- review: `tac-overflow/market/wasm-review-1.png`
+
+코멘트: 내용 픽셀 중심 자동 일치율 보조값 = 약40.44%.
+높을수록 기준 PDF와 rhwp PNG가 더 비슷합니다.
+낮은 값은 잉크 위치나 형태 차이의 검토 신호입니다.
+사람의 판정 정확도가 아닌 자동 보조값입니다.
+
+전체 CI/workspace all-targets와 Studio 수동 조작은 미실행이다. Legacy 기본 경로·golden·ignore
+변경과 push/PR은 없다. 사람 시각 판정 대상은 정상 저장 시장 표이며, 다음 구현 대상은
+원본35번 문단의 수식 필드 보존이다. 부분 수용 개선을 A/R5 완료로 판정하지 않는다.

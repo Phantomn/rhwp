@@ -440,15 +440,13 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         panic!("qualify full source output before updating admission")
     };
     eprintln!("original terminal admission: {error}");
-    // CENTER references now reach the next unsupported feature;
+    // Single overwide TAC admission now reaches the cell formula field;
     // this remains an admission diagnostic, not a layout acceptance baseline.
     assert!(matches!(
         error,
         DocumentV2Error::Paragraph {
             index: 35,
-            reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "TAC row exceeds stored width"
-            )
+            reason: rhwp::renderer::table_v2::GeometryError::Unsupported("non-table cell control")
         }
     ));
     if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
@@ -459,7 +457,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         )
         .unwrap();
         let original = rhwp::parse_document(&data).unwrap();
-        let p = &original.sections[0].paragraphs[24];
+        let p = &original.sections[0].paragraphs[35];
         let shape = &original.doc_info.para_shapes[p.para_shape_id as usize];
         std::fs::write(
             format!("{dir}/6923-terminal-next-source.json"),
@@ -3026,6 +3024,201 @@ fn inline_carrier(separate: bool) -> Paragraph {
         })
         .collect();
     para
+}
+
+#[test]
+fn oversized_single_saved_tac_preserves_start_width_and_following_flow() {
+    use rhwp::model::style::Alignment;
+    for alignment in [Alignment::Left, Alignment::Justify, Alignment::Right] {
+        let mut carrier = inline_carrier(false);
+        carrier.controls.truncate(1);
+        carrier.char_count = 9;
+        let Control::Table(t) = &mut carrier.controls[0] else {
+            panic!()
+        };
+        t.common.width = 24000; // 320px object in a 300px line, no shrink-to-fit.
+        t.cells[0].width = 24000;
+        carrier.para_shape_id = 1;
+        let mut d = source(vec![carrier.clone(), p("after")]);
+        let mut style = d.doc_info.para_shapes[0].clone();
+        style.alignment = alignment;
+        d.doc_info.para_shapes.push(style);
+        let pages = drain(&mut open(&d));
+        assert_eq!(pages.len(), 1);
+        assert_eq!(labels(&pages[0]), ["A", "a", "after"]);
+        let rendered = nodes(&pages[0], "Table")[0];
+        near(&rendered["bbox"]["x"], 22.0); // body20 + original left margin2
+        near(&rendered["bbox"]["width"], 320.0);
+        near(&rendered["bbox"]["y"], 32.0);
+        near(&rendered["bbox"]["height"], 36.0);
+        near(
+            &nodes(&pages[0], "TextLine").last().unwrap()["bbox"]["y"],
+            74.0,
+        );
+
+        // The same overhang inside a cell has a distinct physical containment
+        // contract. Body admission must not relax that downstream consumer.
+        let mut parent = table(&[], TablePageBreak::CellBreak);
+        parent.cells[0].width = 22500;
+        parent.cells[0].paragraphs = vec![carrier];
+        d.sections[0].paragraphs = vec![host("", parent)];
+        let error = DocumentV2Session::from_bytes(&bytes(&d), r#"{"dpi":96,"max_pages":20}"#)
+            .err()
+            .unwrap();
+        assert!(matches!(
+            error,
+            DocumentV2Error::Paragraph {
+                index: 0,
+                reason: rhwp::renderer::table_v2::GeometryError::ContentBounds {
+                    row: 0,
+                    column: 0
+                }
+            }
+        ));
+    }
+    let mut d = source(vec![inline_carrier(false)]);
+    d.doc_info.para_shapes[0].alignment = Alignment::Right;
+    d.sections[0].paragraphs[0].line_segs[0].segment_width = 9000;
+    // Two individually fitting tables require an actual line-break decision;
+    // the single unbreakable-object rule cannot bless an overfull saved row.
+    assert!(DocumentV2Session::from_bytes(&bytes(&d), TERMINAL_OPTIONS).is_err());
+}
+
+#[test]
+fn saved_overwide_right_aligned_market_table_starts_at_left_without_shrinking() {
+    let input = include_bytes!("../fixtures/issue7353_shared_border_review/table-saved.hwp");
+    let pages = drain(&mut DocumentV2Session::from_bytes(input, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    let t = nodes(&pages[0], "Table")[0];
+    // Independent Hancom PDF: starts at86.473pt, not a negative right-align
+    // offset; body left8504HU plus source outside margin141HU.
+    near(&t["bbox"]["x"], 8645.0 / 75.0);
+    // Source body top9920 + stored row3380 + outside top141 HU.
+    near(&t["bbox"]["y"], 13441.0 / 75.0);
+    near(&t["bbox"]["width"], 46149.0 / 75.0);
+    near(&t["bbox"]["height"], 23511.0 / 75.0);
+    let notes: Vec<_> = nodes(&pages[0], "TextRun")
+        .into_iter()
+        .filter(|n| {
+            n["node_type"]["TextRun"]["text"]
+                .as_str()
+                .unwrap()
+                .contains("자료출처")
+        })
+        .collect();
+    assert_eq!(notes.len(), 1);
+    // Following saved paragraph starts after the source row23793 + gap500.
+    near(
+        &notes[0]["bbox"]["y"],
+        (9920.0 + 3380.0 + 23793.0 + 500.0) / 75.0,
+    );
+}
+
+#[test]
+fn saved_sales_table_remains_explicitly_unqualified_for_cell_formula() {
+    // Normal Hancom re-save; do not erase the formula to turn a new admission
+    // boundary into a claimed full-document visual success.
+    let input = include_bytes!("../fixtures/issue7353_tac_overflow_review/sales-saved.hwp");
+    assert!(matches!(
+        DocumentV2Session::from_bytes(input, TERMINAL_OPTIONS),
+        Err(DocumentV2Error::Paragraph {
+            index: 2,
+            reason: rhwp::renderer::table_v2::GeometryError::Unsupported("non-table cell control")
+        })
+    ));
+}
+
+#[test]
+fn saved_overwide_tac_keeps_trailing_space_owned_and_following_origin() {
+    use rhwp::model::style::Alignment;
+    for alignment in [Alignment::Justify, Alignment::Right] {
+        let mut carrier = inline_carrier(false);
+        carrier.controls.truncate(1);
+        carrier.text = " ".into();
+        carrier.char_offsets = vec![8];
+        carrier.char_count = 10;
+        let Control::Table(t) = &mut carrier.controls[0] else {
+            panic!()
+        };
+        t.common.width = 24000;
+        t.cells[0].width = 24000;
+        carrier.para_shape_id = 1;
+        let mut d = source(vec![p("before"), carrier, p("after")]);
+        d.sections[0].section_def.page_def.height += 7500;
+        let mut style = d.doc_info.para_shapes[0].clone();
+        style.alignment = alignment;
+        d.doc_info.para_shapes.push(style);
+        // HWP preserves the trailing-only source axis; the HWPX importer
+        // normalizes leading control slots, a separate unqualified contract.
+        let input = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+        let pages = drain(
+            &mut DocumentV2Session::from_bytes(&input, r#"{"dpi":96,"max_pages":20}"#).unwrap(),
+        );
+        assert_eq!(pages.len(), 1);
+        let spaces: Vec<_> = nodes(&pages[0], "TextRun")
+            .into_iter()
+            .filter(|n| n["node_type"]["TextRun"]["text"] == " ")
+            .collect();
+        assert_eq!(spaces.len(), 1);
+        // Body20 + left2 + unchanged320px table + right2.
+        near(&spaces[0]["bbox"]["x"], 344.0);
+        near(&nodes(&pages[0], "Table")[0]["bbox"]["x"], 22.0);
+        near(
+            &nodes(&pages[0], "TextLine").last().unwrap()["bbox"]["y"],
+            92.0,
+        );
+        assert_eq!(
+            labels(&pages[0]).iter().filter(|t| **t == "after").count(),
+            1
+        );
+    }
+}
+
+#[test]
+fn saved_overwide_tac_does_not_admit_leading_space_or_trailing_only_overflow() {
+    use rhwp::model::style::Alignment;
+    for leading in [false, true] {
+        let mut carrier = inline_carrier(false);
+        carrier.controls.truncate(1);
+        carrier.text = " ".into();
+        carrier.char_offsets = vec![if leading { 0 } else { 8 }];
+        carrier.char_count = 10;
+        let Control::Table(t) = &mut carrier.controls[0] else {
+            panic!()
+        };
+        if leading {
+            t.common.width = 24000;
+            t.cells[0].width = 24000;
+        } else {
+            // The table envelope fits exactly; only the following space
+            // overflows. This is NOT the unbreakable oversized-object case.
+            carrier.line_segs[0].segment_width = t.common.width as i32
+                + i32::from(t.common.margin.left)
+                + i32::from(t.common.margin.right);
+        }
+        let d = source(vec![p("before"), carrier]);
+        let input = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+        assert!(matches!(
+            DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS),
+            Err(DocumentV2Error::Paragraph {
+                index: 1,
+                reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
+                    "TAC row exceeds stored width"
+                )
+            })
+        ));
+    }
+    let mut carrier = inline_carrier(false);
+    carrier.controls.truncate(1);
+    carrier.char_count = 9;
+    let Control::Table(t) = &mut carrier.controls[0] else {
+        panic!()
+    };
+    t.common.width = 24000;
+    t.cells[0].width = 24000;
+    let mut d = source(vec![carrier]);
+    d.doc_info.para_shapes[0].alignment = Alignment::Center;
+    assert!(DocumentV2Session::from_bytes(&bytes(&d), TERMINAL_OPTIONS).is_err());
 }
 
 #[test]

@@ -260,9 +260,29 @@ fn object_rows(
             .filter(|s| s.position >= after_last && s.position < stop)
             .map(|s| s.width_hu)
             .sum();
-        let free = f64::from(source_row.segment_width) - occupied - trailing;
+        let mut free = f64::from(source_row.segment_width) - occupied - trailing;
         if free < 0.0 {
-            return Err(GeometryError::Unsupported("TAC row exceeds stored width"));
+            // A single unbreakable table can itself exceed its saved line.
+            // Normal Hancom saves retain its full width and outside margins,
+            // starting at the line origin even for right alignment. There is
+            // no spare alignment space, not a smaller object/physical box.
+            // Multiple objects or leading content need the general breaking
+            // composer; trailing spaces remain owned and painted below.
+            let single_overwide_table = !pictures
+                && matches!(
+                    alignment,
+                    Alignment::Left | Alignment::Justify | Alignment::Right
+                )
+                && row.tables.len() == 1
+                && row.tables.first().is_some_and(|(ci, rect)| {
+                    let (_, margins) = object_box(&para.controls[*ci], false).unwrap();
+                    rect.x == f64::from(margins[0])
+                        && occupied > f64::from(source_row.segment_width)
+                });
+            if !single_overwide_table {
+                return Err(GeometryError::Unsupported("TAC row exceeds stored width"));
+            }
+            free = 0.0;
         }
         let offset = f64::from(source_row.column_start)
             + match alignment {
