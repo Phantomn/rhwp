@@ -820,3 +820,29 @@ fn synthetic_cell_note_zero_positions_do_not_force_a_physical_tail() {
         "합성 위치로 실제 저장 경계를 발명하지 않음"
     );
 }
+
+/// PDF176/177의 단일 셀 통째 표는 다행 RowBreak와 같은 바깥 상자를 쓴다.
+/// 괘선의 실제 상·하단을 검사하며 행 개수를 좌표 규칙의 근거로 삼지 않는다.
+#[test]
+fn whole_single_cell_rowbreak_border_includes_saved_outer_top() {
+    let core = core();
+    for (page, para, top, bottom) in [(175, 1832, 486.508, 903.012), (176, 1843, 539.729, 689.965)]
+    {
+        let tree = core.build_page_render_tree(page).expect("원본 영향 쪽");
+        let table = table_for_para(&tree.root, para).expect("통째 단일 셀 표");
+        assert!(
+            (table.bbox.y - top).abs() <= 1.5,
+            "p{} top: 실제{}, 독립PDF{}",
+            page + 1,
+            table.bbox.y,
+            top
+        );
+        assert!(
+            (table.bbox.y + table.bbox.height - bottom).abs() <= 1.5,
+            "p{} bottom: 실제{}, 독립PDF{}",
+            page + 1,
+            table.bbox.y + table.bbox.height,
+            bottom
+        );
+    }
+}

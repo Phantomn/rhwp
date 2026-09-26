@@ -1641,7 +1641,8 @@ pub(crate) fn topbottom_float_outer_margin_left_hu(table: &Table) -> Option<i32>
 /// IR `RowBreak` 로 들어온다. 모든 원본 HWPX 표·연속 block 표(#1133)에
 /// 더하면 간격이 3.8px 줄고 글자 겹침 기준선이 커지므로, native helper 와
 /// 같은 형상만 연다: 비-TAC TopAndBottom(vert=문단), 단·왼쪽, RowBreak,
-/// 다행 1열, 사방 균등 양의 outMargin, 오프셋 0.
+/// 하나 이상의 행·1열, 사방 균등 양의 outMargin, 오프셋 0. 단일 셀도
+/// 같은 바깥 상자를 쓰므로 행 수는 상단 여백을 없앨 근거가 아니다.
 pub(crate) fn original_hwpx_column_rowbreak_equal_outer_margin_hu(
     original_hwpx: bool,
     table: &Table,
@@ -1656,7 +1657,7 @@ pub(crate) fn original_hwpx_column_rowbreak_equal_outer_margin_hu(
         || signed_hwpunit(table.common.horizontal_offset) != 0
         || signed_hwpunit(table.common.vertical_offset) != 0
         || !matches!(table.page_break, TablePageBreak::RowBreak)
-        || table.row_count <= 1
+        || table.row_count == 0
         || table.col_count != 1
         || table.cells.len() != usize::from(table.row_count)
         || !table.cells.iter().enumerate().all(|(row, cell)| {
