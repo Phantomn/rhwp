@@ -404,3 +404,39 @@ Producer `bacbabc9e` + Rust/test diff SHA256 `d1abcad092e275a6d3bce3c8f8da9f0505
 ## 사용자 요청 추가 반영: 이전 통합의 영어 설명 주석 한글화
 
 이번 통합의108줄뿐 아니라 앞 #7406/#7366 통합이 시작된 `c80a8370a` 이후 추가 설명 주석도 다시 확인했다. 보정17에서 번역한 모델 설명9줄 외에13개 파일의21문단86줄을 한글로 바꿨다. [파일별 검증](../assets/pr7382_20260926/prior_comment_translation_validation.json)에서 주석을 제외한 파일 바이트가 전후 동일하며, 이 시작 base부터 현재 branch까지 추가 영어 설명 주석은0개다. 식별자와 코드 울타리 언어 표시는 유지했다. 주석만 바뀐 범위는 새 기능 검증 통과로 확대하지 않으며, 최종 기능 head의 필수 검증은 계속 진행한다.
+
+
+## 메인터너 보정 18: 저장 앵커로 입증한 낮은 시작 본문 경계
+
+원본 문단512의44000/46000/48000/0,516의62711..70711/0은 [한컴 PDF44/45의 첫 꼬리](../assets/pr7382_20260926/stage18_independent_geometry.json)와 대응한다. 문단512는 본문 높이의 약61%에서 시작해 기존70% 후보 조건에 막혔지만, 실제 저장 앵커와 현재 흐름은 일치했다. 이 비율이 물리 쪽 소유의 증거를 대신한 것이 원인이다.
+
+`prepare_forced_page_boundary`는 HWPX의 소스·구성 줄 수 일치와 기존 세션 편집 플래그를 확인하고, 공통 `hwpx_saved_reset_fragment_matches_current_flow`에서 단단/일반 본문/비합성 저장 줄/단조 앞 조각/정확한0 reset/현재 앵커 일치를 입증한 경계를 생산한다. 이 결과를 기존 forced boundary → scan/whole-fit/split → 확정·실제 글줄 배치가 소비한다. Native HWP/HWP3의 기존 비율 조건을 광역 완화하지 않았다. 무효 앵커와 합성 줄은 새 경계로 승격하지 않는다.
+
+세션 편집 플래그는 Native HWP5용이므로 HWPX 전역 편집 제외의 증거로 확대하지 않는다. 실제 HWPX 본문 편집은 원래 줄 태그를 보존하지만 내부0 reset을 연속 위치로 재조판한다. 처음에는 모든 줄이 구현 태그라고 잘못 가정해 내 대조 assertion이 실패했고, 실제 생성 계약과 꼬리 무중복으로 바로잡아 통과했다. 새 경계 결함 검출로 세지 않으며 편집 후 한컴 출력 일치로도 확대하지 않는다.
+
+Producer `1216114cb` + 최종 Rust/test diff SHA256 `93502ea7a03e1dd4a3dbf9f6052074cfa2f17da90cb602818a914fd9d54f967c`; [실행·명령·주석 외 코드 동일성·잔여](../assets/pr7382_20260926/stage18_validation.json).87개 검사 뒤 함수의 설명 두 줄만 수정했으며, 당시 실제 diff로 소스를 복원해 현재 함수의 주석 외 바이트가 같음을 확인했다. 별도 추가한 실제 편집 대조군은 최종 코드에서 실행했다.
+
+| 검사 | 결과 | 의미 |
+| --- | --- | --- |
+| 수정 전 실제 꼬리 회귀 |1FAIL, exit100,0.167s |44쪽 첫 꼬리 누락 검출 |
+| 관련·정상 대조군 |87PASS, exit0,12.902s |44/45 실제 꼬리·뒤 표 원점, 합성/불일치 앵커 거절, #6761의315쪽/부분 되감김, Native/HWP3/각주/표 보존 |
+| 실제 HWPX 편집 대조 |1PASS, exit0,0.215s | 연속 재조판 위치, 원본 컷 무재사용과 꼬리 무중복 |
+| 라이브러리 대조군 |6PASS, exit0,0.196s | 저장 표·그림 캡션·빈 문단·조각 생명주기 |
+| CLI·쪽수 |build exit0,1m49s;215/PDF215 | 페이지 수 일치 |
+| Native44/45 |71.92862/98.61863% |55.45553/50.97961%에서 개선.44 표 위치는 보류 |
+| Native43/46/106/107 |91.32182/97.24002/99.94111/99.02564% | 직접 판독, 앞 보정의 큰 배치 무회귀 |
+| Native121/122 |98.11430/98.01917% | 본문 개선. 직접 판독에서 각주160 소유가 여전히 틀림을 확인하여 의미 검증 보류 |
+| fmt·영어 주석 |exit0 / 추가 설명0개 | 한글 설명 준수 |
+
+선택8쪽의 review/standalone overlay16개를 직접 확인했다. 자동 선택 gate는44쪽으로 `re_review_required`, sweep exit1이며 글꼴 예외는 없다.121의 각주는 PDF159/160,122는161인데 현재160이122로 이월된다. 자동98%도 이 소유 결함을 해소하지 않는다.43 각주의 일부 줄바꿈/간격 차이도 남는다.44 표 위치와 각주 소유는 다음 개별 보정 대상으로 분리하고, 전체 최종/fresh WASM/lint 미완료로 PR 생성·승인 보류를 유지한다.
+
+[manifest](../assets/pr7382_20260926/stage18_native_manifest.json)·[summary](../assets/pr7382_20260926/stage18_native_summary.json)·[metrics](../assets/pr7382_20260926/stage18_native_overlay_metrics.json).
+
+![Native44 수정 전](../assets/pr7382_20260926/stage18_before_native_review_044.png)
+![Native44 본문 복원 및 표 잔여](../assets/pr7382_20260926/stage18_native_review_044.png)
+![Native44 overlay](../assets/pr7382_20260926/stage18_native_overlay_044.png)
+![Native45 수정 전](../assets/pr7382_20260926/stage18_before_native_review_045.png)
+![Native45 꼬리 및 뒤 표 복원](../assets/pr7382_20260926/stage18_native_review_045.png)
+![Native45 overlay](../assets/pr7382_20260926/stage18_native_overlay_045.png)
+![Native121 각주160 잔여](../assets/pr7382_20260926/stage18_native_review_121.png)
+![Native122 잘못 이월된 각주160](../assets/pr7382_20260926/stage18_native_review_122.png)

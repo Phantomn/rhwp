@@ -1455,3 +1455,90 @@ fn whole_row_cell_uses_its_allocated_height_for_saved_inner_margin() {
         );
     }
 }
+
+/// 같은 원본의 한컴 PDF44/45는 앞쪽 본문의 저장 vpos=0 꼬리로 시작한다.
+/// 시작 줄의 쪽 비율 대신 실제 저장 앵커와 흐름의 일치로 소유를 확인한다.
+#[test]
+fn anchored_body_reset_preserves_page_top_tail_below_fill_threshold() {
+    let core = core();
+    for (page, tail) in [(43, "(47.7%)이었음."), (44, "되었으며, <표 20>과 같음.")] {
+        let before = core.build_page_render_tree(page - 1).expect("앞 조각 쪽");
+        let next = core.build_page_render_tree(page).expect("꼬리 소유 쪽");
+        let y = line_top(&next.root, tail).expect("독립 PDF의 첫 꼬리 글줄");
+        assert!(
+            (y - 83.141).abs() <= 1.5,
+            "{}쪽 첫 글줄{y} vs PDF83.141",
+            page + 1
+        );
+        assert!(
+            !text(&before.root).contains(tail),
+            "꼬리를 앞쪽에서 중복 소비하면 안 됨"
+        );
+    }
+    let next = core.build_page_render_tree(44).expect("45쪽 뒤 표");
+    let table = table_for_para(&next.root, 518).expect("뒤 표21");
+    assert!(
+        (table.bbox.y - 193.388).abs() <= 1.5,
+        "뒤 표 원점{} vs PDF193.388",
+        table.bbox.y
+    );
+    assert_eq!(core.page_count(), 215, "원본 한컴 PDF215쪽");
+}
+
+/// 저장 앵커가 현재 흐름과 다르거나 합성 줄이면 낮은 시작 높이의
+/// reset만으로 새 물리 쪽 소유를 만들지 않는다.
+#[test]
+fn invalid_body_anchor_does_not_promote_low_fill_reset_to_page_owner() {
+    use rhwp::model::paragraph::LineSeg;
+    for synthetic in [true, false] {
+        let mut core = core();
+        let mut doc = core.document().clone();
+        let paragraph = &mut doc.sections[0].paragraphs[512];
+        if synthetic {
+            for line in &mut paragraph.line_segs {
+                line.tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
+            }
+        } else {
+            paragraph.line_segs[0].vertical_pos -= 7500;
+        }
+        core.set_document(doc);
+        let before = core
+            .build_page_render_tree(42)
+            .expect("유효하지 않은 앵커 대조군");
+        assert!(
+            text(&before.root).contains("(47.7%)이었음."),
+            "증거가 없는 reset으로 꼬리를 새 쪽에 넘기면 안 됨"
+        );
+    }
+}
+
+/// 실제 텍스트 편집이 재구성한 줄은 저장 쪽 경계의 근거로 재사용하지 않는다.
+/// 이 대조군은 편집 후 출력의 한컴 일치가 아니라 재조판 소유 계약을 확인한다.
+#[test]
+fn edited_body_reflow_does_not_reuse_original_saved_reset_owner() {
+    use rhwp::model::paragraph::LineSeg;
+    let mut core = core();
+    let original = &core.document().sections[0].paragraphs[512].line_segs;
+    assert_eq!(original[3].vertical_pos, 0, "원본의 실제 저장 reset");
+    assert!(original
+        .iter()
+        .all(|line| line.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0));
+    core.insert_text_native(0, 512, 0, " ")
+        .expect("실제 본문 편집 명령");
+    let edited = &core.document().sections[0].paragraphs[512].line_segs;
+    assert!(!edited.is_empty(), "실제 재조판 줄 생성");
+    assert!(
+        edited
+            .windows(2)
+            .all(|pair| pair[1].vertical_pos > pair[0].vertical_pos),
+        "실제 재조판은 원본의 내부0 reset을 유지하지 않고 연속 줄 위치를 생성"
+    );
+    let before = core.build_page_render_tree(42).expect("재조판 앞쪽");
+    let next = core.build_page_render_tree(43).expect("재조판 다음 쪽");
+    let tail = "(47.7%)이었음.";
+    assert!(
+        text(&before.root).contains(tail),
+        "원본 저장 컷 대신 실제 재조판 용량으로 소비"
+    );
+    assert!(!text(&next.root).contains(tail), "재조판 내용 중복 없음");
+}

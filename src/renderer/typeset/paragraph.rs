@@ -728,6 +728,27 @@ pub(super) fn prepare_forced_page_boundary(
             .first()
             .and_then(|item| page_item_vpos_base(item, paragraphs))
     });
+    // 쪽 소유가 저장 앵커와 현재 흐름으로 입증된 일반 본문은 시작 높이의
+    // 비율로 다시 거절하지 않는다. 기존 세션 편집 플래그와 구성 줄 수,
+    // 유효 저장 앵커를 확인하고 실제 재조판으로 사라진 reset은 재사용하지 않는다.
+    let anchored_hwpx_body_reset_line = (st.profile.hwpx_stored_layout()
+        && !st.profile.session_edited()
+        && para_has_visible_text(para)
+        && fmt.line_heights.len() == para.line_segs.len())
+    .then(|| {
+        (1..para.line_segs.len()).find(|&break_line| {
+            para.line_segs[break_line].vertical_pos == 0
+                && hwpx_saved_reset_fragment_matches_current_flow(
+                    st,
+                    para,
+                    0,
+                    break_line,
+                    current_page_vpos_base.unwrap_or(0),
+                    dpi,
+                )
+        })
+    })
+    .flatten();
     let hwp3_converted_hwp5 = st.profile.hwp3_layout()
         && !st.profile.hwp3_native_layout()
         && !st.profile.hwpx_container();
@@ -754,7 +775,8 @@ pub(super) fn prepare_forced_page_boundary(
                 dpi,
             )
     });
-    let forced_page_break_line = internal_forced_page_break_line
+    let forced_page_break_line = anchored_hwpx_body_reset_line
+        .or(internal_forced_page_break_line)
         .or_else(|| {
             st.profile.hwpx_stored_layout().then(|| {
                 boundary::hwpx_explicit_page_break_tail_line(
