@@ -7423,13 +7423,13 @@ impl LayoutEngine {
                 && paragraphs.get(*para_index + 1).and_then(|para| para.line_segs.first())
                     .is_some_and(|seg| seg.vertical_pos > paragraphs[*para_index].line_segs[0].vertical_pos
                         && seg.vertical_pos < 30_000));
-        // A saved HWPX page can begin with a paragraph whose first vpos is
-        // precisely its spacing-before. That vpos is a margin from the page
-        // origin, not the origin itself. The following saved paragraph must
-        // also account for its own spacing in the same ladder before we use
-        // page-relative vpos for subsequent items (#7406 p90). An explicit
-        // page-break paragraph starts a new flow, so its first vpos remains
-        // the page base (issue1853 p10).
+        // 저장 HWPX 쪽은 첫 vpos가 문단 앞 간격과 정확히 같은 문단으로 시작할 수 있다.
+        // 이 vpos는 쪽 원점 자체가 아니라 원점부터의 여백이다.
+        // 이후 항목에 쪽 상대 vpos를 적용하기 전에 다음 저장 문단도 같은
+        // 단계별 위치 관계에서 자기 앞 간격을 반영하는지 확인한다(#7406, 90쪽).
+        // 명시적으로 쪽을 나누는 문단은 새 흐름을 시작하므로
+        // 그 문단의 첫 vpos를 쪽 기준점으로 유지한다
+        // (issue1853, 10쪽).
         let hwpx_first_margin_is_page_relative = matches!(
             col_content.items.first(),
             Some(PageItem::FullParagraph { para_index })
@@ -8937,14 +8937,12 @@ impl LayoutEngine {
                     );
                 y_offset -= caption_shared_spacing;
             }
-            // A saved HWPX can put an empty paragraph exactly at the painted
-            // bottom of a floating picture. Its one line then separates the
-            // picture and the following caption. The picture host's own line
-            // height is already in the flow cursor; adding it again moves the
-            // empty line, caption, and later text together (#7406 p92–93).
-            // The successor's stored origin also owns the empty line's physical
-            // advance, including negative spacing. A hidden empty glyph must
-            // not erase that independently saved gap.
+            // 저장 HWPX는 떠 있는 그림의 배치 하단에 빈 문단을 정확히 놓을 수 있다.
+            // 그 빈 문단의 한 줄은 그림과 뒤 캡션 사이를 구분한다.
+            // 그림 호스트의 줄높이는 이미 흐름 커서에 포함되어 있으므로 다시 더하면
+            // 빈 줄과 캡션, 이후 본문이 함께 밀린다(#7406, 92–93쪽).
+            // 다음 문단의 저장 원점은 음수 간격을 포함한 빈 줄의 물리 전진도 소유한다.
+            // 빈 글자의 표시를 숨기더라도 독립적으로 저장된 그 간격을 지우면 안 된다.
             let mut saved_picture_empty_flow_end = None;
             if self.profile.get().hwpx_stored_layout() && !self.profile.get().session_edited() {
                 let picture_bottom_origin = (|| {
@@ -11526,9 +11524,9 @@ impl LayoutEngine {
                 );
                 let layer = Self::render_layer_from_common(&t.common, para_index, control_index);
                 Self::push_layered_paper_children(paper_images, &mut tmp_node, layer);
-                // The paper float paints outside the body, but its saved host
-                // line remains in the body flow when the following stored
-                // line starts at that line's end plus its trailing spacing.
+                // 종이 기준 떠 있는 개체는 본문 밖에 그리지만, 다음 저장 글줄이
+                // 호스트 줄의 끝과 뒤 간격의 합에서 시작하면
+                // 그 호스트 줄은 본문 흐름에 남는다.
                 if self.profile.get().hwpx_stored_layout()
                     && matches!(t.common.vert_rel_to, crate::model::shape::VertRelTo::Paper)
                     && !para_has_visible_text(para)

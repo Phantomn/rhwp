@@ -399,3 +399,8 @@ Producer `bacbabc9e` + Rust/test diff SHA256 `d1abcad092e275a6d3bce3c8f8da9f0505
 ![Native107 overlay](../assets/pr7382_20260926/stage17_native_overlay_107.png)
 ![Native108 후속 내용](../assets/pr7382_20260926/stage17_native_review_108.png)
 ![Native108 overlay](../assets/pr7382_20260926/stage17_native_overlay_108.png)
+
+
+## 사용자 요청 추가 반영: 이전 통합의 영어 설명 주석 한글화
+
+이번 통합의108줄뿐 아니라 앞 #7406/#7366 통합이 시작된 `c80a8370a` 이후 추가 설명 주석도 다시 확인했다. 보정17에서 번역한 모델 설명9줄 외에13개 파일의21문단86줄을 한글로 바꿨다. [파일별 검증](../assets/pr7382_20260926/prior_comment_translation_validation.json)에서 주석을 제외한 파일 바이트가 전후 동일하며, 이 시작 base부터 현재 branch까지 추가 영어 설명 주석은0개다. 식별자와 코드 울타리 언어 표시는 유지했다. 주석만 바뀐 범위는 새 기능 검증 통과로 확대하지 않으며, 최종 기능 head의 필수 검증은 계속 진행한다.

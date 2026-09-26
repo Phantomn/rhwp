@@ -2587,10 +2587,10 @@ pub(crate) fn recompose_stored_lines_in_frame_with_known_square_band(
             .unwrap_or(0),
     );
     frame.kopub_justified_space = justified_kopub_picture;
-    // A shorter fresh fill does not invalidate a clean stored partition.
-    // Only repair a final soft break that leaves the remainder of a Hangul
-    // word alone on the last row, when this frame can rejoin that remainder.
-    // A complete final word (or several words) retains its stored boundary.
+    // 새로 채운 줄이 짧아졌다는 이유만으로 정상 저장 분할을 무효화하지 않는다.
+    // 마지막 자동 줄바꿈 때문에 한글 어절의 나머지만 마지막 줄에 남고,
+    // 이 프레임에서 앞부분과 다시 합칠 수 있는 경우에만 보정한다.
+    // 완결된 마지막 어절이나 여러 어절은 저장된 경계를 유지한다.
     let rejoinable_word_tail = justified_kopub_picture
         && para.line_segs.len() > 1
         && !para.text.contains('\n')

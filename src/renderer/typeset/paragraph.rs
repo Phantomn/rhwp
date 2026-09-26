@@ -237,10 +237,10 @@ pub(super) fn place_fitted_paragraph(
         trimmed_spacing_before,
         body_bottom_vpos,
     );
-    // Only the KoPub justified reflow above deliberately invalidates a saved
-    // row ladder. Other documents (including HWP3-origin HWPX) can have fewer
-    // composed rows for unrelated reasons; subtracting their saved height
-    // from every later vpos would pull content past the physical page edge.
+    // 위의 KoPub 양쪽 정렬 재조판만 의도적으로 저장 줄 위치 관계를 무효화한다.
+    // HWP3에서 변환한 HWPX를 포함한 다른 문서는 별도 이유로 조판 줄 수가 줄 수 있다.
+    // 그 저장 높이를 모든 뒤 vpos에서 빼면
+    // 내용이 물리 쪽 경계를 넘어 당겨진다.
     let compacted_kopub_justified = st.profile.hwpx_stored_layout()
         && para.controls.iter().any(|control| {
             matches!(control, crate::model::control::Control::Picture(picture)

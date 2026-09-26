@@ -769,9 +769,9 @@ pub fn trim_stored_hwpx_inline_row_trailing_spacing(
     table: &Table,
     dpi: f64,
 ) -> Option<MeasuredTable> {
-    // A complete 1×1 HWPX CELL frame (model RowBreak) can retain a tiny cell seed. Its outer
-    // box owns the insets only when the saved last ink edge plus those insets
-    // closes that box exactly. It is not a cut into a continuing cell.
+    // 완결된 HWPX 1×1 CELL 프레임(모델 RowBreak)은 작은 초기 셀 높이를 저장할 수 있다.
+    // 저장된 마지막 글자 끝과 안 여백의 합이 바깥 상자를 정확히 닫을 때만
+    // 그 상자가 안 여백을 소유한다. 이어지는 셀의 중간 컷과는 다른 계약이다.
     let single_cell_frame = matches!(table.page_break, TablePageBreak::RowBreak)
         && table.row_count == 1
         && table.col_count == 1

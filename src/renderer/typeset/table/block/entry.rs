@@ -251,10 +251,10 @@ impl TypesetEngine {
             if let Some(first_seg) = para.line_segs.first() {
                 let target_y =
                     crate::renderer::hwpunit_to_px(first_seg.vertical_pos as i32, self.dpi);
-                // A paper-positioned table can paint above the body while its
-                // host still owns a saved line box.  When the next saved line
-                // starts exactly after that box, retain the host's line height
-                // in flow; the table's painted bottom alone ends too early.
+                // 종이 기준 표는 본문 위에 그려져도 호스트가 저장 글줄 상자를 소유할 수 있다.
+                // 다음 저장 글줄이 그 상자 바로 뒤에서 시작하면
+                // 호스트 줄높이를 흐름에 보존한다.
+                // 표의 배치 하단만으로 끝내면 너무 일찍 종료된다.
                 let saved_host_line_end = paragraphs_all
                     .get(para_idx + 1)
                     .and_then(|next| next.line_segs.first())
@@ -1306,16 +1306,15 @@ impl TypesetEngine {
             .or_else(|| {
                 unconstrained_host_placement.map(|p| constrain_host_placement.constrain(p, st))
             });
-        // [#7390] A stored RowBreak object declaration can describe only the
-        // first physical fragment.  It cannot grant whole-table ownership when
-        // the measured rows, painted from the current flow position, would pass
-        // the paper edge.  In that case the row scanner must choose the cut and
-        // the renderer must consume that same fragment instead of clamping the
-        // entire table back to the body top over preceding text/caption.
-        // This is a lower bound on the painted bottom: positive anchor offsets
-        // can only move the table farther down.  Trailing host spacing is not
-        // part of the painted table.  Keep the established body-margin bleed
-        // for objects whose painted rows still fit on the physical paper.
+        // [#7390] 저장 RowBreak 개체의 선언 높이는 첫 물리 조각만 나타낼 수 있다.
+        // 현재 흐름 위치에서 측정 행을 그렸을 때 종이 경계를 넘는다면
+        // 그 선언값이 표 전체의 소유를 보장하지 않는다.
+        // 이 경우 행 스캐너가 컷을 선택하고 렌더러도 같은 조각을 소비해야 한다.
+        // 표 전체를 본문 위로 강제로 옮겨 앞 텍스트·캡션 위에 포개지 않는다.
+        // 이 값은 배치 하단의 하한이다. 양수 앵커 오프셋은 표를 더 아래로만 옮긴다.
+        // 호스트 뒤 간격은 그려지는 표에 포함되지 않는다.
+        // 측정 행이 물리 종이 안에 들어가는 개체는
+        // 기존 본문 여백 침범 허용을 유지한다.
         let below_body_slack =
             (st.layout.page_height - (st.layout.body_area.y + st.layout.body_area.height)).max(0.0);
         let painted_rowbreak_exceeds_paper = st.profile.hwpx_stored_layout()

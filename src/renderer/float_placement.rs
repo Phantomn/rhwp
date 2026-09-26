@@ -83,10 +83,10 @@ pub(crate) fn column_rowbreak_caption_outer_spacing_px(
     }
 }
 
-/// Saved blank paragraph immediately after a terminal table fragment can
-/// start at the fragment's physical bottom. Its `spacing_before` is already
-/// represented by that shared boundary, so both pagination and paint reuse
-/// the same amount instead of reserving it twice (#7406 pp.39–40).
+/// 종료 표 조각 바로 뒤의 저장 빈 문단은 조각의 물리 하단에서 시작할 수 있다.
+/// 그 문단의 spacing_before는 이미 공유 경계에 반영되어 있으므로
+/// 쪽 나눔과 실제 배치가 같은 값을 재사용해 중복 예약하지 않는다
+/// (#7406, 39–40쪽).
 pub(crate) fn hwpx_empty_after_partial_table_shared_spacing_px(
     hwpx_stored: bool,
     previous_is_partial_table: bool,
@@ -117,9 +117,9 @@ pub(crate) fn hwpx_empty_after_partial_table_shared_spacing_px(
     }
 }
 
-/// A captioned floating picture can end exactly where the next saved text
-/// line begins. In that case the successor's spacing-before is already in the
-/// painted picture/caption boundary and must not be added a second time.
+/// 캡션이 있는 떠 있는 그림의 끝과 다음 저장 글줄의 시작이 일치할 수 있다.
+/// 이 경우 다음 문단의 앞 간격은 그림·캡션 배치 경계에 이미 포함되어 있으므로
+/// 다시 더하지 않는다.
 pub(crate) fn hwpx_after_picture_caption_shared_spacing_px(
     hwpx_stored: bool,
     previous: Option<&Paragraph>,

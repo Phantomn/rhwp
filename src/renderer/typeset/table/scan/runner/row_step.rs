@@ -365,12 +365,12 @@ impl TypesetEngine {
                 return false;
             }
             let padding = row_entry.padding();
-            // A page-spanning 1×1 cell can store only a tiny seed cell height
-            // while its outer table owns the physical box. Once its full
-            // vertical inset is restored, HU-to-pixel rounding can put the
-            // last source line less than one raster pixel past the numeric
-            // budget. Keep that line with the source frame (#7406 p39→40);
-            // ordinary rows and continuations retain the exact budget.
+            // 여러 쪽에 걸치는 1×1 셀은 작은 초기 셀 높이만 저장하고
+            // 바깥 표가 물리 상자를 소유할 수 있다. 전체 수직 안 여백을 복원하면
+            // HU에서 픽셀로 변환할 때의 반올림으로 마지막 저장 글줄이
+            // 수치 예산을 한 픽셀 미만 초과할 수 있다.
+            // 그 줄은 원본 프레임에 유지한다(#7406, 39→40쪽).
+            // 일반 행과 이어받기 조각은 정확한 예산을 유지한다.
             let source_cell_rounding_slack = if st.profile.hwpx_stored_layout()
                 && r == cursor_row
                 && row_start_cut.is_empty()
@@ -515,12 +515,12 @@ impl TypesetEngine {
                     }
                 }
             }
-            // A direct HWPX 1×1 table can save the opening fragment's
-            // physical height alongside its final line and the next frame's
-            // vpos=0 paragraph. If ordinary capacity stops one line before
-            // that boundary, use the declared frame box only when it fits the
-            // current page. This leaves the closing inset with that physical
-            // fragment instead of reserving it twice (#7406 p34→35).
+            // 직접 저장한 HWPX 1×1 표는 첫 조각의 물리 높이를 마지막 글줄과
+            // 다음 프레임의 vpos=0 문단과 함께 저장할 수 있다.
+            // 일반 용량 계산이 그 경계 한 줄 앞에서 멈추면
+            // 선언 프레임 상자가 현재 쪽에 들어갈 때에만 사용한다.
+            // 종료 안 여백은 그 물리 조각에 남겨 중복 예약하지 않는다
+            // (#7406, 34→35쪽).
             let mut saved_opening_frame_height = None;
             if r == cursor_row && !is_continuation && consumed == 0.0 {
                 saved_opening_frame_height = layout_engine

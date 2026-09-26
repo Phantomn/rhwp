@@ -4489,9 +4489,9 @@ impl LayoutEngine {
                             continue;
                         }
                     }
-                    // A saved opening frame can end at a paragraph boundary
-                    // before the table's remaining paragraphs. Its declared
-                    // physical box is the height reserved by the scanner.
+                    // 저장 첫 프레임은 표의 남은 문단보다 앞선 문단 경계에서 끝날 수 있다.
+                    // 그 선언된 물리 상자의 높이는
+                    // 스캐너가 예약한 높이와 같다.
                     let h = if r == start_row && r == split_last_row && !is_continuation {
                         self.saved_single_cell_opening_frame_height(table, r, su, eu, styles)
                             .unwrap_or_else(|| {

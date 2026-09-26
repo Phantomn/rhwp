@@ -68,7 +68,7 @@ pub(in crate::renderer::typeset) struct StateView {
     pub(in crate::renderer::typeset) current_footnote_height: f64,
     /// 현재 큐 예약은 실제 배치와 같은 본문 하단 앵커를 사용한다.
     pub(in crate::renderer::typeset) current_footnote_body_bottom_reserved: bool,
-    /// Current page owns a HWPX note body deferred from a picture marker page.
+    /// 현재 쪽은 그림 표시가 있는 앞쪽에서 이월된 HWPX 각주 본문을 소유한다.
     pub(in crate::renderer::typeset) deferred_hwpx_note_body: bool,
     /// [Task #1658 v3] 페이지 하단 고정 표(vert=쪽·valign=Bottom, 결재/서명 틀)의
     /// 하단 배타 영역 높이 — 겹침 허용이므로 합이 아닌 max(union). 본문 텍스트는

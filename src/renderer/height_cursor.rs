@@ -435,12 +435,12 @@ impl HeightCursor {
             .and_then(|p| styles.para_styles.get(p.para_shape_id as usize))
             .map(|ps| ps.spacing_before)
             .unwrap_or(0.0);
-        // A one-cell picture frame can store a host vpos that advances by
-        // exactly its before-spacing from the preceding line end. It carries
-        // no table height; using the preceding end and deducting that spacing
-        // again pulls its first fragment above the flow origin (issue2004 p4).
-        // Text tables with the same numeric gap still use the conservative
-        // host rule: issue1853 p10 otherwise paints its last line below body.
+        // 단일 셀 그림 프레임의 호스트 vpos는 앞 글줄 끝에서 정확히
+        // 문단 앞 간격만큼 전진한 값으로 저장될 수 있다. 여기에는 표 높이가 없다.
+        // 앞 글줄 끝을 기준으로 잡고 간격을 다시 빼면 첫 조각이
+        // 흐름 원점 위로 올라간다(issue2004, 4쪽).
+        // 같은 수치 간격을 가진 텍스트 표는 기존의 보수적인 호스트 규칙을 사용한다.
+        // 그렇지 않으면 issue1853의 10쪽 마지막 글줄이 본문 아래로 내려간다.
         let one_cell_picture_frame = paragraphs.get(item_para).is_some_and(|para| {
             para.controls.iter().any(|control| match control {
                 Control::Table(table) => {

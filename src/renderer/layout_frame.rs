@@ -357,7 +357,7 @@ pub(crate) struct LayoutFrame {
     pub(crate) current_intervals: Vec<Range<i32>>,
     pub(crate) next_geometry_event: Option<i32>,
     pub(crate) minimum_width: i32,
-    /// Stored HWPX KoPub justified rows may compress spaces to the font advance.
+    /// 저장 HWPX의 KoPub 양쪽 정렬 줄은 공백을 글꼴 전진폭까지 줄일 수 있다.
     pub(crate) kopub_justified_space: bool,
     /// Whether `horizontal` is a column edge pair.
     ///

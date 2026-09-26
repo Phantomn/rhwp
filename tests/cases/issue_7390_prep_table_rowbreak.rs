@@ -29,7 +29,7 @@ fn prep_page_33_keeps_complete_final_word_on_saved_sixth_line() {
     assert!(lines[0].trim_end().ends_with("한다는"), "첫 줄: {lines:?}");
     assert_eq!(lines[5].trim(), "왜곡될 수 있음.");
     let last = line_top_containing(&page.root, "왜곡될 수 있음.").expect("마지막 줄");
-    // PDF yMin=430.848pt, 96dpi.
+    // PDF 위 좌표 yMin=430.848pt, 96dpi 기준.
     assert!((last - 574.464).abs() <= 1.5, "마지막 줄 위치: {last:.3}");
 }
 

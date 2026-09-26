@@ -13256,10 +13256,10 @@ impl LayoutEngine {
         end_cut: usize,
         styles: &ResolvedStyleSet,
     ) -> f64 {
-        // A saved HWPX pageBreak="CELL" can end a physical fragment with a visible
-        // paragraph, then restart the next paragraph at vpos=0. The final
-        // line's spacing belongs to the next frame, so it must not prevent
-        // that visible line from fitting the current page (#7406 p79→80).
+        // 저장 HWPX pageBreak="CELL"은 보이는 문단으로 물리 조각을 끝낸 뒤
+        // 다음 문단을 vpos=0에서 다시 시작할 수 있다. 마지막 줄의 간격은
+        // 다음 프레임에 속하므로 현재 쪽에 그 보이는 줄이 들어가는 것을
+        // 막으면 안 된다(#7406, 79→80쪽).
         if self.profile.get().hwpx_stored_layout()
             && !self.profile.get().session_edited()
             && !table.common.treat_as_char
@@ -13309,10 +13309,9 @@ impl LayoutEngine {
                 }
             }
         }
-        // An original HWPX 1-cell table may store an empty closing line just
-        // before the next page's vpos=0 line.  The closing line belongs to the
-        // first fragment, but its line spacing does not occupy that page.  The
-        // same trimmed height must be used by cut selection and painted bounds.
+        // 원본 HWPX 단일 셀 표는 다음 쪽의 vpos=0 문단 바로 앞에 빈 종료 줄을 저장할 수 있다.
+        // 종료 줄은 첫 조각에 속하지만 그 줄간격은 해당 쪽을 점유하지 않는다.
+        // 컷 선택과 배치 상자가 같은 종료 줄간격 제외 높이를 사용해야 한다.
         if self.profile.get().hwpx_stored_layout()
             && !self.profile.get().session_edited()
             && !table.common.treat_as_char
@@ -13996,8 +13995,8 @@ impl LayoutEngine {
         Some(hwpunit_to_px(table.common.height as i32, self.dpi))
     }
 
-    /// Return the physical height of a saved opening frame at its exact cut.
-    /// The scanner and the partial-table painter must consume the same height.
+    /// 정확한 저장 컷에서 첫 프레임의 물리 높이를 반환한다.
+    /// 스캐너와 부분 표 배치는 같은 높이를 소비해야 한다.
     pub(crate) fn saved_single_cell_opening_frame_height(
         &self,
         table: &crate::model::table::Table,
@@ -14122,8 +14121,8 @@ impl LayoutEngine {
             + hwpunit_to_px(line.line_spacing, self.dpi)
     }
 
-    /// An ordinary cut can stop one line before a saved opening frame ends.
-    /// Extend only that one displaced line when the declared frame still fits.
+    /// 일반 컷은 저장 첫 프레임 끝보다 한 줄 앞에서 멈출 수 있다.
+    /// 선언 프레임이 여전히 들어갈 때에만 그 밀려난 한 줄을 포함한다.
     pub(crate) fn saved_single_cell_opening_frame_tail(
         &self,
         table: &crate::model::table::Table,
