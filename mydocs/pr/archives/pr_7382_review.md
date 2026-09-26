@@ -801,3 +801,21 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 ![11쪽 overlay](../assets/pr7382_20260926/stage31_native_hwpx_overlay_011.png)
 ![23쪽 그래프 정렬과 남은 캡션 중복](../assets/pr7382_20260926/stage31_native_hwpx_review_023.png)
 ![23쪽 overlay](../assets/pr7382_20260926/stage31_native_hwpx_overlay_023.png)
+
+## 보정32 사전 분석 — 셀 그림 캡션의 중복 출력
+
+- 원본23쪽 표339의 두 그림 캡션은 각각 원문5줄인데 최종 셀에 같은5줄이 두 번 출력된다. 보정31에 보존한 정식 `cell_picture_bottom_caption_has_one_owner`는 왼쪽 캡션2개를 검출해 실패했다. 독립 한컴2024 PDF에는 각 캡션이 한 번만 있으며 위치는 유지된 상태에서 글자가 겹쳐 굵게 보인다.
+- `table_layout::layout_picture` 호출 → `picture_footnote::layout_picture`의 공통 방향별 캡션 좌표/소유/출력 → 호출자 아래의 별도 Bottom `layout_caption` 재호출을 추적했다. 부분 셀 경로는 공통 호출만 사용한다. 별도 Bottom 블록은 기존 메인터너 커밋9bed077a1a(2026-08-02), 소유 표식은4198c6df47(2026-09-11)에서 온 코드이며 원 기여자의 #7382 변경으로 분류하지 않는다.
+- 그림 공통 경로가 예약한 캡션 띠와 실제 셀 문맥·원본 개체 소유를 한 번 출력하게 하고 호출자의 중복 블록을 제거한다. 최종 글자를 숨기거나 tree를 사후 중복 제거하지 않는다. 온전한 원본 HWP/HWPX의5줄·좌표·소유·뒤 본문 보존과 본문/상단/옆 캡션 정상 대조를 실행하고 직접 Visual Sweep으로 확인한다. 기준값·허용치·페이지 수를 바꾸지 않는다.
+
+### 보정 결과
+
+- 온전한 셀의 별도 Bottom 캡션 호출을 제거해 그림 공통 경로가 좌표·셀 문맥·개체 소유와 출력까지 한 번 처리한다. 측정·예약·분할 컷은 변경하지 않았다. 부분 셀과 글자처럼 그림은 이미 같은 공통 호출만 사용하며 본문/상단/옆 캡션 정상 대조를 함께 실행했다.
+- 기존 정식 HWPX 검사는 수정 전0PASS/1FAIL(exit100,0.238s)로 캡션2개를 검출했다. 수정 후 두 형식의 정식2개는PASS(exit0,0.213s)다. 각 캡션의 원문5줄·전체 내용/순서·원본 개체 소유·독립 PDF 상단/원본 줄 간격·뒤 본문·215쪽을 확인했다. 신규 HWP 검사는 수정 후만 실행했으며 변경 전 HWP의 중복은 불변31 CLI의 실제 tree로 확인했다. 그 진단을 신규 HWP 검사의 수정 전 실행으로 보고하지 않는다.
+- 확대142개중141PASS/1FAIL(exit100,4.959s,threads8)이다. 본문/상단/좌우 캡션·각주/그림·중첩 표·이전 저장 프레임 정상 대조는 통과했다. 남은 실패는 기존 #6782 일본 마크320.2/320.5px와 독립318.2/319.0px 차이이며 다음 개별 보정으로 다룬다. 기대값·허용치 상향으로 숨기지 않았다.
+- 새 Native HWPX11/13/23/68쪽은98.39093/94.51340/99.62374/90.85432%, HWP는98.39093/96.29076/99.62374/90.85432%다. 두 입력 모두215/PDF215쪽, exit0,선택 gate passed다. 새 review·standalone overlay16개를 직접 읽어23쪽 두 그림과 캡션5줄/뒤 본문,11쪽 그림5/6·뒤 본문/각주,13쪽 표2/그림8/9·각주,68쪽 그림49·본문/각주를 확인했다. 변경 전20개 캡션 줄은10개로 줄었고 래스터 차이는23쪽 캡션 영역에 있다. 작은 실루엣 점수 개선을 완전 픽셀 일치나 다른 보류 사유의 해소로 보고하지 않는다.
+- fmt·manifest(6212 static attrs)·source-unit(4205검사/298모듈)은 고정base eb9142dd7에서exit0이다. 불변 CLI는release-test 빌드exit0,1m27s다. [source/diff/CLI 해시·정확한 명령·검사/시각 판정](../assets/pr7382_20260926/stage32_validation.json), [원본/PDF·변경 전후 캡션 줄](../assets/pr7382_20260926/stage32_independent_geometry.json), [추가 영어 설명 주석0개](../assets/pr7382_20260926/stage32_english_comment_scan.json)를 보존했다. 모든 로그는output/logs에 남기며 커밋하지 않는다.
+- 일본 마크 실패·14쪽 그림11의 기존 위치 차이·실제 TABLE 편집/보존 래퍼 분할 경계·최신 전수/전체 Rust/lint/Skia/fresh WASM은 남아 있다. 이번 중간 보정은 통합 PR 제출/승인의 증거를 대신하지 않는다.
+
+![23쪽 캡션 단일 출력](../assets/pr7382_20260926/stage32_native_hwpx_review_023.png)
+![23쪽 overlay](../assets/pr7382_20260926/stage32_native_hwpx_overlay_023.png)

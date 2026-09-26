@@ -2398,10 +2398,29 @@ fn centered_picture_flow_keeps_positive_space_and_discards_negative_space() {
 /// 정렬 위치와 별도로 캡션 유닛의 단일 소유를 검증한다.
 #[test]
 fn cell_picture_bottom_caption_has_one_owner() {
-    let core = core();
+    assert_cell_picture_bottom_caption_has_one_owner(false);
+}
+
+#[test]
+fn native_cell_picture_bottom_caption_has_one_owner() {
+    assert_cell_picture_bottom_caption_has_one_owner(true);
+}
+
+fn assert_cell_picture_bottom_caption_has_one_owner(native: bool) {
+    use rhwp::model::control::Control;
+    use rhwp::renderer::render_tree::CaptionControlKind;
+    let mut path = Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE);
+    if native {
+        path.set_extension("hwp");
+    }
+    let core = DocumentCore::from_bytes(&std::fs::read(path).unwrap()).unwrap();
     let tree = core.build_page_render_tree(22).unwrap();
     let table = table_for_para(&tree.root, 339).unwrap();
-    for (col, caption) in [(0, "그림 21"), (1, "그림 22")] {
+    let Control::Table(source_table) = &core.document().sections[0].paragraphs[339].controls[0]
+    else {
+        panic!("원본 두 그림의 표");
+    };
+    for (col, caption, pdf_top) in [(0, "그림 21", 498.321655), (1, "그림 22", 481.361654)] {
         let cell = table.children.iter().find(|node| {
             matches!(&node.node_type, RenderNodeType::TableCell(cell) if cell.col == col)
         }).unwrap();
@@ -2410,5 +2429,49 @@ fn cell_picture_bottom_caption_has_one_owner() {
             1,
             "{caption} 캡션 단일 소유"
         );
+        let lines: Vec<_> = cell.children.iter().filter(|node| {
+            matches!(&node.node_type, RenderNodeType::TextLine(line) if line.caption_owner.is_some())
+        }).collect();
+        assert_eq!(lines.len(), 5, "원본 저장 캡션5줄의 누락·중복 없음");
+        let Control::Picture(source_picture) =
+            &source_table.cells[col as usize].paragraphs[0].controls[0]
+        else {
+            panic!("원본 셀 그림");
+        };
+        let source_caption = source_picture.caption.as_ref().unwrap();
+        let original: String = source_caption
+            .paragraphs
+            .iter()
+            .map(|p| p.text.as_str())
+            .collect();
+        let rendered: String = lines.iter().map(|line| text(line)).collect();
+        assert_eq!(rendered, original, "원본 캡션 전체 내용과 순서 보존");
+        for (index, node) in lines.iter().enumerate() {
+            let RenderNodeType::TextLine(line) = &node.node_type else {
+                unreachable!()
+            };
+            let owner = line.caption_owner.unwrap();
+            assert_eq!(
+                (
+                    owner.sec_idx,
+                    owner.para_idx,
+                    owner.control_idx,
+                    owner.caption_ordinal
+                ),
+                (0, 339, 0, 0)
+            );
+            assert_eq!(owner.control_kind, CaptionControlKind::Image);
+            // 독립 PDF 첫 글자 상단과 원본900HU 줄 높이·540HU 간격을 대조한다.
+            assert!(
+                (node.bbox.y - (pdf_top + index as f64 * 19.2)).abs() < 0.5,
+                "{caption} {index}번째 줄: {:?}, PDF 시작{pdf_top}",
+                node.bbox
+            );
+        }
     }
+    assert!(
+        line_top(&tree.root, "장기 유형별 이식 횟수 또한 증가 추세").is_some(),
+        "뒤 본문 보존"
+    );
+    assert_eq!(core.page_count(), 215);
 }
