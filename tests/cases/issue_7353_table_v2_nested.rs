@@ -25,6 +25,67 @@ fn lines(paragraph: usize, height: f64) -> FlowBlock {
     }
 }
 
+#[test]
+fn text_lane_roundoff_preserves_boxes_but_rejects_real_overflow() {
+    let inner = 200.0_f64 - 6.8 - 6.8;
+    for extra in [0.0, 1.0 / 75.0, 0.01 / 75.0] {
+        let expected = 13980.0 / 75.0 + extra;
+        let plan = TableContentPlan::from_flow_rows(
+            vec![200.],
+            vec![FlowRowInput {
+                cells: vec![FlowCellInput {
+                    width: inner,
+                    padding: Insets {
+                        left: 6.8,
+                        right: 6.8,
+                        ..Default::default()
+                    },
+                    minimum_height: 0.,
+                    blocks: vec![FlowBlock::Lines {
+                        height: 12.,
+                        advance: 12.,
+                        lines: vec![LineBox {
+                            owner: LineOwner {
+                                paragraph: 0,
+                                line: 0,
+                            },
+                            bounds: Rect {
+                                x: 0.,
+                                y: 0.,
+                                width: expected,
+                                height: 12.,
+                            },
+                        }],
+                    }],
+                }],
+            }],
+            0.,
+            SplitPolicy::WithinCells,
+        );
+        if extra == 0.0 {
+            let FragmentFit::Placed(p) = plan
+                .unwrap()
+                .start()
+                .fit(PageArea {
+                    bounds: Rect {
+                        x: 0.,
+                        y: 0.,
+                        width: 200.,
+                        height: 20.,
+                    },
+                })
+                .unwrap()
+            else {
+                panic!("line must fit")
+            };
+            let placement = p.placement();
+            assert_eq!(placement.cells[0].lines[0].bounds.width, expected);
+        } else {
+            assert!(matches!(plan, Err(GeometryError::ContentBounds { .. })));
+        }
+    }
+}
+
 fn child(policy: SplitPolicy) -> TableContentPlan {
     TableContentPlan::from_flow_rows(
         vec![60.0],

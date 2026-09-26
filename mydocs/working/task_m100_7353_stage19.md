@@ -3656,3 +3656,68 @@ Double이다(`signed-margin/next-blocker.log`). 원본 수용 경계 진단 asse
   새 음수 여백 합성 출력3쪽도 직접 확인했다. 이것은 계약/무회귀 증거이며 원본의 한컴
   피델리티 통과 자료가 아니다. 원본 전체는 이중선에서 계속 미지원이며 R3/R5 완료나
   전체 CI 통과로 보고하지 않는다.
+
+#### 승인 후 다음 묶음 — 표 이중선과 공유 경계
+
+사용자가 다음 절편을 승인했다. 변경 소스는 `3c35762b1` 위 diff이며
+`output/7353/r19/double/source.sha256`으로 고정했다. Legacy 경로와 기본값은 유지한다.
+
+독립 근거는 원본 #6923 PDF4쪽 제목 셀과 새 한컴 정상 저장2×2 대조군4개다.
+입력 생성 방식·HWP/PDF job·한계는
+`tests/fixtures/issue7353_double_review/README.md`에 기록했다. 원본 제목 추출본은
+table/cell outline 불일치가 있어 미지원이며, 이 사실을 바꾸지 않고 별도 동일선 대조군을
+작성했다. PDF의 굵기ID0/3/7/11 pen은 각각0.12/0.12/0.36/약1.079pt,
+중심 간격은 약3pen이다. 600dpi 격자에서 선언 폭을4등분한 pen과1:2:1비율에 해당한다.
+
+공통 경로는 `CellBorders::prepare`/`resolve_edges`의 저장 borderFill → 조각의 실제 행/셀 경계 →
+`CellBorders::append`의 공유 span union/outline/zone 적용 → `borders::double::append`의
+동일 기하에 두 pen 배치 → Single LineNode/ink_bbox → 공통 SVG·WASM export다.
+측정·컷·예약 높이는 변경하지 않는다. 공유 경계는 한 번만 만들고 L/T/교차점의 안쪽 선을
+접점에서 끝내 빈 간격을 가로지르지 않게 한다. 서로 다른 굵기/색/선 종류 접점과
+Double zone perimeter는 독립 검증 전까지 명시적으로 거부한다.
+
+정상 저장 대조군 실행에서 별도의 수평 폭 산술 오류가 검출됐다.
+저장 줄13980HU/75와 `(15000-510-510)/75`의 계산 순서 차이로
+186.40000000000001과186.39999999999998이 비교되어 ContentBounds가 발생했다.
+`content::exceeds_text_lane`은 machine-relative4EPSILON 범위의 산술 오차만 구별한다.
+실제 줄 상자·배치 원점은 바꾸지 않으며 .01HU/1HU의 실제 넘침은 계속 거부한다.
+수직 예산, TAC/rowspan 컷의 허용치는 바꾸지 않았다. 실제 저장 입력을 수정하지 않았다.
+
+정식 회귀 검사는 `tests/cases/`에 두었다. 이중선 추가 전에는 border style 거부,
+폭 산술 보완 전에는 정상 저장 grid의 ContentBounds로 실패한 로그를 각각
+`double/before.log`, `double/roundoff-before.log`에 보존했다. 현재18개 집중 harness는
+**284PASS/0FAIL**이다. 최종좌표·이중선 간격·교차점·공유선 중복·네 셀 글자와AFTER CELL을
+검사하며, 별도 합성 계약으로 제목 반복/셀 분할/빈 물리 꼬리에서 기존Solid와 같은 내용·
+점유 경계·종료를 확인했다. 한컴 기준의 없는 분할Double 출력은 이 합성 계약과 구분한다.
+Native/WASM lib Clippy와 cargo fmt check는 통과했다. 전체CI·workspace lint는 이번
+내부 절편에서 실행하지 않았다. 테스트 수 증가를 전체 타스크 진척률로 환산하지 않는다.
+
+원본 #6923은 입력 변경 없이 `V2 overlapping zone decorations`까지 진행했다.
+정상 저장 제목 추출본은 `V2 table/cell outline disagreement`에서 멈춘다.
+원본 전체 페이지/총 페이지 수의 통과 자료는 아직 없다. 다음 원본 차단점은 이 두 장식
+우선순위 규칙이며, 이번Double 대조군만으로 R3/R5 완료를 선언하지 않는다.
+
+최종 backend 검증: `docker compose --env-file .env.docker -p rhwp run --rm wasm`는
+7분18초/exit0으로 완료했다(`double/docker.log`). WASM SHA-256은
+`4e31fbe3d1c1eb873aa9a2f845b795fe68e3e6a489d551be7bc2ad470a19abee`다.
+`DOUBLE_CASE=grid-{0,3,7,11} node output/7353/r19/double/review.mjs --wasm`로
+네 정상 저장 입력의 Native/fresh WASM JSON차이0·SVG동일을 확인했다.
+`double/controls.mjs`의 기존 승인7대조군×2정책=14조합도 모두 기존SVG 유지·backend동일이다.
+Native review 일괄실행 중 Chrome launch가1회 실패했고 단독 재실행은 성공했다.
+빌드/엔진 실패로 세지 않았다. 입력·PDF·소스·WASM hash는 각grid `run.json`에 있다.
+
+Native/fresh WASM review와 대표 standalone overlay를 직접 열어 네 셀·공유선·교차점과
+AFTER CELL 보존을 확인했다. 96dpi에서는 가는 선의 농도/antialias 차이와 폴백 글꼴 차이가
+남는다. 굵은 선의384dpi확대에서는 두 pen·빈간격·L/T/십자 형태를 직접 확인했다.
+PDF의600dpi끝점 반올림과 연속좌표의 미세 차이는 완전한 픽셀 일치로 보고하지 않는다.
+최종 메인테이너 시각 판정은 다음 자료로 요청한다.
+
+- [이중선 전체/후속 문단 비교](../../output/7353/r19/double/grid-11/wasm-review-1.png)
+- [표 네 셀 전체384dpi확대](../../output/7353/r19/double/grid-11/wasm-highdpi-review.png)
+- [standalone overlay](../../output/7353/r19/double/grid-11/wasm-overlay-1.png)
+- 입력: `tests/fixtures/issue7353_double_review/grid-11-saved.hwp`
+- 기준: `tests/fixtures/issue7353_double_review/grid-11-2020.pdf`, 물리1쪽
+
+이 자료는 원본 전체가 아닌 명시된Double 규칙의 대조군이다. 원본 수용 경계와
+전체타스크 남은 범위는 위 제한을 유지한다. 전체진척 추정은 약45%(40~50%)이며,
+이번 좁은 선 출력 지원만으로 전체완료율을 올려 보고하지 않는다.

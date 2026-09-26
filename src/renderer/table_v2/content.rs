@@ -259,7 +259,7 @@ impl TableContentPlan {
                                     nonnegative(v, "line bounds")?;
                                 }
                                 if !((b.x + b.width).is_finite() && (b.y + b.height).is_finite())
-                                    || b.x + b.width > text_width
+                                    || exceeds_text_lane(b.x + b.width, text_width)
                                     || b.y + b.height > *height
                                 {
                                     return Err(GeometryError::ContentBounds { row, column });
@@ -404,4 +404,12 @@ impl TableContentPlan {
     pub fn start(self) -> TableCursor {
         TableCursor::new(Arc::new(self))
     }
+}
+
+// A saved HU line and (cell width - left padding - right padding) can reach
+// the same mathematical edge through different floating-point operations.
+// Bound only that arithmetic error; preserve the actual box for placement.
+// This is not a pixel/HWPUNIT overflow allowance or a coordinate clamp.
+fn exceeds_text_lane(end: f64, limit: f64) -> bool {
+    end > limit && end - limit > 4.0 * f64::EPSILON * end.abs().max(limit.abs())
 }

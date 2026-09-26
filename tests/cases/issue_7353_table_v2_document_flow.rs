@@ -372,14 +372,15 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         panic!("qualify full source output before updating admission")
     };
     eprintln!("original terminal admission: {error}");
-    // Signed table margins now preserve both stored advance and physical
-    // bounds. The untouched original reaches the next unsupported feature;
+    // Signed margins and double cell pens now reach the next unsupported feature;
     // this remains an admission diagnostic, not a layout acceptance baseline.
     assert!(matches!(
         error,
         DocumentV2Error::Paragraph {
             index: 5,
-            reason: rhwp::renderer::table_v2::GeometryError::Unsupported("V2 cell border style")
+            reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
+                "V2 overlapping zone decorations"
+            )
         }
     ));
     if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {

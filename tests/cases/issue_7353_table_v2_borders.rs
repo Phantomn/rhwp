@@ -514,6 +514,234 @@ fn all_sixteen_widths_follow_independent_hancom_600dpi_grid_at_two_dpis() {
 }
 
 #[test]
+fn double_edges_keep_two_thin_strokes_and_open_junction_gaps() {
+    // Independent Hancom grid PDFs: width indices 0/3/7/11, per-pen
+    // thickness and centre separation. Not the generic shape 30/40/30 rule.
+    for (width, pen_units) in [(0, 1.), (3, 1.), (7, 3.), (11, 9.)] {
+        for dpi in [96., 192.] {
+            let mut d = doc(grid(2));
+            for edge in &mut d.doc_info.border_fills[0].borders {
+                edge.line_type = BorderLineType::Double;
+                edge.width = width;
+            }
+            let page = direct(&d, dpi).unwrap().next_page().unwrap().unwrap();
+            let tree = serde_json::to_value(&page.tree).unwrap();
+            let cells = collect(&tree["root"], "TableCell");
+            let left = cells[0]["bbox"]["x"].as_f64().unwrap();
+            let top = cells[0]["bbox"]["y"].as_f64().unwrap();
+            let right = left + cells[0]["bbox"]["width"].as_f64().unwrap();
+            let pen = pen_units * dpi / 600.;
+            let offset = 1.5 * pen;
+            let lines = collect(&tree["root"], "Line");
+            assert!(lines.len() >= 12);
+            for line in &lines {
+                near(
+                    line["node_type"]["Line"]["style"]["width"]
+                        .as_f64()
+                        .unwrap(),
+                    pen,
+                );
+                assert_eq!(line["node_type"]["Line"]["style"]["line_type"], "Single");
+            }
+            // Outer/inner corner centres are offset by 1.5 pens; outer
+            // horizontal reaches the outside ink, inner starts inside it.
+            for (sign, start, stop) in [
+                (-1., left - offset - pen / 2., right + offset + pen / 2.),
+                (1., left + offset - pen / 2., right - offset + pen / 2.),
+            ] {
+                let horizontal: Vec<_> = lines
+                    .iter()
+                    .filter(|l| {
+                        let c = coords(l);
+                        (c[1] - (top + sign * offset)).abs() < 1e-8 && c[1] == c[3]
+                    })
+                    .collect();
+                near(coords(horizontal[0])[0], start);
+                near(coords(horizontal.last().unwrap())[2], stop);
+            }
+            // Shared edge below the colspan meets a T-junction. The two
+            // vertical pens stop at the lower horizontal pen, never cross
+            // the white space between that boundary's parallel strokes.
+            if cells.len() == 3 {
+                let seam_x = cells[2]["bbox"]["x"].as_f64().unwrap();
+                let seam_y = cells[2]["bbox"]["y"].as_f64().unwrap();
+                for sign in [-1., 1.] {
+                    let vertical: Vec<_> = lines
+                        .iter()
+                        .filter(|l| {
+                            let c = coords(l);
+                            c[0] == c[2] && (c[0] - (seam_x + sign * offset)).abs() < 1e-8
+                        })
+                        .collect();
+                    assert_eq!(vertical.len(), 1, "shared strokes painted once");
+                    near(coords(vertical[0])[1], seam_y + offset - pen / 2.);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn saved_grid_width_roundoff_does_not_reject_an_exact_hwpunit_lane() {
+    let mut d = rhwp::parse_document(include_bytes!(
+        "../fixtures/issue7353_double_review/grid-7-saved.hwp"
+    ))
+    .unwrap();
+    // Remove the new paint dependency to isolate the pre-existing width bug.
+    // The unchanged saved cell is 15000HU, with left/right padding 510HU.
+    for b in &mut d.doc_info.border_fills {
+        for e in &mut b.borders {
+            if e.line_type == BorderLineType::Double {
+                e.line_type = BorderLineType::Solid;
+            }
+        }
+    }
+    let bytes = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+    let mut session = rhwp::renderer::table_v2::DocumentV2Session::from_bytes(
+        &bytes,
+        r#"{"dpi":96,"max_pages":10,"cell_end_policy":"omit_final_paragraph_gap"}"#,
+    )
+    .unwrap();
+    let p: Value = serde_json::from_str(&session.next_page_json().unwrap().unwrap()).unwrap();
+    let cells = collect(root(&p), "TableCell");
+    assert_eq!(cells.len(), 5);
+    let lines = collect(root(&p), "TextLine");
+    assert!(lines
+        .iter()
+        .any(|l| (l["bbox"]["width"].as_f64().unwrap() - 13980. / 75.).abs() < 1e-12));
+    assert!(session.next_page_json().unwrap().is_none());
+}
+
+#[test]
+fn normal_saved_double_grids_preserve_cross_gaps_and_following_content() {
+    for (name, pen) in [
+        ("grid-0", 0.16),
+        ("grid-3", 0.16),
+        ("grid-7", 0.48),
+        ("grid-11", 1.44),
+    ] {
+        let data = std::fs::read(format!(
+            "{}/tests/fixtures/issue7353_double_review/{name}-saved.hwp",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap();
+        let mut s = rhwp::renderer::table_v2::DocumentV2Session::from_bytes(
+            &data,
+            r#"{"dpi":96,"max_pages":10,"cell_end_policy":"omit_final_paragraph_gap"}"#,
+        )
+        .unwrap();
+        let p: Value = serde_json::from_str(&s.next_page_json().unwrap().unwrap()).unwrap();
+        assert!(s.next_page_json().unwrap().is_none());
+        let tables = collect(root(&p), "Table");
+        assert_eq!(tables.len(), 2);
+        let child = tables[1];
+        let cells = collect(child, "TableCell");
+        let cross_x = cells[3]["bbox"]["x"].as_f64().unwrap();
+        let cross_y = cells[3]["bbox"]["y"].as_f64().unwrap();
+        let lines = collect(child, "Line");
+        assert_eq!(
+            lines.len(),
+            24,
+            "12 physical half-edges, two pens each; no doubled shared cell ink"
+        );
+        for line in lines {
+            near(
+                line["node_type"]["Line"]["style"]["width"]
+                    .as_f64()
+                    .unwrap(),
+                pen,
+            );
+            let c = coords(line);
+            if c[0] == c[2] && (c[0] - cross_x).abs() < 2. * pen {
+                assert!(c[3] <= cross_y - pen + 1e-9 || c[1] >= cross_y + pen - 1e-9);
+            }
+            if c[1] == c[3] && (c[1] - cross_y).abs() < 2. * pen {
+                assert!(c[2] <= cross_x - pen + 1e-9 || c[0] >= cross_x + pen - 1e-9);
+            }
+        }
+        let text = collect(root(&p), "TextRun");
+        for label in ["R0 C0", "R0 C1", "R1 C0", "R1 C1", "AFTER CELL"] {
+            assert_eq!(
+                text.iter()
+                    .filter(|n| n["node_type"]["TextRun"]["text"]
+                        .as_str()
+                        .unwrap()
+                        .contains(label))
+                    .count(),
+                1
+            );
+        }
+    }
+}
+
+#[test]
+fn double_repeated_header_keeps_the_same_fragments_as_solid() {
+    let solid = doc(grid(3));
+    let before = pages("double-header-control", &solid);
+    let mut double = solid;
+    for e in &mut double.doc_info.border_fills[0].borders {
+        e.line_type = BorderLineType::Double;
+    }
+    let after = pages("double-header", &double);
+    assert_eq!(before.len(), after.len());
+    for (a, b) in before.iter().zip(&after) {
+        for kind in ["TableCell", "TextLine", "TextRun"] {
+            let geometry = |p: &Value| {
+                collect(root(p), kind)
+                    .into_iter()
+                    .map(|n| (n["bbox"].clone(), n["node_type"].clone()))
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(geometry(a), geometry(b));
+        }
+    }
+}
+
+#[test]
+fn double_mixed_junctions_and_zone_perimeters_remain_explicit() {
+    for variant in 0..3 {
+        let mut t = grid(1);
+        t.repeat_header = false;
+        t.cells[0].is_header = false;
+        let mut d = doc(t);
+        for e in &mut d.doc_info.border_fills[0].borders {
+            e.line_type = BorderLineType::Double;
+        }
+        match variant {
+            0 => d.doc_info.border_fills[0].borders[0].line_type = BorderLineType::Solid,
+            1 => d.doc_info.border_fills[0].borders[0].color = 0x112233,
+            _ => d.doc_info.border_fills[0].borders[0].width = 11,
+        }
+        let mut s = direct(&d, 96.).unwrap();
+        for _ in 0..2 {
+            assert!(s
+                .next_page()
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("mixed double-border junction"));
+        }
+    }
+    let mut t = grid(1);
+    t.zones.push(rhwp::model::table::TableZone {
+        start_row: 0,
+        start_col: 0,
+        end_row: 0,
+        end_col: 0,
+        border_fill_id: 1,
+    });
+    let mut d = doc(t);
+    for e in &mut d.doc_info.border_fills[0].borders {
+        e.line_type = BorderLineType::Double;
+    }
+    assert!(direct(&d, 96.)
+        .err()
+        .unwrap()
+        .to_string()
+        .contains("double zone perimeter"));
+}
+
+#[test]
 fn fractional_grid_uses_one_shared_topological_boundary() {
     let mut t = grid(2);
     t.cells[0].width = 15001;

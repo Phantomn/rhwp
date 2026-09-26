@@ -1,8 +1,10 @@
-//! Solid edges of accepted table/cell fragments, including cell-internal cuts.
+//! Solid/double edges of accepted table/cell fragments, including cell-internal cuts.
 //! Each physical fragment uses its source cell's four edges (None stays absent).
 //! Matching table outlines share those edges. Qualified solid zone perimeters
 //! override cell edges; other border-priority rules remain unsupported.
 use std::collections::{BTreeMap, BTreeSet};
+
+mod double;
 
 use super::{GeometryError, TablePlacement};
 use crate::{
@@ -218,8 +220,12 @@ impl CellBorders {
             }
         }
         let mut nodes = Vec::new();
+        double::append(&edges, &xs, &ys, self.dpi, &mut nodes)?;
         for ((horizontal, boundary), spans) in edges {
             for span in spans {
+                if span.style.line_type == BorderLineType::Double {
+                    continue;
+                }
                 let (x1, y1, x2, y2) = if horizontal {
                     (xs[&span.start], ys[&boundary], xs[&span.end], ys[&boundary])
                 } else {
@@ -264,7 +270,7 @@ pub(super) fn resolve_edges(
     for edge in &style.borders {
         match edge.line_type {
             BorderLineType::None => {}
-            BorderLineType::Solid
+            BorderLineType::Solid | BorderLineType::Double
                 if usize::from(edge.width) < BORDER_WIDTHS.len() && edge.color >> 24 == 0 =>
             {
                 visible = true

@@ -90,13 +90,21 @@ impl Zone {
                     }
                 }
             }
+            let edges = super::borders::resolve_edges(source.border_fill_id, styles)?;
+            if edges.is_some_and(|edges| {
+                edges
+                    .iter()
+                    .any(|e| e.line_type == crate::model::style::BorderLineType::Double)
+            }) {
+                return Err(GeometryError::Unsupported("V2 double zone perimeter"));
+            }
             result.push(Self {
                 row,
                 end_row,
                 column,
                 end_column,
                 background,
-                edges: super::borders::resolve_edges(source.border_fill_id, styles)?,
+                edges,
                 diagonal,
             });
         }

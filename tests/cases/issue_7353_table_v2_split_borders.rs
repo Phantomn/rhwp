@@ -193,6 +193,50 @@ fn split_cell_closes_each_fragment_preserving_empty_line_and_horizontal_padding(
 }
 
 #[test]
+fn double_pens_follow_content_cuts_and_empty_physical_tail_without_changing_layout() {
+    for tail in [false, true] {
+        let mut c = cell(0, 0, 2, if tail { &["A"] } else { &["A", "", "B", "C"] });
+        if tail {
+            c.height = 6750;
+        }
+        let mut d = doc(table(vec![c], 1));
+        let solid = run("double-control", &d);
+        for border in &mut d.doc_info.border_fills[0].borders {
+            border.line_type = BorderLineType::Double;
+        }
+        let double = run("double-cut", &d);
+        assert_eq!(double.len(), if tail { 3 } else { 2 });
+        for (i, page) in double.iter().enumerate() {
+            assert_eq!(labels(page), labels(&solid[i]));
+            for kind in ["TableCell", "TextLine", "TextRun"] {
+                let boxes = |p: &Value| {
+                    collect(root(p), kind)
+                        .iter()
+                        .map(|n| n["bbox"].clone())
+                        .collect::<Vec<_>>()
+                };
+                assert_eq!(boxes(page), boxes(&solid[i]));
+            }
+            let lines = collect(root(page), "Line");
+            assert_eq!(lines.len(), 8);
+            // 0.5mm reference: 0.36pt pens, 1.08pt between centers.
+            let bottom = 30. + if tail && i == 2 { 18. } else { 36. };
+            for n in lines {
+                let l = &n["node_type"]["Line"];
+                assert!((l["style"]["width"].as_f64().unwrap() - 0.48).abs() < 1e-9);
+                if l["y1"] == l["y2"] {
+                    let y = l["y1"].as_f64().unwrap();
+                    assert!([29.28, 30.72, bottom - 0.72, bottom + 0.72]
+                        .iter()
+                        .any(|v| (y - v).abs() < 1e-9));
+                }
+            }
+        }
+        bounds(&double);
+    }
+}
+
+#[test]
 fn physical_tail_has_edges_after_last_unit_without_repeating_text_or_extra_page() {
     let mut c = cell(0, 0, 2, &["A"]);
     c.height = 6750; // 90px = 36 + 36 + 18; no content in last two fragments.
