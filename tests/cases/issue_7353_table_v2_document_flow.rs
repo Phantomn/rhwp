@@ -435,20 +435,14 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         "/tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"
     ))
     .unwrap();
-    let result = DocumentV2Session::from_bytes(&data, TERMINAL_OPTIONS);
-    let Err(error) = result else {
-        panic!("qualify full source output before updating admission")
-    };
+    let mut session = DocumentV2Session::from_bytes(&data, TERMINAL_OPTIONS).unwrap();
+    assert!(session.next_page_json().unwrap().is_some());
+    let error = session.next_page_json().unwrap_err();
     eprintln!("original terminal admission: {error}");
-    // Single overwide TAC admission now reaches the cell formula field;
-    // this remains an admission diagnostic, not a layout acceptance baseline.
-    assert!(matches!(
-        error,
-        DocumentV2Error::Paragraph {
-            index: 35,
-            reason: rhwp::renderer::table_v2::GeometryError::Unsupported("non-table cell control")
-        }
-    ));
+    // Stored formula replay completes preparation, but the original second
+    // physical page cannot place its requested fragment. This is an admission
+    // diagnostic, NOT a successful full-document layout or page-count baseline.
+    assert!(matches!(error, DocumentV2Error::DoesNotFit { page: 1, .. }));
     if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(
@@ -460,7 +454,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         let p = &original.sections[0].paragraphs[35];
         let shape = &original.doc_info.para_shapes[p.para_shape_id as usize];
         std::fs::write(
-            format!("{dir}/6923-terminal-next-source.json"),
+            format!("{dir}/6923-terminal-admitted-formula-source.json"),
             serde_json::to_vec_pretty(&json!({"paragraph":p,"para_shape":shape,
                 "border_fills":original.doc_info.border_fills}))
             .unwrap(),
@@ -3115,16 +3109,249 @@ fn saved_overwide_right_aligned_market_table_starts_at_left_without_shrinking() 
 }
 
 #[test]
-fn saved_sales_table_remains_explicitly_unqualified_for_cell_formula() {
-    // Normal Hancom re-save; do not erase the formula to turn a new admission
-    // boundary into a claimed full-document visual success.
+fn saved_sales_table_preserves_formula_result_and_literal_suffix() {
+    // Normal Hancom re-save and its independent PDF contain100.0 in row8/col8:
+    // the stored formula spans100, while.0 is literal text OUTSIDE that field.
     let input = include_bytes!("../fixtures/issue7353_tac_overflow_review/sales-saved.hwp");
-    assert!(matches!(
-        DocumentV2Session::from_bytes(input, TERMINAL_OPTIONS),
-        Err(DocumentV2Error::Paragraph {
-            index: 2,
-            reason: rhwp::renderer::table_v2::GeometryError::Unsupported("non-table cell control")
+    let pages = drain(&mut DocumentV2Session::from_bytes(input, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    let source = sales_document();
+    let Control::Table(source_table) = &source.sections[0].paragraphs[2].controls[0] else {
+        panic!()
+    };
+    assert_eq!(
+        nodes(&pages[0], "TableCell").len(),
+        source_table.cells.len()
+    );
+    let cell = nodes(&pages[0], "TableCell")
+        .into_iter()
+        .find(|n| {
+            n["node_type"]["TableCell"]["row"] == 8 && n["node_type"]["TableCell"]["col"] == 8
         })
+        .unwrap();
+    let mut runs = Vec::new();
+    collect(cell, "TextRun", &mut runs);
+    assert_eq!(
+        runs.iter()
+            .map(|n| n["node_type"]["TextRun"]["text"].as_str().unwrap())
+            .collect::<String>(),
+        "100.0"
+    );
+    for run in runs {
+        for (axis, size) in [("x", "width"), ("y", "height")] {
+            let start = run["bbox"][axis].as_f64().unwrap();
+            let end = start + run["bbox"][size].as_f64().unwrap();
+            let cstart = cell["bbox"][axis].as_f64().unwrap();
+            let cend = cstart + cell["bbox"][size].as_f64().unwrap();
+            assert!(start >= cstart - 1e-7 && end <= cend + 1e-7);
+        }
+    }
+    let notes: Vec<_> = nodes(&pages[0], "TextRun")
+        .into_iter()
+        .filter(|n| {
+            n["node_type"]["TextRun"]["text"]
+                .as_str()
+                .unwrap()
+                .contains("자료출처")
+        })
+        .collect();
+    assert_eq!(notes.len(), 1);
+    let table = nodes(&pages[0], "Table")[0];
+    assert!(
+        notes[0]["bbox"]["y"].as_f64().unwrap()
+            >= table["bbox"]["y"].as_f64().unwrap() + table["bbox"]["height"].as_f64().unwrap()
+    );
+    assert!(!labels(&pages[0])
+        .iter()
+        .any(|text| text.contains("SUM(ABOVE)")));
+}
+
+fn sales_document() -> Document {
+    rhwp::parse_document(include_bytes!(
+        "../fixtures/issue7353_tac_overflow_review/sales-saved.hwp"
+    ))
+    .unwrap()
+}
+
+fn sales_formula_mut(d: &mut Document) -> &mut Paragraph {
+    let Control::Table(t) = &mut d.sections[0].paragraphs[2].controls[0] else {
+        panic!()
+    };
+    &mut t.cells[72].paragraphs[0]
+}
+
+fn sales_preview(
+    d: &Document,
+) -> Result<
+    rhwp::renderer::table_v2::TablePreviewSession,
+    rhwp::renderer::table_v2::TablePreviewError,
+> {
+    use rhwp::renderer::table_v2::*;
+    TablePreviewSession::from_document_with_end_policy(
+        d,
+        TableSelection {
+            section: 0,
+            paragraph: 2,
+            control: 0,
+        },
+        96.0,
+        TablePreviewPages {
+            width: 794.0,
+            height: 1123.0,
+            body: Rect {
+                x: 80.0,
+                y: 100.0,
+                width: 650.0,
+                height: 950.0,
+            },
+            first_y: 100.0,
+        },
+        10,
+        CellEndPolicy::OmitFinalParagraphGap,
+    )
+}
+
+#[test]
+fn stored_formula_preview_preserves_source_ir_and_complete_display_alignment() {
+    let d = sales_document();
+    let original = serde_json::to_value(&d.sections[0].paragraphs).unwrap();
+    let mut session = sales_preview(&d).unwrap();
+    let page = json!({"render_tree": session.next_page().unwrap().unwrap().tree});
+    let cell = nodes(&page, "TableCell")
+        .into_iter()
+        .find(|n| {
+            n["node_type"]["TableCell"]["row"] == 8 && n["node_type"]["TableCell"]["col"] == 8
+        })
+        .unwrap();
+    let mut runs = Vec::new();
+    collect(cell, "TextRun", &mut runs);
+    assert_eq!(runs.len(), 1);
+    assert_eq!(runs[0]["node_type"]["TextRun"]["text"], "100.0");
+    // Source Right paragraph: left inset510HU + stored lane3412HU.
+    // Source vertical Center aligns the1200HU line within the2048HU cell.
+    // These invariants do not depend on the chosen fallback font advance.
+    near(
+        &runs[0]["bbox"]["x"],
+        cell["bbox"]["x"].as_f64().unwrap() + (510.0 + 3412.0) / 75.0
+            - runs[0]["bbox"]["width"].as_f64().unwrap(),
+    );
+    near(
+        &runs[0]["bbox"]["y"],
+        cell["bbox"]["y"].as_f64().unwrap() + (2048.0 - 1200.0) / 2.0 / 75.0,
+    );
+    assert!(session.next_page().unwrap().is_none());
+    assert_eq!(
+        serde_json::to_value(&d.sections[0].paragraphs).unwrap(),
+        original
+    );
+}
+
+#[test]
+fn stored_formula_rejects_incomplete_or_edited_source_boundaries() {
+    use rhwp::renderer::table_v2::{GeometryError, TablePreviewError};
+    // The unmodified normal saved control is required to pass first: these
+    // mutations must fail for their intended field contract, not another gate.
+    assert!(sales_preview(&sales_document()).is_ok());
+    for case in [
+        "ranges",
+        "empty",
+        "outside",
+        "reference",
+        "overlap",
+        "inner",
+        "axis",
+        "count",
+        "shift",
+        "lines",
+        "dirty",
+        "command",
+        "orphan",
+    ] {
+        let mut d = sales_document();
+        let p = sales_formula_mut(&mut d);
+        match case {
+            "ranges" => p.field_ranges.clear(),
+            "empty" => p.field_ranges[0].end_char_idx = 0,
+            "outside" => p.field_ranges[0].end_char_idx = 6,
+            "reference" => p.field_ranges[0].control_idx = 1,
+            "overlap" => {
+                p.controls.push(p.controls[0].clone());
+                let mut r = p.field_ranges[0].clone();
+                r.control_idx = 1;
+                p.field_ranges.push(r);
+            }
+            "inner" => p.field_ranges[0].inner_slot_count = 1,
+            "axis" => p.char_offsets[3] -= 8,
+            "count" => p.char_count -= 1,
+            "shift" => p.hwpx_axis_shift = 8,
+            "lines" => p.line_segs.clear(),
+            "dirty" => p.stored_text_partition_dirty = true,
+            "command" => {
+                let Control::Field(f) = &mut p.controls[0] else {
+                    panic!()
+                };
+                f.command.clear();
+            }
+            "orphan" => p.orphan_field_ends.push(Default::default()),
+            _ => unreachable!(),
+        }
+        assert!(
+            matches!(
+                sales_preview(&d),
+                Err(TablePreviewError::Geometry(GeometryError::Unsupported(
+                    "unqualified stored formula result"
+                )))
+            ),
+            "{case}"
+        );
+    }
+}
+
+#[test]
+fn stored_formula_multiple_results_keep_literal_text_without_evaluation() {
+    // Synthetic source-axis contract, not a Hancom-generated visual oracle.
+    // Two disjoint field results: "1" + literal"+" + result"2" + literal".0".
+    let mut d = sales_document();
+    let p = sales_formula_mut(&mut d);
+    p.text = "1+2.0".into();
+    p.char_offsets = vec![8, 17, 26, 35, 36];
+    p.char_count = 38;
+    p.field_ranges[0].end_char_idx = 1;
+    let mut second = p.field_ranges[0].clone();
+    second.start_char_idx = 2;
+    second.end_char_idx = 3;
+    second.control_idx = 1;
+    p.field_ranges.push(second);
+    p.controls.push(p.controls[0].clone());
+    // Keep the original SUM command: replay must not evaluate it into100.
+    let mut session = sales_preview(&d).unwrap();
+    let page = json!({"render_tree": session.next_page().unwrap().unwrap().tree});
+    assert_eq!(
+        labels(&page)
+            .iter()
+            .filter(|text| **text == "1+2.0")
+            .count(),
+        1
+    );
+    assert!(session.next_page().unwrap().is_none());
+}
+
+#[test]
+fn stored_formula_admission_does_not_admit_other_field_types() {
+    use rhwp::{
+        model::control::FieldType,
+        renderer::table_v2::{GeometryError, TablePreviewError},
+    };
+    let mut d = sales_document();
+    let Control::Field(field) = &mut sales_formula_mut(&mut d).controls[0] else {
+        panic!()
+    };
+    field.field_type = FieldType::ClickHere;
+    assert!(matches!(
+        sales_preview(&d),
+        Err(TablePreviewError::Geometry(GeometryError::Unsupported(
+            "non-table cell control"
+        )))
     ));
 }
 

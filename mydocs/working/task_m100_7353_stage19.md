@@ -4152,3 +4152,80 @@ Native/fresh WASM의 compare·review·standalone overlay·확대 PNG를 직접 �
 전체 CI/workspace all-targets와 Studio 수동 조작은 미실행이다. Legacy 기본 경로·golden·ignore
 변경과 push/PR은 없다. 사람 시각 판정 대상은 정상 저장 시장 표이며, 다음 구현 대상은
 원본35번 문단의 수식 필드 보존이다. 부분 수용 개선을 A/R5 완료로 판정하지 않는다.
+
+### 저장 수식 필드 결과의 셀 조판
+
+작업지시자는 `af88cb78f`의 시각 판정을 통과시켰다. 다음 대상은 동일 원본35번 문단 및
+정상 저장 `sales-saved.hwp`의 셀72(행8/열8)다. IR text는 `100.0`, 필드 범위는
+문자0..3(`100`), 후행 `.0`은 필드 밖 일반 텍스트다. 원본 PDF p7과 이미 획득한
+`sales-2020.pdf`의 같은 셀이 독립 표시 근거이며 다시 변환할 필요가 없다.
+
+위반 규칙은 저장된 계산 결과를 가진 문단을 객체 배치가 필요한 컨트롤처럼 거부하는 것이다.
+수식 계산/편집 갱신은 이번 범위가 아니다. 저장 LineSeg·문자 축·짝이 맞는 비중첩 필드 범위를
+검증한 결과만 공통 TextComposer에 그대로 전달한다. 필드/범위를 삭제하지 않고 같은
+paragraph/줄 구성의 `TextLine`을 측정·FlowCursor·paint가 소비한다. 필드 마커는 폭을
+갖는 개체가 아니며 명령 문자열을 표시 문자열로 바꾸지 않는다.
+반례는 누락/빈 결과, 고아 종료, 잘못된 참조·중첩/겹침, 슬롯 축 불일치, 다른 필드 타입,
+편집으로 무효화된 저장 줄이다. 새로운 pagination·행 높이/clip 예외는 추가하지 않는다.
+
+구현은 `table_v2/fields.rs::stored_formula_result`가 저장 필드의 짝과 UTF-16/8칸 제어
+슬롯 축을 검증하고 `ir::bind_table`·`IrTextComposer::compose`·`TextComposer::compose`가
+이를 수용하는 형태다. 대상은 비중첩 Formula 필드만 있는 유효한 저장 문단이다.
+다른 필드, 객체와 섞인 문단, 편집 후 재계산은 수용을 확장하지 않는다.
+
+실제 소비 경로는 `text.rs:compose`의 저장 줄 localize → 공통 `compose_paragraph` →
+`layout_composed_paragraph_in_frame`의 최종 TextLine → `ParagraphItem::Lines`와 paint payload
+→ 기존 flow/fragment → `TextPaint::append`의 동일 payload 이동이다. Formula 마커가 별도
+개체 폭이나 paint를 만들지 않는 공통 composer/layout 경로를 확인했다. 필드 범위·명령을
+지워서 텍스트로 위장하지 않으며 측정 뒤 다른 필드 원점을 선택하는 분기도 추가하지 않았다.
+시작/끝 컷·예약 높이·이월·clip·이어받기는 이번 변경 대상이 아니다.
+
+정상 저장본의 독립 값은 셀4434×2048HU, 표 공통 좌우 여백510HU, 저장 줄 폭3412HU,
+줄 높이1200HU다. 문단은 **가로 Right**, 셀은 **세로 Center**이므로 실제 TextRun의
+오른쪽 끝 = 셀 왼쪽+(510+3412)/75, y = 셀 위+(2048-1200)/150으로 검사한다.
+글꼴 advance를 기대값으로 고정하지 않는다. 필드 결과100과 후행문자.0의 보존, 모든 셀,
+자료출처가 표 아래에 한 번만 배치되는 것, 계산 명령 미출력과 마지막 종료도 검사한다.
+
+검증 source는 `af88cb78f` + 이번 patch이며 `fields.rs` SHA-256은
+`d3186220f7543db575c7fbc95ddbeba8a0ef8b4ad94850a5b092d0b71b7af3f6`이다.
+전체 table_v2 source manifest와 입력/PDF/WASM 해시는 `formula/review/run.json`에 있다.
+이하 경로의 공통 prefix는 `output/7353/r19/`다.
+
+| 검증 | 결과 / 증거 |
+| --- | --- |
+| 수정 전→후 | 동일 정상 저장 sales 입력이 기존 코드의 paragraph2 non-table control로 FAIL, 수정 후 실제 문서 배치 PASS (`formula/before.log`, `formula/document-final.log`) |
+| focused | 17 harness218건 + 최종 document92건 = **310 PASS / 0 FAIL** (`formula/tests-summary.log`, `formula/document-final.log`). 초기 테스트 코드 컴파일/잘못된 가로 Center 가정은 원문 Right 속성 확인 후 바로잡았으며 검출 증거로 세지 않는다 |
+| 반례 | 13개 손상/편집 입력이 정확한 필드 검증 오류로 거부, ClickHere 미지원 유지. 여러 Formula+일반문자 합성 축 계약은 실제 preview 출력과 종료 검사. 합성 계약은 한컴 출력 근거가 아님 |
+| 포맷·lint | fmt check 및 Native/WASM32 library Clippy `-D warnings` PASS (`formula/fmt.log`, `formula/clippy-{native,wasm}.log`) |
+| fresh WASM | Docker7분12초, SHA `0e0391387d8e77a1b9452ede5f9cb5f12994f44da68353ca80d2214effd3bf2b` (`formula/docker.log`) |
+| 대상 backend | Native/fresh WASM SVG 동일, 구조 차이0, float 최대차2.28e-13 (`formula/review/backend-comparison.json`) |
+| 기존 대조군 | 14입력×2정책=28조합32페이지 + 직전 시장 표2정책2페이지. 이전 Native SVG 보존 및 fresh WASM SVG 동일 (`formula/controls-final.log`, `formula/market-control.log`) |
+
+재현 명령은 `node formula/tests.mjs`, 최종 document harness 직접 컴파일·실행,
+`docker compose --env-file .env.docker -p rhwp run --rm wasm`,
+`pdftoppm -r 96 -png -singlefile <sales-2020.pdf> <formula/review/hancom-1>`,
+`node formula/review.mjs --wasm`, `node formula/detail.mjs`,
+`node formula/controls.mjs`, `node formula/market-control.mjs`다
+(`formula/`는 위 공통 prefix 아래). 브라우저 동시 실행 중 추가 시장 대조군 launch가
+한 번 실패해 기존 대조군 종료 뒤 단독 재실행하여 통과했다. 제품 실패로 합산하지 않는다.
+
+Native와 fresh WASM의 review·standalone overlay·확대 비교를 직접 열어 마지막 행100.0,
+표 외곽, 앞 제목과 뒤 자료출처를 확인했다. 글꼴 외형·굵기 차이는 남아 있다.
+
+- 확대 비교: `formula/review/wasm-table-detail.png`
+- compare: `formula/review/wasm-compare-1.png`
+- standalone overlay: `formula/review/wasm-overlay-1.png`
+- review: `formula/review/wasm-review-1.png`
+
+코멘트: 내용 픽셀 중심 자동 일치율 보조값 = 약11.20%.
+높을수록 기준 PDF와 rhwp PNG가 더 비슷합니다.
+낮은 값은 잉크 위치나 형태 차이의 검토 신호입니다.
+사람의 판정 정확도가 아닌 자동 보조값입니다.
+
+**원본 전체는 미완료다.** 원본 #6923의 준비는 성공하지만 첫 physical page를 출력한 후
+두 번째 physical page(0기반 `page:1`)에서 `DoesNotFit`, 요구 높이4148.68px가 발생한다.
+`formula/admission/6923-terminal-admission.txt`가 증거다. 기존 거부 검사 갱신은 수용 경계
+진단의 갱신이지 page-count golden 변경이나 전체 시각 통과가 아니다. 다음 대상은 이 배치
+실패의 실제 컷·요구 높이·가용 예산 소비 경로다. 이번 판매현황 표의 사람 시각 판정은 대기한다.
+전체 CI/workspace all-targets, Studio 수동 조작과 수식 편집 후 재계산은 미실행이다.
+Legacy 기본 경로·golden·ignore 변경 및 push/PR은 없으며 R5 완료로 판정하지 않는다.

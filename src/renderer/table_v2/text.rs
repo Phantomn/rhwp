@@ -361,11 +361,13 @@ fn painted_inline_ends(nodes: &[RenderNode], styles: &ResolvedStyleSet) -> Vec<O
 impl CellParagraphComposer for TextComposer<'_> {
     fn compose(&self, para: &Paragraph, width: f64) -> Result<Vec<ParagraphItem>, GeometryError> {
         super::stored_text::validate_tabs(para, self.dpi)?;
+        let stored_fields = super::fields::stored_formula_result(para)?;
         if para.column_type != crate::model::paragraph::ColumnBreakType::None
-            || !para.controls.is_empty()
+            || (!para.controls.is_empty() && !stored_fields)
             || para.source_line_seg_vertical_pos.is_some()
             || para.layout_only_fill_lines != 0
-            || !para.field_ranges.is_empty()
+            || (!para.field_ranges.is_empty() && !stored_fields)
+            || !para.orphan_field_ends.is_empty()
             || !para.range_tags.is_empty()
             || !para.title_marks.is_empty()
             || !para.markpen_marks.is_empty()

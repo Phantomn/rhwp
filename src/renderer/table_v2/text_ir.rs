@@ -131,7 +131,7 @@ impl IrTextComposer<'_> {
             items.extend(self.text.compose(&text_only, width)?);
             return Ok(items);
         }
-        if para.controls.is_empty() {
+        if para.controls.is_empty() || super::fields::stored_formula_result(para)? {
             return self.text.compose(para, width);
         }
         if para

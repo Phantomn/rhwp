@@ -217,8 +217,9 @@ fn bind_table(
                         "explicit paragraph page/column break",
                     ));
                 }
+                let stored_fields = super::fields::stored_formula_result(para)?;
                 for ctrl in &para.controls {
-                    if matches!(ctrl, Control::Picture(_)) {
+                    if matches!(ctrl, Control::Picture(_)) || stored_fields {
                         continue;
                     }
                     let Control::Table(child) = ctrl else {
@@ -231,7 +232,9 @@ fn bind_table(
                         validate_anchor(child)?;
                     }
                 }
-                let mut seen = vec![false; para.controls.len()];
+                // Qualified fields are source markers replayed by the text
+                // composer, not table owners awaiting a geometry item.
+                let mut seen = vec![stored_fields; para.controls.len()];
                 for item in super::paragraph_end::into_flow_items_at_end(
                     composer.compose(para, text_width.unwrap_or(inner_width))?,
                     policy,
