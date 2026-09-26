@@ -183,3 +183,37 @@ fn liver_picture_row_and_caption_keep_the_independent_pdf_frame() {
     );
     assert_eq!(core.page_count(), 215);
 }
+
+/// 실제 빈 줄의 점유 끝과 저장 간격을 함께 검사한다. 빈 문자열도 공간을 소유한다.
+#[test]
+fn blank_line_spent_spacing_is_not_added_again_to_the_lazy_origin() {
+    fn find_line(node: &RenderNode, para: usize) -> Option<&RenderNode> {
+        if matches!(&node.node_type, RenderNodeType::TextLine(line)
+            if line.para_index == Some(para) && line.line_index == Some(0))
+        {
+            return Some(node);
+        }
+        if matches!(node.node_type, RenderNodeType::Table(_)) {
+            return None;
+        }
+        node.children
+            .iter()
+            .find_map(|child| find_line(child, para))
+    }
+    let core = core();
+    let tree = core.build_page_render_tree(2).unwrap();
+    let blank = find_line(&tree.root, 39).expect("첫 표 다음 빈 줄");
+    let body = find_line(&tree.root, 40).expect("빈 줄 다음 채무 본문");
+    let later = find_line(&tree.root, 46).expect("두 번째 표 뒤 국고채 본문");
+    // 독립 원본의 쪽 시작과 저장 문단 좌표. PDF 가시 글자 시작도457.9773px다.
+    assert!((blank.bbox.y - (7085.0 + 25155.0) / 75.0).abs() < 0.1);
+    assert!((blank.bbox.height - 1400.0 / 75.0).abs() < 0.1);
+    assert!(
+        (body.bbox.y - (7085.0 + 27327.0) / 75.0).abs() < 0.1,
+        "빈 줄이 소비한772HU를 지연 기준에 다시 더하지 않는다: {:?}",
+        body.bbox
+    );
+    assert!((body.bbox.y - blank.bbox.y - blank.bbox.height - 772.0 / 75.0).abs() < 0.1);
+    assert!((later.bbox.y - (7085.0 + 49846.0) / 75.0).abs() < 0.1);
+    assert_eq!(core.page_count(), 4);
+}

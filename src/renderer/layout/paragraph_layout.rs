@@ -6559,6 +6559,14 @@ impl LayoutEngine {
             prev_line_reserved_tac_picture_height = current_line_reserved_tac_picture_height;
         }
 
+        // 실제 흐름 전진에 사용한 줄 상자 결과를 지연 기준 소비자에 전달한다.
+        // 셀 내부 줄은 본문 항목의 결과를 덮어쓰지 않는다.
+        if cell_ctx.is_none() {
+            if let Some(bottom) = last_line_box_bottom {
+                self.last_item_flow_line_bottom.set(bottom);
+            }
+        }
+
         // 문단 테두리/배경 범위 수집 (build_single_column에서 연속 그룹으로 병합 렌더링)
         // margin_left/margin_right를 반영하여 박스 위치·폭 조정.
         // Task #463: 셀 안 단락은 본문 큐에 leakage 하지 않도록 cell_ctx 게이팅.
@@ -6717,6 +6725,9 @@ impl LayoutEngine {
             line_node.children.push(run_node);
 
             col_node.children.push(line_node);
+            if cell_ctx.is_none() {
+                self.last_item_flow_line_bottom.set(y + default_height);
+            }
             y += default_height + default_spacing;
         }
 

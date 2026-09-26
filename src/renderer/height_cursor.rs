@@ -94,6 +94,8 @@ pub(crate) struct HeightCursor {
     pub vpos_page_base: Option<i32>,
     /// 지연 기준 vpos. 첫 PageItem 이 신뢰 불가할 때 sequential y 에서 역산 (#412).
     pub vpos_lazy_base: Option<i32>,
+    /// 처음 확정한 저장 단 원점. TAC 뒤 활성 기준이 지워져도 독립 대조에 보존한다.
+    pub stored_column_origin: Option<(i32, f64)>,
     /// native HWP5 의 저장 vpos 는 쪽 상대 절대 좌표 —
     /// page_base 가 소거된 상황에서도 lazy 역산(부정확 기준) 대신 base=0 페이지
     /// 경로를 쓴다 (재현 문서 C pi4: lazy 2748 로 저장 958 대신 921 에 그려져
@@ -124,6 +126,8 @@ pub(crate) struct HeightCursor {
     /// 렌더러가 기록한 직전 항목의 실제 콘텐츠 하단(px). trailing 줄간격을 실제
     /// 콘텐츠 하단으로 오인하는 compact 미주 경계에서 공통 gap 기준으로 사용한다.
     pub prev_item_content_bottom_y: Option<f64>,
+    /// 직전 실제 흐름 줄 상자의 끝. 빈 줄도 포함하며 trailing 간격은 제외한다.
+    pub prev_item_flow_line_bottom_y: Option<f64>,
     /// 직전 `vpos_adjust`에서 새 미주 제목 gap을 저장 end_y보다 위로 compact했는지.
     pub(crate) last_compacted_endnote_title_gap: bool,
     /// [#5699 H1] 저장 사다리가 자리차지 표 밴드를 계상하지 않은 문서에서, 흐름이
@@ -174,6 +178,7 @@ impl HeightCursor {
             col_anchor_y,
             vpos_page_base,
             vpos_lazy_base: None,
+            stored_column_origin: vpos_page_base.map(|base| (base, col_anchor_y)),
             prev_layout_para: None,
             prev_item_was_partial_table: false,
             skip_spacing_before_prededuct,
@@ -184,6 +189,7 @@ impl HeightCursor {
             uniform_filler_ladder: false,
             endnote_between_notes_hu: 0,
             prev_item_content_bottom_y: None,
+            prev_item_flow_line_bottom_y: None,
             last_compacted_endnote_title_gap: false,
             min_flow_floor: f64::MIN,
             trimmed_prev_spacing_before_px: 0.0,
@@ -337,7 +343,35 @@ impl HeightCursor {
                     matches!(control, Control::Picture(picture) if picture.common.treat_as_char)
                 })
                 && curr_first_vpos == Some(prev_vpos_end);
-            let trailing_ls_hu = if (vpos_continuous && prev_has_text) || picture_spent_trailing {
+            // 실제 직전 점유 끝과 순차 커서가 저장 줄간격만큼 떨어져 있으면
+            // 그 간격은 이미 소비됐다. 빈 글줄도 공간을 소유하므로 텍스트 유무로
+            // 이 소비를 부정하지 않는다. 비연속·합성·편집 경로는 기존 bridge를 쓴다.
+            let rendered_spent_trailing = self.suppress_hwpx_stale_forward
+                && !self.session_edited
+                && !synthetic_prev_seg
+                && curr_first_vpos == Some(prev_vpos_end)
+                && paragraphs
+                    .get(item_para)
+                    .and_then(|p| p.line_segs.first())
+                    .is_some_and(|s| {
+                        s.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
+                    })
+                // 줄간격 소비는 원점 확정의 증거가 아니다. 분할 표로 시작한 단처럼
+                // 원점이 아직 없으면 기존 bridge를 유지한다. 이미 수용한 저장 원점의
+                // 다음 줄 위치와 실제 순차 위치가 일치할 때만 재가산을 제거한다.
+                && self.stored_column_origin.is_some_and(|(base, anchor)| {
+                    let expected = anchor + hwpunit_to_px(prev_vpos_end - base, self.dpi);
+                    (y_offset - expected).abs() < 0.1
+                })
+                && self.prev_item_flow_line_bottom_y.is_some_and(|bottom| {
+                    let gap = y_offset - bottom;
+                    let stored_gap = hwpunit_to_px(seg.line_spacing.max(0), self.dpi);
+                    stored_gap > 0.0 && (gap - stored_gap).abs() < 0.1
+                });
+            let trailing_ls_hu = if (vpos_continuous && prev_has_text)
+                || picture_spent_trailing
+                || rendered_spent_trailing
+            {
                 0
             } else {
                 paragraphs
@@ -1733,6 +1767,40 @@ mod tests {
         let got = c.vpos_adjust(120.0, 1, &ps, &styles(0.0));
         assert_eq!(c.vpos_lazy_base, Some(500));
         assert!((got - (100.0 + 1700.0 / 75.0)).abs() < 1e-6, "got={got}");
+
+        // 실제 점유 끝116px와 순차 위치124px가 저장 간격8px 소비를 입증한다.
+        let mut c = cursor(None);
+        c.suppress_hwpx_stale_forward = true;
+        c.prev_layout_para = Some(0);
+        c.prev_item_flow_line_bottom_y = Some(116.0);
+        c.stored_column_origin = Some((800, COL_Y));
+        let ps = vec![para(0, 1000, 1000, 600, 5000), para(0, 2600, 1000, 0, 5000)];
+        let got = c.vpos_adjust(124.0, 1, &ps, &styles(0.0));
+        assert_eq!(c.vpos_lazy_base, Some(800));
+        assert!((got - 124.0).abs() < 1e-6);
+
+        // 소비·연속성·유효성 근거가 없으면 기존 누락 간격 bridge를 유지한다.
+        for case in 0..8 {
+            let mut c = cursor(None);
+            c.suppress_hwpx_stale_forward = true;
+            c.prev_layout_para = Some(0);
+            c.prev_item_flow_line_bottom_y = Some(116.0);
+            c.stored_column_origin = Some((800, COL_Y));
+            let mut ps = vec![para(0, 1000, 1000, 600, 5000), para(0, 2600, 1000, 0, 5000)];
+            match case {
+                0 => c.prev_item_flow_line_bottom_y = None,
+                1 => c.prev_item_flow_line_bottom_y = Some(123.0),
+                2 => ps[1].line_segs[0].vertical_pos = 2700,
+                3 => ps[0].line_segs[0].tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY,
+                4 => ps[1].line_segs[0].tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY,
+                5 => c.session_edited = true,
+                6 => c.stored_column_origin = None,
+                7 => c.stored_column_origin = Some((500, COL_Y)),
+                _ => unreachable!(),
+            }
+            c.vpos_adjust(124.0, 1, &ps, &styles(0.0));
+            assert_eq!(c.vpos_lazy_base, Some(200), "소비 근거가 없는 경로{case}");
+        }
     }
 
     /// 백워드 클램프: end_y 가 y_offset-8px 미만이면 보정 거부(원 y 유지).

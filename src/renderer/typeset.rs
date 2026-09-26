@@ -6570,6 +6570,7 @@ mod tests {
     fn issue2424_block_table_context_owns_step_lifecycle() {
         let prepared = BlockTableContinuationPreparedState {
             host_placement: None,
+            empty_opening_row_frame: None,
             host_frame: (0, 0, 0.0_f64.to_bits()),
             row_count: 3,
             cell_spacing: 0.0,

@@ -3301,6 +3301,8 @@ pub struct LayoutEngine {
     /// 이 값으로 비교한다(페이지네이터의 trailing_ls 정책 #359/#404 와 정합). 항목
     /// 디스패치마다 NaN 으로 리셋되고 표/문단 렌더에서만 설정된다.
     last_item_content_bottom: std::cell::Cell<f64>,
+    /// 실제 마지막 흐름 줄 상자의 끝. 빈 줄의 점유와 가시 콘텐츠를 구분한다.
+    last_item_flow_line_bottom: std::cell::Cell<f64>,
     /// 직전 항목의 마지막 미주 줄이 공백 텍스트 + 수식만 가진 tail line-box 인지 여부.
     /// 이런 줄은 실제 ink보다 line box가 훨씬 커져 item overflow 로그만 남을 수 있다.
     last_item_endnote_equation_tail_line_box: std::cell::Cell<bool>,
@@ -3493,6 +3495,7 @@ impl LayoutEngine {
             layout_overflows: std::cell::RefCell::new(Vec::new()),
             layout_table_overlaps: std::cell::RefCell::new(Vec::new()),
             last_item_content_bottom: std::cell::Cell::new(f64::NAN),
+            last_item_flow_line_bottom: std::cell::Cell::new(f64::NAN),
             last_item_endnote_equation_tail_line_box: std::cell::Cell::new(false),
             hidden_empty_paras: std::cell::RefCell::new(std::collections::HashSet::new()),
             pre_emitted_host_paras: std::cell::RefCell::new(std::collections::HashSet::new()),
@@ -7874,6 +7877,12 @@ impl LayoutEngine {
                 None
             };
             hcursor.prev_item_content_bottom_y = prev_item_content_bottom_y;
+            hcursor.prev_item_flow_line_bottom_y = if item_ordinal > 0 {
+                let bottom = self.last_item_flow_line_bottom.get();
+                bottom.is_finite().then_some(bottom)
+            } else {
+                None
+            };
             // [#4613 · #4599 밴드-플로우] 전방 스냅 기각 판정용 — vpos_adjust 이전의 순차 흐름 위치.
             let y_before_vpos_adjust = y_offset;
             // [#4639 · #4599 ⑧] TAC-직후 보정 스킵의 예외 — 직전 TAC host 문단이 비-TAC
@@ -8822,6 +8831,7 @@ impl LayoutEngine {
             // [Task #1046 Stage 3 Class B] 표 콘텐츠 하단 기록을 항목마다 리셋 —
             // 표 항목 렌더에서만 설정되므로, 비-표 항목/다른 표에 stale 값이 새지 않는다.
             self.last_item_content_bottom.set(f64::NAN);
+            self.last_item_flow_line_bottom.set(f64::NAN);
             self.last_item_endnote_equation_tail_line_box.set(false);
             let zero_between_shape_tail_margin_px = match item {
                 PageItem::Shape {
