@@ -132,10 +132,13 @@ pub(super) fn format(
                     let fn_height = estimate_footnote_note_height(fn_ctrl, dpi);
                     table_footnote_height += fn_height;
                     table_footnote_count += 1;
-                    let fragment_split = profile()
-                        .hwp5_stored_pagination_layout()
-                        .then(|| native_hwp5_footnote_reset_fragments(fn_ctrl, dpi))
-                        .flatten();
+                    // Both saved containers retain the same explicit footnote
+                    // line reset. The query checks one-to-one stored/composed
+                    // lines; edited or synthetic metadata is not a split signal.
+                    let fragment_split = (profile().hwp5_stored_pagination_layout()
+                        || (profile().hwpx_stored_layout() && !profile().session_edited()))
+                    .then(|| native_hwp5_footnote_reset_fragments(fn_ctrl, dpi))
+                    .flatten();
                     table_footnotes.push(TableCellFootnote {
                         number: fn_ctrl.number,
                         cell_index: cell_idx,

@@ -299,8 +299,18 @@ impl TypesetEngine {
             note.fragment_split
                 .is_some_and(|split| split.force_next_page)
         });
+        // A direct HWPX with a validated cell-footnote reset also owns
+        // physical note fragments. Keep whole-table reservation in entry;
+        // only after whole fit fails may the split queue reserve the notes
+        // accepted by this fragment. Other HWPX tables keep atomic notes.
+        let hwpx_saved_table_footnote_split = st.profile.hwpx_stored_layout()
+            && row_count > 1
+            && ft
+                .table_footnotes
+                .iter()
+                .any(|note| note.fragment_split.is_some());
         let queue_table_footnotes = !table.common.treat_as_char
-            && st.profile.hwp5_stored_pagination_layout()
+            && (st.profile.hwp5_stored_pagination_layout() || hwpx_saved_table_footnote_split)
             && matches!(
                 table.page_break,
                 crate::model::table::TablePageBreak::RowBreak

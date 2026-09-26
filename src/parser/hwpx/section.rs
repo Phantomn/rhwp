@@ -5884,6 +5884,21 @@ fn normalize_hwpx_note_line_vpos(paragraph: &mut Paragraph, preserve_all_zero: b
         return;
     }
 
+    // A footnote starting at its own page origin can restart after positive
+    // lines (e.g. 0,1172,0). This is a physical footer-page boundary, not the
+    // trailing-zero artifact whose first line already starts above zero.
+    // Keep endnote normalization and the [2344,0] artifact contract unchanged.
+    if preserve_all_zero
+        && paragraph.line_segs[0].vertical_pos == 0
+        && paragraph.line_segs.windows(2).any(|lines| {
+            lines[0].vertical_pos > 0
+                && lines[1].vertical_pos == 0
+                && lines.iter().all(|line| line.tag & 0x8000_0000 == 0)
+        })
+    {
+        return;
+    }
+
     // [#6495] `vertpos=0` 이 **연속줄 아티팩트**인 문단과 **실제 단/쪽 경계**인 문단을
     // 가른다 — 판별자는 그 문단의 **0 이 아닌 값들 사이에 되감김이 있는가**다.
     //

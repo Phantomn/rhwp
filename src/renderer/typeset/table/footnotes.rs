@@ -161,9 +161,18 @@ impl TypesetEngine {
             // 쪽에서 진행 불가(디버그 불변식 패닉, 1130000-202100008: note 0
             // h=90.1px 가 avail 876.9px 에 들어가는데도 정지).
             let force_source_page_split = !queued_fresh_page
-                && note
-                    .fragment_split
-                    .is_some_and(|split| split.force_next_page);
+                && note.fragment_split.is_some_and(|split| {
+                    split.force_next_page
+                            // A validated HWPX footer reset belongs to the
+                            // marker's intermediate table page even if the
+                            // complete note would fit the numeric budget.
+                            // Capacity cannot erase a saved physical boundary.
+                            || (st.profile.hwpx_stored_layout()
+                                && !terminal_fragment
+                                && !fragment_has_intra_row_cut
+                                && note.row >= fragment_start_row
+                                && note.row < fragment_end_row)
+                });
             if force_source_page_split || !note_fits(st, note.content_height, true) {
                 // p728 note 77처럼 table cell 안의 stored vpos reset이 실제 footnote
                 // page boundary를 명시하고, marker row가 지금 확정한 intermediate

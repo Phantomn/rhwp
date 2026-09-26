@@ -1,43 +1,22 @@
-//! [#7379] 각주를 든 `RowBreak` 자리차지 표가 쪽 경계에서 쪼개진다.
+//! [#7379] 분할 표의 행과 저장 각주 경계를 물리 페이지에 보존한다.
 //!
-//! ## 무엇이 문제였나
+//! 독립 기준은 원본 정책연구 HWPX와 한컴2024 PDF 215쪽이다.
+//! 66쪽에는 머리행+본문4행(0..4), 67쪽에는 본문2행(5..6)이 있다.
+//! 원본 common.height=11645HU도 첫5행의 저장 높이 합과 같다.
+//! 각주77은 저장 vpos [0,1172,0]의 앞 두 줄을66쪽에 두고,
+//! Part 482... 및 출처 꼬리는67쪽에 번호 반복 없이 이어야 한다.
 //!
-//! 통째/분할 **진입 판정**의 예산(`available`)에서 표 **자신의** 각주 높이를 미리 깎았다.
-//! 그러면 각주를 든 표는 자기 각주 때문에 현재 쪽의 남은 자리가 음수가 되어, 분할을
-//! 시도조차 못 하고 통째로 다음 쪽으로 간다. 쪼개졌다면 첫 조각은 그 조각이 실제로
-//! 데려가는 각주만 필요한데, 판정은 **어느 조각도 쓰지 않을 예산**을 요구한 셈이다.
+//! 원 contributor 변경은 전체 각주 사전 예약을 whole/split 모두에서 제거해
+//! 표 존재 검사를 개선했지만 3+3행과 각주77 누락이 남았다. 메인터너는
+//! whole 예약을 유지하고 유효 저장 각주 경계를 split queue에 연결한다.
+//! 행·각주 소유 개선과 전체 페이지/시각 gate 통과는 별도다. 남은 차이와
+//! 실제 전후 실행은 mydocs/pr/archives/pr_7382_review.md에 기록한다.
 //!
-//! ```text
-//!   문단 0.728  7행×2열 · 쪽나눔=RowBreak · treat_as_char=false · wrap=자리차지
-//!               표 안 각주 6건
-//!     종전  total_footnote 294.0 (쪽 각주 43.4 + 표 각주 250.6)
-//!           → available 622.2 < current_height 713.8   → 통째 이월
-//!           → 그 쪽에 실제로 그려진 각주는 35.9px, 본문은 220px 공백
-//! ```
-//!
-//! 같은 문서의 표 **58건** 중 표 안 각주가 없는 47건은 한 번도 이 자리에 막히지 않았고,
-//! 각주를 든 11건에서만 막혔다 — 갈리는 것은 표 크기가 아니라 **자기 각주 유무**다.
-//!
-//! ## 기대값의 출처 — 한/글 출력 PDF
-//!
-//! `pdf/정책연구용역사업 중간진도보고서(…)-hwpx-2024.pdf`(215쪽)에서 이 표의 **행 안 각주
-//! 77번**이 **66쪽**에 있다.
-//!
-//! ```text
-//!   정본 p66 끝   … 77) CFR → Title 42(Public Health) → Chapter IV(CMS …) - 66 -
-//!   정본 p67 앞   Stephanie Tubbs Jones … Policy OPTN policy 14.82)  표 23. …
-//! ```
-//!
-//! 곧 한/글은 이 표를 **p66/p67 로 쪼개** 앞부분을 66쪽에 둔다. rhwp 는 머리행부터 통째로
-//! 67쪽에 두었다(66쪽에는 표가 하나도 없었다).
-//!
-//! ## 비범위
-//!
-//! 이 문서의 총 쪽수는 이 수정만으로 정본(215)과 같아지지 않는다(220 → 217). 남은 3쪽은
-//! 다른 삽입 지점이고 이 시험의 대상이 아니다.
+//! 각주 없는 표 대조군은 수정 전에도 통과하며 결함 검출 증거가 아니다.
 
 #![cfg(not(target_arch = "wasm32"))]
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use rhwp::document_core::DocumentCore;
@@ -69,6 +48,80 @@ fn host_tables(root: &RenderNode) -> Vec<(f64, f64)> {
     let mut out = Vec::new();
     walk(root, &mut out);
     out
+}
+
+fn host_table(root: &RenderNode) -> Option<&RenderNode> {
+    if matches!(&root.node_type, RenderNodeType::Table(t) if t.para_index == Some(HOST_PARA)) {
+        return Some(root);
+    }
+    root.children.iter().find_map(host_table)
+}
+
+fn visible_rows(table: &RenderNode) -> BTreeSet<u16> {
+    table
+        .children
+        .iter()
+        .filter_map(|n| match &n.node_type {
+            RenderNodeType::TableCell(cell) => Some(cell.row),
+            _ => None,
+        })
+        .collect()
+}
+
+fn text(node: &RenderNode) -> String {
+    let mut result = match &node.node_type {
+        RenderNodeType::TextRun(run) => run.text.clone(),
+        _ => String::new(),
+    };
+    for child in &node.children {
+        result.push_str(&text(child));
+    }
+    result
+}
+
+fn notes(root: &RenderNode) -> Option<&RenderNode> {
+    if matches!(root.node_type, RenderNodeType::FootnoteArea) {
+        return Some(root);
+    }
+    root.children.iter().find_map(notes)
+}
+
+/// 한컴 PDF p66은 머리행+본문4행, p67은 나머지2행이다. 원본 개체
+/// 11645HU도 첫5행의 저장 높이 합과 같고 각주77은 2줄 뒤 vpos=0으로 재시작한다.
+/// 조각 높이 합만으로는 행 소유와 각주 prefix/tail의 보존을 입증할 수 없다.
+#[test]
+fn saved_rows_and_footnote_reset_keep_their_physical_page_owners() {
+    let core = core();
+    let first = core.build_page_render_tree(65).expect("66쪽");
+    let next = core.build_page_render_tree(66).expect("67쪽");
+    let first_table = host_table(&first.root).expect("66쪽 표");
+    let next_table = host_table(&next.root).expect("67쪽 표");
+    assert_eq!(visible_rows(first_table), (0..5).collect(), "PDF 첫 5행");
+    assert_eq!(
+        visible_rows(next_table),
+        [5, 6].into_iter().collect(),
+        "PDF 끝 2행, 중복 없음"
+    );
+    let first_notes = notes(&first.root).expect("66쪽 각주");
+    let next_notes = notes(&next.root).expect("67쪽 각주");
+    let a = text(first_notes);
+    let b = text(next_notes);
+    assert!(
+        a.contains("77)") && a.contains("Subchapter G"),
+        "77번 앞 두 줄: {a}"
+    );
+    assert!(!a.contains("Part 482(CONDITIONS"), "77번 tail은 67쪽: {a}");
+    assert!(!b.contains("77)"), "tail에서 번호 중복 금지: {b}");
+    assert!(
+        b.contains("Part 482(CONDITIONS") && b.contains("78)"),
+        "77번 tail과 후속 각주: {b}"
+    );
+    for (table, area) in [(first_table, first_notes), (next_table, next_notes)] {
+        assert!(
+            table.bbox.y + table.bbox.height <= area.bbox.y,
+            "표/각주 충돌 금지"
+        );
+    }
 }
 
 /// 각주를 든 RowBreak 자리차지 표가 쪽 경계에서 쪼개져 앞 조각이 66쪽에 남는다.
