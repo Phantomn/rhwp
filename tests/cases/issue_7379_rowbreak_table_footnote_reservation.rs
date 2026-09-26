@@ -1350,3 +1350,23 @@ fn hwp_continued_body_note_keeps_page_separator_without_number_repeat() {
     let bytes = std::fs::read(path).expect("같은 보고서 원본HWP");
     assert_continued_body_note_separator(DocumentCore::from_bytes(&bytes).expect("HWP 로드"));
 }
+
+/// 뒤 본문 다음의 쪽 경계로 그 본문 앞 빈 줄의 점유를 지우지 않는다.
+/// 동일 입력 한컴 PDF32의 세 줄 좌표와 저장53340→55340HU가 독립 근거다.
+#[test]
+fn empty_line_before_visible_body_keeps_its_height_before_later_page_reset() {
+    let core = core();
+    let tree = core.build_page_render_tree(31).expect("32쪽 실제 본문");
+    for (needle, expected) in [
+        ("생존 간 기증을 기증자 이식대상자 관계", 821.061),
+        ("연관계(형제자매", 847.621),
+        ("기증(배우자", 874.341),
+    ] {
+        let actual = line_top(&tree.root, needle).expect("빈 줄 뒤 본문 보존");
+        assert!(
+            (actual - expected).abs() <= 1.5,
+            "{needle}: 실제{actual}, 독립PDF{expected}"
+        );
+    }
+    assert_eq!(core.page_count(), 215, "원본 쪽 수 보존");
+}

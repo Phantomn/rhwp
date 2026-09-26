@@ -317,3 +317,28 @@ Producer `477c9aeb8` + Rust/test diff SHA256 `3d707ab6f3dd52af178be2ab424c21a52c
 ![Native32 overlay](../assets/pr7382_20260926/stage14_native_overlay_032.png)
 ![Native179 정상 대조](../assets/pr7382_20260926/stage14_native_review_179.png)
 ![Native179 overlay](../assets/pr7382_20260926/stage14_native_overlay_179.png)
+
+
+## 메인터너 보정 15: 실제 본문 앞 빈 줄의 점유 보존
+
+동일 입력 PDF32의 뒤 본문 세 줄은821.061/847.621/874.341px다. 원본 빈 문단426의 저장53340→다음 본문55340HU는1000HU 줄높이+1000HU 간격,26.666px 점유를 입증한다. [독립 좌표](../assets/pr7382_20260926/stage15_independent_geometry.json). 측정과 줄 메트릭 생산은 정상이었으며, 구역 꼬리 흡수 경로가 다음 본문을 제목으로 추정해 그 뒤 문단의 쪽 경계를 앞당겨 적용한 것이 원인이었다.
+
+`absorb_section_tail`의 경계 판단 → `hidden_empty_paras` 및 높이0 항목 → `layout.rs`의 숨김 반환 → 뒤 본문 최종 원점을 추적했다. 글이 있는 문단을 건너뛰는 잘못된 가정을 제거하고 빈 문단들 바로 뒤 첫 본문에서 관측한 reset만 안내 줄 흡수 근거로 유지했다. 문서 ID/숫자 조건을 추가하거나 줄 높이를 임의 보정하지 않았다.
+
+Producer `00e210b06` + Rust/test diff SHA256 `bc7038e0bb950733809b6a8f63109dce27fd792f847fbec299a4c1bfc80ff9d8`; [명령·결과·소스 해시](../assets/pr7382_20260926/stage15_validation.json).
+
+| 검사 | 결과 | 의미 |
+| --- | --- | --- |
+| 수정 전 실제 본문 좌표 |1FAIL, exit100,0.173s |807.693px vs PDF821.061px, 의도한13.333px 앞당김 검출 |
+| 최종 소스 관련·정상 대조군 |43PASS, exit0,3.912s | 세 줄의 실제 위치, 앞선 표/각주/원본215쪽 왕복 및 국제고속선 HWP/HWPX242쪽·원본 reset 소유 보존 |
+| 페이지 끝 빈 줄·표 조각 unit |4PASS, exit0,0.012s | 실제 끝 안내 줄 흡수와 prepared-state 생명주기 유지 |
+| unit 정책·fmt |exit0 | 정책은 고정 base `eb9142dd7` 비교 |
+| CLI·쪽수 |build exit0,1m56s;215/PDF215 | 최신 소스 출력,33쪽 첫 본문428 보존 |
+| Native31/32/178/179 |97.33830/94.52341/94.31041/97.53225%, exit0 | 네 쪽 gate 통과, 글꼴 예외 없음 |
+
+빈 줄 unit 첫 실행은 앞 보정에서 바꾼 필드의 옛 이름이 기존 테스트 초기화에 남아 테스트 전 빌드 실패(exit101)했다. 내 누락으로 기록하고 같은0.0 값의 올바른 필드로 고쳤다. 이를 빈 줄 결함 검출 증거로 세지 않으며 수정 후 unit4개와 최종 관련43개를 다시 통과시켰다. 추가·수정 설명 주석은 한글이며 통합 branch의 추가 영어 설명 주석 잔여0개다.
+
+네 쪽의 review·standalone overlay8개를 직접 판독했다. 32쪽은 뒤 본문 위치가 복원되고 구분선·꼬리 각주가 남으며31/178/179의 기존 배치도 유지된다. 그림색·얇은 선·일부 글리프 잔차를 완전 일치로 보고하지 않는다. [manifest](../assets/pr7382_20260926/stage15_native_manifest.json)·[summary](../assets/pr7382_20260926/stage15_native_summary.json)·[metrics](../assets/pr7382_20260926/stage15_native_overlay_metrics.json). **선택 네 쪽 통과이며 전체/fresh WASM/최종 필수 검증 미완료, 다른 보류 페이지 해결 전 PR 생성 보류**다.
+
+![Native32 빈 줄 뒤 본문 복원](../assets/pr7382_20260926/stage15_native_review_032.png)
+![Native32 overlay](../assets/pr7382_20260926/stage15_native_overlay_032.png)

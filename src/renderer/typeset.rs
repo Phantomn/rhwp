@@ -6590,7 +6590,7 @@ mod tests {
             host_spacing_total: 0.0,
             host_spacing_before: 0.0,
             host_spacing_after_only: 0.0,
-            terminal_nested_child_host_line_spacing: 0.0,
+            terminal_host_spacing: 0.0,
             strict_following_plain_text_fit: false,
             budget_para_start_height: 0.0,
             first_fragment_actual_footnote_boundary: None,
