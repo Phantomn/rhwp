@@ -2643,54 +2643,32 @@ impl HeightMeasurer {
             }
         }
 
-        // [#6761] 1-b단계: 그 행의 **선언 높이가 아직 유효한가**.
-        //
-        // 아래 `empty_para_line_height`(#6660) 는 "글자 없는 문단의 줄은 개체를 담는
-        // 자리" 라는 계약인데, 처음에는 개체가 선언 칸을 넘을 때만 적용했다. 개체가
-        // 선언 안에 들어가는 칸에서도 한컴은 그 줄을 개체 위에 따로 쌓지 않는다 —
-        // `<표 4-1> 국내외 유사 마크 현황`(1480000-201900042, 정본 55쪽 래스터 실측)
-        // 의 `인증마크` 칸 열한 개가 전부 그렇다.
-        //
-        // ```text
-        //   r=4 중국  선언 5547HU=74.0px  그림 65.8px  빈 글줄 13.3px
-        //     줄까지 세면 82.9px → 행마다 약 9px 씩 쌓여 마지막 행이 쪽을 넘는다
-        //     줄을 빼면 69.6px ≤ 선언 → 행 74.0px = 정본 괘선 실측 74px
-        // ```
-        //
-        // 다만 **선언을 권위로 쓰려면 그 선언이 그 행을 실제로 담을 수 있어야 한다.**
-        // 행 안의 저장 줄이나 개체가 하나라도 선언을 넘으면 그 선언은 이미 그 내용을
-        // 못 담는 낡은 값이므로 종전 회계를 유지한다. `#6312` 의 기관명 행이 그
-        // 반례다 — c=0 의 그림(36.1px)은 선언(39.9px) 안에 들지만 같은 행 c=2 의
-        // **글자처럼 취급** 그림은 저장 줄 자체가 3194HU(42.6px)로 선언을 넘는다.
-        // 거기서 빈 줄을 빼면 뒤 문단이 한/글 실측(360.1px)에서 6.8px 더 멀어진다.
-        //
-        // 판정에는 재합성이 아니라 **저장 값만** 쓴다 — 저장 줄 extent(vpos+lh)와
-        // 비인라인 개체 높이. 둘 다 이 단계에서 이미 알 수 있고, 선언과 같은 출처다.
-        let row_declared_covers_stored_content: Vec<bool> = (0..row_count)
-            .map(|r| {
-                let declared = row_heights[r];
-                declared > 0.0
-                    && table
-                        .cells
-                        .iter()
-                        .filter(|cell| cell.row_span == 1 && cell.row as usize == r)
-                        .all(|cell| {
-                            let stored_line_extent = cell
-                                .paragraphs
-                                .iter()
-                                .flat_map(|pp| pp.line_segs.iter())
-                                .filter(|seg| seg.vertical_pos >= 0 && seg.line_height > 0)
-                                .map(|seg| {
-                                    hwpunit_to_px(
-                                        seg.vertical_pos.saturating_add(seg.line_height),
-                                        self.dpi,
-                                    )
-                                })
-                                .fold(0.0f64, f64::max);
-                            stored_line_extent <= declared + 0.5
-                                && self.measure_non_inline_controls_height(cell, &table.padding)
-                                    <= declared + 0.5
-                        })
+        // [#6761/#6312] 빈 앵커 줄의 소유는 해당 셀의 저장 내용으로 판단한다.
+        // 다른 셀의 큰 글줄이 행을 확장해도 이 셀의 앵커 줄이 독립 내용으로
+        // 바뀌지 않는다. 초기 공유 행 최소 안에 이 셀의 줄·개체가 들어가면
+        // 빈 줄과 개체를 다시 쌓지 않고, 실제 행 높이는 아래 내용 측정으로 확정한다.
+        let cell_declared_row_covers_stored_content: Vec<bool> = table
+            .cells
+            .iter()
+            .map(|cell| {
+                let Some(&declared) = row_heights.get(cell.row as usize) else {
+                    return false;
+                };
+                if cell.row_span != 1 || declared <= 0.0 {
+                    return false;
+                }
+                let stored_line_extent = cell
+                    .paragraphs
+                    .iter()
+                    .flat_map(|pp| pp.line_segs.iter())
+                    .filter(|seg| seg.vertical_pos >= 0 && seg.line_height > 0)
+                    .map(|seg| {
+                        hwpunit_to_px(seg.vertical_pos.saturating_add(seg.line_height), self.dpi)
+                    })
+                    .fold(0.0f64, f64::max);
+                stored_line_extent <= declared + 0.5
+                    && self.measure_non_inline_controls_height(cell, &table.padding)
+                        <= declared + 0.5
             })
             .collect();
 
@@ -3188,13 +3166,10 @@ impl HeightMeasurer {
                     // 하지만 `줄 높이 >= 개체 높이` 를 요구해(13.3 < 56.3) 여기서는
                     // 불발한다. 가르는 것은 줄 크기가 아니라 그 문단에 **글자가 있는가** 다.
                     //
-                    // 개체가 **선언된 칸보다 클 때만** 적용한다. 칸 안에 들어가는
-                    // 개체는 그 줄과 나란히 쌓이므로 둘 다 세는 것이 맞다 —
-                    // `issue6312` 의 기관명 칸(선언 39.9px, 그림 36.1px)이 그렇고,
-                    // 거기서 빼면 뒤 문단이 한/글(360.1px)에서 6.8px 더 멀어진다.
-                    // 개체가 칸을 넘으면 행이 개체에 맞춰 커지고 그 줄은 개체가
-                    // 차지한 자리 안에 든다 — exam_science 4쪽(선언 37.9px,
-                    // 그림 56.3px)이 그 경우다.
+                    // 개체가 선언 칸을 넘으면 기존 확장 경로에서 앵커 줄을 흡수한다.
+                    // 칸 안에 들어가면 위에서 확정한 해당 셀의 저장 소유를 사용한다.
+                    // #6312의 오른쪽 글자처럼 그림이 행을 키우는 사실은 왼쪽 로고의
+                    // 빈 앵커 줄을 별도 내용으로 더할 근거가 아니다.
                     //
                     // 문단이 하나뿐인 셀에만 적용한다. 뒤에 문단이 더 있으면 그 줄은
                     // 뒤 내용을 개체 아래로 밀어 내리는 몫을 한다.
@@ -3210,7 +3185,7 @@ impl HeightMeasurer {
                             cell.paragraphs.len() == 1
                                 && (non_inline_h > declared_cell_h
                                     || (declared_cell_h.is_finite()
-                                        && row_declared_covers_stored_content[r]))
+                                        && cell_declared_row_covers_stored_content[cell_index]))
                         })
                         .filter(|pp| {
                             pp.text.trim().is_empty() && pp.controls.iter().any(|c| {
