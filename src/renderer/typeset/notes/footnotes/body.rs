@@ -193,7 +193,14 @@ impl TypesetEngine {
                 .then(|| native_hwp5_footnote_reset_fragments(fn_ctrl, self.dpi))
                 .flatten();
             let stored_reset_fragments = body_tail_reset
-                .filter(|_| multi_note_routed.is_some())
+                .filter(|_| {
+                    multi_note_routed.is_some()
+                        // A first-note collision also proves that the marker
+                        // belongs to a completed prefix page. The independently
+                        // validated note reset then owns the matching tail;
+                        // existing notes are not required for that contract.
+                        || collision_routed.flatten().is_some()
+                })
                 .and(source_reset_fragments);
             // body marker와 문단은 현재 page에 끝났지만 각주 stored line이
             // `0 -> 0`으로 다시 시작하면 suffix의 물리 owner만 다음 page다

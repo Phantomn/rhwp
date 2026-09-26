@@ -140,6 +140,15 @@ pub(in crate::renderer::typeset) fn native_hwp5_footnote_reset_fragments(
     })
 }
 
+/// Stored body/note boundaries share the same physical ownership contract.
+/// HWPX local writer cursors remain excluded unless the input is unedited and
+/// single-column; each query still validates real nonsynthetic line boundaries
+/// and its own marker/available-footnote geometry.
+fn stored_body_note_pagination(st: &TypesetState) -> bool {
+    st.profile.hwp5_stored_pagination_layout()
+        || (st.profile.hwpx_stored_layout() && !st.profile.session_edited() && st.col_count == 1)
+}
+
 /// native HWP5 본문 각주 marker 뒤에서 현재 쪽의 `PartialParagraph`가 시작하는
 /// stored reset을 찾는다.
 ///
@@ -153,7 +162,7 @@ pub(in crate::renderer::typeset) fn native_hwp5_body_footnote_tail_reset(
     para: &Paragraph,
     ctrl_idx: usize,
 ) -> Option<(usize, usize)> {
-    if !st.profile.hwp5_stored_pagination_layout()
+    if !stored_body_note_pagination(st)
         || st.col_count != 1
         || para.controls.len() != 1
         || !matches!(para.controls.get(ctrl_idx), Some(Control::Footnote(_)))
@@ -194,7 +203,7 @@ pub(in crate::renderer::typeset) fn native_hwp5_first_footnote_overlap_break_lin
     dpi: f64,
 ) -> Option<NativeHwp5FootnoteBreak> {
     let line_count = fmt.line_heights.len();
-    if !st.profile.hwp5_stored_pagination_layout()
+    if !stored_body_note_pagination(st)
         || !st.is_first_footnote_on_page
         || st.current_footnote_height > 0.0
         || line_count < 2

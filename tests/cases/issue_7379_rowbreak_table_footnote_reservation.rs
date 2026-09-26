@@ -1227,3 +1227,62 @@ fn body_note_invalid_saved_reset_stays_atomic() {
         );
     }
 }
+
+/// 한컴 PDF31의 첫 두 줄은 앞쪽 본문407의 stored reset 뒤 꼬리다.
+#[test]
+fn body_first_note_reservation_preserves_saved_reset_tail_owner() {
+    let core = core();
+    let first = core.build_page_render_tree(29).expect("30쪽");
+    let next = core.build_page_render_tree(30).expect("31쪽");
+    assert!(
+        !text(&first.root).contains("문제가 나타남. 조직학적"),
+        "reset 뒤 두 줄을 앞쪽에서 소비하지 않음"
+    );
+    for (needle, expected) in [
+        ("문제가 나타남. 조직학적", 83.141),
+        ("대한 추적 관찰이 필요함", 109.861),
+    ] {
+        let actual = line_top(&next.root, needle).expect("독립PDF의 다음 본문 소유");
+        assert!(
+            (actual - expected).abs() <= 1.5,
+            "{needle}: {actual} vs PDF{expected}"
+        );
+    }
+    assert!(text(notes(&first.root).expect("30각주")).contains("29)"));
+    assert!(!text(notes(&next.root).expect("31각주")).contains("29)"));
+}
+
+/// 본문421의 마지막 줄은 PDF32에서 차트35보다 앞에 점유한다.
+#[test]
+fn body_two_line_note_preserves_reset_tail_before_following_picture() {
+    let core = core();
+    let first = core.build_page_render_tree(30).expect("31쪽");
+    let next = core.build_page_render_tree(31).expect("32쪽");
+    let needle = "와 같이 점차 감소하는 추세임";
+    assert!(
+        !text(&first.root).contains(needle),
+        "본문 꼬리를 앞쪽에서 소비하지 않음"
+    );
+    let actual = line_top(&next.root, needle).expect("차트 앞 본문 꼬리");
+    assert!((actual - 83.141).abs() <= 1.5, "꼬리{actual} vs PDF83.141");
+    assert!(text(notes(&first.root).expect("앞 각주")).contains("30)"));
+    let tail = text(notes(&next.root).expect("꼬리각주"));
+    assert!(tail.contains("Transplantationszentren") && !tail.contains("30)"));
+}
+
+/// 합성 되감김은 원본 저장 경계의 대용이 아니며 이 physical route를 켜지 않는다.
+#[test]
+fn synthetic_body_reset_does_not_create_a_saved_footnote_boundary() {
+    use rhwp::model::paragraph::LineSeg;
+    let mut core = core();
+    let mut doc = core.document().clone();
+    for line in &mut doc.sections[0].paragraphs[407].line_segs {
+        line.tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
+    }
+    core.set_document(doc);
+    let first = core.build_page_render_tree(29).expect("변형 앞쪽");
+    assert!(
+        text(&first.root).contains("문제가 나타남. 조직학적"),
+        "합성 되감김을 각주 소유 증거로 쓰지 않음"
+    );
+}
