@@ -3258,7 +3258,8 @@ impl LayoutEngine {
         // `HorzRelTo::Column` · `HorzAlign::Left` · 오프셋 0 · `outer_margin_left > 0`)는
         // 그 일반 규칙의 **부분집합**이라, 둘 다 실으면 여백이 두 번 든다
         // (`tac-img-02.hwp` 1쪽 표가 본문 75.6 에서 79.4 가 아니라 83.1 로 갔다).
-        // 세로 inset(`table_y`)은 저장 사다리가 세로 outer box 만 증명하므로 그대로 둔다.
+        // 세로 위여백도 확정 원점에 이미 포함됐다면 반복하지 않는다. 호출자는
+        // 확정 계획이 없는 저장 바깥 상자에만 physical_outer_box_paint_inset을 전달한다.
 
         let table_text_wrap = if depth == 0 {
             table.common.text_wrap

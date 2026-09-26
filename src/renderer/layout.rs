@@ -11014,11 +11014,17 @@ impl LayoutEngine {
             };
             let mt = fitted_visible_mt.as_ref().or(raw_mt);
             let declared_height = hwpunit_to_px(signed_hwpunit(t.common.height), self.dpi);
-            let physical_outer_box_paint_inset = physical_outer_box_paint_inset_layout_gate(
-                *zone_column_count,
-                mt.map(|measured| measured.total_height),
-                declared_height,
-            ) && is_current_empty_para_float
+            // 확정 표 원점은 위여백을 이미 소비했다. 같은 계획이 없는 저장 표만
+            // 기존 출력 보정을 적용하며, 아래 흐름 끝에서도 그 보정만 되돌린다.
+            let physical_outer_box_paint_inset = !ctx
+                .paragraph_float_placements
+                .contains_key(&(para_index, control_index))
+                && physical_outer_box_paint_inset_layout_gate(
+                    *zone_column_count,
+                    mt.map(|measured| measured.total_height),
+                    declared_height,
+                )
+                && is_current_empty_para_float
                 && (native_empty_host_physical_outer_box_paint_inset(
                     self.profile.get().hwp5_stored_pagination_layout(),
                     para,

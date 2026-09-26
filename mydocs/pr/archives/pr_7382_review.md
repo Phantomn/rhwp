@@ -901,3 +901,27 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 ![156쪽 그림64 원점](../assets/pr7382_20260926/stage35_after_hwpx_review_156.png)
 ![156쪽 독립 overlay](../assets/pr7382_20260926/stage35_after_hwpx_overlay_156.png)
 ![127쪽 그림56 소유 복원](../assets/pr7382_20260926/stage35_after_normal_hwpx_review_127.png)
+
+
+## 보정36 사전 분석 — 확정 표 원점 뒤 바깥 위여백 중복 적용
+
+- 원본120쪽 빈 호스트 문단1283은vpos0/폭0이며6×1 RowBreak 표는선언23790HU·위/아래여백283HU·오프셋0이다. 다음 저장 줄은24356HU로전체바깥프레임을닫는다. 독립 한컴 HWP PDF120쪽 괘선 상단65.208984pt=86.945312px이며본문83.16px+283HU=86.933333px와대응한다. 기존90.706667px는위여백을두번더한위치다.
+- 실제 소비 경로는`stored_empty_control_table_frame → query_original_control_table_frame/whole-fit → paragraph_float_placements.table_top → layout.rs의확정원점선택 → table_layout의physical_outer_box_paint_inset`이다. 앞 결과가이미여백을포함하지만마지막legacy paint inset이다시283HU를더한다. 같은분기의흐름끝은이inset을빼므로뒤문단은맞고표원점만어긋난다. 최종원점을clamp하지않고확정계획과legacy inset중한계약만소비해야한다.
+- 기존원본정식회귀는보정35의최종확대에서위여백중복으로FAIL했다. 먼저새독립PDF좌표검사와HWPX정상대조군을수정전에실행하고,위치·크기·뒤문단·215쪽보존을검증한다. 확정계획이없는legacy표의위여백은유지하고분할/편집을전체프레임증거로새로승격하지않는다.
+
+
+수정 전 새정식2개는1PASS/1FAIL(exit100,0.252s)이며 HWPX정상대조군은PASS, Native원본은90.706667px/독립86.945312px 차이로FAIL했다. 확정계획이있는호스트는legacy paint inset과그흐름끝차감을함께비활성화하여표원점만한번소비하고후속흐름을유지한다.
+
+
+### 보정36 결과
+
+- 확정 `paragraph_float_placements.table_top`이 있는 호스트는 이미 바깥 위여백을 소비했으므로 legacy paint inset을 반복하지 않는다. 같은 조건으로 흐름 끝의 inset 차감도 끄며, 확정 계획이 없는 기존 경로는 유지한다. 측정 원점을 배치 뒤 clamp하거나 표 크기를 바꾸지 않았다.
+- 과거 불변 CLI를 대조하니 보정29의120쪽 표 상단은86.9px였고 보정30에서90.7px로 밀렸다. 이번 결함은 기여자 원 변경이 아니라 메인터너 보정30의 회귀다. [발생 단계와 CLI 해시](../assets/pr7382_20260926/stage36_maintainer_regression_origin.json)를 보존했다.
+- 원본 정식2개는 수정 전1PASS/1FAIL(exit100,0.252s), 수정 후 모두PASS다. 표 원점/크기·뒤 본문·각주와215쪽, 다음 쪽 중복 없음까지 검사했다. 확대208개는207PASS/1FAIL(exit100,6.676s,threads8)이다. 남은 #2097 실패는 마지막 행이 실제2쪽으로 넘어가며, 불변33/34/35 CLI 대조에서 보정34부터 생겼다. 단순 `PartialTable` 표기 변화로 분류하지 않으며 [행 소유 증거](../assets/pr7382_20260926/stage36_2097_owner_origin.json)를 남겼다.
+- Native HWP120쪽은81.72702→99.67776%, HWPX120쪽99.67776%와 양쪽121쪽98.96031%는 유지됐다. 전체215쪽 tree 변화는 HWP2/119/120쪽뿐이고 HWPX는 없다. 추가 HWP2쪽91.23975→94.69572%,119쪽89.59948→99.75059%다. 새 전후 review·standalone overlay24개를 직접 읽어 표 원점·뒤 제목/그림55·각주158–160·후속 본문 보존을 확인했다. 점선 화살표·글자 메트릭의 작은 차이는 남으며 완전 픽셀 일치로 보고하지 않는다.
+- fmt·고정base manifest(6224 attrs)·source-unit(4205/298)은exit0, 불변 release-test CLI 빌드는exit0/79.866s다. [정확한 명령·source/test/CLI 해시·전후 검사](../assets/pr7382_20260926/stage36_validation.json), [전수 tree 변경 범위](../assets/pr7382_20260926/stage36_original_tree_difference.json), [추가 영어 설명 주석0개](../assets/pr7382_20260926/stage36_english_comment_scan.json)를 연결했다. 모든 로그는output/logs에만 남기고 커밋하지 않는다.
+- 판정:120쪽 위여백 중복은 충족. #2097 마지막 행 분할과126쪽·#6782의76/78쪽 시각 차이는 미충족이다. 실제 TABLE 편집/래퍼 분할·최신 전수 시각/fresh WASM·전체 nextest/lint/Skia는 미검증이며 통합 PR 제출/승인은 보류한다. 이 단계 커밋 뒤 #2097 실제 행 소유 변경을 다음 개별 보정으로 분석한다.
+
+![120쪽 표 원점 복원](../assets/pr7382_20260926/stage36_after_hwp_review_120.png)
+![120쪽 독립 overlay](../assets/pr7382_20260926/stage36_after_hwp_overlay_120.png)
+![119쪽 표와 뒤 그림 보존](../assets/pr7382_20260926/stage36_after_additional_hwp_review_119.png)

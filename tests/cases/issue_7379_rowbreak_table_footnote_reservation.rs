@@ -2752,3 +2752,34 @@ fn figure64_mismatched_successor_band_does_not_claim_next_page() {
         );
     }
 }
+
+/// 동일 원본 PDF120쪽 괘선으로 표 위여백의 단일 소비를 확인한다.
+fn assert_terminal_table_frame_uses_outer_top_once(hwpx: bool) {
+    let core = original_picture_wrapper_core(hwpx);
+    assert_eq!(core.page_count(), 215);
+    let page = core.build_page_render_tree(119).unwrap();
+    let table = table_for_para(&page.root, 1283).expect("원본120쪽 표");
+    let pdf_top = 65.208984 * 4.0 / 3.0;
+    assert!(
+        (table.bbox.y - pdf_top).abs() < 0.5,
+        "독립 PDF 괘선 상단: {:?}, 기대{pdf_top}",
+        table.bbox
+    );
+    assert!((table.bbox.height - 23790.0 / 75.0).abs() < 0.1);
+    assert!((table.bbox.width - 41954.0 / 75.0).abs() < 0.1);
+    assert_eq!(text(table).matches("문서:").count(), 1);
+    assert!(text(&page.root).contains("규정하고 있음."));
+    let next = core.build_page_render_tree(120).unwrap();
+    assert!(text(&next.root).contains("A) 기증자가 법적으로 가능한 연령이 되어야 하고"));
+    assert!(table_for_para(&next.root, 1283).is_none());
+}
+
+#[test]
+fn native_terminal_table_frame_consumes_outer_top_once() {
+    assert_terminal_table_frame_uses_outer_top_once(false);
+}
+
+#[test]
+fn hwpx_terminal_table_frame_consumes_outer_top_once() {
+    assert_terminal_table_frame_uses_outer_top_once(true);
+}
