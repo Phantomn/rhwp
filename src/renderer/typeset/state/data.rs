@@ -66,6 +66,8 @@ pub(in crate::renderer::typeset) struct StateView {
     /// 옮겨 밴드 바닥을 확장할 때만 사용한다.
     pub(in crate::renderer::typeset) square_band_top: Option<f64>,
     pub(in crate::renderer::typeset) current_footnote_height: f64,
+    /// Current queue reservation shares paint's body-bottom anchor.
+    pub(in crate::renderer::typeset) current_footnote_body_bottom_reserved: bool,
     /// Current page owns a HWPX note body deferred from a picture marker page.
     pub(in crate::renderer::typeset) deferred_hwpx_note_body: bool,
     /// [Task #1658 v3] 페이지 하단 고정 표(vert=쪽·valign=Bottom, 결재/서명 틀)의

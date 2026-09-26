@@ -281,6 +281,7 @@ impl TypesetEngine {
                     continuation,
                     table_footnotes,
                     table,
+                    input.source.paragraphs_all,
                     styles,
                     layout_engine,
                     &[],
@@ -309,6 +310,7 @@ impl TypesetEngine {
                         continuation,
                         table_footnotes,
                         table,
+                        input.source.paragraphs_all,
                         styles,
                         layout_engine,
                         &[],
@@ -450,7 +452,8 @@ impl TypesetEngine {
         // cell-footnote를 같은 lane에 섞지 않는다. 그 page의 기존 각주(표 25의
         // 105·106)를 보존하고, 표가 이어지는 fresh page에서 cell-footnote를 순서대로
         // 배치해야 원본 HWP/PDF의 107–111 / 112– 분할을 재현한다.
-        let defer_large_first_fragment_notes = queue_table_footnotes
+        let defer_large_first_fragment_notes = st.profile.hwp5_stored_pagination_layout()
+            && queue_table_footnotes
             && !is_continuation
             && cursor_row == 0
             && table_footnotes.len() >= 8;
@@ -460,6 +463,7 @@ impl TypesetEngine {
                 continuation,
                 table_footnotes,
                 table,
+                input.source.paragraphs_all,
                 styles,
                 layout_engine,
                 &split_end_cut,

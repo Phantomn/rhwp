@@ -4741,6 +4741,7 @@ impl DocumentCore {
                 .step_resumable_table_pagination(
                     &mut pending.renderer_job,
                     paragraph,
+                    &section.paragraphs,
                     table,
                     measured_table,
                     &self.styles,

@@ -37,6 +37,7 @@ impl TypesetState {
                 square_band_bottom: 0.0,
                 square_band_top: None,
                 current_footnote_height: 0.0,
+                current_footnote_body_bottom_reserved: false,
                 deferred_hwpx_note_body: false,
                 current_bottom_fixed_exclusion: 0.0,
                 bottom_fixed_consumed_flow: 0.0,
@@ -592,6 +593,7 @@ impl TypesetState {
         self.data.current_endnote_flow = false;
         self.data.column_had_compact_endnote_rewind = false;
         self.data.current_footnote_height = 0.0;
+        self.data.current_footnote_body_bottom_reserved = false;
         self.data.deferred_hwpx_note_body = false;
         self.data.current_bottom_fixed_exclusion = 0.0;
         self.data.bottom_fixed_consumed_flow = 0.0;

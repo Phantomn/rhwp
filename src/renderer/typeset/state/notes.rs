@@ -18,7 +18,10 @@ impl TypesetState {
         if std::env::var("RHWP_FB_OFF").is_ok() {
             return 0.0;
         }
-        if self.data.section_has_no_footer && footnote_height > 0.0 {
+        if self.data.section_has_no_footer
+            && footnote_height > 0.0
+            && !self.data.current_footnote_body_bottom_reserved
+        {
             self.data.layout.footer_area.height.max(0.0)
         } else {
             0.0
@@ -110,11 +113,7 @@ impl TypesetState {
         } else {
             0.0
         };
-        let reclaim = if self.data.section_has_no_footer {
-            self.data.layout.footer_area.height.max(0.0)
-        } else {
-            0.0
-        };
+        let reclaim = self.footer_band_reclaim_for_height(projected);
         let page_available = (self.base_available_height()
             - (projected - reclaim).max(0.0)
             - projected_margin
@@ -128,6 +127,12 @@ impl TypesetState {
 
         (projected - reclaim).max(0.0) + projected_margin <= footnote_only_capacity + 0.5
             && self.data.current_height + overlap_guard <= page_available + 0.5
+    }
+
+    pub(in crate::renderer::typeset) fn reserve_painted_footnote_area(&mut self, height: f64) {
+        self.data.current_footnote_height = height;
+        self.data.current_footnote_body_bottom_reserved = true;
+        self.sync_current_page_footnote_area();
     }
 
     /// 이미 flush된 분할 문단의 앵커 page에 첫 native-HWP5 각주를 소급 등록한다.

@@ -592,3 +592,86 @@ fn saved_opening_frame_aligns_the_consumed_cell_prefix() {
         "분할 뒤 내용의 높이가 아니라 소비한8줄로 Center: 실제{actual}, 기대{expected}, 원줄{content}");
     assert!((actual - 839.52).abs() <= 1.5, "독립 PDF 첫 prefix 위치");
 }
+
+/// 개수가 적다는 이유로 각주 영역을 표 아래 남은 공간보다 크게 수용하지 않는다.
+/// 원본 marker/저장 줄을 유지한 합성 IR이며 한컴 출력의 대용은 아니다.
+#[test]
+fn small_note_queue_reserves_the_actual_painted_footnote_area() {
+    use rhwp::model::{control::Control, footnote::Endnote};
+    let mut core = core();
+    let mut doc = core.document().clone();
+    let Control::Table(table) = &mut doc.sections[0].paragraphs[885].controls[0] else {
+        panic!("표25")
+    };
+    for cell in &mut table.cells {
+        for para in &mut cell.paragraphs {
+            for control in &mut para.controls {
+                if let Control::Footnote(note) = control {
+                    if ![107, 108].contains(&note.number) {
+                        *control = Control::Endnote(Box::new(Endnote {
+                            number: note.number,
+                            before_decoration_letter: note.before_decoration_letter,
+                            after_decoration_letter: note.after_decoration_letter,
+                            number_shape: note.number_shape,
+                            instance_id: note.instance_id,
+                            list_header_property: note.list_header_property,
+                            decoration_is_user_char: note.decoration_is_user_char,
+                            paragraphs: Vec::new(),
+                        }));
+                    }
+                }
+            }
+        }
+    }
+    core.set_document(doc);
+    let mut fragments = 0;
+    let mut published = [0usize; 2];
+    let mut following_lines = 0;
+    fn check_following_lines(node: &RenderNode, top: f64, checked: &mut usize) {
+        if let RenderNodeType::TextLine(line) = &node.node_type {
+            if line.para_index.is_some_and(|pi| (886..=889).contains(&pi)) {
+                *checked += 1;
+                assert!(
+                    node.bbox.y + node.bbox.height <= top + 0.5,
+                    "terminal뒤본문도같은각주예약소비: line={:?}, 각주위={top}",
+                    node.bbox
+                );
+            }
+        }
+        for child in &node.children {
+            check_following_lines(child, top, checked);
+        }
+    }
+    for page in 73..84 {
+        let tree = core.build_page_render_tree(page).expect("표 주변");
+        if let Some(area) = notes(&tree.root) {
+            if let Some(body_node) = tree
+                .root
+                .children
+                .iter()
+                .find(|node| matches!(node.node_type, RenderNodeType::Body { .. }))
+            {
+                check_following_lines(body_node, area.bbox.y, &mut following_lines);
+            }
+            let body = text(area);
+            for (index, number) in [107, 108].iter().enumerate() {
+                if body.contains(&format!("{number})")) {
+                    published[index] += 1;
+                }
+            }
+            if let Some(table) = table_for_para(&tree.root, 885) {
+                fragments += 1;
+                assert!(
+                    table.bbox.y + table.bbox.height <= area.bbox.y + 0.5,
+                    "각주 개수로 물리 충돌을 숨기지 않음: page={}, 표끝={}, 각주위={}",
+                    page + 1,
+                    table.bbox.y + table.bbox.height,
+                    area.bbox.y
+                );
+            }
+        }
+    }
+    assert!(fragments > 0, "표/각주 공동 소유 쪽을 실제 실행");
+    assert!(following_lines > 0, "각주 공동 소유 후속 본문을 실제 실행");
+    assert_eq!(published, [1, 1], "각주 몸통 누락/중복 금지");
+}

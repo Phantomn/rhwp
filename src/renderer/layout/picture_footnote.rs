@@ -1071,20 +1071,39 @@ impl LayoutEngine {
         styles: &ResolvedStyleSet,
         area_width: f64,
     ) -> f64 {
+        self.estimate_footnote_area_height_with_metrics(
+            footnotes,
+            paragraphs,
+            styles,
+            area_width,
+            hwpunit_to_px(shape.separator_above_margin_hu() as i32, self.dpi)
+                + border_width_to_px(shape.separator_line_width).max(0.5)
+                + hwpunit_to_px(shape.separator_below_margin_hu() as i32, self.dpi),
+            hwpunit_to_px(shape.between_notes_margin_hu() as i32, self.dpi),
+        )
+    }
+
+    /// Pagination queues and final paint consume the same selected-line metric.
+    pub(crate) fn estimate_footnote_area_height_with_metrics(
+        &self,
+        footnotes: &[FootnoteRef],
+        paragraphs: &[Paragraph],
+        styles: &ResolvedStyleSet,
+        area_width: f64,
+        separator_height: f64,
+        between_notes: f64,
+    ) -> f64 {
         if footnotes.is_empty() {
             return 0.0;
         }
-        let mut total = 0.0;
-
-        // 연속 각주 tail은 다음 page에서 separator를 다시 그리지 않는다.
-        if footnotes
+        let mut total = if footnotes
             .iter()
-            .any(|footnote| fragment_draws_separator(footnote.fragment))
+            .any(|note| fragment_draws_separator(note.fragment))
         {
-            total += hwpunit_to_px(shape.separator_above_margin_hu() as i32, self.dpi);
-            total += border_width_to_px(shape.separator_line_width).max(0.5);
-            total += hwpunit_to_px(shape.separator_below_margin_hu() as i32, self.dpi);
-        }
+            separator_height
+        } else {
+            0.0
+        };
 
         // 실제 `layout_footnote_area`와 같은 줄 높이 산식을 사용한다. 저장 LineSeg의
         // line_height만 더하면 renderer가 누적하는 trailing line_spacing이 빠져 긴
@@ -1123,7 +1142,7 @@ impl LayoutEngine {
             }
             // 각주 간 간격
             if i + 1 < footnotes.len() {
-                total += hwpunit_to_px(shape.between_notes_margin_hu() as i32, self.dpi);
+                total += between_notes;
             }
         }
         total

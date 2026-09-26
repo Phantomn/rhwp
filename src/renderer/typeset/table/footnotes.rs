@@ -74,6 +74,7 @@ impl TypesetEngine {
         continuation: &mut TableContinuationCursor,
         notes: &[TableCellFootnote],
         table: &crate::model::table::Table,
+        paragraphs_all: &[crate::model::paragraph::Paragraph],
         styles: &crate::renderer::style_resolver::ResolvedStyleSet,
         layout_engine: &crate::renderer::layout::LayoutEngine,
         end_cut: &[usize],
@@ -86,7 +87,49 @@ impl TypesetEngine {
         relax_terminal_table_footnote_fit: bool,
         queued_fresh_page: bool,
     ) {
-        let note_fits = |st: &TypesetState, content_height: f64, draw_separator: bool| {
+        let body_bottom_queue = st.profile.hwpx_stored_layout() && st.col_count == 1;
+        let note_ref = |note: &TableCellFootnote, fragment| FootnoteRef {
+            number: note.number,
+            source: FootnoteSource::TableCell {
+                para_index: para_idx,
+                table_control_index: ctrl_idx,
+                cell_index: note.cell_index,
+                cell_para_index: note.cell_para_index,
+                cell_control_index: note.cell_control_index,
+            },
+            fragment,
+        };
+        let painted_height = |st: &TypesetState, candidate: Option<FootnoteRef>| {
+            let mut refs = st
+                .pages
+                .last()
+                .map(|page| page.footnotes.clone())
+                .unwrap_or_default();
+            if let Some(candidate) = candidate {
+                refs.push(candidate);
+            }
+            layout_engine.estimate_footnote_area_height_with_metrics(
+                &refs,
+                paragraphs_all,
+                styles,
+                st.layout.body_area.width,
+                st.footnote_separator_overhead,
+                st.footnote_between_notes_margin,
+            )
+        };
+        let note_fits = |st: &TypesetState,
+                         note: &TableCellFootnote,
+                         fragment: Option<FootnoteFragment>,
+                         content_height: f64| {
+            if body_bottom_queue {
+                let projected = painted_height(st, Some(note_ref(note, fragment)));
+                let physical_capacity = st.base_available_height()
+                    - st.current_zone_y_offset
+                    - st.current_bottom_fixed_exclusion;
+                return projected <= physical_capacity + 0.5
+                    && st.current_height + projected <= physical_capacity + 0.5;
+            }
+            let draw_separator = fragment.map(|f| f.draw_separator).unwrap_or(true);
             // 단일단의 중간 RowBreak fragment 뒤에는 같은 page에 이어질 본문이 없다.
             // 다음 fragment가 새 page에서 시작하므로, 이 fragment의 table-cell 각주는
             // 일반 본문 후속 배치를 위한 40px safety buffer를 중복 예약하지 않는다.
@@ -131,6 +174,10 @@ impl TypesetEngine {
                 .map(|fragment| fragment.draw_separator)
                 .unwrap_or(true);
             st.add_footnote_fragment_height(content_height, draw_separator);
+            if body_bottom_queue {
+                let exact_height = painted_height(st, None);
+                st.reserve_painted_footnote_area(exact_height);
+            }
         };
 
         // HWP 저장 reset이 있는 table-cell 각주의 tail은 앞 fragment에서 이미 번호가
@@ -150,7 +197,7 @@ impl TypesetEngine {
             if st.is_first_footnote_on_page && continuation.next_table_footnote < notes.len() {
                 tail.draw_separator = true;
             }
-            if !note_fits(st, split.suffix_height, tail.draw_separator) {
+            if !note_fits(st, note, Some(tail), split.suffix_height) {
                 return;
             }
             add_note(st, note, Some(tail), split.suffix_height);
@@ -192,7 +239,7 @@ impl TypesetEngine {
                                 && note.row >= fragment_start_row
                                 && note.row < fragment_end_row)
                 });
-            if force_source_page_split || !note_fits(st, note.content_height, true) {
+            if force_source_page_split || !note_fits(st, note, None, note.content_height) {
                 // p728 note 77처럼 table cell 안의 stored vpos reset이 실제 footnote
                 // page boundary를 명시하고, marker row가 지금 확정한 intermediate
                 // fragment에 있을 때만 note를 line fragment로 나눈다. 단순 capacity
@@ -210,7 +257,7 @@ impl TypesetEngine {
                 });
                 let mut split_registered = false;
                 if let Some(split) = split
-                    .filter(|split| note_fits(st, split.prefix_height, split.prefix.draw_separator))
+                    .filter(|split| note_fits(st, note, Some(split.prefix), split.prefix_height))
                 {
                     let note_index = continuation.next_table_footnote;
                     add_note(st, note, Some(split.prefix), split.prefix_height);

@@ -307,7 +307,8 @@ impl TypesetEngine {
             && !st.profile.session_edited()
             && !self.render_normalization.table_text_reflowed(table)
             && is_para_topbottom_float(&table.common)
-            && table.row_count > 1;
+            && table.row_count > 1
+            && st.col_count == 1;
         let queue_table_footnotes = !table.common.treat_as_char
             && (st.profile.hwp5_stored_pagination_layout()
                 || hwpx_stored_multirow_table_footnote_queue)
@@ -1013,7 +1014,8 @@ impl TypesetEngine {
             // 일반 40px safety margin을 두지 않는다. 이 예외는 셀 각주가 많은
             // 고정-height 표로 한정한다. 실제 FootnoteArea 높이는 queue의 composed
             // line 측정으로 계속 예약하므로 본문/각주 충돌을 허용하지 않는다.
-            relax_terminal_table_footnote_fit: queue_table_footnotes
+            relax_terminal_table_footnote_fit: st.profile.hwp5_stored_pagination_layout()
+                && queue_table_footnotes
                 && ft.table_footnotes.len() >= 8
                 && declared_table_height > 0.0
                 && total_rows_h > declared_table_height * 2.0,
@@ -1022,6 +1024,7 @@ impl TypesetEngine {
             para_index: para_idx,
             control_index: ctrl_idx,
             paragraph: para,
+            paragraphs_all,
             table,
             row_geometry_table,
             measured_table: mt,
