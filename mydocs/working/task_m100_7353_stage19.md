@@ -2797,3 +2797,93 @@ review worktree에서 이전 절편과 동일한8개 suite(002/003/004/005/015/0
 `--locked --cargo-profile release-test --no-fail-fast --target-dir /home/edward/mygithub/rhwp/target/pr-review`
 옵션으로 실행했다. nextest0.9.137/권고0.9.140 및 기존 설정 경고는 유지된다.
 최종 source manifest3건·fmt·diff check를 확인했고, 검증 이후 제품 코드 변경은 없다.
+
+#### 후속: 양쪽 정렬 말미 공백의 정밀도와 서식 소유
+
+앞 절편의 시각 승인과 결과는 `d8c184085`에 커밋했다. 다음 원본 거부
+`text preview run outside occupied line`을 추적한 결과, 정확한 대상은
+`s0/p5/t0/c0/p4/t0/c6/p1`의 “○ 나머지 약 79.7%…” 첫 줄이었다.
+저장 오른쪽 경계308.96px와 실제 가시 advance 끝309.0146666666667px 사이에
+약0.054667px 초과가 있었다. 세로 점유나 저장 줄 소속 문제가 아니다.
+
+공통 문단 배치는 전체 줄과 run 폭을 소수 정밀도로 측정하지만 양쪽 정렬이 제외하는 말미 공백은
+정수 반올림하고, 여러 서식에 걸친 말미도 마지막 run의 서식 하나로 측정했다.
+`layout/paragraph_layout.rs::justified_trailing_space_width`가 각 suffix run의 서식과
+`estimate_text_width_exact`를 사용하도록 수정했다. tolerance 확대·glyph 축소·좌표 clamp나
+V2 guard 해제는 하지 않았다. 기존 공백 분배 정책, 저장 LineSeg, 줄 끝 공백 자체를 보존한다.
+
+실제 소비 경로:
+
+- `estimate_line_run_widths`의 소수 자연 폭 → `compute_line_extra_spacing`의 말미 폭 제외와
+  `extra_word_sp` → `emit_line_runs`의 같은 소수 run 측정/말미 분배 회수 → 최종 TextRun.
+- `table_v2/text.rs::compose`는 이 최종 노드와 `painted_inline_ends`를 검사하고 같은 노드로
+  `ParagraphItem::Lines`와 paint payload를 만든다. 이후 content/flow의 fit·컷·이어받기·SVG/WASM은
+  기존 공유 결과를 소비한다. 원점/줄 높이/끝 컷을 새로 보정하는 분기는 추가하지 않았다.
+- 수정은 공통 양쪽/나눔 정렬의 내부 공백 분배 경로에 적용된다. 재조판 soft-wrap은 원래
+  공백 slot 계산을 유지하며, 마지막 줄·Right/Center·배분 정렬·별도 dash 종료 정책은 바꾸지 않는다.
+  Legacy도 같은 helper를 소비하므로 기존 양쪽 정렬/줄 폭/재줄바꿈 회귀를 추가 검증한다.
+
+독립 근거와 작은 검증 (`output/7353/r19/run-box/`):
+
+- 정렬 불변식: 말미 공백을 제외한 첫 줄의 가시 끝은 저장 줄 오른쪽 경계와 일치해야 한다.
+  합성 계약은 두 소수 글자 크기와 여러 suffix 서식을 검사한다. 원본 문단은 수정하지 않고
+  23172HU 폭, text_start30, 내어쓰기2064HU를 그대로 최종 좌표/이어받기에서 검사한다.
+- 이전 release-test lib에서 두 신규 검사 모두 실제 의도한 경계로 FAIL (`before-final.log`).
+  실제 정상 한컴 저장 대조군도 이전 Native와 WASM에서 같은 run 경계로 거부된다
+  (`fixture-before-final.log`, `before-wasm.json`). 빌드 실패는 재현 증거로 세지 않았다.
+- 변경 후 text 계약25건, document-flow62건 PASS (`after.log`, `document-after-final.log`).
+  원본 두 줄을 작은 예산으로 분할해 첫/다음 조각의 글줄 소속과 종료를 검사했다.
+  새 문서 검사 작성 중 run 목록을 줄로 오인하고 page 전용 helper를 node에 호출한 오류는
+  정정했다. 이를 제품 회귀나 수정 전 결함으로 보고하지 않는다.
+- 원본 전체는 다음 `index5: TAC carrier paragraph constraints`에서 명시적으로 거부된다.
+  이 다음 경계는 아직 미검증이며 R5/원본 전체 완료가 아니다. baseline·ignore 변경은 없다.
+
+대조군 출처·해시·생성 명령·저장 기하와 첫 시도 보존은
+`tests/fixtures/issue7353_justify_review/README.md`에 기록했다. 원본 글자·문단 서식을 가져온
+독립1쪽이며 부모를 TAC로 작성해 한컴 정상 저장 후 **동일 HWP**에서 PDF를 얻었다.
+첫 부유 표 대조군의 별도 앵커 차이는 `anchor-diagnostic/`에 보존했고 통과 증거로 사용하지 않는다.
+그 입력의 부유 표와 뒤 본문 순서 차이는 미해결 진단으로 남는다. TAC 대조군의 통과가 그
+앵커 경로를 해결하거나 검증한 의미는 아니다.
+
+최종 시각 검증:
+
+- Docker WASM 성공7분08초 (`docker-wasm.log`), SHA-256
+  `043dba7e79491d09223479e906dc73e8e76c9038b1dbaabdb7ef32ffa694cbf8`.
+- `bash output/7353/r19/run-box/finalize.sh`: debug Native와 fresh WASM의 SVG byte-identical,
+  JSON 수치 차이15개/최대2.842170943040401e-14, 비수치 차이0. Native profile은 debug이며
+  집중 회귀는 별도 release-test로 실행한다. source는 `d8c184085`+패치, `source.sha256`에 고정했다.
+- 이전 승인 diagonal/저장 indent/fresh indent × 두 끝 간격 정책6조합에서 Native/WASM SVG
+  보존 및 backend 일치를 확인했다 (`controls.log`).
+- Native/fresh WASM review·standalone overlay·동일 영역 확대 review를 직접 열었다.
+  “병당 ” 뒤 개행, “2.6%” 시작, 내어쓰기, 표 외곽·뒤 본문 위치를 확인했다. 글꼴 외형 차이는
+  남는다. 0.055px 해소 자체는 육안 개선을 과장하지 않고 좌표 계약으로 판정한다.
+
+메인테이너 판정 자료:
+
+- [동일 영역 확대 review](../../output/7353/r19/run-box/review/wasm-focus-review.png)
+- [fresh WASM 전체 review](../../output/7353/r19/run-box/review/wasm-review-1.png)
+- [standalone overlay](../../output/7353/r19/run-box/review/wasm-overlay-1.png)
+- [HWP 샘플](../../tests/fixtures/issue7353_justify_review/justify-saved.hwp)
+- [한컴 기준 PDF](../../tests/fixtures/issue7353_justify_review/justify-2020.pdf)
+
+메인테이너가 이번 절편의 시각 판정 통과와 다음 절편 진행을 승인했다. 전체 PR CI/lint·원격 게시·기본 엔진 전환은 수행하지 않았다.
+최종 집중 회귀 결과는 아래에 기록한다.
+
+최종 집중 release-test: **214 passed /0 failed /1956 skipped** (`run-box/focused-resume.log`).
+review worktree에서 source/cases 해시 동일성을 확인한 뒤 다음 명령으로 검증했다:
+
+```sh
+CARGO_BUILD_JOBS=2 cargo nextest run --locked --cargo-profile release-test \
+  --test regression_suite_002 --test regression_suite_003 --test regression_suite_004 \
+  --test regression_suite_005 --test regression_suite_014 --test regression_suite_015 \
+  --test regression_suite_017 --test regression_suite_018 --test regression_suite_027 \
+  --test regression_suite_028 \
+  -E 'test(issue_7353_table_v2) | test(issue_4755) | test(issue_6102) | test(issue_3128) | test(issue_7254) | test(issue_5679) | test(issue_4956)' \
+  --no-fail-fast --target-dir /home/edward/mygithub/rhwp/target/pr-review
+```
+
+처음211건 실행은 review source 동기화와 경합해 신규3건을 포함하지 않아 최종 증거로 쓰지 않는다.
+동기화 후 실행은 빌드 도중143(SIGTERM)로 중단되어 테스트 판정이 없었다. 메모리·디스크 여유와
+OOM 기록 부재를 확인하고 캐시로 재개한 위214건 결과만 최종 결과다. nextest0.9.137/권고0.9.140 및
+기존 설정 경고는 남는다. 최종 신규3건이 실제 실행 목록에 있음을 확인했다. source manifest3건,
+fmt check와 diff check도 통과했다. 검증 뒤 제품 코드 변경은 없다.

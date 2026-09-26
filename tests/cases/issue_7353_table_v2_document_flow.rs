@@ -377,7 +377,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         DocumentV2Error::Paragraph {
             index: 5,
             reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "text preview run outside occupied line"
+                "TAC carrier paragraph constraints"
             )
         }
     ));
@@ -2462,6 +2462,79 @@ fn unpainted_tac_carrier_reference_keeps_body_and_nested_geometry() {
                 ));
             }
         }
+    }
+}
+
+#[test]
+fn hancom_saved_justified_cell_preserves_line_end_and_following_body() {
+    let data = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue7353_justify_review/justify-saved.hwp"
+    ))
+    .unwrap();
+    let d = rhwp::parse_document(&data).unwrap();
+    let host = &d.sections[0].paragraphs[0];
+    let table = host
+        .controls
+        .iter()
+        .find_map(|c| match c {
+            Control::Table(t) => Some(t),
+            _ => None,
+        })
+        .unwrap();
+    assert!(table.common.treat_as_char);
+    assert_eq!(host.line_segs[0].line_height, 7500);
+    assert_eq!(d.sections[0].paragraphs[1].line_segs[0].vertical_pos, 7764);
+    let rows = &table.cells[0].paragraphs[0].line_segs;
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].segment_width, 23172);
+    assert_eq!(rows[1].text_start, 30);
+    assert_eq!(rows[1].vertical_pos, 1364);
+    let pages = drain(
+        &mut DocumentV2Session::from_bytes(
+            &data,
+            r#"{"dpi":96,"max_pages":20,"cell_end_policy":"omit_final_paragraph_gap"}"#,
+        )
+        .unwrap(),
+    );
+    assert_eq!(pages.len(), 1);
+    assert_eq!(
+        nodes(&pages[0], "TextLine")
+            .iter()
+            .map(|line| {
+                line["children"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|run| run["node_type"]["TextRun"]["text"].as_str().unwrap())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>(),
+        [
+            "○ 나머지 약 79.7%(291,679천병)에는 병당 ",
+            "2.6%∼100%의 암반수가 들어간 것으로 확인",
+            "AFTER CELL: no missing or duplicated text",
+        ]
+    );
+    let tables = nodes(&pages[0], "Table");
+    assert_eq!(tables.len(), 1);
+    for (key, hu) in [
+        ("x", 3969.0),
+        ("y", 5669.0),
+        ("width", 23741.0),
+        ("height", 7500.0),
+    ] {
+        near(&tables[0]["bbox"][key], hu / 75.0);
+    }
+    let lines = nodes(&pages[0], "TextLine");
+    // Saved rows + authored padding283HU; hanging indent is2064HU.
+    for (line, (x, y)) in lines
+        .iter()
+        .zip([(4252.0, 5952.0), (6316.0, 7316.0), (3969.0, 13433.0)])
+    {
+        near(&line["bbox"]["x"], x / 75.0);
+        near(&line["bbox"]["y"], y / 75.0);
+        near(&line["bbox"]["height"], 1100.0 / 75.0);
     }
 }
 

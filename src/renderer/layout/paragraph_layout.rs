@@ -1742,6 +1742,39 @@ fn converge_cell_overflow_char_spacing(
     extra.min(0.0)
 }
 
+/// Natural trailing advances excluded by word justification. Use the same
+/// unrounded measurement as line/run placement and retain each suffix run's
+/// style. Applying the last run's style to the entire suffix changes the
+/// visible right edge when trailing spaces cross a character-style boundary.
+fn justified_trailing_space_width(
+    line: &ComposedLine,
+    mut remaining: usize,
+    styles: &ResolvedStyleSet,
+    tab_width: f64,
+) -> f64 {
+    let mut width = 0.0;
+    for run in line.runs.iter().rev() {
+        if remaining == 0 {
+            break;
+        }
+        let text = effective_text_for_metrics(run);
+        let count = text
+            .chars()
+            .rev()
+            .take_while(|c| *c == ' ')
+            .count()
+            .min(remaining);
+        let mut style = run.text_style(styles);
+        style.default_tab_width = tab_width;
+        width += estimate_text_width_exact(&" ".repeat(count), &style);
+        remaining -= count;
+        if count < text.chars().count() {
+            break;
+        }
+    }
+    width
+}
+
 /// [Task #2067] 정렬(양쪽/배분/나눔)·오버플로우·셀 underflow 에 따른 여분 간격 계산.
 /// 반환 = (extra_word_sp, extra_char_sp, extra_dash_sp). Task #352 dash leader 분배 포함.
 #[allow(clippy::too_many_arguments)]
@@ -1911,19 +1944,8 @@ fn compute_line_extra_spacing(
             .count();
         let leader_dashes = count_dash_leaders(&all_chars[..visible_count]);
         if interior_spaces > 0 {
-            // 후행 공백 폭 계산
-            let trailing_width = if trailing_spaces > 0 {
-                if let Some(last_run) = comp_line.runs.last() {
-                    let mut ts = last_run.text_style(styles);
-                    ts.default_tab_width = tab_width;
-                    let trailing_str: String = " ".repeat(trailing_spaces);
-                    estimate_text_width(&trailing_str, &ts)
-                } else {
-                    0.0
-                }
-            } else {
-                0.0
-            };
+            let trailing_width =
+                justified_trailing_space_width(comp_line, trailing_spaces, styles, tab_width);
             let split_ink_overhang = if alignment == Alignment::Split {
                 trailing_glyph_ink_overhang()
             } else {

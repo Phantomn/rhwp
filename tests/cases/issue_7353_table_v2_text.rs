@@ -790,6 +790,155 @@ fn stored_partitions_and_continuation_share_final_line_boxes() {
 }
 
 #[test]
+fn original_6923_justified_nested_cell_keeps_both_saved_rows() {
+    use rhwp::model::control::Control;
+    let d = rhwp::parse_document(
+        &std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    let Control::Table(outer) = &d.sections[0].paragraphs[5].controls[0] else {
+        panic!()
+    };
+    let Control::Table(inner) = &outer.cells[0].paragraphs[4].controls[0] else {
+        panic!()
+    };
+    let p = &inner.cells[6].paragraphs[1];
+    assert!(p.text.starts_with("○ 나머지 약 79.7%"));
+    assert_eq!(p.line_segs.len(), 2);
+    assert_eq!(p.line_segs[1].text_start, 30);
+    assert_eq!(p.line_segs[0].segment_width, 23172);
+    let t = Table {
+        row_count: 1,
+        col_count: 1,
+        page_break: TablePageBreak::CellBreak,
+        cells: vec![Cell {
+            width: 23175,
+            row_span: 1,
+            col_span: 1,
+            paragraphs: vec![p.clone()],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let s = rhwp::renderer::style_resolver::resolve_styles(&d.doc_info, 96.0);
+    let prepared = PreparedTextTable::prepare(&t, &s, 96.0).unwrap();
+    let area = PageArea {
+        bounds: Rect {
+            x: 0.0,
+            y: 0.0,
+            width: 309.0,
+            height: 14.666666666666666,
+        },
+    };
+    let TextFragmentFit::Placed(first) = prepared.start().fit(area).unwrap() else {
+        panic!()
+    };
+    let (_, lines) = render(&first);
+    assert_eq!(lines.len(), 1);
+    assert_eq!(text(&lines[0]), "○ 나머지 약 79.7%(291,679천병)에는 병당 ");
+    assert!((lines[0].bbox.width - 23172.0 / 75.0).abs() < 1e-7);
+    let tail = lines[0].children.last().unwrap();
+    let RenderNodeType::TextRun(run) = &tail.node_type else {
+        panic!()
+    };
+    use rhwp::renderer::layout::{EmbeddedTextMeasurer, TextMeasurer};
+    let positions = EmbeddedTextMeasurer.compute_char_positions(&run.text, &run.style);
+    assert!(
+        (tail.bbox.x + positions[run.text.trim_end_matches(' ').chars().count()] - 23172.0 / 75.0)
+            .abs()
+            < 1e-7
+    );
+    let TextFragmentFit::Placed(next) = first
+        .continuation()
+        .fit(PageArea {
+            bounds: Rect {
+                height: 40.0,
+                ..area.bounds
+            },
+        })
+        .unwrap()
+    else {
+        panic!()
+    };
+    let (_, next_lines) = render(&next);
+    assert_eq!(next_lines.len(), 1);
+    assert_eq!(
+        text(&next_lines[0]),
+        "2.6%∼100%의 암반수가 들어간 것으로 확인"
+    );
+    // Hanging indent is saved bit20 plus -4128/2HU, not a new wrap guess.
+    assert!((next_lines[0].bbox.x - 2064.0 / 75.0).abs() < 1e-7);
+    assert!(matches!(
+        next.continuation().fit(area).unwrap(),
+        TextFragmentFit::Complete
+    ));
+}
+
+#[test]
+fn justified_stored_rows_use_exact_style_owned_trailing_space_width() {
+    use rhwp::model::style::Alignment;
+    // Alignment invariant, not a rounded-width oracle: the first justified
+    // row's last visible advance ends at the stored right edge. The trailing
+    // spaces keep their own style and remain in the source row.
+    for font_size in [11.3, 14.666666666666666] {
+        for split_suffix in [false, true] {
+            let mut t = table(&["AA BB   CC", "after"]);
+            let mut s = styles();
+            s.char_styles[0].font_size = font_size;
+            s.char_styles[0].letter_spacing = font_size * 0.01;
+            s.para_styles[0].alignment = Alignment::Justify;
+            s.char_styles.push(s.char_styles[0].clone());
+            s.char_styles[1].font_size = font_size * 0.8;
+            let p = &mut t.cells[0].paragraphs[0];
+            if split_suffix {
+                p.char_shapes.extend([
+                    CharShapeRef {
+                        start_pos: 6,
+                        char_shape_id: 1,
+                    },
+                    CharShapeRef {
+                        start_pos: 8,
+                        char_shape_id: 0,
+                    },
+                ]);
+            }
+            p.line_segs = [0, 8]
+                .into_iter()
+                .enumerate()
+                .map(|(i, start)| LineSeg {
+                    text_start: start,
+                    vertical_pos: i as i32 * 24,
+                    line_height: 20,
+                    text_height: 20,
+                    baseline_distance: 17,
+                    line_spacing: 4,
+                    segment_width: 200,
+                    tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+                    ..Default::default()
+                })
+                .collect();
+            let prepared = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+            let (_, lines) = render(&placed(&prepared.start(), 100.0));
+            assert_eq!(text(&lines[0]), "AA BB   ");
+            assert_eq!(text(&lines[1]), "CC");
+            assert_eq!(text(&lines[2]), "after");
+            assert_eq!(lines[1].bbox.y - lines[0].bbox.y, 24.0);
+            let first = &lines[0].children[0];
+            let RenderNodeType::TextRun(run) = &first.node_type else {
+                panic!()
+            };
+            use rhwp::renderer::layout::{EmbeddedTextMeasurer, TextMeasurer};
+            let positions = EmbeddedTextMeasurer.compute_char_positions(&run.text, &run.style);
+            assert!((first.bbox.x + positions[5] - (lines[0].bbox.x + 200.0)).abs() < 1e-7);
+        }
+    }
+}
+
+#[test]
 fn trailing_plain_space_keeps_logical_advance_without_widening_occupied_line() {
     use rhwp::model::style::{Alignment, UnderlineType};
     // Independent alignment contract: RIGHT places visible A at the right
