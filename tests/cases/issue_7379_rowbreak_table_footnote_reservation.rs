@@ -2475,3 +2475,195 @@ fn assert_cell_picture_bottom_caption_has_one_owner(native: bool) {
     );
     assert_eq!(core.page_count(), 215);
 }
+
+fn assert_figure11_closed_source_frame(hwpx: bool) {
+    let core = original_picture_wrapper_core(hwpx);
+    assert_eq!(core.page_count(), 215, "원본/독립 PDF 쪽 수");
+    let page = core.build_page_render_tree(13).expect("그림11의 14쪽");
+    let table = table_for_para(&page.root, 273).expect("원본 그림11 표");
+    // 호스트45803+문단 오프셋948+바깥 위여백283은 같은 원본의 논리 표 상단이다.
+    let table_top = (6239.0 + 45803.0 + 948.0 + 283.0) / 75.0;
+    assert!(
+        (table.bbox.y - table_top).abs() < 0.5,
+        "그림11 저장 바깥 프레임 원점: {:?}, {table_top}",
+        table.bbox
+    );
+    assert!((table.bbox.height - 17819.0 / 75.0).abs() < 0.1);
+    let image = find_picture(table).expect("그림11 원본 그림");
+    // 두 형식의 원본 crop을 적용한 HWPX PDF 가시 bbox. HWP PDF 원시 bbox는 clip 전이다.
+    assert!(
+        (image.bbox.y - 711.382650).abs() < 1.5,
+        "독립 가시 그림 위치: {:?}",
+        image.bbox
+    );
+    let caption = line_top(table, "그림 11.").expect("그림11 캡션");
+    assert!(
+        (caption - 932.581055).abs() < 1.5,
+        "독립 캡션 위치: {caption}"
+    );
+    assert_eq!(text(table).matches("그림 11.").count(), 1);
+    assert!(text(table).contains("성인, 소아, 재이식, 다기관 이식대상자"));
+    let footnotes = text(notes(&page.root).expect("같은 쪽 원본 각주"));
+    assert!(
+        footnotes.contains("11)") && footnotes.contains("12)"),
+        "각주11/12 보존"
+    );
+}
+
+#[test]
+fn hwpx_figure11_table_picture_caption_share_closed_source_frame() {
+    assert_figure11_closed_source_frame(true);
+}
+
+#[test]
+fn native_figure11_table_picture_caption_share_closed_source_frame() {
+    assert_figure11_closed_source_frame(false);
+}
+
+/// 수동 IR 본문 예산으로 통째 수용·행 분할·첫 조각 이월을 직접 검사한다.
+/// 한컴 재저장 증거와 구분하며, 원본의 닫힌 행·그림·캡션을 그대로 사용한다.
+#[test]
+fn figure11_closed_frame_preserves_units_across_body_budgets() {
+    fn walk<'a>(node: &'a RenderNode, out: &mut Vec<&'a RenderNode>) {
+        out.push(node);
+        for child in &node.children {
+            walk(child, out);
+        }
+    }
+    for hwpx in [true, false] {
+        for body_height in [24000, 19500, 18000] {
+            let mut core = original_picture_wrapper_core(hwpx);
+            let mut doc = core.document().clone();
+            let mut section = doc.sections[0].clone();
+            let mut host = section.paragraphs[273].clone();
+            host.line_segs[0].vertical_pos = 1000;
+            let mut prefix = rhwp::model::paragraph::Paragraph::new_empty_like(&host);
+            prefix.insert_text_at(0, "앞 본문");
+            prefix.line_segs = host.line_segs.clone();
+            let line = &mut prefix.line_segs[0];
+            line.vertical_pos = 0;
+            line.line_height = 1000;
+            line.text_height = 1000;
+            line.baseline_distance = 850;
+            line.line_spacing = 0;
+            line.segment_width = 45352;
+            line.tag = 0x60000;
+            let mut guide = section.paragraphs[274].clone();
+            guide.controls.clear();
+            guide.line_segs[0].vertical_pos = 20333;
+            let mut tail = rhwp::model::paragraph::Paragraph::new_empty_like(&host);
+            tail.insert_text_at(0, "보정34 뒤 문단");
+            tail.invalidate_layout_inputs();
+            section.paragraphs = vec![prefix, host, guide, tail];
+            let page = &mut section.section_def.page_def;
+            page.height = page.margin_top
+                + page.margin_bottom
+                + page.margin_header
+                + page.margin_footer
+                + body_height;
+            doc.sections = vec![section];
+            core.set_document(doc);
+            let mut images = 0;
+            let mut captions = 0;
+            let mut tails = 0;
+            let mut owners = Vec::new();
+            let mut owned_rows = Vec::new();
+            let mut last_table = None;
+            let mut tail_position = None;
+            for page in 0..core.page_count() {
+                let tree = core.build_page_render_tree(page).unwrap();
+                let mut nodes = Vec::new();
+                walk(&tree.root, &mut nodes);
+                let body = nodes
+                    .iter()
+                    .find(|node| matches!(node.node_type, RenderNodeType::Body { .. }))
+                    .unwrap();
+                assert!((body.bbox.height - f64::from(body_height) / 75.0).abs() < 0.1);
+                if let Some(table) = table_for_para(&tree.root, 1) {
+                    owners.push(page);
+                    owned_rows.push(visible_rows(table));
+                    last_table = Some((page, table.bbox.y + table.bbox.height));
+                    assert!(table.bbox.y >= body.bbox.y - 0.5);
+                    assert!(
+                        table.bbox.y + table.bbox.height <= body.bbox.y + body.bbox.height + 0.5,
+                        "형식{hwpx} 예산{body_height} 쪽{page} 표 {:?}, 본문 {:?}",
+                        table.bbox,
+                        body.bbox
+                    );
+                    if page == 0 {
+                        let expected = body.bbox.y + (1000.0 + 948.0 + 283.0) / 75.0;
+                        assert!(
+                            (table.bbox.y - expected).abs() < 0.5,
+                            "첫 원본 프레임 {:?}, 기대{expected}",
+                            table.bbox
+                        );
+                    }
+                    let mut contents = Vec::new();
+                    walk(table, &mut contents);
+                    images += contents
+                        .iter()
+                        .filter(|node| matches!(&node.node_type, RenderNodeType::Image(_)))
+                        .count();
+                    captions += text(table).matches("그림 11.").count();
+                }
+                for node in nodes {
+                    if matches!(node.node_type, RenderNodeType::TextLine(_))
+                        && text(node).contains("보정34 뒤 문단")
+                    {
+                        tails += 1;
+                        tail_position = Some((page, node.bbox.y));
+                    }
+                }
+            }
+            assert_eq!(images, 1, "그림 단일 소유 {hwpx}/{body_height}");
+            assert_eq!(captions, 1, "캡션 단일 소유 {hwpx}/{body_height}");
+            assert_eq!(tails, 1, "뒤 문단 단일 소유 {hwpx}/{body_height}");
+            let (last_page, last_end) = last_table.unwrap();
+            let (tail_page, tail_y) = tail_position.unwrap();
+            assert!(
+                tail_page > last_page || (tail_page == last_page && tail_y >= last_end - 0.5),
+                "뒤 문단 점유: 표{last_page}/{last_end}, 문단{tail_page}/{tail_y}"
+            );
+            assert!(core.page_count() <= 3, "불필요한 빈 쪽 없음");
+            if body_height == 19500 {
+                assert_eq!(owners, vec![0, 1], "그림 행과 캡션 행의 실제 분할 쪽");
+                assert_eq!(
+                    owned_rows,
+                    vec![BTreeSet::from([0]), BTreeSet::from([1])],
+                    "온전한 행의 단일 소유·누락·중복 없음"
+                );
+            } else if body_height == 18000 {
+                assert!(
+                    owners[0] > 0,
+                    "첫 행을 담지 못한 실제 이월 경계: 형식{hwpx}, 소유 쪽{owners:?}"
+                );
+            }
+        }
+    }
+}
+
+/// 물리 끝행 높이를 조정해도 원본 마지막 두 줄은154쪽에서 한 번씩 보존한다.
+/// 독립 한컴 PDF의 글자 상단과155쪽에서 반복하지 않는 실제 쪽 소유를 확인한다.
+#[test]
+fn hwpx_terminal_source_note_keeps_both_lines_on_original_page() {
+    let core = original_picture_wrapper_core(true);
+    assert_eq!(core.page_count(), 215);
+    let page = core.build_page_render_tree(153).unwrap();
+    let table = table_for_para(&page.root, 1682).expect("154쪽 원본 평가자 표");
+    for (needle, pdf_y) in [
+        (
+            "독립적 의학 검사 수행-생존 기증자의",
+            706.635803 * 4.0 / 3.0,
+        ),
+        ("고지받고 동의를 제공했음을 확인함", 726.555786 * 4.0 / 3.0),
+    ] {
+        let y = line_top(table, needle).expect("원본 마지막 줄");
+        assert!((y - pdf_y).abs() < 0.5, "독립 PDF 원점: {y}/{pdf_y}");
+        assert_eq!(text(table).matches(needle).count(), 1);
+        let next = core.build_page_render_tree(154).unwrap();
+        assert!(
+            !text(&next.root).contains(needle),
+            "다음 쪽에 중복하지 않음"
+        );
+    }
+}

@@ -1,12 +1,12 @@
-//! Split geometry and reservation preparation. Runs only after whole-placement fails.
+//! 통째 배치가 실패한 뒤 표 분할 기하와 예약을 준비한다.
 
 use crate::renderer::typeset::{
     cell_unit_row_is_atomic_here, controls, hwpunit_to_px,
     hwpx_stored_tac_table_starts_at_page_top, is_para_topbottom_float, is_synthetic_line_seg,
     is_two_row_picture_caption_rowbreak_table, line_seg_visible_bounds_px,
     native_hwp5_rowbreak_host_precedes_first_fragment, native_terminal_child_host_line_spacing,
-    none_table_is_atomic_here, notes, para_has_visible_text, paragraph,
-    partial_rowbreak_fragment_spacing_px, row_geometry_table,
+    none_table_is_atomic_here, notes, para_has_non_whitespace_text, para_has_visible_text,
+    paragraph, partial_rowbreak_fragment_spacing_px, row_geometry_table,
     rowbreak_table_has_internal_saved_vpos_reset, stored_square_picture_has_adjacent_text, table,
     BlockTableContinuationContext, BlockTableContinuationPreparedState,
     BlockTableContinuationSource, CaptionDirection, Control, PageItem, TypesetEngine, TypesetState,
@@ -52,6 +52,8 @@ impl TypesetEngine {
             placement_para_start_height,
             source_anchor_splits_here,
             stored_rewinding_rowbreak_uses_painted_row_footprint,
+            closed_source_frame_placement,
+            closed_source_frame_key,
             unconstrained_host_placement,
             constrain_host_placement,
             mt,
@@ -63,17 +65,16 @@ impl TypesetEngine {
         let cs = mt.cell_spacing;
         let can_intra_split = !mt.cells.is_empty();
         let base_available = st.base_available_height();
-        // Partial table borders are rendered against the visible body area. The paginator-level
-        // bottom tolerance is useful for text fit heuristics, but if row cuts spend it here the
-        // table fragment can be painted into the footer/body edge and get clipped.
+        // 표 조각의 괘선은 실제 본문 영역에 그린다. 쪽 하단 허용치는 글줄 수용에
+        // 사용하지만, 행 컷이 이 공간까지 쓰면 표 조각이 꼬리말이나 본문 경계에
+        // 걸려 잘릴 수 있다.
         let mut table_available = (available - st.layout.pagination_tolerance_px).max(0.0);
 
         // [Task #993] advance_row_cut 호출용 LayoutEngine — 컷 측정은 dpi 와
         // 셀 패딩/중첩 표 높이 계산에만 의존하므로 ad hoc 인스턴스로 충분하다.
         let layout_engine = crate::renderer::layout::LayoutEngine::new(self.dpi);
         layout_engine.set_layout_profile(st.profile);
-        // Row-cut measurement is a renderer consumer, not an independent
-        // session. It must see the same table provenance as this typesetter.
+        // 행 컷 측정도 같은 렌더링의 일부이므로 조판기와 동일한 표 출처를 사용한다.
         layout_engine
             .set_render_normalization_overlay(std::sync::Arc::clone(&self.render_normalization));
         // [Task #993] rowspan(row_span>1) 셀이 걸친 행 — 컷 모델(advance_row_cut)은
@@ -400,31 +401,47 @@ impl TypesetEngine {
             st.current_column,
             st.current_zone_y_offset.to_bits(),
         );
-        // The first fragment's border is paragraph-relative, whereas a whole
-        // object's placement includes its outer-margin box. Convert before
-        // exclusions, and share this result with both the row budget and paint.
-        let fragment_host_placement = unconstrained_host_placement
-            .filter(|_| placement_para_start_height + fmt.height_for_fit <= available)
-            .map(|placement| {
-                let applied_before = if placement_para_start_height > 0.0 {
-                    fmt.spacing_before
-                } else {
-                    0.0
-                };
-                let host_line_height = fmt.computed_host_lines.as_ref().map_or_else(
-                    || {
-                        para.line_segs
-                            .last()
-                            .map_or(0.0, |line| hwpunit_to_px(line.line_height, self.dpi))
-                    },
-                    |lines| lines.last().map_or(0.0, |line| line.height),
-                );
-                constrain_host_placement.constrain(
-                    placement.for_first_fragment(table, applied_before, host_line_height, self.dpi),
-                    st,
-                )
-            });
-        if fragment_host_placement.is_some() && !st.pre_emitted_host_paras.contains(&para_idx) {
+        // 첫 조각의 괘선은 문단 기준이며 통째 개체는 바깥 여백 상자를 포함한다.
+        // 원본 프레임은 소유 단이 같을 때만 재사용한다. 일반 문단 프레임은
+        // 배제 영역을 만들기 전에 변환해 행 예산과 실제 배치에서 함께 소비한다.
+        let source_control_frame =
+            closed_source_frame_placement.filter(|_| closed_source_frame_key == host_frame);
+        let fragment_host_placement = source_control_frame.or_else(|| {
+            unconstrained_host_placement
+                .filter(|_| placement_para_start_height + fmt.height_for_fit <= available)
+                .map(|placement| {
+                    let applied_before = if placement_para_start_height > 0.0 {
+                        fmt.spacing_before
+                    } else {
+                        0.0
+                    };
+                    let host_line_height = fmt.computed_host_lines.as_ref().map_or_else(
+                        || {
+                            para.line_segs
+                                .last()
+                                .map_or(0.0, |line| hwpunit_to_px(line.line_height, self.dpi))
+                        },
+                        |lines| lines.last().map_or(0.0, |line| line.height),
+                    );
+                    constrain_host_placement.constrain(
+                        placement.for_first_fragment(
+                            table,
+                            applied_before,
+                            host_line_height,
+                            self.dpi,
+                        ),
+                        st,
+                    )
+                })
+        });
+        // 닫힌 폭0 개체 앵커는 표 공간을 소유하며 별도 빈 글줄을 전진시키지 않는다.
+        // 실제 호스트 텍스트가 있는 내부 개체는 그 글줄의 기존 소유를 유지한다.
+        let host_owns_text_lines =
+            source_control_frame.is_none() || para_has_non_whitespace_text(para);
+        if host_owns_text_lines
+            && fragment_host_placement.is_some()
+            && !st.pre_emitted_host_paras.contains(&para_idx)
+        {
             // 첫 조각과 이월 모두 같은 계산 줄을 소비한다. 저장 줄로 재측정하지 않는다.
             let already_emitted = st.current_items.iter().any(|item| {
                 matches!(item,

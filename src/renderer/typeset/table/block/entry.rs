@@ -1,4 +1,4 @@
-//! Whole-placement attempts, preserving their ordering and short-circuit returns.
+//! 기존 호출 순서와 조기 반환을 보존하는 통째 표 배치 시도.
 
 use crate::renderer::typeset::{
     controls, hwpunit_to_px, is_page_bottom_fixed_float, is_para_topbottom_float,
@@ -1174,6 +1174,31 @@ impl TypesetEngine {
             }
         }
 
+        let original_control_frame = self.query_original_control_table_frame(
+            st,
+            paragraphs_all,
+            para_idx,
+            ctrl_idx,
+            table,
+            ft.effective_height,
+        );
+        // 유효 전체 저장 프레임은 실제 각주 경계로 수용 여부를 확인한다.
+        // 안전 여유 때문에 원점을 버리고 표를 위로 당기는 폴백으로 바꾸지 않는다.
+        let actual_footnote_boundary =
+            (st.base_available_height() - total_footnote - st.current_zone_y_offset).max(0.0);
+        if fn_margin > 0.0
+            && original_control_frame
+                .is_some_and(|placement| placement.occupied_bottom <= actual_footnote_boundary)
+        {
+            fn_margin = 0.0;
+            available = actual_footnote_boundary;
+        }
+        let closed_source_frame_key = (
+            st.pages.len(),
+            st.current_column,
+            st.current_zone_y_offset.to_bits(),
+        );
+
         let super::whole_fit::WholeFit {
             para_has_stored_line_seg,
             single_row_object_height_advance,
@@ -1552,6 +1577,8 @@ impl TypesetEngine {
             placement_para_start_height,
             source_anchor_splits_here,
             stored_rewinding_rowbreak_uses_painted_row_footprint,
+            closed_source_frame_placement,
+            closed_source_frame_key,
             unconstrained_host_placement,
             constrain_host_placement,
             mt,

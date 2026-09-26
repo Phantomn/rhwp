@@ -229,7 +229,13 @@ impl TypesetEngine {
                     partial_height += extension;
                 }
             }
-            if cursor_row == 0 && !is_continuation && start_cut.is_empty() {
+            if cursor_row == 0
+                && !is_continuation
+                && start_cut.is_empty()
+                // 마지막 행의 물리 높이를 바꾼 결과는 조각 배치에서 소비한다.
+                // 통째 표로 되돌리면 원래 행 높이가 복원되어 예약 하단을 넘는다.
+                && end_row_height_override.is_none()
+            {
                 st.append_item(PageItem::Table {
                     para_index: para_idx,
                     control_index: ctrl_idx,

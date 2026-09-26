@@ -1,5 +1,5 @@
-//! Whole-table fit query. Reads the post-entry flow; does not place or advance it.
-//! Existing source-frame and tolerance rules are preserved, not endorsed anew.
+//! 현재 흐름에서 통째 표의 수용 여부와 원본 프레임을 조회한다.
+//! 실제 배치와 흐름 전진은 호출자가 같은 결과로 처리한다.
 
 use crate::renderer::typeset::{
     controls, hwpunit_to_px, is_para_topbottom_float, is_synthetic_line_seg,
@@ -130,6 +130,52 @@ impl TypesetEngine {
             table_top: hwpunit_to_px(frame.top_hu, self.dpi),
             occupied_bottom: bottom,
         })
+    }
+
+    /// 원본 호스트와 뒤 저장 줄이 닫는 전체 개체 프레임을 조회한다.
+    /// 수용 예산 때문에 유효 원점을 버리지 않는다. 호출자가 같은 하단으로 fit을 판정한다.
+    pub(super) fn query_original_control_table_frame(
+        &self,
+        st: &TypesetState,
+        paragraphs: &[crate::model::paragraph::Paragraph],
+        para_idx: usize,
+        ctrl_idx: usize,
+        table: &crate::model::table::Table,
+        effective_height: f64,
+    ) -> Option<crate::renderer::float_placement::ParagraphFloatPlacement> {
+        if st.col_count != 1
+            || !(st.profile.hwpx_stored_layout() || st.profile.hwp5_stored_pagination_layout())
+            || st.profile.session_edited()
+            || self.render_normalization.table_text_reflowed(table)
+        {
+            return None;
+        }
+        let para = paragraphs.get(para_idx)?;
+        let next = paragraphs.get(para_idx + 1)?;
+        let mut placement = crate::renderer::float_placement::stored_interior_control_table_frame(
+            para,
+            next,
+            ctrl_idx,
+            table,
+            effective_height,
+            st.vpos_page_base.unwrap_or(0),
+            self.dpi,
+        )
+        .or_else(|| {
+            crate::renderer::float_placement::stored_empty_control_table_frame(
+                para,
+                next,
+                table,
+                effective_height,
+                st.vpos_page_base.unwrap_or(0),
+                self.dpi,
+            )
+        })?;
+        // 저장한 본문 좌표를 현재 단 영역 좌표로 한 번 변환한다.
+        placement.anchor_y -= st.current_zone_y_offset;
+        placement.table_top -= st.current_zone_y_offset;
+        placement.occupied_bottom -= st.current_zone_y_offset;
+        (placement.table_top >= 0.0).then_some(placement)
     }
 
     /// 폭0 개체 앵커는 표·캡션 바깥 상자를 소유한다. 선언된 표 높이만으로
@@ -555,41 +601,14 @@ impl TypesetEngine {
                 available,
             )
             .or_else(|| {
-                if st.col_count != 1
-                    || !(st.profile.hwpx_stored_layout()
-                        || st.profile.hwp5_stored_pagination_layout())
-                    || st.profile.session_edited()
-                    || self.render_normalization.table_text_reflowed(table)
-                {
-                    return None;
-                }
-                let next = paragraphs_all.get(para_idx + 1)?;
-                let mut placement =
-                    crate::renderer::float_placement::stored_interior_control_table_frame(
-                        para,
-                        next,
-                        ctrl_idx,
-                        table,
-                        ft.effective_height,
-                        st.vpos_page_base.unwrap_or(0),
-                        self.dpi,
-                    )
-                    .or_else(|| {
-                        crate::renderer::float_placement::stored_empty_control_table_frame(
-                            para,
-                            next,
-                            table,
-                            ft.effective_height,
-                            st.vpos_page_base.unwrap_or(0),
-                            self.dpi,
-                        )
-                    })?;
-                // 저장 프레임은 본문 기준이며 공유 계획은 현재 단 영역 기준이다.
-                placement.anchor_y -= st.current_zone_y_offset;
-                placement.table_top -= st.current_zone_y_offset;
-                placement.occupied_bottom -= st.current_zone_y_offset;
-                (placement.table_top >= 0.0 && placement.occupied_bottom <= available)
-                    .then_some(placement)
+                self.query_original_control_table_frame(
+                    st,
+                    paragraphs_all,
+                    para_idx,
+                    ctrl_idx,
+                    table,
+                    ft.effective_height,
+                )
             });
         WholeFit {
             para_has_stored_line_seg,

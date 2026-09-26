@@ -1,4 +1,4 @@
-//! Ordinary row scan step. Queries keep the page state read-only; this step owns scan-result updates.
+//! 일반 행을 스캔한다. 조회는 쪽 상태를 보존하고 이 단계에서 스캔 결과를 갱신한다.
 
 use crate::renderer::typeset::{
     controls, is_reparsed_single_column_cell_split_row, paragraph,
@@ -313,10 +313,14 @@ impl TypesetEngine {
                 let table::scan::row_entry::TerminalNoteProbe {
                     remaining_band,
                     source_cut,
+                    visible_height,
                 } = row_entry.terminal_note_probe(avail_for_rows, consumed, cs_before);
                 if remaining_band > 0.0
                     && source_cut.fully_consumed
                     && source_cut.consumed_height > 0.0
+                    // 첫 유닛 강제 전진은 완전 소비여도 예산 수용의 증거가 아니다.
+                    // 최종 배치가 쓰는 패딩 포함 표시 높이가 같은 밴드에 들어가야 한다.
+                    && visible_height <= remaining_band + 0.5
                 {
                     // 마지막 주석의 실제 저장 line이 남은 band 안에 모두 있으므로,
                     // 선언 row 높이의 빈 아래 영역은 별도 physical page를 소유하지 않는다.
