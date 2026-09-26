@@ -440,3 +440,29 @@ Producer `1216114cb` + 최종 Rust/test diff SHA256 `93502ea7a03e1dd4a3dbf9f6052
 ![Native45 overlay](../assets/pr7382_20260926/stage18_native_overlay_045.png)
 ![Native121 각주160 잔여](../assets/pr7382_20260926/stage18_native_review_121.png)
 ![Native122 잘못 이월된 각주160](../assets/pr7382_20260926/stage18_native_review_122.png)
+
+
+## 메인터너 보정 19: 빈 호스트 형제 표의 바깥 상자 공유
+
+문단515의 두 ParaTop/TopAndBottom 표에는 각각283HU 바깥 여백이 있다. [동일 원본 PDF44의 괘선·캡션 좌표](../assets/pr7382_20260926/stage19_independent_geometry.json)로 기대값을 고정했다. `host_spacing::resolve`는 이 여백을 계산하지만 `empty_float::prepare`가 위여백을 쓰지 않고, 아래여백도 마지막 fit 면제와 함께 예약에서 빠뜨렸다. 첫 표와 둘째 표의 위치 차이가 누적된 원인이다. 음수 저장 offset을 화면에 맞춘 수치로 덮어쓰지 않았다.
+
+HWPX 빈 호스트의 복수 자리차지 표 중 문단 상단/안쪽 정렬 경로에서 수평 lane 충돌 결과와 host spacing으로 `ParagraphFloatPlacement.table_top/occupied_bottom`을 생산한다. fit은 마지막 아래여백 면제를 유지하되, lane과 다음 표는 실제 점유 하단을 사용한다. `commit_empty_float_table`가 계획을 column metadata에 남기고 layout의 표 원점·실제 paint·후속 흐름은 그 동일 결과를 소비한다. 기존 단일 저장 앵커, Square 형제, 가시 호스트, 가운데·아래 정렬과 Native 경로의 계약은 유지한다. 다른 문서에 맞춘 수치·허용치 변경은 없다.
+
+Producer `369b17e2b` + Rust/test diff SHA256 `5720b4e171e66ca36855cf155f5198a4623e7da629f389eff106db8e3affb04b`; [명령·정확한 전후 결과·잔여](../assets/pr7382_20260926/stage19_validation.json).
+
+| 검사 | 결과 | 의미 |
+| --- | --- | --- |
+| 수정 전 실제 괘선·캡션 회귀 |1FAIL, exit100,0.179s | 첫 표 상단324.427 vs 독립PDF327.961 검출 |
+| 대상 회귀 |40PASS, exit0,3.323s | 두 표 상·하단, 캡션·뒤 본문,45쪽 꼬리·뒤 표 보존 |
+| 형제 표·여백 정상 대조군 |31PASS, exit0,0.493s | #6946/#6795 block·partial 형제, #2439/#2279/#1880/#2097 보존 |
+| CLI·쪽수·fmt |build exit0,1m51s;215/PDF215;fmt exit0 | 동일 원본과 검증 코드 사용 |
+| Native44 |99.68706% |71.92862%에서 개선, 큰 표·캡션 위치 차이 해소 |
+| Native43/45/46 |91.32182/98.61863/97.24002% | 앞뒤 본문·표·그림 경계 직접 판독 |
+
+준비 과정에서 suite 자동 배정이018→005로 바뀌어 첫 실행은0검사/exit4였다. 올바른005로 다시 실행한 위 수정 전 실패만 결함 검출로 인정한다. 설명 주석은 한글로 작성했다. 선택4쪽 review/standalone overlay8개를 직접 확인했으며 gate `passed`, sweep exit0, 글꼴 예외 없음이다. 표 괘선 농도, 일부 글자·각주 간격 차이는 남아 완전 일치로 보고하지 않는다.121/122의 각주160 소유와 전체 최종/fresh WASM/lint는 여전히 보류이며 아직 통합 PR을 만들지 않는다.
+
+[manifest](../assets/pr7382_20260926/stage19_native_manifest.json)·[summary](../assets/pr7382_20260926/stage19_native_summary.json)·[metrics](../assets/pr7382_20260926/stage19_native_overlay_metrics.json).
+
+![Native44 형제 표 바깥 여백 보정](../assets/pr7382_20260926/stage19_native_review_044.png)
+![Native44 overlay](../assets/pr7382_20260926/stage19_native_overlay_044.png)
+![Native45 뒤 본문·표 보존](../assets/pr7382_20260926/stage19_native_review_045.png)

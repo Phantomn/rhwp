@@ -447,7 +447,11 @@ impl TypesetState {
             x_end,
             raw_top,
             reserved_height,
+            resolved,
         } = placement;
+        if let Some(resolved) = resolved {
+            self.record_paragraph_float_placement((para_idx, ctrl_idx), resolved);
+        }
         self.data.current_items.push(PageItem::Table {
             para_index: para_idx,
             control_index: ctrl_idx,

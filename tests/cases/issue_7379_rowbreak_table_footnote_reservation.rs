@@ -1542,3 +1542,49 @@ fn edited_body_reflow_does_not_reuse_original_saved_reset_owner() {
     );
     assert!(!text(&next.root).contains(tail), "재조판 내용 중복 없음");
 }
+
+/// 빈 문단의 두 자리차지 표는 각 개체의 바깥 여백을 보존한다.
+/// 독립 기대값은 동일 원본 한컴 PDF44쪽의 괘선과 캡션 상단이다.
+#[test]
+fn empty_host_sibling_tables_preserve_outer_margin_and_caption_origins() {
+    fn collect<'a>(node: &'a RenderNode, out: &mut Vec<&'a RenderNode>) {
+        if matches!(&node.node_type, RenderNodeType::Table(t) if t.para_index == Some(515)) {
+            out.push(node);
+        }
+        for child in &node.children {
+            collect(child, out);
+        }
+    }
+    let core = core();
+    let tree = core.build_page_render_tree(43).expect("44쪽 두 표");
+    let mut tables = Vec::new();
+    collect(&tree.root, &mut tables);
+    assert_eq!(tables.len(), 2, "형제 표의 누락·중복 금지");
+    tables.sort_by(|a, b| a.bbox.y.total_cmp(&b.bbox.y));
+    for (table, top, bottom) in [
+        (tables[0], 327.961344, 536.533325),
+        (tables[1], 568.657349, 860.658691),
+    ] {
+        assert!(
+            (table.bbox.y - top).abs() <= 1.5,
+            "표 상단{} vs 독립 PDF{top}",
+            table.bbox.y
+        );
+        assert!(
+            ((table.bbox.y + table.bbox.height) - bottom).abs() <= 1.5,
+            "표 하단{} vs 독립 PDF{bottom}",
+            (table.bbox.y + table.bbox.height)
+        );
+    }
+    for (needle, expected) in [("표 19. 일본의", 548.261027), ("표 20. 일본 생존", 872.901)]
+    {
+        let y = line_top(&tree.root, needle).expect("표 캡션");
+        assert!(
+            (y - expected).abs() <= 1.5,
+            "캡션{needle} 상단{y} vs 독립 PDF{expected}"
+        );
+    }
+    let body_y = line_top(&tree.root, "간 기증자의 수술 후 주요 합병증").expect("뒤 본문");
+    assert!((body_y - 919.301025).abs() <= 1.5, "뒤 본문{body_y}");
+    assert_eq!(core.page_count(), 215);
+}

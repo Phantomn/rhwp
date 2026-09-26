@@ -33,6 +33,7 @@ pub(in crate::renderer::typeset) struct EmptyFloatPlacement {
     pub x_end: f64,
     pub raw_top: f64,
     pub reserved_height: f64,
+    pub resolved: Option<crate::renderer::float_placement::ParagraphFloatPlacement>,
 }
 
 /// 예산 조회는 기존 수평 범위 계산 뒤에만 실행한다. 거절된 후보에는 상태 효과가 없다.
@@ -262,7 +263,29 @@ pub(super) fn prepare(
         ft.effective_height + ft.host_spacing.after_for_fit
     };
     let lane_top = lanes.pushed_top(x_start, x_end, raw_top);
-    let lane_bottom = lane_top + reserved_height;
+    // HWPX의 빈 호스트 형제 표는 각 개체의 바깥 상자를 차례로 점유한다.
+    // 위여백을 누락하고 아래여백을 fit 면제와 함께 버리면 뒤 표가 누적해서
+    // 올라간다. 마지막 아래여백의 적합성 면제와 형제의 실제 예약을 구분한다.
+    let resolved = (page.profile.hwpx_stored_layout()
+        && is_topbottom_para_float
+        && topbottom_float_count >= 2
+        && matches!(
+            table.common.vert_align,
+            crate::model::shape::VertAlign::Top | crate::model::shape::VertAlign::Inside
+        ))
+    .then(|| {
+        let top = lane_top + ft.host_spacing.before;
+        crate::renderer::float_placement::ParagraphFloatPlacement {
+            flow: crate::renderer::float_placement::ParagraphFloatFlow::NextLine,
+            anchor_y: para_start_height,
+            stored_host_origin: None,
+            table_top: top,
+            occupied_bottom: top + ft.effective_height + ft.host_spacing.after,
+        }
+    });
+    let lane_bottom = resolved.map_or(lane_top + reserved_height, |p| {
+        p.table_top + ft.effective_height + ft.host_spacing.after_for_fit
+    });
 
     if lane_bottom > available + 0.5 {
         return None;
@@ -272,6 +295,7 @@ pub(super) fn prepare(
         x_start,
         x_end,
         raw_top,
-        reserved_height,
+        reserved_height: resolved.map_or(reserved_height, |p| p.occupied_bottom - lane_top),
+        resolved,
     })
 }
