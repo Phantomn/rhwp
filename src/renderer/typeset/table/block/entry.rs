@@ -76,8 +76,28 @@ impl TypesetEngine {
         // p77에는 row 전체가 재배치되어 그림 51이 별도 page로 밀린다. native HWP5의
         // 비-TAC TopAndBottom RowBreak 표, 기존 각주, 표 자체 각주 없음, 실제 cell
         // reset이라는 네 축이 모두 있을 때만 실제 FootnoteArea 직전까지의 공간을 쓴다.
+        // A direct HWPX can record the same physical reset inside one cell
+        // paragraph. Paragraph-local zero origins alone are not that evidence.
+        // Keep the stored contract out of edited/reflowed and rowspan paths.
+        let hwpx_stored_cell_page_reset =
+            st.profile.hwpx_stored_layout()
+                && !st.profile.session_edited()
+                && !self.render_normalization.table_text_reflowed(table)
+                && table.cells.iter().all(|cell| cell.row_span == 1)
+                && table.cells.iter().any(|cell| {
+                    cell.paragraphs.iter().any(|paragraph| {
+                        paragraph.line_segs.first().is_some_and(|line| {
+                            line.vertical_pos == 0 && !is_synthetic_line_seg(line)
+                        }) && paragraph.line_segs.windows(2).any(|lines| {
+                            !is_synthetic_line_seg(&lines[0])
+                                && !is_synthetic_line_seg(&lines[1])
+                                && lines[0].vertical_pos > 0
+                                && lines[1].vertical_pos == 0
+                        })
+                    })
+                });
         let internal_reset_tail_uses_actual_footnote_boundary =
-            st.profile.hwp5_stored_pagination_layout()
+            (st.profile.hwp5_stored_pagination_layout() || hwpx_stored_cell_page_reset)
                 && !table.common.treat_as_char
                 && is_para_topbottom_float(&table.common)
                 && matches!(

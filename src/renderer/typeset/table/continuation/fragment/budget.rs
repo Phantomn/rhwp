@@ -130,7 +130,7 @@ impl TypesetEngine {
         // - hwpctl_API_v2.4 73쪽: pi1750 끝 조각 뒤 pi1760 13행이 74쪽으로 밀려 본문 넘침
         //   (정본은 13행을 73쪽 992.7 에 두고, 조각 아래 괘선 393.11 뒤에 여백을 두지 않는다)
         let caption_outer_bottom =
-            crate::renderer::float_placement::column_rowbreak_bottom_caption_outer_spacing_px(
+            crate::renderer::float_placement::column_rowbreak_caption_outer_spacing_px(
                 hwpx_fragment_opens_outer_top,
                 para,
                 table,
@@ -151,8 +151,8 @@ impl TypesetEngine {
             )
             .1
         } else if caption_outer_bottom > 0.0 {
-            // The completed caption closes the object's outer box before the
-            // next paragraph. Intermediate cuts have no following body here.
+            // Completing a vertically captioned object closes its outer box
+            // before the next paragraph, whether its caption was above or below.
             caption_outer_bottom
         } else {
             fragment_outer_bottom_overhead

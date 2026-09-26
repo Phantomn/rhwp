@@ -51,10 +51,16 @@ fn host_tables(root: &RenderNode) -> Vec<(f64, f64)> {
 }
 
 fn host_table(root: &RenderNode) -> Option<&RenderNode> {
-    if matches!(&root.node_type, RenderNodeType::Table(t) if t.para_index == Some(HOST_PARA)) {
+    table_for_para(root, HOST_PARA)
+}
+
+fn table_for_para(root: &RenderNode, para: usize) -> Option<&RenderNode> {
+    if matches!(&root.node_type, RenderNodeType::Table(t) if t.para_index == Some(para)) {
         return Some(root);
     }
-    root.children.iter().find_map(host_table)
+    root.children
+        .iter()
+        .find_map(|child| table_for_para(child, para))
 }
 
 fn visible_rows(table: &RenderNode) -> BTreeSet<u16> {
@@ -162,6 +168,43 @@ fn terminal_caption_margin_budget_preserves_rows_and_footer_space() {
         }
         assert_eq!(rows, (0..7).collect::<Vec<_>>(), "행 소유 margin={margin}");
         assert_eq!(caption_count, 1, "캡션 중복/누락 margin={margin}");
+    }
+}
+
+/// 원본 row4의 [0,1620,3240,0] 저장 줄과 PDF76/77의 prefix/tail 소유.
+/// PDF77 그림51 캡션 y=685.034pt를96dpi로 환산했다.
+#[test]
+fn stored_cell_reset_preserves_prefix_tail_and_following_figure_page() {
+    let core = core();
+    let first = core.build_page_render_tree(75).expect("76쪽");
+    let next = core.build_page_render_tree(76).expect("77쪽");
+    let a = table_for_para(&first.root, 866).expect("76쪽 표24");
+    let b = table_for_para(&next.root, 866).expect("77쪽 표24");
+    assert_eq!(visible_rows(a), (0..5).collect(), "앞3줄의 행4 포함");
+    assert_eq!(visible_rows(b), (4..7).collect(), "행4 tail과 나머지 행");
+    assert!(text(a).contains("생존 신장 기증자가"));
+    assert!(!text(a).contains("투석을 시작하게 된 경우"));
+    assert!(text(b).contains("투석을 시작하게 된 경우"));
+    assert!(!text(b).contains("생존 신장 기증자가"));
+    assert!((b.bbox.y - 86.945).abs() <= 1.5, "표24 tail 상단");
+    assert!(
+        (b.bbox.y + b.bbox.height - 257.799).abs() <= 1.5,
+        "표24 tail 하단"
+    );
+    let recovery = line_top(&next.root, "기증자의 회복").expect("뒤 본문");
+    assert!((recovery - 288.289).abs() <= 1.5, "뒤 본문={recovery}");
+    assert!(table_for_para(&next.root, 876).is_some(), "그림51은77쪽");
+    let caption = line_top(&next.root, "그림 51.").expect("그림51 캡션");
+    assert!(
+        (caption - 913.379).abs() <= 1.5,
+        "그림51 캡션={caption}, 앞 표={:?}, 회복 줄={:?}, 그림 표={:?}",
+        b.bbox,
+        line_top(&next.root, "기증자의 회복"),
+        table_for_para(&next.root, 876).map(|node| node.bbox)
+    );
+    for (table, page) in [(a, &first), (b, &next)] {
+        let footer = notes(&page.root).expect("기존 각주 영역");
+        assert!(table.bbox.y + table.bbox.height <= footer.bbox.y + 0.5);
     }
 }
 

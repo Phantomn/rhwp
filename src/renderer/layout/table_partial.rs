@@ -5438,8 +5438,8 @@ impl LayoutEngine {
         }
         // Do not move subsequent flow or change PageItem ownership: Stage 120 changes only the
         // painted frame/clip.  The paginator consumed the original composed cut height.
-        let caption_outer_bottom = if render_bottom_caption {
-            crate::renderer::float_placement::column_rowbreak_bottom_caption_outer_spacing_px(
+        let caption_outer_bottom = if end_row >= row_count && end_cut.is_empty() {
+            crate::renderer::float_placement::column_rowbreak_caption_outer_spacing_px(
                 hwpx_multirow_rowbreak_reopens_outer_top,
                 &paragraphs[para_index],
                 outer_table,

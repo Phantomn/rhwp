@@ -62,7 +62,7 @@ pub(crate) fn hwpx_column_rowbreak_fragment_opens_outer_top(
             || (is_continuation && starts_at_column_top))
 }
 
-pub(crate) fn column_rowbreak_bottom_caption_outer_spacing_px(
+pub(crate) fn column_rowbreak_caption_outer_spacing_px(
     fragment_opens_outer_margin: bool,
     para: &Paragraph,
     table: &Table,
@@ -71,7 +71,11 @@ pub(crate) fn column_rowbreak_bottom_caption_outer_spacing_px(
     if fragment_opens_outer_margin
         && object_only_saved_table_anchor(para, table)
         && table.caption.as_ref().is_some_and(|caption| {
-            caption.direction == crate::model::shape::CaptionDirection::Bottom
+            matches!(
+                caption.direction,
+                crate::model::shape::CaptionDirection::Top
+                    | crate::model::shape::CaptionDirection::Bottom
+            )
         })
     {
         hwpunit_to_px(table.outer_margin_bottom as i32, dpi)
