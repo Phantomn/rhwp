@@ -225,9 +225,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         error,
         DocumentV2Error::Paragraph {
             index: 5,
-            reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "V2 source decoration effect"
-            )
+            reason: rhwp::renderer::table_v2::GeometryError::Unsupported("stored text indentation")
         }
     ));
     if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
@@ -881,12 +879,242 @@ fn near(value: &Value, expected: f64) {
     assert!((value - expected).abs() < 1e-6, "{value} != {expected}");
 }
 
+#[test]
+fn unqualified_cell_internal_diagonal_is_not_silently_redrawn() {
+    let input = diagonal_fixture("diagonal-cell-saved.hwp");
+    assert!(matches!(
+        DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS),
+        Err(DocumentV2Error::Paragraph {
+            reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
+                "V2 cell-internal diagonal split"
+            ),
+            ..
+        })
+    ));
+    // Direct resolved entrypoint retains invalid width rather than the HWPX
+    // serializer normalizing it to a supported width name.
+    let d = source(vec![]);
+    let mut styles = rhwp::renderer::style_resolver::resolve_styles(&d.doc_info, 96.0);
+    styles.border_styles[0].diagonal_attr = 8;
+    styles.border_styles[0].diagonal = rhwp::model::style::DiagonalLine {
+        diagonal_type: 1,
+        width: 255,
+        color: 0,
+    };
+    assert!(matches!(
+        rhwp::renderer::table_v2::PreparedTextTable::prepare(
+            &table(&["text"], TablePageBreak::RowBreak),
+            &styles,
+            96.0
+        ),
+        Err(rhwp::renderer::table_v2::GeometryError::Unsupported(
+            "V2 diagonal pen"
+        ))
+    ));
+}
+
 fn zone_fixture() -> Vec<u8> {
     std::fs::read(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/tests/fixtures/issue7353_zone_review/zone-lines-saved.hwp"
     ))
     .unwrap()
+}
+
+fn diagonal_fixture(name: &str) -> Vec<u8> {
+    std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/issue7353_diagonal_review")
+            .join(name),
+    )
+    .unwrap()
+}
+
+fn slanted_lines(page: &Value) -> Vec<&Value> {
+    nodes(page, "Line")
+        .into_iter()
+        .filter(|n| {
+            let l = &n["node_type"]["Line"];
+            l["x1"] != l["x2"] && l["y1"] != l["y2"]
+        })
+        .collect()
+}
+
+fn assert_diagonal(n: &Value, x: f64, y: f64, width: f64, height: f64, slash: bool, color: u32) {
+    let line = &n["node_type"]["Line"];
+    near(&line["x1"], x);
+    near(&line["x2"], x + width);
+    near(&line["y1"], y + if slash { height } else { 0.0 });
+    near(&line["y2"], y + if slash { 0.0 } else { height });
+    assert_eq!(line["style"]["color"], color);
+    // Width7: source 0.5mm -> 600dpi half-up grid -> 12/600in at96dpi.
+    near(&line["style"]["width"], 1.92);
+}
+
+#[test]
+fn hancom_straight_diagonals_use_cell_and_zone_fragment_corners() {
+    let pages = drain(
+        &mut DocumentV2Session::from_bytes(
+            &diagonal_fixture("diagonal-saved.hwp"),
+            TERMINAL_OPTIONS,
+        )
+        .unwrap(),
+    );
+    assert_eq!(pages.len(), 2);
+    let x = 3969.0 / 75.0;
+    let y = 8787.0 / 75.0;
+    let row = 2326.0 / 75.0;
+    let width = 32000.0 / 75.0;
+    let first = slanted_lines(&pages[0]);
+    assert_eq!(
+        first.len(),
+        5,
+        "one slash, backslash, cross pair and one zone diagonal"
+    );
+    assert_diagonal(first[0], x, y, width / 2.0, row, true, 255);
+    assert_diagonal(first[1], x, y + row, width / 2.0, row, false, 0xff0000);
+    assert_diagonal(first[2], x, y + 2.0 * row, width / 2.0, row, true, 0x8000);
+    assert_diagonal(first[3], x, y + 2.0 * row, width / 2.0, row, false, 0x8000);
+    assert_diagonal(first[4], x, y + 17.0 * row, width, 2.0 * row, true, 255);
+    let second = slanted_lines(&pages[1]);
+    assert_eq!(second.len(), 2);
+    // Child cell paints before zone paint: final merged row24, then zone rows20..21.
+    assert_diagonal(
+        second[0],
+        x,
+        5952.0 / 75.0 + 4.0 * row,
+        width,
+        row,
+        true,
+        255,
+    );
+    assert_diagonal(second[1], x, 5952.0 / 75.0, width, 2.0 * row, true, 255);
+    for r in 1..=24 {
+        for c in 1..=if r == 24 { 1 } else { 2 } {
+            let label = format!("ROW {r} / COL {c}");
+            assert_eq!(
+                pages
+                    .iter()
+                    .flat_map(labels)
+                    .filter(|s| *s == label)
+                    .count(),
+                1
+            );
+        }
+    }
+    assert_eq!(labels(&pages[1]).last(), Some(&"AFTER DIAGONAL TABLE"));
+    near(
+        &nodes(&pages[1], "TextLine").last().unwrap()["bbox"]["y"],
+        18149.0 / 75.0,
+    );
+}
+
+#[test]
+fn diagonal_paint_does_not_change_stored_geometry_or_line_membership() {
+    let input = diagonal_fixture("diagonal-saved.hwp");
+    let actual = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+    let mut d = rhwp::parse_document(&input).unwrap();
+    for b in &mut d.doc_info.border_fills {
+        b.attr = 0;
+        b.raw_data = None;
+    }
+    let control = drain(
+        &mut DocumentV2Session::from_bytes(
+            &rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap(),
+            TERMINAL_OPTIONS,
+        )
+        .unwrap(),
+    );
+    assert_eq!(actual.len(), control.len());
+    for (a, b) in actual.iter().zip(&control) {
+        assert_eq!(labels(a), labels(b));
+        for kind in ["Table", "TableCell", "TextLine", "TextRun"] {
+            let geometry = |p: &Value| {
+                nodes(p, kind)
+                    .into_iter()
+                    .map(|n| n["bbox"].clone())
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(geometry(a), geometry(b), "{kind}");
+        }
+        assert!(slanted_lines(b).is_empty());
+    }
+}
+
+#[test]
+fn nested_diagonal_consumes_final_child_origin_once() {
+    let mut child = table(&["child"], TablePageBreak::RowBreak);
+    child.cells[0].border_fill_id = 2;
+    let mut parent = table(&[], TablePageBreak::CellBreak);
+    parent.cells[0].width = 18000;
+    parent.cells[0].apply_inner_margin = true;
+    parent.cells[0].padding.left = 750;
+    parent.cells[0].paragraphs = vec![host("", child)];
+    let mut d = source(vec![host("", parent), p("after")]);
+    let mut b = d.doc_info.border_fills[0].clone();
+    b.attr = 8;
+    b.diagonal = rhwp::model::style::DiagonalLine {
+        diagonal_type: 1,
+        width: 7,
+        color: 255,
+    };
+    d.doc_info.border_fills.push(b);
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 1);
+    let lines = slanted_lines(&pages[0]);
+    assert_eq!(lines.len(), 1);
+    let cells = nodes(&pages[0], "TableCell");
+    let child = cells
+        .iter()
+        .find(|n| n["node_type"]["TableCell"]["border_fill_id"] == 2)
+        .unwrap();
+    let b = &child["bbox"];
+    assert_diagonal(
+        lines[0],
+        b["x"].as_f64().unwrap(),
+        b["y"].as_f64().unwrap(),
+        b["width"].as_f64().unwrap(),
+        b["height"].as_f64().unwrap(),
+        true,
+        255,
+    );
+    assert_eq!(labels(&pages[0]), vec!["child", "", "", "after"]);
+}
+
+#[test]
+fn unqualified_diagonal_shapes_pens_and_layers_remain_explicit() {
+    for mode in 0..8 {
+        let mut d = synthetic_zone_source();
+        let b = &mut d.doc_info.border_fills[1];
+        b.attr = 8;
+        b.diagonal = rhwp::model::style::DiagonalLine {
+            diagonal_type: 1,
+            width: 7,
+            color: 255,
+        };
+        match mode {
+            0 => b.attr = 12,
+            1 => b.attr = 8 | (1 << 8),
+            2 => b.attr = 8 | (1 << 11),
+            3 => b.diagonal.diagonal_type = 2,
+            4 => b.attr = 1, // binary 3D flag
+            5 => b.center_line = rhwp::model::style::CenterLine::Cross,
+            6 => {
+                if let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] {
+                    t.border_fill_id = 2;
+                }
+            }
+            _ => {
+                if let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] {
+                    t.cells[0].border_fill_id = 2;
+                }
+            }
+        }
+        assert!(
+            DocumentV2Session::from_bytes(&bytes(&d), TERMINAL_OPTIONS).is_err(),
+            "mode {mode}"
+        );
+    }
 }
 
 #[test]
@@ -1116,7 +1344,7 @@ fn zone_missing_reference_effects_and_invalid_ranges_are_not_silently_dropped() 
             0 => t.zones[0].border_fill_id = 999,
             1 => t.zones[0].end_row = 9,
             2 => t.zones[0].start_col = 2,
-            3 => d.doc_info.border_fills[1].attr = 8,
+            3 => d.doc_info.border_fills[1].attr = 12, // multi-ray shape, not qualified straight slash
             _ => t.zones.push(t.zones[0].clone()),
         }
         assert!(

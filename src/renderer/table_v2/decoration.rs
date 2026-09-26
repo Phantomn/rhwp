@@ -60,17 +60,14 @@ impl Background {
         }
         // CellBorders qualifies both table and cell edge declarations; this
         // resolver owns backgrounds/effects, not edge precedence.
-        if style.diagonal_attr != 0
-            || style.center_line != CenterLine::None
-            || style.pattern.is_some()
-            || style.image_fill.is_some()
-        {
+        super::diagonal::Diagonal::from_style(style)?;
+        if style.pattern.is_some() || style.image_fill.is_some() {
             return Err(GeometryError::Unsupported(
                 "V2 decoration supports only solid backgrounds",
             ));
         }
-        // A stored pen style is not a diagonal declaration; attr/center_line
-        // above select the actual lines. Gradient restarts on cut cells or
+        // Qualified diagonals are bound and painted separately, above fills.
+        // Gradient restarts on cut cells or
         // split table frames are not qualified by the intact-cell contract.
         if let Some(g) = &style.gradient {
             if !intact {
@@ -140,7 +137,7 @@ pub(super) fn validate_source(table: &Table, info: &DocInfo) -> Result<(), Geome
                 return Err(GeometryError::Unsupported("V2 separate split-cell border"));
             }
             if b.three_d
-                || b.attr != 0
+                || !super::diagonal::supported_attr(b.attr)
                 || !matches!(b.fill.alpha, 0 | 255)
                 || !matches!(
                     b.fill.fill_type,

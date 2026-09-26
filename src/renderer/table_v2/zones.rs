@@ -13,6 +13,7 @@ pub(super) struct Zone {
     end_column: usize,
     background: Background,
     pub edges: Option<[BorderLine; 4]>,
+    diagonal: Option<super::diagonal::Diagonal>,
 }
 
 impl Zone {
@@ -68,6 +69,27 @@ impl Zone {
                 ));
             }
             let background = Background::resolve(source.border_fill_id, styles, false)?;
+            let diagonal = super::diagonal::Diagonal::resolve(source.border_fill_id, styles)?;
+            if diagonal.is_some() {
+                if table.page_break == crate::model::table::TablePageBreak::CellBreak {
+                    return Err(GeometryError::Unsupported(
+                        "V2 cell-internal zone diagonal split",
+                    ));
+                }
+                for cell in &table.cells {
+                    if usize::from(cell.row) >= row
+                        && usize::from(cell.row) < end_row
+                        && usize::from(cell.col) >= column
+                        && usize::from(cell.col) < end_column
+                        && super::diagonal::Diagonal::resolve(cell.border_fill_id, styles)?
+                            .is_some()
+                    {
+                        return Err(GeometryError::Unsupported(
+                            "V2 zone/cell diagonal precedence",
+                        ));
+                    }
+                }
+            }
             result.push(Self {
                 row,
                 end_row,
@@ -75,6 +97,7 @@ impl Zone {
                 end_column,
                 background,
                 edges: super::borders::resolve_edges(source.border_fill_id, styles)?,
+                diagonal,
             });
         }
         Ok(result)
@@ -120,6 +143,18 @@ impl Zone {
     ) -> Result<(), GeometryError> {
         if let Some(bounds) = self.bounds(placement)? {
             self.background.append(node, bounds);
+        }
+        Ok(())
+    }
+
+    pub fn append_diagonal(
+        &self,
+        placement: &TablePlacement,
+        node: &mut RenderNode,
+        dpi: f64,
+    ) -> Result<(), GeometryError> {
+        if let (Some(diagonal), Some(bounds)) = (&self.diagonal, self.bounds(placement)?) {
+            diagonal.append(node, bounds, dpi);
         }
         Ok(())
     }

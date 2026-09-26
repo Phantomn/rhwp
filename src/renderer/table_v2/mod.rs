@@ -16,6 +16,7 @@ mod borders;
 mod content;
 mod contracts;
 mod decoration;
+mod diagonal;
 mod document;
 mod document_input;
 mod export;

@@ -2293,3 +2293,136 @@ Chrome 프로세스 시작 오류로 실패했고 같은 명령 재실행은 성
 다음 절편 진행 승인을 받아 위 검증 완료분을 로컬 체크포인트로 보존한다.
 진행 승인을 별도의 시각 판정 통과로 해석하지 않는다. 다음 대상은 원본의
 borderFill31/29 `attr=8` 대각선 효과이며, 적용 단위와 분할 경계는 독립 출력으로 확인한다.
+
+### 다음 절편 — 온전한 셀과 행 분할 영역의 직선 대각선
+
+앞 절편을 `80967bc75`로 로컬 커밋하고 진행했다. Legacy 기본 경로·기존 승인된
+줄 구성·글꼴 fallback/metrics·LineSeg 수용 조건은 바꾸지 않았다.
+
+#### 독립 근거와 범위
+
+원본 #6923의 첫 장식 차단은 `s0p5/cell0/p26`8×9 표의 borderFill31,
+`attr=8`, diagonal_type1이다. 같은 표의 단일 셀 영역도 borderFill29/attr8을 참조한다.
+사양 표24의 방향 비트를 확인하되 기존 Legacy helper의 모든 비트 해석을 그대로
+복사하지 않았다. 새 한컴 정상 저장본에서 실제 방향과 영역 범위를 확인했다.
+
+`tests/fixtures/issue7353_diagonal_review/create.rs` → 저장 LineSeg 없는 HWPX →
+한컴 저장 HWP → 같은 HWP의 PDF 순서다. 다운로드된 HWP/PDF는 수정하지 않았다.
+두 변환 job과 해시는 fixture README에 고정했다.
+
+`diagonal-2020.pdf`2쪽에서 확인한 규칙:
+
+- attr8은`/`,64는`\`,72는X이며, 방향만 있거나 선 종류만 있는4·5행은 선이 없다.
+- 18~21행의 두 열 영역은1쪽18~19행,2쪽20~21행의 실제 영역 각각에서 대각선이 다시 시작한다.
+- 마지막24행의 병합 셀은 두 열 전체 폭의 선을 가진다. 뒤 문단은 기존 위치에 남는다.
+- 기대 좌표는 한컴 저장2326HU 행높이와 PDF 경계, x3969HU/폭32000HU,
+  top8787HU·5952HU, 뒤 문단18149HU에서 정했다. 구현 높이를 기대값으로 재인용하지 않는다.
+
+별도 `diagonal-cell-2020.pdf`는 긴1×1 셀40문단+대각선 반례다. 한컴은 표를2쪽으로
+넘기고 용지 아래까지 출력하며, 초기 V2 진단은 내부 분할한다. **미통과 대조**로 그대로
+보존한다(`diagonal/cell/actual/native.json`은 guard 추가 전 진단이며 최종 성공 자료가 아님).
+셀 내부 분할의 대각선 의미가 확보되지 않아 CellBreak의 활성 셀/영역 대각선은 명시적으로
+Unsupported로 남긴다. 정책을 바꾸거나 높이를 줄여 한컴 페이지 수에 맞추지 않았다.
+
+#### 실제 소비 경로
+
+이번 변경 값은 **대각선의 두 끝점**이다. source borderFill의 attr/pen →
+style_resolver의 동일 속성 → `diagonal.rs::Diagonal::from_style`의 한정된 선 종류·방향 →
+`text_ir.rs::bind_paint`의 셀 소유별 바인딩 / `zones.rs::Zone::prepare`의 영역 바인딩으로 간다.
+`TableCursor::fit`가 수용한 `CellPlacement.bounds` 또는 그 셀 집합의 `Zone::bounds` →
+`TextPaint::build_node` → `Diagonal::append`의 끝점으로 연결된다.
+선은 배경·내용 뒤에 paint하며 parent 원점을 재가산하거나 좌표/높이를 clamp하지 않는다.
+Native/WASM은 이 render tree를 소비한다. 상위 Document session과 TablePreview도
+같은 build_node를 사용하고, 예외 발생 시 cursor를 commit하지 않는 경계는 그대로다.
+
+시작/끝 컷·유닛 소유·요구 높이·예약·예산 실패 이월은 기존 fit 경로 그대로이며
+대각선은 이에 관여하지 않는다. 온전한 셀, 병합 셀, 중첩된 RowBreak 자식과 행 분할 영역을
+지원한다. 셀 내부 split·전체 표 배경 대각선·꺾은선·중심선·다중 ray·비실선 pen·겹친
+셀/영역 대각선 우선순위는 미검증으로 거부한다. 지원 범위를 기존 Legacy의 정확성으로 대체하지 않는다.
+
+#### 작은 검사와 수정 전후
+
+정식 `tests/cases/issue_7353_table_v2_document_flow.rs`에5건 추가:
+
+| 주장 | 검사 |
+| --- | --- |
+| 방향/영역/병합 | 같은 저장 HWP의 실제 Line 끝점·색·폭,1쪽5개/2쪽2개 선,47개 셀 text 각각1회, 뒤 문단 위치 |
+| 비영향 조판 | 대각선만 제거한 명시적 진단 대조와 Table/Cell/TextLine/TextRun bbox·줄 소속 동일 |
+| 중첩 | child bounds 끝점 일치, parent padding 재가산 없음, 빈 host 줄과 뒤 문단 보존 |
+| 미지원 효과 | 다중 ray/꺾임/회전/비실선/3D/중심선/전체 표/중첩 우선순위 거부 |
+| 내부 분할·잘못된 pen | 긴 정상 저장본은 명시적 거부, resolved API의 width255도 정확한 오류로 거부 |
+
+새 정상 HWP 검사는 이전 release-test 코드에서 `V2 source decoration effect`로
+실패했다(`diagonal/test-before.log`). 최종 debug document-flow **54 passed /0 failed**
+(`diagonal/test-after.log`). 초기에 실패한3건은 원본 차단지점 갱신, 실제 빈 host 텍스트
+두 개를 포함한 기대 목록, HWPX serializer가 폭255를 정상 폭으로 변환하는 합성 입력 문제였다.
+폭255는 직접 resolved API 검사로 옮겼다. 조판 기대값 완화나 수치 허용치 변경은 없다.
+
+원본 전체는 이제 index5 `stored text indentation`에서 거부된다. 장식 검증 단계를
+넘어갔다는 관측이지 원본 대각선·표 전체가 최종 출력에서 검증됐다는 뜻은 아니다.
+중첩 내부 분할/겹친 영역 등 후속 수용 조건도 남을 수 있다.
+
+Native review1·2와 standalone overlay2를 직접 보고 위 대각선·외곽·후속 본문을 확인한 뒤
+집중 release-test와 Docker fresh WASM 검증을 시작했다. 아래에 최종 결과를 연결한다.
+
+검증 source는 `80967bc75`+이번 패치, 고정 목록은
+`output/7353/r19/diagonal/source.sha256`이다. 제품/review V2 소스 동일, changed-file
+rustfmt check와 `git diff --check`를 확인했다. 신규 source-side test나 파생 suite 변경은 없다.
+
+```sh
+# review worktree, 기존 파생 suite 재사용
+CARGO_BUILD_JOBS=2 cargo nextest run --locked --cargo-profile release-test \
+  --test regression_suite_003 --test regression_suite_004 --test regression_suite_005 \
+  --test regression_suite_015 --test regression_suite_027 --test regression_suite_028 \
+  -E 'test(issue_7353_table_v2)' --no-fail-fast \
+  --target-dir /home/edward/mygithub/rhwp/target/pr-review
+# product worktree
+docker compose --env-file .env.docker -p rhwp run --rm wasm
+```
+
+#### 직선 대각선 최종 검증 결과
+
+- `diagonal/focused-initial.log`:174 passed/1 failed. 기존 export의 gradient 거부 검사에
+  attr8도 무조건 거부한다는 이전 지원 범위가 남아 있었다. 새 한컴 대조에서 확인한 직선8은
+  별도 양성 좌표 검사로 보호하고, 기존 거부 항목은 미지원 다중 ray12로 변경했다.
+  renderer는 다시 바꾸지 않았다. 이 변경은 무회귀 허용치·golden 완화가 아니다.
+- 같은6개 suite의 재실행 `diagonal/focused-final.log`: **175 passed/0 failed/1122 skipped**.
+  변경된 export suite만21.77초 재컴파일하고 전체175건을 실행했다. 전체 CI가 아닌 V2 집중 회귀다.
+  nextest0.9.137/권장0.9.140 및 기존 관측용 설정 경고는 그대로다.
+- `diagonal/docker-wasm.log`: **7분47초 성공**. WASM SHA-256
+  `3a90f68db79105781091c19b0fd4461d79cdc9a7378077637b43bde4c3b93a58`.
+  위 export 테스트 계약만 바뀌었으므로 같은 renderer로 WASM을 중복 빌드하지 않았다.
+- 최종 source hash 검사, 제품/review V2 동일 확인, changed-file rustfmt check와
+  `git diff --check` 통과. 전체 PR lint/CI, 원본 #6923 전체 출력은 미검증이다.
+
+```sh
+# 최종 release-test 라이브러리에 연결한 probe
+output/7353/r19/diagonal/probe tests/fixtures/issue7353_diagonal_review/diagonal-saved.hwp \
+  output/7353/r19/diagonal/review/actual render
+output/7353/r19/diagonal/probe tests/fixtures/issue7353_zone_review/zone-lines-saved.hwp \
+  output/7353/r19/diagonal/control render
+node output/7353/r19/diagonal/review.mjs --wasm
+node output/7353/r19/diagonal/control.mjs
+```
+
+새 Native/fresh WASM SVG는 두 쪽 모두 byte-identical이며 JSON은 숫자171곳 최대
+5.684e-14 차이, 다른 차이0이다(`review/backend-comparison.json`). 앞 절편의 영역 배경
+정상 대조는 변경 전후 Native/WASM 각각2쪽 SVG가 모두 동일하다(`control/comparison.json`).
+최종 Native와 WASM의 review 및 WASM standalone overlay1·2를 직접 열어 대각선·외곽·
+후속 본문을 비교했다. 폰트 외형 차이는 이번 지시대로 조판 실패와 분리한다.
+source/input/PDF/WASM 고정값과 무변환 비교 조건은 `review/run.json`에 있다.
+
+시각 판정 요청:
+
+- [1쪽 WASM review](../../output/7353/r19/diagonal/review/wasm-review-1.png):1~3행 방향·색,
+  4·5행 선 없음,18~19행 영역 대각선.
+- [2쪽 WASM review](../../output/7353/r19/diagonal/review/wasm-review-2.png):20~21행 영역에서
+  대각선 재시작,24행 병합 셀 전체 폭,표 뒤 문단.
+- [한컴 저장 HWP](../../tests/fixtures/issue7353_diagonal_review/diagonal-saved.hwp),
+  [같은 HWP의 PDF](../../tests/fixtures/issue7353_diagonal_review/diagonal-2020.pdf).
+
+상태: **한정된 직선 대각선 구현·집중 회귀·fresh WASM 완료, 메인테이너 시각 판정 통과**.
+작업지시자의 “판정 통과입니다. 다음 절편 진행을 승인합니다.”에 따라 이 범위의 판정을
+기록하고 로컬 체크포인트 후 저장 문단 들여쓰기 절편으로 진행한다.
+다음 종단 차단은 원본 index5의 저장 문단 들여쓰기다. 셀 내부 분할 대각선 등 미검증 범위는
+계속 거부하며, 원본 전체/R5 완료 또는 한컴과의 전면 일치로 보고하지 않는다.

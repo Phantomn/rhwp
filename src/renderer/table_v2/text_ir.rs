@@ -178,6 +178,9 @@ fn bind_paint(
 ) -> Result<TextPaint, GeometryError> {
     // Depth/grid/one-control admission has already succeeded in from_ir_contents.
     let zones = super::zones::Zone::prepare(table, styles)?;
+    if super::diagonal::Diagonal::resolve(table.border_fill_id, styles)?.is_some() {
+        return Err(GeometryError::Unsupported("V2 whole-table diagonal"));
+    }
     let mut paint = TextPaint {
         rows: table.row_count,
         columns: table.col_count,
@@ -191,10 +194,22 @@ fn bind_paint(
         cells: HashMap::new(),
         borders: super::borders::CellBorders::prepare(table, styles, dpi)?,
         zones,
+        diagonals: HashMap::new(),
+        dpi,
     };
     let mut cells: Vec<_> = table.cells.iter().collect();
     cells.sort_by_key(|c| (c.row, c.col));
     for cell in cells {
+        if let Some(diagonal) = super::diagonal::Diagonal::resolve(cell.border_fill_id, styles)? {
+            if table.page_break == crate::model::table::TablePageBreak::CellBreak {
+                return Err(GeometryError::Unsupported(
+                    "V2 cell-internal diagonal split",
+                ));
+            }
+            paint
+                .diagonals
+                .insert((usize::from(cell.row), usize::from(cell.col)), diagonal);
+        }
         paint.cells.insert(
             (usize::from(cell.row), usize::from(cell.col)),
             super::decoration::Background::resolve_cell(

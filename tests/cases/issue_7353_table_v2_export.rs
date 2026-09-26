@@ -1238,7 +1238,9 @@ fn unsupported_or_missing_decoration_is_not_silently_dropped() {
             6 => g.positions = vec![0, 101],
             7 => g.blur = -1,
             8 => g.step_center = 101,
-            9 => b.attr = 8, // real slash declaration, unlike dormant pen style
+            // Straight slash8 is now qualified (including a dormant pen).
+            // Multi-ray12 remains unsupported; keep the rejection contract.
+            9 => b.attr = 12,
             _ => b.fill.alpha = 127,
         }
         assert!(

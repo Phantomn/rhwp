@@ -87,6 +87,8 @@ impl PreparedTextTable {
             cells: HashMap::new(),
             borders: None,
             zones: Vec::new(),
+            diagonals: HashMap::new(),
+            dpi,
         };
         let composer = TextComposer {
             styles,

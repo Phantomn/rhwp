@@ -45,6 +45,8 @@ pub(super) struct TextPaint {
     pub cells: HashMap<(usize, usize), super::decoration::Background>,
     pub borders: Option<super::borders::CellBorders>,
     pub zones: Vec<super::zones::Zone>,
+    pub diagonals: HashMap<(usize, usize), super::diagonal::Diagonal>,
+    pub dpi: f64,
 }
 
 /// The payload snapshot cannot be exchanged independently of its geometry cursor.
@@ -239,10 +241,16 @@ impl TextPaint {
             ordered.sort_by_key(|(order, _)| *order);
             node.children
                 .extend(ordered.into_iter().map(|(_, child)| child));
+            if let Some(diagonal) = self.diagonals.get(&(cell.row, cell.column)) {
+                diagonal.append(&mut node, cell.bounds, self.dpi);
+            }
             table.children.push(node);
         }
         if let Some(borders) = &self.borders {
             borders.append(placement, &self.zones, &mut table)?;
+        }
+        for zone in &self.zones {
+            zone.append_diagonal(placement, &mut table, self.dpi)?;
         }
         Ok(table)
     }
