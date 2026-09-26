@@ -8942,6 +8942,14 @@ impl LayoutEngine {
                     .get(paragraphs[item_para].para_shape_id as usize)
                     .map(|style| style.spacing_before)
                     .unwrap_or(0.0);
+                let stored_frame_shared_spacing =
+                    crate::renderer::float_placement::stored_frame_successor_shared_spacing_px(
+                        &col_content.paragraph_float_placements,
+                        item_para,
+                        spacing_before,
+                        y_offset - col_area.y,
+                    );
+                y_offset -= stored_frame_shared_spacing;
                 let shared_spacing = crate::renderer::float_placement::hwpx_empty_after_partial_table_shared_spacing_px(
                     self.profile.get().hwpx_stored_layout(),
                     previous_is_partial_table,

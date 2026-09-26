@@ -111,6 +111,8 @@ impl TypesetEngine {
             .is_some();
         let commit_fragment = |st: &mut TypesetState, owner_height: f64, terminal: bool| {
             if let Some(mut placement) = fragment_placement {
+                // 실제 조각의 컷/쪽 소유로 바뀌었으므로 전체 프레임의 후속 원점은 재사용하지 않는다.
+                placement.stored_successor_line_origin = None;
                 placement.occupied_bottom = placement.table_top
                     + owner_height
                     + if captioned_object_frame {

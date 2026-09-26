@@ -2783,3 +2783,198 @@ fn native_terminal_table_frame_consumes_outer_top_once() {
 fn hwpx_terminal_table_frame_consumes_outer_top_once() {
     assert_terminal_table_frame_uses_outer_top_once(true);
 }
+
+/// 원본 표31의 전체 프레임은 본체와 아래 캡션·양쪽 바깥여백을 함께 닫는다.
+/// 독립 한컴2024 PDF126쪽의 괘선/캡션/뒤 제목을96dpi로 환산한다.
+#[test]
+fn captioned_empty_host_table_keeps_its_complete_original_outer_frame_hwpx() {
+    assert_captioned_empty_host_original_outer_frame(SAMPLE);
+}
+
+#[test]
+fn captioned_empty_host_table_keeps_its_complete_original_outer_frame_hwp() {
+    let sample = SAMPLE.replace(".hwpx", ".hwp");
+    assert_captioned_empty_host_original_outer_frame(&sample);
+}
+
+fn assert_captioned_empty_host_original_outer_frame(sample: &str) {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(sample);
+    let bytes = std::fs::read(path).expect("원본 표31");
+    let core = DocumentCore::from_bytes(&bytes).expect("원본 로드");
+    assert_eq!(core.page_count(), 215);
+    let page = core.build_page_render_tree(125).expect("126쪽");
+    let table = table_for_para(&page.root, 1350).expect("표31");
+    assert!(
+        (table.bbox.y - 466.65).abs() <= 0.5,
+        "표31 상단: {}",
+        table.bbox.y
+    );
+    assert!(
+        (table.bbox.height - 232.426667).abs() <= 0.5,
+        "표31 높이: {}",
+        table.bbox.height
+    );
+    let caption = line_top(&page.root, "표 31.").expect("표31 캡션");
+    assert!((caption - 710.34).abs() <= 0.5, "표31 캡션: {caption}");
+    let following = line_top(&page.root, "나. 장기기증 승인업무절차").expect("뒤 제목");
+    assert!((following - 782.18).abs() <= 0.5, "뒤 제목: {following}");
+    for index in [124, 126] {
+        let other = core.build_page_render_tree(index).expect("앞뒤 쪽");
+        assert!(table_for_para(&other.root, 1350).is_none(), "표31 중복");
+        assert!(line_top(&other.root, "표 31.").is_none(), "캡션 중복");
+    }
+}
+
+/// 수동 방향 변형은 캡션 위/아래 공통 상자 계약만 확인한다.
+/// 한컴 재저장 원본의 일치 증거로 사용하지 않는다.
+#[test]
+fn captioned_empty_host_top_caption_keeps_body_and_successor_inside_the_same_frame() {
+    use rhwp::model::control::Control;
+    use rhwp::model::shape::CaptionDirection;
+    let mut core = core();
+    let mut doc = core.document().clone();
+    let Control::Table(table) = &mut doc.sections[0].paragraphs[1350].controls[0] else {
+        panic!("표31");
+    };
+    table.caption.as_mut().expect("캡션").direction = CaptionDirection::Top;
+    core.set_document(doc);
+    assert_eq!(core.page_count(), 215);
+    let page = core.build_page_render_tree(125).expect("126쪽");
+    let table = table_for_para(&page.root, 1350).expect("표31");
+    let caption = line_top(&page.root, "표 31.").expect("위 캡션");
+    assert!(
+        (caption - 466.653333).abs() <= 0.5,
+        "전체 상자 시작: {caption}"
+    );
+    assert!(
+        (table.bbox.y - (caption + 1850.0 / 75.0)).abs() <= 0.5,
+        "위 캡션과 본체 간격"
+    );
+    let following = line_top(&page.root, "나. 장기기증 승인업무절차").expect("뒤 제목");
+    assert!((following - 782.18).abs() <= 0.5, "뒤 제목: {following}");
+}
+
+/// 원본 쪽의 문단을 독립 IR로 옮기고 본문 예산만 줄이는 분할 경계 반례다.
+/// 한컴 출력의 대용이 아니며 두 행·캡션·뒤 제목의 단일 소유를 확인한다.
+#[test]
+fn captioned_closed_empty_host_frame_preserves_rows_and_caption_when_budget_requires_split() {
+    let mut core = core();
+    let mut doc = core.document().clone();
+    doc.sections[0].paragraphs = doc.sections[0].paragraphs[1343..1356].to_vec();
+    doc.sections.truncate(1);
+    doc.sections[0].section_def.page_def.margin_bottom += 20_000;
+    use rhwp::model::control::Control;
+    let Control::Table(original) = &doc.sections[0].paragraphs[7].controls[0] else {
+        panic!("원본 표31");
+    };
+    let normalize = |value: &str| {
+        value
+            .chars()
+            .filter(|ch| !ch.is_whitespace() && *ch != '•')
+            .collect::<String>()
+    };
+    let mut expected_paragraphs = std::collections::BTreeMap::new();
+    for cell in &original.cells {
+        for (pi, para) in cell.paragraphs.iter().enumerate() {
+            expected_paragraphs.insert((cell.row, cell.col, pi), normalize(&para.text));
+        }
+    }
+    let mut actual_paragraphs = std::collections::BTreeMap::new();
+    fn collect_cell_lines(
+        node: &RenderNode,
+        row: u16,
+        col: u16,
+        out: &mut std::collections::BTreeMap<(u16, u16, usize), String>,
+    ) {
+        if let RenderNodeType::TextLine(line) = &node.node_type {
+            let pi = line.para_index.expect("셀 문단 원본 소유");
+            out.entry((row, col, pi)).or_default().push_str(&text(node));
+            return;
+        }
+        for child in &node.children {
+            collect_cell_lines(child, row, col, out);
+        }
+    }
+    let source_page = &doc.sections[0].section_def.page_def;
+    let body_top = f64::from(source_page.margin_top + source_page.margin_header) / 75.0;
+    let body_height = f64::from(
+        source_page.height
+            - source_page.margin_top
+            - source_page.margin_header
+            - source_page.margin_bottom
+            - source_page.margin_footer,
+    ) / 75.0;
+    let body_bottom = body_top + body_height;
+    core.set_document(doc);
+    let mut row_owners = [0usize; 2];
+    let mut caption_owners = Vec::new();
+    let mut following_owners = Vec::new();
+    let mut table_pages = Vec::new();
+    let mut all_text = String::new();
+    for index in 0..core.page_count() {
+        let page = core.build_page_render_tree(index).expect("분할 쪽");
+        all_text.push_str(&text(&page.root));
+        if let Some(table) = table_for_para(&page.root, 7) {
+            table_pages.push(index);
+            // 행 번호가 반복되어도 원본 셀/문단 축의 모든 텍스트를 합쳐 검증한다.
+            for child in &table.children {
+                if let RenderNodeType::TableCell(cell) = &child.node_type {
+                    collect_cell_lines(child, cell.row, cell.col, &mut actual_paragraphs);
+                }
+            }
+
+            for row in visible_rows(table) {
+                row_owners[usize::from(row)] += 1;
+            }
+            assert!(
+                table.bbox.y + table.bbox.height <= body_bottom + 0.5,
+                "표 물리 하단"
+            );
+        }
+        if line_top(&page.root, "표 31.").is_some() {
+            caption_owners.push(index);
+        }
+        if line_top(&page.root, "나. 장기기증 승인업무절차").is_some() {
+            following_owners.push(index);
+        }
+    }
+    let actual_paragraphs: std::collections::BTreeMap<_, _> = actual_paragraphs
+        .into_iter()
+        .map(|(key, value)| (key, normalize(&value)))
+        .collect();
+    assert_eq!(
+        actual_paragraphs, expected_paragraphs,
+        "원본15개 셀 문단의 모든 내용 보존"
+    );
+    assert_eq!(row_owners[0], 1, "머리행 단일 소유");
+    assert!(row_owners[1] >= 1, "본문행 존재");
+    // 본문행은 실제 글줄 컷으로 이어질 수 있다. 같은 행 번호의 두 조각을
+    // 중복으로 세지 않고 원본 내용의 누락/중복을 직접 검사한다.
+    for marker in [
+        "기관윤리위원회",
+        "이식 전후 평가체제",
+        "설명동의 절차 및 서식",
+        "감염병전문의",
+        "병리진단",
+        "간호체제",
+        "이식대상자 이식코디네이터가 배치되어 있을 것",
+        "긴급상황에 대한 24시간 체제",
+        "세균검사",
+        "면역억제제의 혈중농도 측정",
+        "수술현미경에 의한 혈관문합",
+    ] {
+        assert_eq!(
+            all_text.matches(marker).count(),
+            1,
+            "내용 단일 소유: {marker}"
+        );
+    }
+    assert_eq!(table_pages.len(), 2, "실제 분할");
+    assert_eq!(
+        caption_owners,
+        vec![*table_pages.last().expect("끝 조각")],
+        "끝 캡션 소유"
+    );
+    assert_eq!(following_owners.len(), 1, "뒤 제목 단일 소유");
+    assert!(following_owners[0] >= caption_owners[0], "뒤 제목의 순서");
+}

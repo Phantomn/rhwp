@@ -292,6 +292,7 @@ pub(super) fn prepare(
             flow: crate::renderer::float_placement::ParagraphFloatFlow::NextLine,
             anchor_y: saved_page_top.expect("유효 저장 호스트 프레임"),
             stored_host_origin: None,
+            stored_successor_line_origin: None,
             table_left: Some(
                 x_start - column_area.x + hwpunit_to_px(i32::from(table.outer_margin_left), dpi),
             ),
@@ -315,6 +316,7 @@ pub(super) fn prepare(
                 flow: crate::renderer::float_placement::ParagraphFloatFlow::NextLine,
                 anchor_y: para_start_height,
                 stored_host_origin: None,
+                stored_successor_line_origin: None,
                 table_left: None,
                 table_top: top,
                 occupied_bottom: top + ft.effective_height + ft.host_spacing.after,

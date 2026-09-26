@@ -459,6 +459,7 @@ pub(crate) fn stored_interior_control_table_frame(
         flow: ParagraphFloatFlow::NextLine,
         anchor_y: px(i64::from(anchor)),
         stored_host_origin: None,
+        stored_successor_line_origin: None,
         table_left: None,
         table_top: px(top),
         occupied_bottom: px(bottom),
@@ -466,7 +467,7 @@ pub(crate) fn stored_interior_control_table_frame(
 }
 
 /// 폭0 빈 호스트와 다음 저장 줄이 전체 개체 바깥 상자를 정확히 닫는다.
-/// 실측 높이가 선언된 전체 높이와 같을 때만 오프셋·양쪽 여백을 한 번 소비한다.
+/// 실측 본체·수직 캡션이 전체 선언 프레임과 같을 때 오프셋·양쪽 여백을 한 번 소비한다.
 /// 분할 조각의 선언 높이, 편집 뒤 캐시, 합성 줄은 이 원점의 증거가 아니다.
 pub(crate) fn stored_empty_control_table_frame(
     host: &Paragraph,
@@ -498,22 +499,57 @@ pub(crate) fn stored_empty_control_table_frame(
         || anchor.vertical_pos < frame_vpos
         || !table.common.flow_with_text
         || !is_para_topbottom_float(&table.common)
-        || table.common.horz_rel_to != HorzRelTo::Column
+        || !matches!(
+            table.common.horz_rel_to,
+            HorzRelTo::Column | HorzRelTo::Para
+        )
         || !matches!(table.common.vert_align, VertAlign::Top | VertAlign::Inside)
         || offset < 0
-        || table.caption.is_some()
         || table.common.height == 0
         || table.common.height > i32::MAX as u32
         || !measured_height.is_finite()
         || !dpi.is_finite()
         || dpi <= 0.0
-        || (measured_height * 7200.0 / dpi).round() != f64::from(table.common.height)
     {
+        return None;
+    }
+    // 위/아래 캡션은 본체와 같은 수직 개체 상자를 소유한다. 측정·배치가
+    // 공유하는 캡션 높이와 저장 후속 줄이 모두 일치할 때만 원점을 재사용한다.
+    let caption_extent = if let Some(caption) = &table.caption {
+        use crate::model::shape::CaptionDirection;
+        if !matches!(
+            caption.direction,
+            CaptionDirection::Top | CaptionDirection::Bottom
+        ) || caption.spacing < 0
+            || caption.paragraphs.is_empty()
+            || caption.paragraphs.iter().any(|para| {
+                para.stored_text_partition_is_dirty()
+                    || para.cell_format_vpos_dirty
+                    || !para.controls.is_empty()
+                    || para.line_segs.is_empty()
+                    || para.line_segs.iter().any(|line| {
+                        line.line_height <= 0
+                            || line.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
+                    })
+            })
+        {
+            return None;
+        }
+        let height = super::composer::caption_height_px(&table.caption, dpi);
+        if height <= 0.0 || !height.is_finite() {
+            return None;
+        }
+        height * 7200.0 / dpi + f64::from(caption.spacing)
+    } else {
+        0.0
+    };
+    let measured_extent = (measured_height * 7200.0 / dpi).round();
+    if measured_extent != (f64::from(table.common.height) + caption_extent).round() {
         return None;
     }
     let top =
         i64::from(anchor.vertical_pos) + i64::from(offset) + i64::from(table.outer_margin_top);
-    let bottom = top + i64::from(table.common.height) + i64::from(table.outer_margin_bottom);
+    let bottom = top + measured_extent as i64 + i64::from(table.outer_margin_bottom);
     if bottom != i64::from(next.vertical_pos) {
         return None;
     }
@@ -522,6 +558,7 @@ pub(crate) fn stored_empty_control_table_frame(
         flow: ParagraphFloatFlow::NextLine,
         anchor_y: px(i64::from(anchor.vertical_pos)),
         stored_host_origin: None,
+        stored_successor_line_origin: Some(px(bottom)),
         table_left: None,
         table_top: px(top),
         occupied_bottom: px(bottom),
@@ -539,6 +576,8 @@ pub struct ParagraphFloatPlacement {
     /// 텍스트 생성과 공유하는 유효 단일 저장 줄 호스트 원점.
     /// None이면 이어받기를 포함한 기존 흐름 호스트 계약을 유지한다.
     pub stored_host_origin: Option<f64>,
+    /// 전체 저장 프레임이 닫는 후속 첫 글줄 원점. 후속 문단의 앞 간격도 이 경계에 포함된다.
+    pub stored_successor_line_origin: Option<f64>,
     /// 바깥여백을 이미 소비한 표 왼쪽 원점. None이면 기존 가로 배치 계약이다.
     pub table_left: Option<f64>,
     /// 표와 캡션을 함께 담는 배치 상자의 상단. 위 캡션은 이 상자 안에서 배치한다.
@@ -556,6 +595,27 @@ pub enum ParagraphFloatFlow {
     StoredPicture {
         next_flow_y: f64,
     },
+}
+
+/// 확정 개체 프레임의 후속 줄은 이미 앞 간격을 포함한 저장 원점을 소유한다.
+/// 실제 커서가 그 경계에 있을 때만 측정과 배치가 같은 앞 간격을 한 번 소비한다.
+pub(crate) fn stored_frame_successor_shared_spacing_px(
+    placements: &std::collections::HashMap<(usize, usize), ParagraphFloatPlacement>,
+    para_index: usize,
+    spacing_before: f64,
+    current_y: f64,
+) -> f64 {
+    if spacing_before <= 0.0 {
+        return 0.0;
+    }
+    placements
+        .iter()
+        .find_map(|(&(owner, _), placement)| {
+            let origin = placement.stored_successor_line_origin?;
+            (owner.checked_add(1) == Some(para_index) && (origin - current_y).abs() <= 0.5)
+                .then_some(spacing_before)
+        })
+        .unwrap_or(0.0)
 }
 
 /// 실제 재조판에서 확정한 호스트 줄. 문자 위치는 `Paragraph.text`의 scalar 축,
@@ -631,6 +691,7 @@ pub fn stored_picture_successor_placement(
         },
         anchor_y,
         stored_host_origin: Some(host_y),
+        stored_successor_line_origin: None,
         table_left: None,
         table_top: top,
         occupied_bottom: bottom,
@@ -755,6 +816,8 @@ impl ParagraphFloatPlacement {
         host_line_height: f64,
         dpi: f64,
     ) -> Self {
+        // 부분 조각은 전체 저장 프레임의 후속 줄 원점을 증명하지 않는다.
+        self.stored_successor_line_origin = None;
         let box_tail = self.occupied_bottom - self.table_top;
         let paragraph_anchor = self.anchor_y - applied_spacing_before;
         let positioned_top =
@@ -894,6 +957,7 @@ impl ParagraphFloatPlacement {
                 flow: ParagraphFloatFlow::Exclusion,
                 anchor_y,
                 stored_host_origin: None,
+                stored_successor_line_origin: None,
                 table_left: None,
                 table_top,
                 occupied_bottom,
@@ -963,6 +1027,7 @@ impl ParagraphFloatPlacement {
                 flow: ParagraphFloatFlow::Exclusion,
                 anchor_y,
                 stored_host_origin: None,
+                stored_successor_line_origin: None,
                 table_left: None,
                 table_top,
                 occupied_bottom,

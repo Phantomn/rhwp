@@ -31,6 +31,14 @@ pub(in crate::renderer::typeset) fn place(
         styles,
         is_last_in_section,
     } = input;
+    let stored_frame_shared_spacing =
+        crate::renderer::float_placement::stored_frame_successor_shared_spacing_px(
+            &st.paragraph_float_placements,
+            para_idx,
+            fmt.spacing_before,
+            st.current_height,
+        );
+    st.reclaim_flow_by(stored_frame_shared_spacing.min(st.current_height));
     let previous_is_partial_table = st.current_items.last().is_some_and(
         |item| matches!(item, PageItem::PartialTable { para_index, .. } if *para_index < para_idx),
     );
