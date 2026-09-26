@@ -13980,8 +13980,12 @@ impl LayoutEngine {
         if let Some(para) = paragraphs.get(para_index) {
             if let Some(Control::Table(table)) = para.controls.get(control_index) {
                 let opens =
-                    crate::renderer::float_placement::hwpx_column_rowbreak_fragment_opens_outer_top(
+                    crate::renderer::float_placement::column_rowbreak_fragment_opens_outer_top(
                         self.profile.get().hwpx_stored_layout(),
+                        self.profile
+                            .get()
+                            .hwp5_stored_pagination_layout()
+                            .then_some(para),
                         table,
                         false,
                         0,

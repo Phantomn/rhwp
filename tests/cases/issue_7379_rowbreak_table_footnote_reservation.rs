@@ -3127,3 +3127,58 @@ fn numbered_footnote_uses_paragraph_margin_and_signed_indent_without_reusing_sta
         }
     }
 }
+
+/// 동일 한컴 PDF의 캡션 표 끝 조각과 뒤 제목 원점을 두 원본 형식에서 확인한다.
+#[test]
+fn captioned_saved_rowbreak_terminal_fragment_keeps_outer_frame_hwp() {
+    assert_captioned_terminal_fragment_outer_frame(&SAMPLE.replace(".hwpx", ".hwp"));
+}
+
+#[test]
+fn captioned_saved_rowbreak_terminal_fragment_keeps_outer_frame_hwpx() {
+    assert_captioned_terminal_fragment_outer_frame(SAMPLE);
+}
+
+fn assert_captioned_terminal_fragment_outer_frame(sample: &str) {
+    let bytes = std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(sample)).expect("원본");
+    let core = DocumentCore::from_bytes(&bytes).expect("원본 표23");
+    assert_eq!(core.page_count(), 215);
+    let first = core.build_page_render_tree(65).expect("66쪽");
+    let next = core.build_page_render_tree(66).expect("67쪽");
+    assert_eq!(
+        visible_rows(host_table(&first.root).expect("첫 조각")),
+        (0..5).collect()
+    );
+    let table = host_table(&next.root).expect("끝 조각");
+    assert_eq!(visible_rows(table), (5..7).collect());
+    assert!(
+        (table.bbox.y - 86.945312).abs() <= 0.5,
+        "끝 조각 원점: {}",
+        table.bbox.y
+    );
+    let caption = line_top(&next.root, "표 23.").expect("끝 캡션");
+    assert!((caption - 156.434347).abs() <= 0.5, "캡션 원점: {caption}");
+    let following = line_top(
+        &next.root,
+        "42 CFR Part 482 (CONDITIONS OF PARTICIPATION FOR HOSPITALS)",
+    )
+    .expect("뒤 제목");
+    assert!(
+        (following - 200.261047).abs() <= 0.5,
+        "뒤 제목: {following}"
+    );
+    assert!(
+        line_top(&first.root, "표 23.").is_none(),
+        "앞 조각 캡션 중복"
+    );
+    let after = core.build_page_render_tree(67).expect("68쪽");
+    assert!(host_table(&after.root).is_none(), "표 조각 중복");
+    assert!(line_top(&after.root, "표 23.").is_none(), "캡션 중복");
+    assert!(
+        text(notes(&first.root).expect("66쪽 각주")).contains("77)"),
+        "원래 번호 소유"
+    );
+    let tail = text(notes(&next.root).expect("67쪽 각주"));
+    assert!(tail.contains("Part 482(CONDITIONS"), "77 꼬리 소유");
+    assert!(!tail.contains("77)"), "번호 반복 금지");
+}

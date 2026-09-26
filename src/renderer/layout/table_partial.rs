@@ -4236,12 +4236,17 @@ impl LayoutEngine {
                 start_row,
                 start_cut,
             );
-        // HWPX의 자리차지 RowBreak 표는 저장 앵커(첫 조각) 또는
+        // 저장된 자리차지 RowBreak 표는 저장 앵커(첫 조각) 또는
         // 다음 쪽 본문 상단(이어지는 조각) 뒤에 상단 바깥여백을 연다.
         // 중첩 표와 쪽 중간에서 이어지는 조각은 별도 흐름 좌표를 쓴다.
-        let hwpx_rowbreak_reopens_outer_top = enclosing_cell_ctx.is_none()
-            && crate::renderer::float_placement::hwpx_column_rowbreak_fragment_opens_outer_top(
+        let rowbreak_reopens_outer_top = enclosing_cell_ctx.is_none()
+            && crate::renderer::float_placement::column_rowbreak_fragment_opens_outer_top(
                 self.profile.get().hwpx_stored_layout(),
+                self.profile
+                    .get()
+                    .hwp5_stored_pagination_layout()
+                    .then(|| paragraphs.get(para_index))
+                    .flatten(),
                 table,
                 is_continuation,
                 start_row,
@@ -4281,7 +4286,7 @@ impl LayoutEngine {
                         && (y_start - col_area.y).abs() <= 0.5));
         let y_start = if (single_cell_page_fragment
             || terminal_multirow_reopens_outer_top
-            || hwpx_rowbreak_reopens_outer_top
+            || rowbreak_reopens_outer_top
             || native_repeated_header_reopens_outer_top
             || empty_opening_continuation
             || empty_opening_first_fragment)
@@ -5452,10 +5457,9 @@ impl LayoutEngine {
         let caption_outer_bottom =
             if empty_opening_continuation && end_row >= row_count && end_cut.is_empty() {
                 hwpunit_to_px(table.outer_margin_bottom as i32, self.dpi)
-            } else if hwpx_rowbreak_reopens_outer_top && end_row >= row_count && end_cut.is_empty()
-            {
+            } else if rowbreak_reopens_outer_top && end_row >= row_count && end_cut.is_empty() {
                 crate::renderer::float_placement::column_rowbreak_caption_outer_spacing_px(
-                    hwpx_rowbreak_reopens_outer_top,
+                    rowbreak_reopens_outer_top,
                     &paragraphs[para_index],
                     outer_table,
                     self.dpi,

@@ -181,15 +181,28 @@ pub(crate) fn block_table_caption_host_spacing_px(
 
 /// 바깥 여백은 셀 열 수와 무관하게 개체 프레임에 속한다.
 /// 이미 결정된 배치 원점과 중첩 프레임은 호출자가 처리한다.
-pub(crate) fn hwpx_column_rowbreak_fragment_opens_outer_top(
+pub(crate) fn column_rowbreak_fragment_opens_outer_top(
     hwpx_stored: bool,
+    native_host: Option<&Paragraph>,
     table: &Table,
     is_continuation: bool,
     start_row: usize,
     start_cut: &[usize],
     starts_at_column_top: bool,
 ) -> bool {
-    hwpx_stored
+    // 저장 형식과 무관하게 실제 빈 앵커와 수직 캡션은 같은 바깥 프레임을 소유한다.
+    // 캡션 없는 일반 HWP 이어받기 표의 원점은 기존 계약을 유지한다.
+    let native_caption_frame = native_host.is_some_and(|para| {
+        object_only_saved_table_anchor(para, table)
+            && table.caption.as_ref().is_some_and(|caption| {
+                matches!(
+                    caption.direction,
+                    crate::model::shape::CaptionDirection::Top
+                        | crate::model::shape::CaptionDirection::Bottom
+                )
+            })
+    });
+    (hwpx_stored || native_caption_frame)
         && !table.common.treat_as_char
         && is_para_topbottom_float(&table.common)
         && table.common.horz_rel_to == HorzRelTo::Column

@@ -1015,3 +1015,24 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 ![126쪽 각주 내어쓰기 복원](../assets/pr7382_20260926/stage40_after_hwpx_review_126.png)
 ![번호 없는 이어받기와 뒤 각주 보존](../assets/pr7382_20260926/stage40_after_hwpx_review_179.png)
 ![HWP67쪽의 남은 표와 뒤 본문 위치 차이](../assets/pr7382_20260926/stage40_after_hwp_overlay_067.png)
+
+
+## 보정41 사전 분석 — 원본 HWP의 캡션 표 이어받기 바깥 프레임
+
+- 같은 원본의67쪽 PDF는 두 형식 모두 표 상단86.945312px, 캡션156.434347px, 뒤 제목200.261047px다. 현재 HWPX는86.9/156.5/200.3px, HWP는83.2/152.8/192.8px다. 이어받은 표의 위여백283HU와 종료 아래여백283HU가 HWP 경로에서 빠져 표/캡션은3.773333px, 뒤 본문은7.546667px 위에 놓였다. 66쪽 첫 조각의 원점에도 두 형식의283HU 차이가 있다.
+- 생산/소비 경로는 `hwpx_column_rowbreak_fragment_opens_outer_top`의 포맷 조건→continuation/budget의 host_before/terminal_outer_bottom→확정 ParagraphFloatPlacement→table_partial의 가시 원점→layout의 occupied_bottom이다. 같은 빈 폭0 앵커·수직 캡션·문단 기준 자리차지 RowBreak 프레임을 HWPX에서만 소비하는 가정부터 대조한다. 제목행 없는 일반 HWP 이어받기와 중첩 프레임은 기존 계약을 보존한다. 단순히 모든 Native 표에 여백을 추가하지 않는다.
+- 먼저 원본 HWP/HWPX의67쪽 괘선/캡션/뒤 제목 및 원본 두 조각의 행·각주·캡션 단일 소유를 확인하는 정식 실패를 남긴다.66쪽의 약1px 잔여도 독립 PDF와 직접 대조하며 새 기대 허용치를 넓혀 숨기지 않는다.
+
+
+### 보정41 결과
+
+- 포맷 이름으로 제한했던 바깥 프레임 판정을 공통 `column_rowbreak_fragment_opens_outer_top`으로 바꿨다. HWP는 실제 폭0 빈 개체 앵커와 수직 캡션을 확인한 경우에만 같은 프레임을 소비한다. 캡션 없는 일반 HWP 이어받기·중첩 프레임·단 중간 조각은 기존 계약을 유지한다. 문서 ID나 수치로 대상을 고르지 않았다.
+- 실제 소비는 block/whole_fit의 전체 캡션 배치 계획→continuation/fragment/budget의 이어받기 위여백/종료 아래여백→확정 배치→layout/table_partial의 가시 원점/끝점→layout의 occupied_bottom이다. 위여백283HU를 예약·배치에 같이 소비하고 종료 아래여백283HU를 후속 흐름에 한 번 소비한다. 실제 원본67쪽 괘선·캡션·뒤 제목의 독립 좌표는 [PDF 기하](../assets/pr7382_20260926/stage41_independent_geometry.json)에 보존했다.
+- 정식 원본 두 검사는 수정 전1PASS/1FAIL(exit100,0.253s), 수정 후2PASS/0FAIL(exit0,0.262s)이다. 표23의5행/2행 조각, 끝 캡션·뒤 제목 좌표, 인접 쪽 캡션 중복 없음, 각주77 번호/꼬리 소유와215쪽을 확인했다. 이전 보정·일반 표/중첩/각주 대조군을 포함한 확대245PASS/0FAIL(9.793s,threads8), fmt·고정base manifest6238 attrs·source-unit4205/298도exit0이다. release-test CLI 빌드는exit0/106.338s다. [명령·exit·로그 해시·CLI 해시·시각 판정](../assets/pr7382_20260926/stage41_validation.json), [source/test 증거](../assets/pr7382_20260926/stage41_source_proof.json).
+- HWP66쪽88.72983→98.94767%,67쪽74.64010→96.21756%,77쪽43.20381→98.35157%다. 표 외곽·후속 본문·그림/캡션 위치를 직접 읽었다. HWPX66/67/68쪽98.94767/96.21756/96.59031%와 HWP68쪽96.59031%는 그대로다. 전후 review/standalone overlay28개 중20개 고유 이미지를 직접 읽었고, 나머지8개는 이미 판독한 이미지와 바이트까지 동일함을 대조했다.
+- 두 형식 모두215쪽이다. 전수 tree에서 HWP는66/67/77쪽만 변경됐고212쪽은 동일하며 HWPX215쪽은 모두 동일하다. 변경된 모든 쪽은 이번 Native 비교에 포함했다. [전수 변경 범위](../assets/pr7382_20260926/stage41_original_tree_difference.json), [점수/PNG 동일성](../assets/pr7382_20260926/stage41_visual_comparison.json). 전수 tree 동일성을 전체 래스터 통과로 보고하지 않는다.66쪽 약0.8px 저장 원점/독립 괘선 차이도 남겨 두며67쪽의0.5px 기대 허용치를 넓히지 않았다.
+- [이번 추가 설명 주석4줄](../assets/pr7382_20260926/stage41_comment_scan.json)은 모두 한글이다. 앞 주석 전용 커밋292ba2161은 인라인을 포함한 추가 주석930줄·영어 설명0개를 확인했다. 로그/output/generated는 커밋하지 않는다.
+- 판정: 원본 HWP 캡션 표의 바깥여백 누락은 충족. #6782의76/78쪽, 실제 TABLE 편집/래퍼 분할, 현재 수정 후 전체 Native/fresh WASM·전체 nextest/lint/Skia는 남아 통합 PR 생성/승인은 계속 보류한다. 실행 중인 전수 시각은 수정 전 동작의 stage40 고정 CLI이며 이번 보정41의 전체 시각 통과로 재사용하지 않는다.
+
+![HWP67쪽 표와 후속 본문 복원](../assets/pr7382_20260926/stage41_after_hwp_review_067.png)
+![HWP77쪽 같은 프레임의 후속 그림 복원](../assets/pr7382_20260926/stage41_after_hwp_overlay_077.png)

@@ -91,9 +91,10 @@ impl TypesetEngine {
                 ),
                 self.dpi,
             );
-        let hwpx_fragment_opens_outer_top = std::ptr::eq(row_geometry_table, table)
-            && crate::renderer::float_placement::hwpx_column_rowbreak_fragment_opens_outer_top(
+        let fragment_opens_outer_top = std::ptr::eq(row_geometry_table, table)
+            && crate::renderer::float_placement::column_rowbreak_fragment_opens_outer_top(
                 st.profile.hwpx_stored_layout(),
+                st.profile.hwp5_stored_pagination_layout().then_some(para),
                 table,
                 is_continuation,
                 cursor_row,
@@ -103,7 +104,7 @@ impl TypesetEngine {
         // 첫 조각은 이미 host_spacing.before에서 이 여백을 받는다.
         // 새 이어받기 조각도 실제 배치가 여는 원점과 같은 공간을 예약한다.
         let host_before_overhead = host_before_overhead
-            + if hwpx_fragment_opens_outer_top && is_continuation {
+            + if fragment_opens_outer_top && is_continuation {
                 hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
             } else {
                 0.0
@@ -138,7 +139,7 @@ impl TypesetEngine {
             });
         // 빈 시작 조각 뒤에서는 두 포맷 모두 같은 바깥 상자를 다시 연다.
         let host_before_overhead = host_before_overhead
-            + if empty_opening_continuation && !hwpx_fragment_opens_outer_top {
+            + if empty_opening_continuation && !fragment_opens_outer_top {
                 hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
             } else {
                 0.0
@@ -147,7 +148,7 @@ impl TypesetEngine {
             hwpunit_to_px(table.outer_margin_bottom as i32, self.dpi)
         } else {
             crate::renderer::float_placement::column_rowbreak_caption_outer_spacing_px(
-                hwpx_fragment_opens_outer_top,
+                fragment_opens_outer_top,
                 para,
                 table,
                 self.dpi,
