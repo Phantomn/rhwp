@@ -3573,3 +3573,86 @@ SVG 동일을 확인했다. `controls-final.log`의 기존 승인 대조군14조
 해당 분리본의 줄바꿈·밑줄·표/뒤 문단 위치이며 원본 전체 페이지네이션 통과로 확대하지 않는다.
 전체 진행 추정은 약45%(40~50% 범위)로 유지한다. 다음은 원본 음수 바깥여백에서
 줄 전진과 실제 표 점유의 공통 계약 및 실제 원본 다음 차단점을 추적한다.
+
+#### 승인 후 다음 묶음 — 음수 표 바깥여백의 점유 계약 (진행 중)
+
+앞 승인분은 `4af4f2232`로 커밋했다. 전체 범위 기반 추정은 여전히 약45%다.
+R2 기반은 마련됐지만 R3 원본 종단 연결, R4 복합/편집 경계, R5 통합·전환은 남아 있다.
+새 검사 건수나 원본의 거부 지점 이동만으로 전체 완료율을 올리지 않는다.
+
+근거는 원본 HWP와 HWP 5.0 사양의 signed HWPUNIT16 바깥여백이다. 원본
+`s0/p5/t0/c0/p69/t0`는 높이14847HU, 위/아래-1HU, 저장 줄 높이14845HU이며
+`s0/p29/t0`도11156-1-1=11154HU다. 이전 한컴 재저장 분리본은 여백이0으로
+정규화됐으므로 이 음수 여백의 기준 출력으로 사용하지 않았다.
+
+공통 결과의 실제 경로:
+
+- `tac::object_rows`는 저장 줄 높이·전진량과 signed margin을 포함한 원본 표 rect를
+  보존한다. `tac::compose`는 줄 전진과 별도로 실제 표 하단을 포함하는 physical height를
+  만든다. 그림의 음수 여백은 이번 수용 대상이 아니다.
+- 본문 `document_input`과 셀 `ir::bind_table` 모두 같은 InlineTables 결과를 바인딩한다.
+  `ParagraphEnd::from_composed`와 `content::physical_extent`는 각각 이 height/advance를
+  소비한다. 표의 선언 높이를 줄 높이로 축소하지 않는다.
+- `FlowCursor::fit_until`은 로컬 `pen+height`로 예산을 검사하고 자식을 완전한 계획 높이로
+  예약한다. 실제 child origin은 `area.y+pen+child.y`, 후속 원점은 `pen+advance`다.
+  줄 전체가 fit하지 않으면 컷을 소비하지 않는다. rowspan 전용 컷은 변경하지 않았다.
+- 음수 top이 앞 밴드 안에 들어오는 경우만 배치한다. 이어받은 조각의 시작 위로 돌출하면
+  `inline table extends above fragment origin`으로 명시적 거부한다. 첫 줄의 음수 여백
+  원점·수평 부모 밖 돌출은 아직 미지원이며 임의 padding/clamp/clip으로 감추지 않았다.
+
+`tests/cases/issue_7353_table_v2_nested.rs`에 독립 예산 계약을 추가했다. 앞 공간10px,
+자식50px, top/bottom-1px이면 논리 끝58px과 실제 끝59px을 구별한다. 58px 예산에서는
+자식을 수용하지 않고59px에서는 전체 수용한다. 뒤 문단의58px 원점과 다음 조각에서의
+내용 보존, 원점 이동, 앞 공간 없는 이어받기의 명시적 거부를 검사한다. 수정 전 라이브러리는
+`InvalidNumber("inline table y")`로 FAIL, 수정 후 PASS했다(`signed-margin/before.log`).
+초기 테스트 작성 중 컴파일 오류·원점 기대값 보완은 이 red 증거에 포함하지 않았다.
+
+`issue_7353_table_v2_document_flow.rs`는 원본 속성의 산술 관계와 별도의 합성 HWP
+종단 계약을 구별한다. 같은 줄의 두 표 및 뒤 본문 좌표, top0/bottom-2px에서 논리 줄만
+fit하는52px 페이지 예산의 실제 이월을 검사한다. 합성 계약을 한컴 일치로 보고하지 않는다.
+
+Native dev 라이브러리 빌드 후 정식 `tests/cases/issue_7353*.rs`18개를 rustc test harness로
+실행해 **277PASS/0FAIL**했다. 파일별 build/run 로그는 `output/7353/r19/signed-margin/`.
+export/image와 split-line/zip 의존성 누락으로 처음 컴파일하지 못한2개도 해당 extern을
+명시한 뒤 재실행했다. Cargo generated-suite/전체 CI 실행과 구분한다. Native lib Clippy는
+통과했다. 이번 변경의 fresh WASM 런타임·직접 시각 비교는 아직 미실행이며 완료로 세지 않는다.
+
+원본 terminal-policy 실행은 음수 여백 거부를 넘어 `s0/p5`의 `V2 cell border style`에
+도달했다(`signed-margin/original.log`). 입력을 바꾸지 않았으며 실제 원본 페이지는 아직
+출력되지 않는다. 최초 미지원 선 종류는 `s0/p5/t0/c0/p7/t0`의 borderFill47/46에 있는
+Double이다(`signed-margin/next-blocker.log`). 원본 수용 경계 진단 assertion만 새 거부
+항목으로 갱신했으며 페이지 수·golden·피델리티 허용치를 바꾸지 않았다.
+다음 종단 의존 작업은 이중선과 공유 경계의 출력이며, 기존 승인 PNG를 새 원본 판정용으로
+재사용하거나 현재 합성 계약만으로 새 시각 승인을 요청하지 않는다.
+
+이중선 후속 조사의 독립 자료로 원본 한컴 PDF4쪽을 `pdftocairo -f 4 -l 4 -svg`로
+추출했다(`signed-margin/reference-p4.svg`). 제목 숫자 셀의 평행선은 stroke0.36pt,
+중심 간격 약1.08pt로 관측된다. 기존 Legacy의 최소3px 합성이나 SVG 일반 도형의
+30/40/30 비율을 표 이중선의 정답으로 곧바로 재사용하지 않고, 저장 굵기·600dpi 격자·
+공유 경계/모서리를 함께 대조해야 한다. 이번 절편에서는 이중선 구현을 변경하지 않았다.
+
+이후 backend 검증을 완료했다. Native/WASM lib Clippy 모두 통과했고 Docker 표준 빌드는
+7분13초, exit0으로 완료했다(`signed-margin/docker.log`). WASM SHA-256:
+`337954b7ec128a2c2a4275d9ec1cf5895d35a342623113cef6eea009d1b6eaa4`.
+소스는 `4af4f2232` 위 diff이며 `signed-margin/source.sha256`의3개 Rust/2개 검사 파일로
+고정했다. 기본 Legacy 경로는 변경하지 않았다.
+
+- `controls.mjs`: 승인된7개 대조군×2끝 간격 정책=14조합 모두 기존 SVG 유지,
+  Native/fresh WASM SVG 동일(`controls.log`).
+- `boundaries.mjs`: 합성 HWP의 signed-inline1쪽/signed-bottom2쪽 모두 Native와 SVG
+  동일. 전자는 본문 컨테이너 높이112와112.00000000000001의1 ULP 차이만 있고,
+  표·문단 좌표는 같다. 후자는 JSON도 동일하다. `*-comparison.json`에 차이를 보존했다.
+  처음 전체 JSON exact equality 실패는 `boundaries-exact-json-failed.log`에 보존했다.
+  엔진 좌표나 정식 회귀 허용치는 바꾸지 않았고, 진단 harness는 numeric 차이를 기록하고
+  machine-relative precision 이하인지 확인한다. 문자열/SVG/소유권은 정확히 비교한다.
+- 브라우저 launch 실패1회는 별도 `boundaries-launch-failed.log`로 남겼으며 재시도 성공했다.
+  빌드를 반복하지 않았다. harness의 JSON 객체 key 순서 비교도 의미상의 key 집합 비교로
+  바로잡았다. 이 두 항목은 엔진 결함이나 회귀 실패 건수에 포함하지 않는다.
+- 기존 승인 법령 분리본의 새 Native/fresh WASM 비교·standalone overlay를 직접 열어
+  줄바꿈·두 행 외곽·부모 빈 공간·AFTER CELL 위치가 유지됨을 확인했다. JSON 차이0,
+  SVG 동일이며 폴백 글꼴 외형·선 농도 차이는 이전과 같다.
+  [새 대조군 review](../../output/7353/r19/signed-margin/review/wasm-review-1.png),
+  [standalone overlay](../../output/7353/r19/signed-margin/review/wasm-overlay-1.png).
+  새 음수 여백 합성 출력3쪽도 직접 확인했다. 이것은 계약/무회귀 증거이며 원본의 한컴
+  피델리티 통과 자료가 아니다. 원본 전체는 이중선에서 계속 미지원이며 R3/R5 완료나
+  전체 CI 통과로 보고하지 않는다.

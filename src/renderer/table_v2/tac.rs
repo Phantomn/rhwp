@@ -201,7 +201,12 @@ fn object_rows(
         {
             return Err(unsupported());
         }
-        if margins.iter().any(|v| *v < 0) {
+        // HWPUNIT16 margins are signed. Table line advance and its physical
+        // rectangle differ with negative margins; the table composer carries
+        // both below. The picture adapter does not yet have that contract.
+        if (pictures && margins.iter().any(|v| *v < 0))
+            || f64::from(a.width) + f64::from(margins[0]) + f64::from(margins[1]) <= 0.0
+        {
             return Err(unsupported());
         }
         let position = positions[ci];
@@ -510,7 +515,12 @@ pub(super) fn compose(
                 continue;
             }
             items.push(ParagraphItem::InlineTables {
-                height: row.height * scale,
+                // Logical row height controls the next origin. Reserve the
+                // actual child bottom too; negative bottom margins must not
+                // shrink the physical fit budget. Use placement arithmetic.
+                height: row.tables.iter().fold(row.height * scale, |end, (_, r)| {
+                    end.max(r.y * scale + r.height * scale)
+                }),
                 advance: advance * scale,
                 lines,
                 tables: row

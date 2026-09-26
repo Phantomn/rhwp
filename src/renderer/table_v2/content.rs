@@ -321,7 +321,7 @@ impl TableContentPlan {
                             }
                             for child in tables {
                                 nonnegative(child.x, "inline table x")?;
-                                nonnegative(child.y, "inline table y")?;
+                                super::contracts::finite(child.y, "inline table y")?;
                                 if child.x + child.plan.width > inner_width
                                     || child.y + child.plan.height > *height
                                 {

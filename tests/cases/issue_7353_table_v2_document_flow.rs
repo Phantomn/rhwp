@@ -372,13 +372,14 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         panic!("qualify full source output before updating admission")
     };
     eprintln!("original terminal admission: {error}");
+    // Signed table margins now preserve both stored advance and physical
+    // bounds. The untouched original reaches the next unsupported feature;
+    // this remains an admission diagnostic, not a layout acceptance baseline.
     assert!(matches!(
         error,
         DocumentV2Error::Paragraph {
             index: 5,
-            reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "stored TAC carrier requires unambiguous intact rows"
-            )
+            reason: rhwp::renderer::table_v2::GeometryError::Unsupported("V2 cell border style")
         }
     ));
     if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
@@ -3451,6 +3452,112 @@ fn signed_inline_advance_does_not_shrink_the_physical_fit_budget() {
         69.0,
     );
     capture("document-inline-signed-budget", &d, &pages);
+}
+
+#[test]
+fn signed_table_margins_preserve_source_rows_and_final_table_boxes() {
+    use rhwp::model::style::Alignment;
+    // Genuine untouched HWP: signed HWPUNIT16 outer margins, not fabricated
+    // metadata used to relax source admission. This is source geometry evidence,
+    // not a claim that the whole original document renders successfully.
+    let original = rhwp::parse_document(include_bytes!(
+        "../fixtures/issue6923/148738070_wrapper_table_stored_page_frame.hwp"
+    ))
+    .unwrap();
+    let source = &original.sections[0].paragraphs[29];
+    let Control::Table(original_table) = &source.controls[0] else {
+        unreachable!()
+    };
+    assert_eq!(original_table.common.height, 11156);
+    assert_eq!(original_table.outer_margin_top, -1);
+    assert_eq!(original_table.outer_margin_bottom, -1);
+    assert_eq!(source.line_segs[0].line_height, 11156 - 1 - 1);
+
+    // Synthetic end-to-end contract with larger signed insets so the physical
+    // and logical ends are visibly distinguishable. No Hancom fidelity claim.
+    let mut carrier = inline_carrier(false);
+    for ctrl in &mut carrier.controls {
+        let Control::Table(t) = ctrl else {
+            unreachable!()
+        };
+        t.outer_margin_left = -75;
+        t.outer_margin_right = -75;
+        t.outer_margin_top = -75;
+        t.outer_margin_bottom = -75;
+        t.common.margin = rhwp::model::Padding {
+            left: -75,
+            right: -75,
+            top: -75,
+            bottom: -75,
+        };
+    }
+    carrier.line_segs[0].line_height = 2550; // child2700 minus150
+    carrier.line_segs[0].text_height = 2550;
+    carrier.line_segs[0].baseline_distance = 2167;
+    let mut d = self::source(vec![p("before"), carrier, p("after")]);
+    d.doc_info.para_shapes[0].alignment = Alignment::Center;
+    d.sections[0].section_def.page_def.height = 18000;
+    // HWPX serializer normalizes negative margins. Exercise the original HWP
+    // signed representation rather than claiming equivalence after rewriting.
+    let hwp = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+    let pages =
+        drain(&mut DocumentV2Session::from_bytes(&hwp, r#"{"dpi":96,"max_pages":20}"#).unwrap());
+    assert_eq!(pages.len(), 1);
+    assert_eq!(labels(&pages[0]), ["before", "A", "a", "B", "b", "after"]);
+    let tables = nodes(&pages[0], "Table");
+    for (t, x) in tables.iter().zip([91.0, 169.0]) {
+        near(&t["bbox"]["x"], x);
+        near(&t["bbox"]["y"], 47.0);
+        near(&t["bbox"]["height"], 36.0);
+    }
+    assert_eq!(tables.len(), 2);
+    near(
+        &nodes(&pages[0], "TextLine").last().unwrap()["bbox"]["y"],
+        86.0,
+    );
+    if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(format!("{dir}/signed-inline.hwp"), &hwp).unwrap();
+        std::fs::write(
+            format!("{dir}/signed-inline.json"),
+            serde_json::to_vec(&pages).unwrap(),
+        )
+        .unwrap();
+    }
+
+    // Source producer must reserve the physical bottom too, not just the
+    // manually specified FlowBlock envelope covered by the nested test.
+    // top0/bottom-2px: logical34px fits after18px in52px, physical36px does not.
+    for ctrl in &mut d.sections[0].paragraphs[1].controls {
+        let Control::Table(t) = ctrl else {
+            unreachable!()
+        };
+        t.outer_margin_top = 0;
+        t.outer_margin_bottom = -150;
+        t.common.margin.top = 0;
+        t.common.margin.bottom = -150;
+    }
+    d.sections[0].paragraphs.pop();
+    d.sections[0].section_def.page_def.height = 15000;
+    d.sections[0].section_def.page_def.margin_bottom = 6600;
+    let hwp = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+    let pages =
+        drain(&mut DocumentV2Session::from_bytes(&hwp, r#"{"dpi":96,"max_pages":20}"#).unwrap());
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), ["before"]);
+    assert_eq!(labels(&pages[1]), ["A", "a", "B", "b"]);
+    for t in nodes(&pages[1], "Table") {
+        near(&t["bbox"]["y"], 30.0);
+        near(&t["bbox"]["height"], 36.0);
+    }
+    if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
+        std::fs::write(format!("{dir}/signed-bottom.hwp"), &hwp).unwrap();
+        std::fs::write(
+            format!("{dir}/signed-bottom.json"),
+            serde_json::to_vec(&pages).unwrap(),
+        )
+        .unwrap();
+    }
 }
 
 #[test]

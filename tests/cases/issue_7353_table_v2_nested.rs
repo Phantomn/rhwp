@@ -104,6 +104,90 @@ fn fit(cursor: &TableCursor, budget: f64) -> TableFragmentPlan {
 }
 
 #[test]
+fn signed_inline_insets_keep_physical_child_and_logical_following_origin() {
+    // Synthetic boundary contract, not a Hancom fidelity oracle. A 50px
+    // child with -1px top/bottom margins advances48px, but ends49px below
+    // the row origin. Its leading blank10px contains the top overhang.
+    let inline = || FlowBlock::InlineTables {
+        height: 49.0,
+        advance: 48.0,
+        lines: vec![],
+        tables: vec![InlineTableInput {
+            owner: ControlOwner {
+                paragraph: 1,
+                control: 0,
+            },
+            x: 5.0,
+            y: -1.0,
+            plan: Arc::new(child(SplitPolicy::BetweenRows)),
+        }],
+    };
+    let plan = TableContentPlan::from_flow_rows(
+        vec![100.0],
+        vec![FlowRowInput {
+            cells: vec![FlowCellInput {
+                padding: Insets::default(),
+                minimum_height: 0.0,
+                width: 100.0,
+                blocks: vec![FlowBlock::Space(10.0), inline(), lines(2, 5.0)],
+            }],
+        }],
+        0.0,
+        SplitPolicy::WithinCells,
+    )
+    .unwrap()
+    .start();
+    // Full physical extent is max(10+49, 10+48+5), not10+50+5.
+    for origin in [0.0, 126.48] {
+        let first = match plan
+            .fit(PageArea {
+                bounds: Rect {
+                    x: 0.0,
+                    y: origin,
+                    width: 100.0,
+                    height: 59.0,
+                },
+            })
+            .unwrap()
+        {
+            FragmentFit::Placed(f) => f,
+            other => panic!("{other:?}"),
+        };
+        let cell = &first.placement().cells[0];
+        assert_eq!(cell.tables.len(), 1);
+        assert!((cell.tables[0].placement.bounds.y - (origin + 9.0)).abs() < 1e-10);
+        assert_eq!(cell.tables[0].placement.bounds.height, 50.0);
+        assert!(cell.lines.is_empty());
+        assert_eq!(first.reserved_height(), 59.0);
+        let next = fit(&first.continuation(), 10.0);
+        assert!(next.continuation().is_complete());
+        assert!(next.placement().cells[0].tables.is_empty());
+        assert_eq!(next.placement().cells[0].lines.len(), 1);
+        let full = fit(&plan, 63.0);
+        assert_eq!(full.placement().cells[0].lines[0].bounds.y, 20.0 + 58.0);
+    }
+    // Logical end58px is insufficient for the physical end59px.
+    let short = fit(&plan, 58.0);
+    assert!(short.placement().cells[0].tables.is_empty());
+    // Do not silently clip, shift, or repeatedly defer a negative top when
+    // continuation has no preceding physical space. This boundary is not yet
+    // qualified for signed source margins.
+    assert!(matches!(
+        short.continuation().fit(PageArea {
+            bounds: Rect {
+                x: 0.0,
+                y: 0.0,
+                width: 100.0,
+                height: 63.0,
+            }
+        }),
+        Err(GeometryError::Unsupported(
+            "inline table extends above fragment origin"
+        ))
+    ));
+}
+
+#[test]
 fn child_cut_is_retained_and_following_paragraph_stays_after_child() {
     let cursor = wrapper(child(SplitPolicy::BetweenRows)).start();
     // 3 top + 10 pre + first child row 20; second child row does not fit.

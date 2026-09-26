@@ -217,7 +217,16 @@ impl FlowCursor {
                     tables,
                     lines,
                 } => {
-                    if area.y + pen + height > area.y + area.height {
+                    // A signed top margin can reach into preceding space,
+                    // but not above this physical fragment. First-fragment
+                    // overhang needs an explicit origin contract; do not
+                    // invent padding, clip it, or silently keep retrying.
+                    if tables.iter().any(|child| pen + child.y < 0.0) {
+                        return Err(GeometryError::Unsupported(
+                            "inline table extends above fragment origin",
+                        ));
+                    }
+                    if pen + height > area.height {
                         result.required = *height;
                         break;
                     }
