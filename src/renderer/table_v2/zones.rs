@@ -56,18 +56,6 @@ impl Zone {
                     return Err(GeometryError::Unsupported("V2 zone cuts merged cell"));
                 }
             }
-            // Overlapping zone precedence is not established by the independent
-            // single-zone reference. Do not silently choose declaration order.
-            if result.iter().any(|z| {
-                row <= z.end_row
-                    && end_row >= z.row
-                    && column <= z.end_column
-                    && end_column >= z.column
-            }) {
-                return Err(GeometryError::Unsupported(
-                    "V2 overlapping zone decorations",
-                ));
-            }
             let background = Background::resolve(source.border_fill_id, styles, false)?;
             let diagonal = super::diagonal::Diagonal::resolve(source.border_fill_id, styles)?;
             if diagonal.is_some() {
@@ -97,6 +85,23 @@ impl Zone {
                     .any(|e| e.line_type == crate::model::style::BorderLineType::Double)
             }) {
                 return Err(GeometryError::Unsupported("V2 double zone perimeter"));
+            }
+            // Normal Hancom zones-saved confirms same-paint nested perimeters.
+            // They compose without choosing a winner; conflicting effects and
+            // diagonals still require an independently qualified precedence rule.
+            if result.iter().any(|z| {
+                row <= z.end_row
+                    && end_row >= z.row
+                    && column <= z.end_column
+                    && end_column >= z.column
+                    && !(background.same_solid_paint(&z.background)
+                        && edges == z.edges
+                        && diagonal.is_none()
+                        && z.diagonal.is_none())
+            }) {
+                return Err(GeometryError::Unsupported(
+                    "V2 overlapping zone decorations",
+                ));
             }
             result.push(Self {
                 row,

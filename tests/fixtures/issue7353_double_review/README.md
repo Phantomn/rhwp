@@ -38,8 +38,11 @@ ID7은0.36pt/1.08pt, ID11은약1.079pt/3.238pt다.
 빈 간격을 가로지르지 않는다. PDF의 약1픽셀 단위 끝점 반올림과 폰트 외형은
 V2의 연속좌표/대체 글꼴과 분리해 판단한다.
 
-`title-saved.hwp`는 아직 `V2 table/cell outline disagreement`로 미지원이다.
-원본 #6923은 `V2 overlapping zone decorations`로 미지원이다.
-이 제한을 숨기기 위해 제목 표의 선이나 원본 입력을 바꾸지 않는다.
+이중선 절편 당시 `title-saved.hwp`는 `V2 table/cell outline disagreement`,
+원본 #6923은 `V2 overlapping zone decorations`로 미지원이었다.
+후속 [장식 우선순위 대조군](../issue7353_decoration_priority_review/README.md)에서
+입력 변경 없이 제목 출력과 동일 장식 구역 중첩을 구현했다. 원본 전체는 이후의
+저장 줄 구성 미지원으로 아직 완료하지 않았다. 제목 표의 선이나 원본 입력을 바꿔
+수용 조건에 맞추지 않는다.
 다른 굵기·색·선 종류가 만나는 접점, Double zone perimeter는 별도 검증 전까지
 명시적으로 미지원이며, 이 네 대조군의 통과를 해당 경로의 통과로 확장하지 않는다.

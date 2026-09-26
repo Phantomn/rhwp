@@ -372,14 +372,14 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         panic!("qualify full source output before updating admission")
     };
     eprintln!("original terminal admission: {error}");
-    // Signed margins and double cell pens now reach the next unsupported feature;
+    // Cell edge ownership and compatible zones now reach the next unsupported feature;
     // this remains an admission diagnostic, not a layout acceptance baseline.
     assert!(matches!(
         error,
         DocumentV2Error::Paragraph {
-            index: 5,
+            index: 22,
             reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "V2 overlapping zone decorations"
+                "stored text requires intact single-segment rows"
             )
         }
     ));
@@ -391,7 +391,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         )
         .unwrap();
         let original = rhwp::parse_document(&data).unwrap();
-        let p = &original.sections[0].paragraphs[5];
+        let p = &original.sections[0].paragraphs[22];
         let shape = &original.doc_info.para_shapes[p.para_shape_id as usize];
         std::fs::write(
             format!("{dir}/6923-terminal-next-source.json"),
@@ -1545,6 +1545,217 @@ fn zone_none_edges_preserve_cells_and_do_not_change_layout() {
 }
 
 #[test]
+fn identical_zone_paints_compose_independently_of_border_fill_id_and_order() {
+    let base = synthetic_zone_source();
+    let expected = drain(&mut open(&base));
+    let mut d = base.clone();
+    d.doc_info
+        .border_fills
+        .push(d.doc_info.border_fills[1].clone());
+    let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+        panic!()
+    };
+    let mut z = t.zones[0].clone();
+    z.border_fill_id = 3;
+    t.zones.push(z);
+    for _ in 0..2 {
+        let actual = drain(&mut open(&d));
+        assert_eq!(actual.len(), expected.len());
+        for (a, b) in actual.iter().zip(&expected) {
+            for kind in ["Table", "TableCell", "TextLine", "TextRun", "Line"] {
+                let values = |p: &Value| {
+                    nodes(p, kind)
+                        .iter()
+                        .map(|n| json!([n["bbox"], n["node_type"]]))
+                        .collect::<Vec<_>>()
+                };
+                assert_eq!(values(a), values(b), "{kind}");
+            }
+        }
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            panic!()
+        };
+        t.zones.reverse();
+    }
+}
+
+#[test]
+fn hancom_saved_overlapping_zones_and_cell_edge_priority_are_renderable() {
+    for name in ["zones", "outline-clean"] {
+        let input = std::fs::read(format!(
+            "{}/tests/fixtures/issue7353_decoration_priority_review/{name}-saved.hwp",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap();
+        let parsed = rhwp::parse_document(&input).unwrap();
+        let source_table = parsed.sections[0]
+            .paragraphs
+            .iter()
+            .flat_map(|p| &p.controls)
+            .find_map(|c| {
+                if let Control::Table(t) = c {
+                    Some(t)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        if name == "outline-clean" {
+            let child = source_table.cells[0]
+                .paragraphs
+                .iter()
+                .flat_map(|p| &p.controls)
+                .find_map(|c| {
+                    if let Control::Table(t) = c {
+                        Some(t)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            assert!(
+                parsed.doc_info.border_fills[child.border_fill_id as usize - 1]
+                    .borders
+                    .iter()
+                    .all(|e| e.color == 255
+                        && e.width == 11
+                        && e.line_type == BorderLineType::Solid)
+            );
+            assert_eq!(
+                parsed.doc_info.border_fills[child.cells[0].border_fill_id as usize - 1].borders[2]
+                    .line_type,
+                BorderLineType::None
+            );
+            assert_eq!(
+                parsed.doc_info.border_fills[child.cells[3].border_fill_id as usize - 1].borders[3]
+                    .line_type,
+                BorderLineType::None
+            );
+        } else {
+            assert_eq!(
+                source_table.zones.len(),
+                2,
+                "normal save must preserve the overlapping input"
+            );
+        }
+        let mut session = DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap();
+        let pages = drain(&mut session);
+        assert_eq!(pages.len(), if name == "zones" { 2 } else { 1 });
+        assert!(labels(pages.last().unwrap())
+            .iter()
+            .any(|s| s.starts_with("AFTER")));
+        if name == "outline-clean" {
+            // The source declares a thick red table outline. The normal saved
+            // Hancom PDF uses the black cell edges and preserves the two gaps.
+            assert!(nodes(&pages[0], "Line")
+                .iter()
+                .all(|n| n["node_type"]["Line"]["style"]["color"] != 255));
+            let child = nodes(&pages[0], "Table")
+                .into_iter()
+                .find(|n| n["node_type"]["Table"]["col_count"] == 2)
+                .unwrap();
+            let x = child["bbox"]["x"].as_f64().unwrap();
+            let y = child["bbox"]["y"].as_f64().unwrap();
+            near(&child["bbox"]["width"], 30000.0 / 75.0);
+            near(&child["bbox"]["height"], 8000.0 / 75.0);
+            let edges: Vec<_> = child["children"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|n| n["node_type"].get("Line"))
+                .collect();
+            assert_eq!(edges.len(), 6);
+            for (y_edge, x_start, x_end) in
+                [(y, x + 200.0, x + 400.0), (y + 8000.0 / 75.0, x, x + 200.0)]
+            {
+                let horizontal: Vec<_> = edges
+                    .iter()
+                    .filter(|l| {
+                        (l["y1"].as_f64().unwrap() - y_edge).abs() < 1e-7
+                            && (l["y2"].as_f64().unwrap() - y_edge).abs() < 1e-7
+                    })
+                    .collect();
+                assert_eq!(horizontal.len(), 1, "explicit gap must stay open");
+                near(&horizontal[0]["x1"], x_start);
+                near(&horizontal[0]["x2"], x_end);
+            }
+        } else {
+            // Normal saved source/PDF: rows 1..19 then 20..24; inner zone
+            // rows 4..7 contributes horizontal red edges, not a new cut/height.
+            let x = 3969.0 / 75.0;
+            let w = 32000.0 / 75.0;
+            let top = 8787.0 / 75.0;
+            let row = 2326.0 / 75.0;
+            let red: Vec<_> = nodes(&pages[0], "Line")
+                .into_iter()
+                .filter(|n| n["node_type"]["Line"]["style"]["color"] == 255)
+                .collect();
+            assert_eq!(red.len(), 6);
+            for y in [top + 3.0 * row, top + 7.0 * row] {
+                assert!(red.iter().any(|n| {
+                    let l = &n["node_type"]["Line"];
+                    [("x1", x), ("x2", x + w), ("y1", y), ("y2", y)]
+                        .iter()
+                        .all(|(k, v)| (l[*k].as_f64().unwrap() - v).abs() < 1e-7)
+                }));
+            }
+            let baseline = drain(
+                &mut DocumentV2Session::from_bytes(&zone_fixture(), TERMINAL_OPTIONS).unwrap(),
+            );
+            for (a, b) in pages.iter().zip(&baseline) {
+                for kind in ["Table", "TableCell", "TextLine", "TextRun"] {
+                    let values = |p: &Value| {
+                        nodes(p, kind)
+                            .iter()
+                            .map(|n| json!([n["bbox"], n["node_type"]]))
+                            .collect::<Vec<_>>()
+                    };
+                    assert_eq!(values(a), values(b), "zone paint must preserve {kind}");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn same_zone_style_cannot_hide_conflicting_opposite_edges_at_a_shared_boundary() {
+    use rhwp::model::table::TableZone;
+    let mut d = synthetic_zone_source();
+    d.doc_info.border_fills[1].borders = d.doc_info.border_fills[0].borders;
+    d.doc_info.border_fills[1].borders[0].color = 255;
+    d.doc_info.border_fills[1].borders[1].color = 0xff0000;
+    let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+        panic!()
+    };
+    t.zones = (0..2)
+        .map(|col| TableZone {
+            start_row: 0,
+            end_row: 1,
+            start_col: col,
+            end_col: col,
+            border_fill_id: 2,
+        })
+        .collect();
+    for _ in 0..2 {
+        let mut s = open(&d);
+        for _ in 0..2 {
+            let error = s.next_page_json().unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("conflicting shared V2 cell borders"),
+                "{error}"
+            );
+            assert_eq!(s.emitted_pages(), 0);
+        }
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            panic!()
+        };
+        t.zones.reverse();
+    }
+}
+
+#[test]
 fn nested_zone_uses_child_page_coordinates_once() {
     let mut d = synthetic_zone_source();
     let child = d.sections[0].paragraphs.remove(0);
@@ -1582,7 +1793,7 @@ fn nested_zone_uses_child_page_coordinates_once() {
 
 #[test]
 fn zone_missing_reference_effects_and_invalid_ranges_are_not_silently_dropped() {
-    for mode in 0..5 {
+    for mode in 0..7 {
         let mut d = synthetic_zone_source();
         let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
             panic!()
@@ -1592,7 +1803,21 @@ fn zone_missing_reference_effects_and_invalid_ranges_are_not_silently_dropped() 
             1 => t.zones[0].end_row = 9,
             2 => t.zones[0].start_col = 2,
             3 => d.doc_info.border_fills[1].attr = 12, // multi-ray shape, not qualified straight slash
-            _ => t.zones.push(t.zones[0].clone()),
+            _ => {
+                let mut different = d.doc_info.border_fills[1].clone();
+                if mode == 4 {
+                    different.fill.solid.as_mut().unwrap().background_color = 0xff0000;
+                } else if mode == 5 {
+                    different.borders[0].line_type = BorderLineType::Solid;
+                } else {
+                    different.attr = 8;
+                    different.diagonal.diagonal_type = 1;
+                }
+                d.doc_info.border_fills.push(different);
+                let mut z = t.zones[0].clone();
+                z.border_fill_id = d.doc_info.border_fills.len() as u16;
+                t.zones.push(z);
+            }
         }
         assert!(
             DocumentV2Session::from_bytes(&bytes(&d), TERMINAL_OPTIONS).is_err(),

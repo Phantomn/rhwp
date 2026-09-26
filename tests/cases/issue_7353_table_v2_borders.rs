@@ -289,15 +289,25 @@ fn table_outline_does_not_override_absent_or_different_cell_edges() {
         d.doc_info.border_fills.push(b);
         let (data, config) = source(&d);
         capture(name, &data, &config, &[]);
-        let mut session =
-            TablePreviewExportSession::from_bytes(&data, &config.to_string()).unwrap();
-        for _ in 0..2 {
-            assert!(session
-                .next_page_json()
-                .unwrap_err()
-                .to_string()
-                .contains("V2 table/cell outline disagreement"));
-            assert_eq!(session.emitted_pages(), 0);
+        let result = pages(name, &d);
+        let lines = collect(root(&result[0]), "Line");
+        let left: Vec<_> = lines
+            .iter()
+            .filter(|n| {
+                let l = &n["node_type"]["Line"];
+                l["x1"] == 20.0 && l["x2"] == 20.0
+            })
+            .collect();
+        if absent {
+            assert!(left.is_empty());
+        } else {
+            assert_eq!(left.len(), 1);
+            near(
+                left[0]["node_type"]["Line"]["style"]["width"]
+                    .as_f64()
+                    .unwrap(),
+                14.0 * 96.0 / 600.0, // width ID8 = 0.6mm -> fourteen 600dpi units
+            );
         }
     }
 }
@@ -322,7 +332,71 @@ fn table_only_outline_is_explicitly_unresolved_not_silently_drawn() {
 }
 
 #[test]
-fn outline_agreement_is_checked_again_at_each_physical_cut() {
+fn explicit_all_none_cells_are_not_missing_outline_references() {
+    let mut t = one_row();
+    t.border_fill_id = 1;
+    for c in &mut t.cells {
+        c.border_fill_id = 2;
+    }
+    let mut d = doc(t);
+    let mut b = border();
+    for e in &mut b.borders {
+        e.line_type = BorderLineType::None;
+    }
+    d.doc_info.border_fills.push(b);
+    let result = pages("all-none-cell-ownership", &d);
+    assert_eq!(result.len(), 1);
+    assert!(collect(root(&result[0]), "Line").is_empty());
+    assert_eq!(collect(root(&result[0]), "TextRun").len(), 2);
+}
+
+#[test]
+fn normal_saved_title_preserves_double_box_open_gap_and_following_body() {
+    use rhwp::renderer::table_v2::DocumentV2Session;
+    let input = include_bytes!("../fixtures/issue7353_double_review/title-saved.hwp");
+    let mut session = DocumentV2Session::from_bytes(
+        input,
+        r#"{"dpi":96,"max_pages":10,"cell_end_policy":"omit_final_paragraph_gap"}"#,
+    )
+    .unwrap();
+    let p: Value = serde_json::from_str(&session.next_page_json().unwrap().unwrap()).unwrap();
+    let child = collect(root(&p), "Table")
+        .into_iter()
+        .find(|n| n["node_type"]["Table"]["col_count"] == 3)
+        .unwrap();
+    // Source widths 2639,1303,17259 HU. PDF confirms no horizontal edge
+    // across the middle spacer, while the number's double box stays visible.
+    let x = child["bbox"]["x"].as_f64().unwrap();
+    let gap_mid = x + (2639.0 + 1303.0 / 2.0) / 75.0;
+    let lines = collect(child, "Line");
+    assert_eq!(lines.len(), 12); // eight number-box pens, four title edges
+    for line in &lines {
+        let [x1, y1, x2, y2] = coords(line);
+        assert!(
+            !(y1 == y2 && x1 < gap_mid && x2 > gap_mid),
+            "table outline must not bridge the spacer"
+        );
+    }
+    near(child["bbox"]["width"].as_f64().unwrap(), 21201.0 / 75.0);
+    near(child["bbox"]["height"].as_f64().unwrap(), 2414.0 / 75.0);
+    let texts = collect(root(&p), "TextRun");
+    assert!(texts
+        .iter()
+        .any(|n| n["node_type"]["TextRun"]["text"] == "1"));
+    assert!(texts.last().unwrap()["node_type"]["TextRun"]["text"]
+        .as_str()
+        .unwrap()
+        .starts_with("AFTER CELL"));
+    let parent = collect(root(&p), "Table")[0];
+    assert!(
+        texts.last().unwrap()["bbox"]["y"].as_f64().unwrap()
+            >= parent["bbox"]["y"].as_f64().unwrap() + parent["bbox"]["height"].as_f64().unwrap()
+    );
+    assert!(session.next_page_json().unwrap().is_none());
+}
+
+#[test]
+fn explicit_none_cell_edge_is_preserved_at_each_physical_cut() {
     let mut t = grid(3);
     t.border_fill_id = 1;
     t.repeat_header = false;
@@ -342,14 +416,13 @@ fn outline_agreement_is_checked_again_at_each_physical_cut() {
     let mut s = TablePreviewExportSession::from_bytes(&data, &config.to_string()).unwrap();
     let p: Value = serde_json::from_str(&s.next_page_json().unwrap().unwrap()).unwrap();
     verify_grid(&p);
-    for _ in 0..2 {
-        assert!(s
-            .next_page_json()
-            .unwrap_err()
-            .to_string()
-            .contains("V2 table/cell outline disagreement"));
-        assert_eq!(s.emitted_pages(), 1);
-    }
+    let p: Value = serde_json::from_str(&s.next_page_json().unwrap().unwrap()).unwrap();
+    assert!(collect(root(&p), "Line").iter().all(|n| {
+        let l = &n["node_type"]["Line"];
+        !(l["y1"] == 30.0 && l["y2"] == 30.0)
+    }));
+    assert_eq!(collect(root(&p), "TextRun").len(), 2);
+    assert!(s.next_page_json().unwrap().is_none());
 }
 
 #[test]

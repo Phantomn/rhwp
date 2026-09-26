@@ -1,7 +1,7 @@
 //! Solid/double edges of accepted table/cell fragments, including cell-internal cuts.
 //! Each physical fragment uses its source cell's four edges (None stays absent).
-//! Matching table outlines share those edges. Qualified solid zone perimeters
-//! override cell edges; other border-priority rules remain unsupported.
+//! Explicit cell borderFill owns its edges, including None, over table outlines.
+//! Qualified solid zone perimeters override cell edges.
 use std::collections::{BTreeMap, BTreeSet};
 
 mod double;
@@ -42,11 +42,19 @@ impl CellBorders {
         let outline = resolve_edges(table.border_fill_id, styles)?;
         let mut cells = BTreeMap::new();
         for cell in &table.cells {
-            if let Some(edges) = resolve_edges(cell.border_fill_id, styles)? {
+            resolve_edges(cell.border_fill_id, styles)?;
+            if cell.border_fill_id != 0 {
+                // A declared all-None border is not an absent reference.
+                let edges = styles.border_styles[usize::from(cell.border_fill_id) - 1].borders;
                 cells.insert((usize::from(cell.row), usize::from(cell.col)), edges);
             }
         }
-        if cells.is_empty() && outline.is_none() && table.zones.is_empty() {
+        if cells
+            .values()
+            .all(|edges| edges.iter().all(|e| e.line_type == BorderLineType::None))
+            && outline.is_none()
+            && table.zones.is_empty()
+        {
             return Ok(None);
         }
         Ok(Some(Self {
@@ -136,40 +144,38 @@ impl CellBorders {
             .map(|(key, spans)| Ok((key, union(&spans)?)))
             .collect::<Result<_, GeometryError>>()?;
         if let Some(outline) = &self.outline {
-            // Table/None precedence is not established (#6311/KTX counterexample).
-            // Admit only an outline already fully represented by identical cell
-            // edges. Check each ACCEPTED fragment, including header/body cuts:
-            // agreement on the unsplit source alone does not prove agreement here.
+            // The normal Hancom title/outline-clean references preserve explicit
+            // cell edges (including None), not the table-wide outline. Apply the
+            // same ownership to each physical fragment. Missing cell references
+            // are a different case: outline fallback is still unqualified.
             let last_column = xs
                 .keys()
                 .next_back()
                 .copied()
                 .ok_or(GeometryError::InconsistentAtomicPlan)?;
             let last_row = slots.len();
-            for (key, end, style) in [
-                ((false, 0), last_row, outline[0]),
-                ((false, last_column), last_row, outline[1]),
-                ((true, 0), last_column, outline[2]),
-                ((true, last_row), last_column, outline[3]),
-            ] {
-                if style.line_type == BorderLineType::None {
+            for cell in &placement.cells {
+                if self.cells.contains_key(&(cell.row, cell.column)) {
                     continue;
                 }
-                let mut covered = 0;
-                for span in edges.get(&key).into_iter().flatten() {
-                    if span.start != covered || span.style != style {
-                        break;
-                    }
-                    covered = span.end;
-                }
-                if covered != end {
+                let row = slots[&cell.row];
+                let on_outline = [
+                    cell.column == 0,
+                    cell.column + cell.column_span == last_column,
+                    row == 0,
+                    row + cell.row_span == last_row,
+                ];
+                if on_outline
+                    .iter()
+                    .zip(outline)
+                    .any(|(on, edge)| *on && edge.line_type != BorderLineType::None)
+                {
                     return Err(GeometryError::Unsupported(
                         "V2 table/cell outline disagreement",
                     ));
                 }
             }
-            // The outline is the same geometric set, not another paint layer.
-            // Drawing it again would change coverage/opacity at coincident edges.
+            // Do not add an extra outline paint layer over cell-owned edges.
         }
         // Visible zone perimeter overrides cell edges; None keeps cell edges.
         // Same physical bounds as the background, including continuation cuts.
@@ -181,6 +187,7 @@ impl CellBorders {
                     "V2 zone boundary without cell edge",
                 ))
         };
+        let mut zone_edges: BTreeMap<(bool, usize), Vec<Span>> = BTreeMap::new();
         for zone in zones {
             let Some(styles) = zone.edges else {
                 continue;
@@ -201,6 +208,18 @@ impl CellBorders {
                 if style.line_type == BorderLineType::None {
                     continue;
                 }
+                zone_edges
+                    .entry(key)
+                    .or_default()
+                    .push(Span { start, end, style });
+            }
+        }
+        // Equal per-side declarations alone do not prove compatibility: a
+        // zone's right edge can meet another's differently styled left edge.
+        // Resolve the ACTUAL fragment perimeters together before replacing cell
+        // edges, so declaration order cannot choose the winning zone paint.
+        for (key, zone_spans) in zone_edges {
+            for Span { start, end, style } in union(&zone_spans)? {
                 let spans = edges.entry(key).or_default();
                 let mut replaced = Vec::new();
                 for old in spans.iter() {

@@ -24,6 +24,13 @@ pub(super) struct Background {
 }
 
 impl Background {
+    /// Opaque solid/no-fill effects commute when their actual colors agree.
+    /// IDs are references, not paint semantics. Gradients are not idempotent
+    /// across different bounds and remain outside this overlapping-zone rule.
+    pub fn same_solid_paint(&self, other: &Self) -> bool {
+        self.gradient.is_none() && other.gradient.is_none() && self.color == other.color
+    }
+
     pub fn resolve(
         id: u16,
         styles: &ResolvedStyleSet,

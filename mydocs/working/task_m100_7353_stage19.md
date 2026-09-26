@@ -3721,3 +3721,91 @@ PDF의600dpi끝점 반올림과 연속좌표의 미세 차이는 완전한 픽�
 이 자료는 원본 전체가 아닌 명시된Double 규칙의 대조군이다. 원본 수용 경계와
 전체타스크 남은 범위는 위 제한을 유지한다. 전체진척 추정은 약45%(40~50%)이며,
 이번 좁은 선 출력 지원만으로 전체완료율을 올려 보고하지 않는다.
+
+#### 이중선 승인 후 — 중첩 구역 장식·셀 테두리 소유
+
+사용자가 앞 절편의 이중선 시각 판정을 통과시키고 다음 진행을 승인했다.
+이번 변경은 `9f2196f4d` 위 diff이며 `decoration-priority/source.sha256`으로 소스를
+고정한다. 기본 Legacy와 페이지네이션/측정은 변경하지 않는다.
+
+원본 #6923의 차단 구역은 s0/p5/t0/c0/p37/t0의7×10표다. 구역(r3,c0)..(r3,c0)과
+(r0,c0)..(r5,c9)는 모두 fill2의 동일 검정 실선/배경 없음이다. 서로 다른 장식의
+선언 순서 우선순위가 아니라 같은 효과의 합성이 필요했다. 제목 추출본은 표 전체
+실선 선언과 셀별 Double/Solid/None이 공존하며, 한컴 PDF는 셀별 선을 사용한다.
+
+독립 대조군의 생성·원본/정상 저장본/PDF·job과 제한은
+`tests/fixtures/issue7353_decoration_priority_review/README.md`에 있다.
+첫 outline 진단 입력은 모든 borderFill을 변경하여 페이지/문단까지 테두리가 생겼다.
+그 입력·출력은 output에 보존하고 판정에서 제외했다. 셀 fill만 복제하는 별도의
+outline-clean 대조군을 정상 저장했다. 구역 대조군도 저장 LineSeg를 수동 조정하지
+않고 한컴에서 다시 계산했다. 기존 title-saved.hwp/PDF는 변경 없이 재사용한다.
+
+적용 경로는 `text_ir::prepare`의 `Zone::prepare`/`CellBorders::prepare` →
+기존 측정·분할이 수용한 `TablePlacement` → `TextPaint::build_node`
+(`text.rs`)의 실제 cell bounds → `Zone::bounds`/`append_background`와
+`CellBorders::append`의 topology/공유선 union → zone perimeter 적용 →
+Double/Solid LineNode → 공통 SVG/WASM이다. 줄·개체 원점과 예약 높이는 그대로이며
+측정에 장식 높이를 재추가하지 않는다. 재귀 자식과 일반/반복제목/셀내 분할 조각도
+동일 build_node를 소비한다. 컷·요구 높이·예산 실패 이월·소비 유닛 변경은 비해당이다.
+
+- 같은 불투명 단색/동일 선이고 대각선이 없는 중첩 구역만 합성한다. borderFill ID가
+  달라도 지원하는 배경/선 속성이 같으면 수용한다. 서로 다른 효과·중첩 대각선·Double
+  zone은 계속 미지원이다. 실제 조각의 zone span을 먼저 union하여 반대쪽 선끼리의
+  충돌까지 검사한 뒤 cell edge를 대체한다. 같은 borderFill에서도 왼쪽/오른쪽 색이
+  다르면 인접 구역 경계에서 충돌할 수 있기 때문이다. `zone-junction-before.log`는
+  첫 구현이 이 충돌을 덮어쓴 반례의 FAIL이며, 선언 역순/실패 시 cursor 불변까지
+  정식 검사에 포함했다. 배경/선의 선언 순서로 충돌의 승자를 정하지 않는다.
+- 셀의 명시적 borderFill은 all-None까지 테두리 소유로 보존한다. 표 전체 선을
+  덧그려 셀의 빈 구간을 채우지 않는다. 참조0은 all-None과 다르며, 참조 없는 외곽
+  셀의 table-outline fallback은 아직 미지원이다. 인접 셀 선 충돌 규칙은 유지한다.
+
+수정 전 기존 라이브러리에서 새 계약은 outline disagreement/overlapping zones로
+실패했다(`borders-before.log`, `flow-before.log`). 그 뒤 강화한 실제 출력 검사는
+outline-clean의 두 열린 구간/검정 선/30000×8000HU 크기, title의8개 Double pen과
+4개 Solid edge/공백 셀 가로선 없음/AFTER CELL, zones의행4위·행7아래 빨강선/두 쪽
+내용과 뒤 문단을 확인한다. 기존 실행 바이너리로 실제 세 입력도 같은 원인으로 실패했다
+(`before-{outline-clean,zones,title}.log`). 빌드 시 누락된 roxmltree extern 오류는
+환경 오류이며 결함 재현 수치에 포함하지 않았다. 새 검사 width ID8의 초기 예상값
+오기는 선언0.6mm의600dpi 반올림14unit 근거로 정정했다(엔진/허용치 변경 없음).
+
+원본 전체는 입력을 바꾸지 않고 문단22의 `stored text requires intact single-segment
+rows`까지 진행한다(`original.log`). 이는 다음 수용 차단점 진단이지 전체 조판 통과가
+아니다. 전체 R3/R5 완료와 원본 페이지 수 일치, 실제 Studio 수동 검증은 미검증이다.
+이번 자료는 V2 Document API의 좁은 장식 규칙 검증으로 한정한다.
+
+최종 Native 검증은 `decoration-priority/tests.sh`의 기존18개 #7353 harness에서
+**289PASS/0FAIL**이다(`tests-final-summary.log`). Native/WASM lib Clippy는 각각
+`clippy-{native,wasm}-final.log`, fmt는 `fmt-final.log`에 남긴다. 전체workspace lint,
+전체CI/원격 검증은 내부 절편에서 실행하지 않았으며 이 결과를 CI 통과로 보고하지 않는다.
+첫 Docker 빌드7분25초 뒤 zone 접점 반례를 보완했으므로 그 빌드는 최종 증적이 아니다.
+최종 소스로 Native를 다시 출력하고 Docker WASM도 다시 빌드한다(`docker-final.log`).
+
+최종 `docker compose --env-file .env.docker -p rhwp run --rm wasm`는7분20초/exit0으로
+완료했다. WASM SHA-256은
+`4771b46f65e44048a3fd3b3460bf75c315bc24ec19d0d4dcbb7ad63628a26a43`이다.
+`REVIEW_CASE={outline-clean,zones,title} node output/7353/r19/decoration-priority/review.mjs
+--wasm`의3입력4페이지는 JSON수치/기타 차이0, SVG동일이다. 각 run.json에 입력·기준PDF·
+소스·WASM hash가 있다. `controls.mjs`의 기존7대조군+Double4대조군×2정책=22조합은
+모두 이전SVG 보존/Native-WASM동일이다(`controls-final.log`). 최종 정상 저장 속성 검사를
+보강한 document-flow harness도77PASS로 재확인했다(`flow-final.log`, 총계289유지).
+
+최종 소스의 Native/fresh WASM review·standalone overlay와 제목384dpi 확대를 직접
+열어 셀 사이 열린 구간, 이중선/실선, 구역 안쪽/바깥쪽 테두리, 노랑 셀 배경, 두 쪽
+연속 내용과 AFTER문단을 확인했다. 폴백 글꼴 외형·PDF 끝점 양자화/antialias 농도 차이는
+남으며 이를 완전 픽셀 일치로 보고하지 않는다. 다음 자료의 메인테이너 판정은 대기한다.
+
+- [원본 제목 추출본 확대](../../output/7353/r19/decoration-priority/title/wasm-highdpi-review.png):
+  `tests/fixtures/issue7353_double_review/title-saved.hwp`/대응PDF1쪽.
+  번호 이중선과 제목 실선 사이의 빈 셀에 가로 테두리가 생기지 않아야 한다.
+- [명시적 선 없음 대조군](../../output/7353/r19/decoration-priority/outline-clean/wasm-review-1.png):
+  `tests/fixtures/issue7353_decoration_priority_review/outline-clean-saved.hwp`/대응PDF1쪽.
+  좌상단 위/우하단 아래가 열린 상태이며 빨강 표 전체 외곽선은 표시하지 않는다.
+- [중첩 구역1쪽](../../output/7353/r19/decoration-priority/zones/wasm-review-1.png),
+  [2쪽·후속 문단](../../output/7353/r19/decoration-priority/zones/wasm-review-2.png):
+  `tests/fixtures/issue7353_decoration_priority_review/zones-saved.hwp`/대응PDF1·2쪽.
+  행4위/행7아래 빨강선과 기존 배경·분할 위치·AFTER ZONE TABLE을 함께 비교한다.
+- standalone overlay는 같은 디렉터리의 `wasm-overlay-{1,2}.png`, 전체 비교는
+  `wasm-compare-{1,2}.png`다. 원본 전체의 시각 통과 자료로 확대 해석하지 않는다.
+
+다음 대상은 원본 문단22의 저장 줄 구성 경로다. 이번 절편에서는 그 수용 조건이나
+페이지 수 기준을 변경하지 않았고, push/PR/원격 갱신도 수행하지 않았다.
