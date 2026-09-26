@@ -773,9 +773,143 @@ fn stored_margins_are_not_applied_twice_and_invalid_frames_stay_rejected() {
         bad.cells[0].paragraphs[0].line_segs[0].segment_width = w;
         assert!(PreparedTextTable::prepare(&bad, &s, 7200.0).is_err());
     }
-    // Indent needs its own source-tag/context contract; never ignore it.
+    // Inactive saved flags do not receive a fresh first-line/hanging inset.
     for indent in [-10.0, 10.0] {
         s.para_styles[0].indent = indent;
+        let prepared = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+        let (_, first) = render(&placed(&prepared.start(), 21.0));
+        assert_eq!((first[0].bbox.x, first[0].bbox.width), (35.0, 170.0));
+    }
+}
+
+#[test]
+fn saved_indentation_survives_continuation_without_restarting_first_line_rules() {
+    for indent in [10.0, -10.0] {
+        let mut t = table(&["AB", "after"]);
+        t.cells[0].paragraphs[0].line_segs = (0..2)
+            .map(|i| LineSeg {
+                text_start: i,
+                vertical_pos: 100 + i as i32 * 18,
+                column_start: 10,
+                segment_width: 170,
+                line_height: 12,
+                text_height: 12,
+                baseline_distance: 10,
+                line_spacing: 6,
+                tag: LineSeg::TAG_SINGLE_SEGMENT_LINE
+                    | if (indent > 0.0) == (i == 0) {
+                        LineSeg::TAG_INDENTATION
+                    } else {
+                        0
+                    },
+            })
+            .collect();
+        let original = t.cells[0].paragraphs[0].line_segs.clone();
+        let mut s = styles();
+        s.para_styles[0].indent = indent;
+        s.para_styles[0].margin_left = 10.0;
+        s.para_styles[0].margin_right = 20.0;
+        let prepared = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+        if let TextFragmentFit::Placed(f) = prepared.start().fit(area(14.0)).unwrap() {
+            let (_, lines) = render(&f);
+            // Only the 3px top padding fits; no content unit is consumed.
+            assert_eq!(f.geometry().reserved_height(), 3.0);
+            assert!(lines.is_empty());
+            let (_, next) = render(&placed(&f.continuation(), 18.0));
+            assert_eq!(text(&next[0]), "A");
+        }
+        let a = placed(&prepared.start(), 21.0);
+        let b = placed(&a.continuation(), 40.0);
+        let (_, first) = render(&a);
+        let (_, rest) = render(&b);
+        for (i, line) in [&first[0], &rest[0]].into_iter().enumerate() {
+            let shift = if (indent > 0.0) == (i == 0) {
+                10.0
+            } else {
+                0.0
+            };
+            assert_eq!(
+                (line.bbox.x, line.bbox.width),
+                (35.0 + shift, 170.0 - shift)
+            );
+            assert_eq!(line.children[0].bbox.x, line.bbox.x);
+        }
+        assert_eq!(
+            (text(&first[0]), text(&rest[0]), text(&rest[1])),
+            ("A".into(), "B".into(), "after".into())
+        );
+        assert_eq!(rest[1].bbox.y, 48.0);
+        assert_eq!(
+            (
+                a.geometry().reserved_height(),
+                b.geometry().reserved_height()
+            ),
+            (21.0, 40.0)
+        );
+        assert!(matches!(
+            b.continuation().fit(area(40.0)).unwrap(),
+            TextFragmentFit::Complete
+        ));
+        assert_eq!(t.cells[0].paragraphs[0].line_segs, original);
+        // The same prepared child is translated into a parent content box.
+        // Neither parent padding nor indentation may be added a second time.
+        let nested = PreparedTextTable::from_flow_rows(
+            vec![232.0],
+            vec![TextFlowRow {
+                cells: vec![TextFlowCell {
+                    padding: Insets {
+                        left: 10.0,
+                        right: 10.0,
+                        ..Default::default()
+                    },
+                    minimum_height: 0.0,
+                    blocks: vec![TextFlowBlock::Table {
+                        owner: ControlOwner {
+                            paragraph: 0,
+                            control: 0,
+                        },
+                        table: prepared,
+                    }],
+                }],
+            }],
+            0.0,
+            SplitPolicy::WithinCells,
+            &s,
+            7200.0,
+        )
+        .unwrap();
+        let mut nested_area = area(100.0);
+        nested_area.bounds.width = 232.0;
+        let TextFragmentFit::Placed(f) = nested.start().fit(nested_area).unwrap() else {
+            panic!("nested child")
+        };
+        let (_, lines) = render(&f);
+        assert_eq!(
+            lines.iter().map(text).collect::<Vec<_>>(),
+            ["A", "B", "after"]
+        );
+        for (i, line) in lines.iter().take(2).enumerate() {
+            let shift = if (indent > 0.0) == (i == 0) {
+                10.0
+            } else {
+                0.0
+            };
+            assert_eq!(
+                (line.bbox.x, line.bbox.width),
+                (45.0 + shift, 170.0 - shift)
+            );
+            assert_eq!(line.bbox.y, 33.0 + i as f64 * 18.0);
+        }
+        assert_eq!(lines[2].bbox.y, 69.0);
+        for bad in [170.0, 200.0, 0.5, f64::NAN] {
+            s.para_styles[0].indent = bad;
+            assert!(
+                PreparedTextTable::prepare(&t, &s, 7200.0).is_err(),
+                "inset {bad}"
+            );
+        }
+        s.para_styles[0].indent = indent;
+        t.cells[0].paragraphs[0].stored_text_partition_dirty = true;
         assert!(PreparedTextTable::prepare(&t, &s, 7200.0).is_err());
     }
 }

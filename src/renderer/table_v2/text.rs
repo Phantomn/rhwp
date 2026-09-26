@@ -420,15 +420,10 @@ impl CellParagraphComposer for TextComposer<'_> {
         }
         let stored = !para.line_segs.is_empty();
         let fresh = if stored {
-            // Indentation can affect glyph placement, but an empty saved row
-            // still owns its physical line box and advance without any glyphs.
-            // Text-bearing indented rows require a separate qualification.
-            if style.indent != 0.0 && !para.text.is_empty() {
-                return Err(GeometryError::Unsupported("stored text indentation"));
-            }
             super::stored_text::localize(
                 para,
                 style.margin_left..width - style.margin_right,
+                style.indent,
                 self.dpi,
             )?
         } else {

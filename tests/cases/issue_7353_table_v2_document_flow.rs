@@ -225,7 +225,9 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         error,
         DocumentV2Error::Paragraph {
             index: 5,
-            reason: rhwp::renderer::table_v2::GeometryError::Unsupported("stored text indentation")
+            reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
+                "TAC carrier paragraph constraints"
+            )
         }
     ));
     if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
@@ -1918,6 +1920,142 @@ fn stored_body_rows_keep_partition_and_following_paragraph_origin() {
     near(&nodes(&pages[1], "TextLine")[0]["bbox"]["y"], 30.0);
     assert_eq!(d.sections[0].paragraphs[1].line_segs[0].vertical_pos, 1000);
     capture("document-stored", &d, &pages);
+}
+
+fn indentation_fixture() -> Vec<u8> {
+    std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue7353_indent_review/indent-saved.hwp"
+    ))
+    .unwrap()
+}
+
+#[test]
+fn saved_body_indent_flags_do_not_shift_following_plain_paragraphs() {
+    use rhwp::model::{paragraph::LineSeg, style::Alignment};
+    let mut saved = p("AB");
+    saved.line_segs = (0..2)
+        .map(|i| LineSeg {
+            text_start: i,
+            vertical_pos: 1800 + i as i32 * 1350,
+            column_start: 750,
+            segment_width: 21000,
+            line_height: 900,
+            text_height: 900,
+            baseline_distance: 765,
+            line_spacing: 450,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE
+                | if i == 1 { LineSeg::TAG_INDENTATION } else { 0 },
+        })
+        .collect();
+    for indent in [3000, -3000] {
+        // A fresh first paragraph owns the serialized section controls; saved
+        // text offsets here are paragraph-local, not section-control offsets.
+        let mut d = source(vec![p("before"), saved.clone(), p(""), p("after")]);
+        d.sections[0].section_def.page_def.height += 1350;
+        let s = &mut d.doc_info.para_shapes[0];
+        s.alignment = Alignment::Left;
+        s.margin_left = 1500;
+        s.margin_right = 1500;
+        let mut indented = s.clone();
+        indented.indent = indent;
+        d.doc_info.para_shapes.push(indented);
+        d.sections[0].paragraphs[1].para_shape_id = 1;
+        let pages = drain(&mut open(&d));
+        assert_eq!(pages.len(), 1);
+        assert_eq!(labels(&pages[0]), ["before", "A", "B", "", "after"]);
+        let lines = nodes(&pages[0], "TextLine");
+        for (i, line) in lines.iter().skip(1).enumerate() {
+            // Following plain paragraphs must not inherit the saved inset.
+            let shifted = i == 1;
+            near(&line["bbox"]["x"], 30.0 + if shifted { 20.0 } else { 0.0 });
+            near(
+                &line["bbox"]["width"],
+                280.0 - if shifted { 20.0 } else { 0.0 },
+            );
+            near(&line["bbox"]["y"], 48.0 + i as f64 * 18.0);
+        }
+        assert_eq!(d.sections[0].paragraphs[1].line_segs, saved.line_segs);
+    }
+}
+
+#[test]
+fn hancom_saved_cell_indentation_keeps_rows_and_final_line_boxes() {
+    let data = indentation_fixture();
+    let d = rhwp::parse_document(&data).unwrap();
+    let pages = drain(&mut DocumentV2Session::from_bytes(&data, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    let cell = nodes(&pages[0], "TableCell")[0];
+    let mut lines = Vec::new();
+    collect(cell, "TextLine", &mut lines);
+    assert_eq!(lines.len(), 16);
+    let t = d.sections[0].paragraphs[0]
+        .controls
+        .iter()
+        .find_map(|c| {
+            if let Control::Table(t) = c {
+                Some(t)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let ps = &t.cells[0].paragraphs;
+    // Independent saved HWP + PDF: 500HU paragraph margin; 1500HU indentation
+    // on first rows of positive paragraphs, later rows of hanging paragraphs.
+    // The saved segment does not include that indentation (cs500/sw30432).
+    for (pi, para) in ps.iter().enumerate() {
+        for (ri, row) in para.line_segs.iter().enumerate() {
+            let applies = if pi % 2 == 0 { ri == 0 } else { ri > 0 };
+            let line = lines[pi * 4 + ri];
+            assert_eq!((row.column_start, row.segment_width), (500, 30432));
+            let extra = if applies { 1500.0 } else { 0.0 };
+            near(
+                &line["bbox"]["x"],
+                cell["bbox"]["x"].as_f64().unwrap()
+                    + (f64::from(t.cells[0].padding.left) + 500.0 + extra) / 75.0,
+            );
+            near(&line["bbox"]["width"], (30432.0 - extra) / 75.0);
+            let mut runs = Vec::new();
+            collect(line, "TextRun", &mut runs);
+            let actual: String = runs
+                .iter()
+                .map(|r| r["node_type"]["TextRun"]["text"].as_str().unwrap())
+                .collect();
+            let chars: Vec<_> = para.text.chars().collect();
+            let start = para.line_seg_text_start(ri) as usize;
+            let end = para
+                .line_segs
+                .get(ri + 1)
+                .map(|_| para.line_seg_text_start(ri + 1) as usize)
+                .unwrap_or(chars.len());
+            assert_eq!(actual, chars[start..end].iter().collect::<String>());
+            let left = line["bbox"]["x"].as_f64().unwrap();
+            let right = left + line["bbox"]["width"].as_f64().unwrap();
+            let first = runs.first().unwrap()["bbox"]["x"].as_f64().unwrap();
+            let last = runs.last().unwrap();
+            let end = last["bbox"]["x"].as_f64().unwrap() + last["bbox"]["width"].as_f64().unwrap();
+            if pi < 2 {
+                assert!((first - left).abs() < 1e-7);
+            }
+            // Left
+            else if pi == 2 {
+                assert!(((first - left) - (right - end)).abs() < 1e-7);
+            }
+            // Center
+            else {
+                // Right alignment excludes plain trailing blanks from painted
+                // width but keeps their caret advance and text ownership.
+                // The final row has no suffix spaces: its actual run end must
+                // equal the indented box's unchanged right edge. Other rows'
+                // visible right edges are additionally checked in the PDF sweep.
+                if !actual.ends_with(' ') {
+                    assert!((right - end).abs() < 1e-7, "{right} != {end}");
+                }
+            } // Right
+        }
+    }
+    assert_eq!(*labels(&pages[0]).last().unwrap(), "AFTER INDENTED TABLE");
 }
 
 #[test]

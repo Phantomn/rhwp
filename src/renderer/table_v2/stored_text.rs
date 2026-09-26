@@ -14,12 +14,14 @@ fn unsupported() -> GeometryError {
     GeometryError::Unsupported("stored text requires intact single-segment rows")
 }
 
-/// Preserve source text partitions and metrics, changing only the coordinate
-/// origin. The caller owns the paragraph origin; page/column resets need a
+/// Preserve source text partitions and vertical metrics. Resolve the saved
+/// indentation flag into the physical row box once, before shared composition.
+/// The caller owns the paragraph origin; page/column resets need a
 /// separate continuation contract and are deliberately not admitted here.
 pub(super) fn localize(
     para: &Paragraph,
     content: std::ops::Range<f64>,
+    indent: f64,
     dpi: f64,
 ) -> Result<Paragraph, GeometryError> {
     if para.stored_text_partition_is_dirty()
@@ -40,8 +42,8 @@ pub(super) fn localize(
         // A contained stored interval already accounts for paragraph margins.
         // Do not add them a second time in the physical-row paint path. If the
         // source interval violates those insets, reject it rather than shrinking
-        // or moving glyphs while retaining stale line membership. Indentation is
-        // separately gated by the caller; it is not inferred from cs/sw.
+        // or moving glyphs while retaining stale line membership. Stored cs/sw
+        // includes margins, but not the indentation indicated by bit20.
         let left = hwpunit_to_px(row.column_start, dpi);
         let right = left + hwpunit_to_px(row.segment_width, dpi);
         if row.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
@@ -76,9 +78,33 @@ pub(super) fn localize(
             }
         }
     }
+    // Resolved indentation is signed: positive first-line / negative hanging.
+    // The stored row flag, not a newly guessed row index, owns its application.
+    // This physical LineSeg API has integer HU coordinates. Reject an active
+    // fractional inset rather than silently rounding an unqualified geometry.
+    let inset = indent.abs() * 7200.0 / dpi;
+    let active = para.line_segs.iter().any(LineSeg::has_indentation);
+    if !inset.is_finite()
+        || (active && (inset > f64::from(i32::MAX) || !same(inset, inset.round())))
+    {
+        return Err(GeometryError::Unsupported("stored indentation precision"));
+    }
     let mut local = para.clone();
     for row in &mut local.line_segs {
         row.vertical_pos -= first;
+        if row.has_indentation() {
+            let inset = inset.round() as i32;
+            if inset >= row.segment_width {
+                return Err(GeometryError::Unsupported(
+                    "stored indentation exceeds line",
+                ));
+            }
+            row.column_start = row
+                .column_start
+                .checked_add(inset)
+                .ok_or_else(unsupported)?;
+            row.segment_width -= inset;
+        }
     }
     Ok(local)
 }
