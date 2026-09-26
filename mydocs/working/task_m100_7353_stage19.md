@@ -2533,3 +2533,100 @@ node output/7353/r19/indent/control.mjs
 
 이번 저장 문단 절편은 메인테이너가 시각 판정 통과하고 다음 절편을 승인했다. 별도 재조판 들여쓰기/셀 끝 아래 간격
 문제와 원본의 TAC carrier 제한은 남아 있으며,A/R5 완료로 세지 않는다.
+
+#### 후속: 저장 LineSeg 없는 재조판 들여쓰기
+
+디스크 정리 후 중단 지점에서 재개했다. 원인은 줄 채우기에서는 들여쓰기만큼 폭을 줄이지만,
+physical-frame 배치가 소비하는 LineSeg cs/sw에는 그 시작점·폭을 기록하지 않은 것이다.
+수정 전 첫 줄은 기대 x50 대신 x30에 배치됐다. 저장본 경로의 통과와 별개인 결함이다.
+
+- 생산: `composer/line_breaking.rs::layout_paragraph_in_physical_frame`에서 활성 줄의
+  inset을 기존 HWPunit 격자로 변환하고, 실제 줄 채우기에 쓸 구간을 먼저 결정한다.
+  동일 구간으로 terminal replay/일반 fill/kerning fill을 수행하며 이중 indent를 제거한다.
+  재시도 후 실제 수용된 구간만 반환 LineSeg cs/sw에 기록한다.
+- 소비: `table_v2/text.rs`의 fresh 가지가 위 결과를 받아 공통 paragraph layout으로 전달한다.
+  `layout/paragraph_layout.rs`의 physical-frame 가지는 cs/sw를 최종 줄 상자로 사용하고
+  스타일 들여쓰기를 다시 더하지 않는다. 같은 줄 bbox/내용이 `ParagraphItem::Lines`와
+  fragment paint에 전달되며,fit/append에서 들여쓰기 원점을 별도로 추정하지 않는다.
+- 기존 `layout_paragraph_in_frame`과 저장 LineSeg 경로,Legacy 기본값은 유지한다.
+  exclusion 복수 구간은 신규 API에서 명시적으로 거부한다. 비유한 inset·너비를 다 먹는
+  inset도 clamp하지 않는다. 페이지 컷·이어받기·높이 산식은 변경하지 않았다.
+
+독립 시각 입력은 `tests/fixtures/issue7353_fresh_indent_review/README.md`에 출처를 기록했다.
+원본 `fresh-input.hwpx`는 저장 줄이 없는 입력이고,한컴 정상 저장 `fresh-saved.hwp`와
+같은 문서의 PDF는 기대값/시각 기준에만 쓴다. 저장 줄을 입력에 주입하지 않았다.
+셀 최소 높이28000HU·끝 아래 간격0으로 미해결 terminal spacing과 분리했다.
+초기 비지원 anchor 입력은 별도 보존했으며 원본 #6923 전체의 통과 자료가 아니다.
+
+정식 기존 cases에4개 검사를 추가했다. 실제 최종 좌표·폭·텍스트·빈 줄·표 외곽·뒤 문단,
+양수/음수/0 inset과 좌/중앙/우 정렬,너비 부족 줄바꿈,중첩 원점과 페이지 이어받기에서
+줄 소유·종료를 확인한다. 기대값은 입력 속성/한컴 저장 관측/정렬 불변식에서 정했다.
+한컴 segment와 선언 폭의2HU(약0.027px) 차이는 별도로 기록하며 기준값으로 숨기지 않았다.
+
+작은 검증과 수정 전 증거는 `output/7353/r19/fresh-indent/`에 있다.
+
+- 수정 전 `b08ed5e52`: `document-before-final.log`의2개 새 검사가 x30≠50,
+  x63.36≠83.36으로 FAIL. `text-before.log`의2개 새 검사도 실제 좌표 불일치로 FAIL.
+  초기 링크/테스트 작성 오류는 결함 검출 증거에서 제외했다.
+- 수정 후 debug: `document-after.log` **58 PASS**, `text-after.log` **22 PASS**.
+- `before-final/native-review-1.png`와 `review/native-review-1.png`를 직접 비교해
+  첫 줄/후속 내어쓰기 줄의 위치 개선을 확인했다. 최종 release/fresh WASM 증거는 아래에 잇는다.
+- source head는 `b08ed5e52`+현재 패치,고정 manifest는 `fresh-indent/source.sha256`이다.
+  baseline/ignore는 변경하지 않았다. 원본 TAC carrier,셀 끝 아래 간격,복수 exclusion,
+  Studio Canvas 편집과 전체 PR lint/CI는 이번 결과의 완료 범위가 아니다.
+
+최종 집중 검증 명령:
+
+```sh
+# rhwp-review-7353, 기존 파생 suite에서 실행
+CARGO_BUILD_JOBS=2 cargo nextest run --locked --cargo-profile release-test \
+  --test regression_suite_002 --test regression_suite_003 \
+  --test regression_suite_004 --test regression_suite_005 \
+  --test regression_suite_015 --test regression_suite_017 \
+  --test regression_suite_027 --test regression_suite_028 \
+  -E 'test(issue_7353_table_v2) | test(issue_4755) | test(issue_6102) | test(issue_3128)' \
+  --no-fail-fast --target-dir /home/edward/mygithub/rhwp/target/pr-review
+```
+
+`fresh-indent/focused-final.log`: **187 passed /0 failed /1532 skipped**.
+nextest0.9.137 대비 권장0.9.140 및 기존 관측 설정 경고가 남는다.
+최종 source manifest·변경 파일 fmt·diff check 통과. release-test 라이브러리로 최종 Native
+대조군1쪽 및 기존 시각 통과 대각선2쪽/저장 들여쓰기1쪽을 다시 출력했다.
+
+```sh
+# product worktree
+docker compose --env-file .env.docker -p rhwp run --rm wasm
+output/7353/r19/fresh-indent/probe tests/fixtures/issue7353_fresh_indent_review/fresh-input.hwpx \
+  output/7353/r19/fresh-indent/review/actual render
+output/7353/r19/fresh-indent/probe tests/fixtures/issue7353_diagonal_review/diagonal-saved.hwp \
+  output/7353/r19/fresh-indent/control-diagonal render
+output/7353/r19/fresh-indent/probe tests/fixtures/issue7353_indent_review/indent-saved.hwp \
+  output/7353/r19/fresh-indent/control-indent render
+node output/7353/r19/fresh-indent/review.mjs --wasm
+node output/7353/r19/fresh-indent/control.mjs
+```
+
+- Docker fresh WASM **7분47초 성공**, `fresh-indent/docker-wasm.log`.
+  SHA-256 `6301762662faeec1cdbcd7d19ee9ec120c9b847302368ae4fc933ca7a52b549d`.
+- Native/fresh WASM의1쪽 SVG byte-identical,JSON 숫자38곳 최대차이5.684e-14,
+  그 밖의 차이0 (`review/backend-comparison.json`).
+- 기존 대각선2쪽·저장 들여쓰기1쪽 모두 각 backend의 변경 전후 SVG 동일,
+  Native/WASM 상호 동일 (`control-diagonal/comparison.json`, `control-indent/comparison.json`).
+- 최종 Native review,WASM review,standalone overlay를 직접 열어 첫 줄15pt inset,
+  내어쓰기 후속 줄,중앙/오른쪽 정렬,실제 빈 줄,표 경계와 뒤 문단 위치를 확인했다.
+  대체 글꼴 외형 및2HU 폭 차이는 남겨 기록한다. 한컴 저장 줄을 주입하지 않은
+  대조군 검증이며 원본 #6923 전체의 시각 통과로 확대하지 않는다.
+- source/input/PDF/WASM 고정값·96dpi·무변환 비교 조건은 `review/run.json`에 있다.
+  빌드 후 source manifest 재확인,fmt/diff check 통과. 원격 push/PR/기본 엔진 전환 없음.
+
+시각 판정 요청 자료:
+
+- [새 WASM 한컴 비교·겹침](../../output/7353/r19/fresh-indent/review/wasm-review-1.png)
+- [WASM standalone overlay](../../output/7353/r19/fresh-indent/review/wasm-overlay-1.png)
+- [수정 전 Native 비교](../../output/7353/r19/fresh-indent/before-final/native-review-1.png)
+- [원본 무저장 HWPX](../../tests/fixtures/issue7353_fresh_indent_review/fresh-input.hwpx)
+- [한컴 저장 HWP](../../tests/fixtures/issue7353_fresh_indent_review/fresh-saved.hwp),
+  [한컴 PDF](../../tests/fixtures/issue7353_fresh_indent_review/fresh-2020.pdf)
+
+메인테이너가 이번 재조판 들여쓰기의 시각 판정 통과 및 다음 절편 진행을 승인했다.
+셀 끝 아래 간격과 원본 TAC carrier 지원은 남아 있으며 R5 완료로 보고하지 않는다.

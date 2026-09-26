@@ -4,7 +4,7 @@ use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
 use crate::model::{paragraph::Paragraph, style::HeadType, table::Table};
 use crate::renderer::{
-    composer::{compose_paragraph, layout_paragraph_in_frame},
+    composer::{compose_paragraph, layout_paragraph_in_physical_frame},
     layout::LayoutEngine,
     layout_frame::ParagraphBox,
     page_layout::LayoutRect,
@@ -428,9 +428,13 @@ impl CellParagraphComposer for TextComposer<'_> {
             )?
         } else {
             let mut fresh = para.clone();
-            fresh.line_segs =
-                layout_paragraph_in_frame(para, &mut frame_box.frame(0), self.styles, self.dpi)
-                    .ok_or(GeometryError::Unsupported("text preview frame composition"))?;
+            fresh.line_segs = layout_paragraph_in_physical_frame(
+                para,
+                &mut frame_box.frame(0),
+                self.styles,
+                self.dpi,
+            )
+            .ok_or(GeometryError::Unsupported("text preview frame composition"))?;
             fresh
         };
         let composed = compose_paragraph(&fresh);

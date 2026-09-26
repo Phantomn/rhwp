@@ -2709,7 +2709,23 @@ pub(crate) fn layout_paragraph_in_frame(
     styles: &ResolvedStyleSet,
     dpi: f64,
 ) -> Option<Vec<LineSeg>> {
-    layout_paragraph_in_frame_impl(para, frame, styles, dpi, true)
+    layout_paragraph_in_frame_impl(para, frame, styles, dpi, true, false)
+}
+
+/// V2's single-interval text path consumes physical line boxes, not a style
+/// indentation to be reapplied by paint. Resolve the inset from the fill cursor
+/// before breaking, then publish that very interval with the composed row.
+/// Exclusion/sibling-segment indentation is not qualified by this entry point.
+pub(crate) fn layout_paragraph_in_physical_frame(
+    para: &Paragraph,
+    frame: &mut LayoutFrame,
+    styles: &ResolvedStyleSet,
+    dpi: f64,
+) -> Option<Vec<LineSeg>> {
+    if frame.models_exclusions() {
+        return None;
+    }
+    layout_paragraph_in_frame_impl(para, frame, styles, dpi, true, true)
 }
 
 fn layout_paragraph_in_frame_impl(
@@ -2718,6 +2734,7 @@ fn layout_paragraph_in_frame_impl(
     styles: &ResolvedStyleSet,
     dpi: f64,
     allow_kerning: bool,
+    physical_indent: bool,
 ) -> Option<Vec<LineSeg>> {
     // [#6102] 폭-중립 자리차지 표 host 도 fill 대상 — 표는 줄 폭을 소비하지
     // 않으므로(자기 레이아웃 소유자가 따로 배치) 텍스트만 재래핑하면 된다.
@@ -2728,6 +2745,9 @@ fn layout_paragraph_in_frame_impl(
     let text_chars = para.text.chars().collect::<Vec<_>>();
     let para_style = styles.para_styles.get(para.para_shape_id as usize);
     let indent_px = para_style.map(|style| style.indent).unwrap_or(0.0);
+    if physical_indent && !indent_px.is_finite() {
+        return None;
+    }
     let english_break_unit = para_style
         .map(|style| style.english_break_unit)
         .unwrap_or(0);
@@ -2859,6 +2879,7 @@ fn layout_paragraph_in_frame_impl(
     let first_row = frame.row_count();
     let frame_checkpoint = frame.clone();
     let mut cursor = FillCursor::new(0, true);
+    let mut content_intervals = Vec::new();
 
     let result = (|| {
         while !cursor.finished {
@@ -2894,14 +2915,35 @@ fn layout_paragraph_in_frame_impl(
                 attempted_trials.push(trial);
 
                 let mut segments = Vec::with_capacity(intervals.len());
+                let mut row_content_intervals = Vec::with_capacity(intervals.len());
                 let mut maximum_font_size = 0.0f64;
                 let mut inline_metrics = (frame.row_count() == first_row)
                     .then_some(terminal_inline_metrics)
                     .flatten();
                 let mut row_terminated = false;
                 for interval in intervals {
+                    let mut content = interval.clone();
+                    if physical_indent {
+                        let inset = if (indent_px > 0.0 && cursor.is_first_line)
+                            || (indent_px < 0.0 && !cursor.is_first_line)
+                        {
+                            crate::renderer::px_to_hwpunit(indent_px.abs(), dpi)
+                        } else {
+                            0
+                        };
+                        content.start = content.start.checked_add(inset)?;
+                        if content.start >= content.end {
+                            return None;
+                        }
+                    }
+                    // Quantize once to the frame's HWP-unit grid. Filling and
+                    // final placement share this range, including empty lines.
+                    if physical_indent {
+                        row_content_intervals.push(content.clone());
+                    }
+                    let fill_indent = if physical_indent { 0.0 } else { indent_px };
                     let available_width_px = crate::renderer::hwpunit_to_px(
-                        interval.end.saturating_sub(interval.start),
+                        content.end.saturating_sub(content.start),
                         dpi,
                     );
                     let terminal = terminal_tokens.as_ref().and_then(|terminal_tokens| {
@@ -2914,7 +2956,7 @@ fn layout_paragraph_in_frame_impl(
                             terminal_tokens,
                             &text_chars,
                             available_width_px,
-                            indent_px,
+                            fill_indent,
                             default_tab_width,
                             korean_break_unit,
                             condense_min_space,
@@ -2933,7 +2975,7 @@ fn layout_paragraph_in_frame_impl(
                             &tokens,
                             &text_chars,
                             available_width_px,
-                            indent_px,
+                            fill_indent,
                             default_tab_width,
                             korean_break_unit,
                             condense_min_space,
@@ -3016,10 +3058,21 @@ fn layout_paragraph_in_frame_impl(
                 }
 
                 frame.commit_carved_row(metrics, segments)?;
+                content_intervals.extend(row_content_intervals);
                 break;
             }
         }
-        Some(frame.project_line_segs_since(first_row))
+        let mut lines = frame.project_line_segs_since(first_row);
+        if physical_indent {
+            if lines.len() != content_intervals.len() {
+                return None;
+            }
+            for (line, content) in lines.iter_mut().zip(&content_intervals) {
+                line.column_start = content.start;
+                line.segment_width = content.end - content.start;
+            }
+        }
+        Some(lines)
     })();
 
     let kerning_failed = kerning_break_session
@@ -3034,7 +3087,7 @@ fn layout_paragraph_in_frame_impl(
     if kerning_failed {
         // 한 boundary라도 예산/범위 검증에 실패하면 일부 K1 row를 게시하지
         // 않고 문단 전체를 원래 scalar transaction으로 다시 실행한다.
-        return layout_paragraph_in_frame_impl(para, frame, styles, dpi, false);
+        return layout_paragraph_in_frame_impl(para, frame, styles, dpi, false, physical_indent);
     }
     result
 }

@@ -198,6 +198,145 @@ fn text(line: &RenderNode) -> String {
 }
 
 #[test]
+fn fresh_indent_preserves_breaks_blank_lines_and_fragment_coordinates() {
+    use rhwp::model::style::Alignment;
+    for indent in [0.0, 20.0, -20.0] {
+        for alignment in [Alignment::Left, Alignment::Center, Alignment::Right] {
+            let mut s = styles();
+            let style = &mut s.para_styles[0];
+            style.margin_left = 10.0;
+            style.margin_right = 20.0;
+            style.indent = indent;
+            style.alignment = alignment;
+            let t = table(&["A\n\nB", "", "after"]);
+            let prepared = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+            let whole = placed(&prepared.start(), 120.0);
+            let (_, lines) = render(&whole);
+            assert_eq!(
+                lines.iter().map(text).collect::<Vec<_>>(),
+                ["A", "", "B", "", "after"]
+            );
+            // Table x20 + cell left5 + paragraph left10. The three physical
+            // lines of A/newline/newline/B belong to one paragraph; the blank
+            // and after paragraphs each restart their own first-line state.
+            for (i, line) in lines.iter().enumerate() {
+                let first = i == 0 || i >= 3;
+                let inset = if (indent > 0.0 && first) || (indent < 0.0 && !first) {
+                    20.0
+                } else {
+                    0.0
+                };
+                assert_eq!(line.bbox.x, 35.0 + inset);
+                assert_eq!(line.bbox.width, 170.0 - inset);
+                assert_eq!(line.bbox.y, 33.0 + i as f64 * 18.0);
+                assert_eq!(line.bbox.height, 12.0);
+                if let Some(run) = line.children.first().filter(|_| !text(line).is_empty()) {
+                    let expected = match alignment {
+                        Alignment::Center => line.bbox.x + (line.bbox.width - run.bbox.width) / 2.0,
+                        Alignment::Right => line.bbox.x + line.bbox.width - run.bbox.width,
+                        _ => line.bbox.x,
+                    };
+                    assert!((run.bbox.x - expected).abs() < 1e-7);
+                }
+            }
+            assert_eq!(whole.geometry().reserved_height(), 97.0);
+            // First fragment owns only A. Continuation must not reindent its
+            // explicit blank/B lines as a new paragraph, nor discard the blank.
+            let first = placed(&prepared.start(), 21.0);
+            assert_eq!(render(&first).1.iter().map(text).collect::<Vec<_>>(), ["A"]);
+            let rest = placed(&first.continuation(), 90.0);
+            let (_, continued) = render(&rest);
+            assert_eq!(
+                continued.iter().map(text).collect::<Vec<_>>(),
+                ["", "B", "", "after"]
+            );
+            for (i, line) in continued.iter().enumerate() {
+                assert_eq!(line.bbox.x, lines[i + 1].bbox.x);
+                assert_eq!(line.bbox.width, lines[i + 1].bbox.width);
+                assert_eq!(line.bbox.y, 30.0 + i as f64 * 18.0);
+            }
+            assert!(matches!(
+                rest.continuation().fit(area(90.0)).unwrap(),
+                TextFragmentFit::Complete
+            ));
+            let nested = PreparedTextTable::from_flow_rows(
+                vec![232.0],
+                vec![TextFlowRow {
+                    cells: vec![TextFlowCell {
+                        padding: Insets {
+                            left: 10.0,
+                            right: 10.0,
+                            ..Default::default()
+                        },
+                        minimum_height: 0.0,
+                        blocks: vec![TextFlowBlock::Table {
+                            owner: ControlOwner {
+                                paragraph: 0,
+                                control: 0,
+                            },
+                            table: prepared,
+                        }],
+                    }],
+                }],
+                0.0,
+                SplitPolicy::WithinCells,
+                &s,
+                7200.0,
+            )
+            .unwrap();
+            let mut room = area(120.0);
+            room.bounds.width = 232.0;
+            let TextFragmentFit::Placed(f) = nested.start().fit(room).unwrap() else {
+                panic!("nested fit")
+            };
+            let (_, nested_lines) = render(&f);
+            assert_eq!(nested_lines.len(), lines.len());
+            for (actual, expected) in nested_lines.iter().zip(&lines) {
+                assert_eq!(text(actual), text(expected));
+                assert_eq!(actual.bbox.x, expected.bbox.x + 10.0);
+                assert_eq!(actual.bbox.y, expected.bbox.y);
+                assert_eq!(actual.bbox.width, expected.bbox.width);
+            }
+        }
+    }
+}
+
+#[test]
+fn fresh_indent_wrapping_uses_available_width_and_rejects_empty_interval() {
+    let text_source = "가나다라마바사아자차카타파하";
+    for indent in [24.0, -24.0] {
+        let mut s = styles();
+        s.para_styles[0].alignment = rhwp::model::style::Alignment::Left;
+        s.para_styles[0].indent = indent;
+        let mut t = table(&[text_source]);
+        t.cells[0].width = 72; // 60px inner box, 12px Hangul em; inset two ems.
+        let prepared = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+        let (_, lines) = render(&placed(&prepared.start(), 200.0));
+        let expected = if indent > 0.0 {
+            vec!["가나다", "라마바사아", "자차카타파", "하"]
+        } else {
+            vec!["가나다라마", "바사아", "자차카", "타파하"]
+        };
+        assert_eq!(lines.iter().map(text).collect::<Vec<_>>(), expected);
+        assert_eq!(lines.iter().map(text).collect::<String>(), text_source);
+        for (i, line) in lines.iter().enumerate() {
+            let inset = if (indent > 0.0 && i == 0) || (indent < 0.0 && i > 0) {
+                24.0
+            } else {
+                0.0
+            };
+            assert_eq!(line.bbox.x, 25.0 + inset);
+            assert_eq!(line.bbox.width, 60.0 - inset);
+        }
+    }
+    for indent in [200.0, -200.0, f64::NAN, f64::INFINITY] {
+        let mut s = styles();
+        s.para_styles[0].indent = indent;
+        assert!(PreparedTextTable::prepare(&table(&["A\nB"]), &s, 7200.0).is_err());
+    }
+}
+
+#[test]
 fn terminal_policy_preserves_blank_line_and_external_space_in_both_adapters() {
     for stored in [false, true] {
         let mut t = table(&["before", ""]);

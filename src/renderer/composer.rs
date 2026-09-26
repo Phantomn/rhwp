@@ -3936,10 +3936,11 @@ pub(crate) use line_breaking::frame_metrics_for_line;
 pub mod lineseg_compare;
 
 pub(crate) use line_breaking::{
-    is_line_end_forbidden, is_line_start_forbidden, layout_paragraph_in_frame, layout_picture_band,
-    paragraph_flow_end, recalculate_section_vpos, reflow_line_segs,
-    reflow_line_segs_after_cell_split, reflow_line_segs_after_cell_text_edit,
-    reflow_line_segs_in_stored_section, tokenize_paragraph, BreakToken, StoredRowMissPolicy,
+    is_line_end_forbidden, is_line_start_forbidden, layout_paragraph_in_frame,
+    layout_paragraph_in_physical_frame, layout_picture_band, paragraph_flow_end,
+    recalculate_section_vpos, reflow_line_segs, reflow_line_segs_after_cell_split,
+    reflow_line_segs_after_cell_text_edit, reflow_line_segs_in_stored_section, tokenize_paragraph,
+    BreakToken, StoredRowMissPolicy,
 };
 
 #[cfg(test)]

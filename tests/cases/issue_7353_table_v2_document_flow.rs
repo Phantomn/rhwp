@@ -99,6 +99,99 @@ fn bytes(d: &Document) -> Vec<u8> {
     rhwp::serializer::hwpx::serialize_hwpx(d).unwrap()
 }
 
+#[test]
+fn fresh_indent_uses_the_filled_interval_for_actual_placement() {
+    // Independent geometry: body x20 + paragraph margin10 + first inset20.
+    // No stored rows: both line breaking and final placement must own this box.
+    let mut d = source(vec![p("after")]);
+    let s = &mut d.doc_info.para_shapes[0];
+    s.alignment = rhwp::model::style::Alignment::Left;
+    s.margin_left = 1500;
+    s.margin_right = 1500;
+    s.indent = 3000;
+    let pages = drain(&mut open(&d));
+    assert_eq!(labels(&pages[0]), ["after"]);
+    let lines = nodes(&pages[0], "TextLine");
+    near(&lines[0]["bbox"]["x"], 50.0);
+    near(&lines[0]["bbox"]["width"], 260.0);
+}
+
+#[test]
+fn fresh_indentation_matches_hancom_origins_without_injecting_saved_rows() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/issue7353_fresh_indent_review");
+    let input = std::fs::read(root.join("fresh-input.hwpx")).unwrap();
+    let source = rhwp::parse_document(&input).unwrap();
+    let saved =
+        rhwp::parse_document(&std::fs::read(root.join("fresh-saved.hwp")).unwrap()).unwrap();
+    let get_table = |d: &Document| {
+        d.sections[0].paragraphs[0]
+            .controls
+            .iter()
+            .find_map(|c| {
+                if let Control::Table(t) = c {
+                    Some(t.as_ref().clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap()
+    };
+    let table = get_table(&source);
+    let reference = get_table(&saved);
+    assert!(source.sections[0]
+        .paragraphs
+        .iter()
+        .all(|p| p.line_segs.is_empty()));
+    assert!(table.cells[0]
+        .paragraphs
+        .iter()
+        .all(|p| p.line_segs.is_empty()));
+    let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    let cell = nodes(&pages[0], "TableCell")[0];
+    near(&cell["bbox"]["height"], 28000.0 / 75.0);
+    let mut lines = Vec::new();
+    collect(cell, "TextLine", &mut lines);
+    assert_eq!(lines.len(), 13);
+    let mut index = 0;
+    for (authored, hancom) in table.cells[0]
+        .paragraphs
+        .iter()
+        .zip(&reference.cells[0].paragraphs)
+    {
+        assert_eq!(authored.text, hancom.text);
+        let expected: Vec<_> = authored.text.split('\n').collect();
+        assert_eq!(hancom.line_segs.len(), expected.len());
+        for (row, text) in hancom.line_segs.iter().zip(expected) {
+            let line = lines[index];
+            let inset = if row.has_indentation() { 1500.0 } else { 0.0 };
+            near(&line["bbox"]["x"], (3969.0 + 283.0 + 500.0 + inset) / 75.0);
+            near(
+                &line["bbox"]["y"],
+                (5669.0 + 283.0 + f64::from(row.vertical_pos)) / 75.0,
+            );
+            // Declared width32000 - cell pads566 - paragraph margins1000.
+            // Hancom's saved sw30432 is two HU narrower than this fresh box;
+            // do not silently import or clamp to the saved width.
+            assert_eq!(row.segment_width, 30432);
+            near(&line["bbox"]["width"], (30434.0 - inset) / 75.0);
+            let mut runs = Vec::new();
+            collect(line, "TextRun", &mut runs);
+            let actual: String = runs
+                .iter()
+                .map(|r| r["node_type"]["TextRun"]["text"].as_str().unwrap())
+                .collect();
+            assert_eq!(actual, text);
+            index += 1;
+        }
+    }
+    let body_lines = nodes(&pages[0], "TextLine");
+    near(&body_lines[13]["bbox"]["y"], (5669.0 + 28000.0) / 75.0);
+    near(&body_lines[14]["bbox"]["y"], (5669.0 + 29760.0) / 75.0);
+    assert_eq!(*labels(&pages[0]).last().unwrap(), "AFTER REFLOW TABLE");
+}
+
 const TERMINAL_OPTIONS: &str =
     r#"{"dpi":96,"max_pages":20,"cell_end_policy":"omit_final_line_gap"}"#;
 
