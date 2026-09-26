@@ -6579,6 +6579,7 @@ mod tests {
             rowspan_touched: vec![false; 3],
             cut_row_heights: vec![10.0; 3],
             whole_row_fit_heights: vec![10.0; 3],
+            stored_rewinding_rowbreak_uses_painted_row_footprint: false,
             first_fragment_painted_row_footer_guard: 0.0,
             caption_is_top: false,
             caption_overhead: 0.0,

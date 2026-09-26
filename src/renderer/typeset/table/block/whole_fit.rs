@@ -25,7 +25,7 @@ pub(super) struct WholeFit {
     pub(super) para_has_stored_line_seg: bool,
     pub(super) single_row_object_height_advance: Option<f64>,
     pub(super) fits_after_overlay_shapes: bool,
-    pub(super) native_hwp5_rewinding_rowbreak_uses_painted_row_footprint: bool,
+    pub(super) stored_rewinding_rowbreak_uses_painted_row_footprint: bool,
     pub(super) whole_fit_table_total: f64,
     pub(super) hwpx_noninline_tac_measured_fit: bool,
     pub(super) declared_table_whole_fits: bool,
@@ -187,13 +187,18 @@ impl TypesetEngine {
                 .all(|item| matches!(item, PageItem::Shape { .. }));
         let fits_after_overlay_shapes =
             current_column_has_only_overlay_shapes && table_total <= available + 12.0;
-        // [#3820] native HWP5의 page-tail ordinary RowBreak 표는 whole-fit gate가
+        // [#3820] 저장된 쪽 끝 일반 RowBreak 표는 whole-fit 판단이
         // 저장 common.height(`table_total`)만 보면, renderer가 실제로 paint할 행
         // footprint보다 작게 판정해 footer 아래까지 행을 보존한다. source의 다음
         // 문단 vpos rewind가 physical fragment 경계를 명시하고, rowspan/cell-footnote가
         // 없는 ordinary-row 형상에서만 measured row footprint를 권위로 삼는다.
-        // 일반 HWPX, page-top 표, rowspan 및 실제 intra-row cut은 기존 경로를 유지한다.
-        let native_hwp5_rewinding_rowbreak_uses_painted_row_footprint = st.profile.hwp5_stored_pagination_layout()
+        // 같은 저장 경계를 가진 미편집 HWPX도 동일 계약을 소비한다. 편집·재조판
+        // HWPX, 쪽 상단 표, 행 병합 및 실제 행 내부 컷은 기존 경로를 유지한다.
+        let stored_rewinding_rowbreak_uses_painted_row_footprint = (st.profile.hwp5_stored_pagination_layout()
+                || (st.profile.hwpx_stored_layout()
+                    && !st.profile.session_edited()
+                    && st.col_count == 1
+                    && !self.render_normalization.table_text_reflowed(table)))
                 && !table.common.treat_as_char
                 && is_para_topbottom_float(&table.common)
                 && matches!(
@@ -204,10 +209,9 @@ impl TypesetEngine {
                 && ft.table_footnotes.is_empty()
                 && st.current_height >= st.base_available_height() * 0.5
                 && table.cells.iter().all(|cell| cell.row_span == 1)
-                // The physical fragment boundary may be stored inside the last
-                // cell's lineSeg sequence, not only at the following host
-                // paragraph. Both are source-owned rewinds; ignoring the former
-                // lets a declared whole-fit gate retain one painted row too many.
+                // 물리 조각 경계는 뒤 호스트뿐 아니라 마지막 셀의 저장 줄에도
+                // 기록될 수 있다. 둘 다 원본이 소유한 되감김이며, 셀 안 경계를
+                // 무시하면 선언 높이만 보는 판단이 실제 행을 하나 더 수용한다.
                 && (next_rewinds_after_table
                     || rowbreak_table_has_internal_saved_vpos_reset(table));
         let measured_row_table_height = mt.as_ref().and_then(|measured| {
@@ -217,7 +221,7 @@ impl TypesetEngine {
             })
         });
         let uses_painted_row_footprint_for_whole_fit =
-            native_hwp5_rewinding_rowbreak_uses_painted_row_footprint
+            stored_rewinding_rowbreak_uses_painted_row_footprint
                 && measured_row_table_height
                     .is_some_and(|height| height > ft.effective_height + 0.5);
         let whole_fit_table_total = if uses_painted_row_footprint_for_whole_fit {
@@ -489,7 +493,7 @@ impl TypesetEngine {
             para_has_stored_line_seg,
             single_row_object_height_advance,
             fits_after_overlay_shapes,
-            native_hwp5_rewinding_rowbreak_uses_painted_row_footprint,
+            stored_rewinding_rowbreak_uses_painted_row_footprint,
             whole_fit_table_total,
             hwpx_noninline_tac_measured_fit,
             declared_table_whole_fits,

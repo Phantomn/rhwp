@@ -111,6 +111,7 @@ pub(in crate::renderer::typeset) struct BlockTableContinuationPreparedState {
     /// 행 전체가 fragment에 남는지 판정할 때의 paint footprint. RowBreak의 실제
     /// intra-row cut 계산은 `cut_row_heights`를 계속 사용한다.
     pub(in crate::renderer::typeset) whole_row_fit_heights: Vec<f64>,
+    pub(in crate::renderer::typeset) stored_rewinding_rowbreak_uses_painted_row_footprint: bool,
     /// native HWP5 rewind 표의 첫 whole-row fragment가 footer 경계에 남겨야 하는
     /// paint-local slack. continuation과 intra-row cut에는 적용하지 않는다.
     pub(in crate::renderer::typeset) first_fragment_painted_row_footer_guard: f64,

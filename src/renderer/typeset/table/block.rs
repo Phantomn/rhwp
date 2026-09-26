@@ -45,7 +45,7 @@ struct SplitTableEntry<'a> {
     native_hwp5_internal_reset_rewind_needs_anchor_resync: bool,
     placement_para_start_height: f64,
     source_anchor_splits_here: bool,
-    native_hwp5_rewinding_rowbreak_uses_painted_row_footprint: bool,
+    stored_rewinding_rowbreak_uses_painted_row_footprint: bool,
     unconstrained_host_placement: Option<crate::renderer::float_placement::ParagraphFloatPlacement>,
     constrain_host_placement: HostPlacementConstraint<'a>,
     mt: &'a MeasuredTable,

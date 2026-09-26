@@ -51,7 +51,7 @@ impl TypesetEngine {
             native_hwp5_internal_reset_rewind_needs_anchor_resync,
             placement_para_start_height,
             source_anchor_splits_here,
-            native_hwp5_rewinding_rowbreak_uses_painted_row_footprint,
+            stored_rewinding_rowbreak_uses_painted_row_footprint,
             unconstrained_host_placement,
             constrain_host_placement,
             mt,
@@ -193,8 +193,8 @@ impl TypesetEngine {
                         *cut,
                         *painted,
                     );
-                if native_hwp5_rewinding_rowbreak_uses_painted_row_footprint {
-                    // 기존 저장 rewind 경로는 MeasuredTable의 물리 행 높이를 소비한다.
+                if stored_rewinding_rowbreak_uses_painted_row_footprint {
+                    // 저장 되감김 경로는 두 컨테이너에서 같은 물리 행 높이를 소비한다.
                     // 패딩 축소 복구와 무관한 행을 새 resolve 결과로 바꾸지 않는다.
                     cut.max(mt.row_heights[row])
                 } else if declared_whole_table_matches_paint
@@ -209,25 +209,23 @@ impl TypesetEngine {
             })
             .collect();
         // p106은 paint footprint 기준 row 0–3이 body bottom보다 3.9px 앞에서
-        // 끝나지만, 한컴은 다음 row를 continuation으로 소유한다. 이 4px은 native
-        // HWP5 stored-rewind first fragment의 footer-local slack이며 전역 safety
+        // 끝나지만, 한컴은 다음 행을 이어받기 조각으로 소유한다. 이 4px은 저장
+        // 되감김 첫 조각의 꼬리말 경계에 있는 기존 여유이며 전역 안전
         // margin이 아니다. partial row와 continuation에는 적용하지 않는다.
-        const NATIVE_REWIND_FIRST_FRAGMENT_PAINT_FOOTER_GUARD_PX: f64 = 4.0;
+        const STORED_REWIND_FIRST_FRAGMENT_PAINT_FOOTER_GUARD_PX: f64 = 4.0;
         let first_fragment_painted_row_footer_guard =
-            if native_hwp5_rewinding_rowbreak_uses_painted_row_footprint
-                // A visible host line that occupies the table's own positive
-                // offset lane moves the painted fragment down by only the
-                // offset remainder.  The exact existing-footnote boundary is
-                // already authoritative for this path; subtracting the p106
-                // empty-host safety guard again drops table 27's final fitting
-                // row by ~1px after its caption is restored.
+            if stored_rewinding_rowbreak_uses_painted_row_footprint
+                // 가시 호스트가 표의 양수 오프셋 구간을 점유하면 남은 오프셋만
+                // 조각을 내린다. 이 경로는 정확한 기존 각주 경계를 이미 쓰므로
+                // 빈 호스트 안전값까지 다시 빼면 캡션을 복원한 표27의 들어가는
+                // 마지막 행이 약1px 차이로 불필요하게 이월된다.
                 && !native_hwp5_rowbreak_host_precedes_first_fragment(para, table)
                 && whole_row_fit_h
                     .iter()
                     .zip(&cut_row_h)
                     .any(|(painted, cut)| painted > &(cut + 0.5))
             {
-                NATIVE_REWIND_FIRST_FRAGMENT_PAINT_FOOTER_GUARD_PX
+                STORED_REWIND_FIRST_FRAGMENT_PAINT_FOOTER_GUARD_PX
             } else {
                 0.0
             };
@@ -928,6 +926,7 @@ impl TypesetEngine {
             rowspan_touched,
             cut_row_heights: cut_row_h,
             whole_row_fit_heights: whole_row_fit_h,
+            stored_rewinding_rowbreak_uses_painted_row_footprint,
             first_fragment_painted_row_footer_guard,
             caption_is_top,
             caption_overhead,

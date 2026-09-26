@@ -342,3 +342,32 @@ Producer `00e210b06` + Rust/test diff SHA256 `bc7038e0bb950733809b6a8f63109dce27
 
 ![Native32 빈 줄 뒤 본문 복원](../assets/pr7382_20260926/stage15_native_review_032.png)
 ![Native32 overlay](../assets/pr7382_20260926/stage15_native_overlay_032.png)
+
+
+## 메인터너 보정 16: 저장 되감김 표의 온전한 행과 바깥 상자 공유
+
+독립 한컴 PDF106의 표29는0..2행,107은3..7행이다. 앞 표 괘선670.947..986.121px, 뒤 표85.027..517.833px, 끝 캡션529.714px 및 뒤 본문592.901px를 [같은 원본 HWP/HWPX 두 출력](../assets/pr7382_20260926/stage16_independent_geometry.json)에서 확인했다. 내용 컷 높이가 실제 온전한 행보다 행마다11.733px 작게 예약돼 뒤 행까지 수용한 원인이다.
+
+기존 HWP 계약과 같은 원본 되감김·일반 행·행 병합/셀 각주 없음 형상의 미편집 단단 HWPX에도 실제 온전한 행 높이를 연결했다. `whole_fit` 생산 → `prepare` 행 높이 → `RowBlockQuery` fit/소비 → 이어받기 plan → `budget/emit` → `table_partial` 실제 원점·점유 끝이 같은 결과를 사용한다. 새 물리 프레임에서 시작하는 온전한 이어받기 행은 바깥 위·아래 여백도 같은 plan으로 다시 연다. 행 내부 컷과 쪽 중간 원점은 이미 소유한 좌표를 유지한다. 문서 ID/새 수치 특례나 golden 완화를 추가하지 않았다. 기존 footer-local4px 값은 변경하지 않았다.
+
+Producer `415b4b046` + Rust/test diff SHA256 `2ca3b8cc2b49496dd93d46d04e808aa35176f28dc6c9b422b6b783f4dd21dead`; [명령·결과·소스 해시](../assets/pr7382_20260926/stage16_validation.json).
+
+| 검사 | 결과 | 의미 |
+| --- | --- | --- |
+| 수정 전 실제 두 회귀 |2FAIL, exit100,0.171s | 앞 행0..4/기대0..2,38.8px 표 초과 및 뒤 본문 조기 소비 |
+| 첫 후보 |61PASS/1FAIL, exit100,3.206s | 행 소유와 꼬리 개선, 캡션1.88px·뒤 본문3.76px 차이 검출; 허용치 유지 후 공통 상자 보정 |
+| 최종 관련·정상 대조군 |66PASS, exit0,4.009s | 행·괘선·캡션·뒤 본문·108꼬리 실제 검사, 패딩/원본 프레임/행 병합/중첩/원자 행과 앞 보정 무회귀 |
+| 기존 Native·경계 unit |6PASS, exit0,0.227s | 원본 HWP 표 행 경계/그림 캡션, 빈 줄·조각 생명주기 보존 |
+| unit 정책·fmt |exit0 | 고정 base `eb9142dd7` 비교 |
+| CLI·쪽수 |build exit0,2m04s;215/PDF215 | 앞 표[0,3), 뒤[3,8), 본문1144[0,3)/[3,6) |
+| Native106/107/108 |80.27049/85.40785/99.94123%, exit1 |108 개선,106/107 셀 글줄 잔여로 보류 |
+| Native94/95 재캡처 수치 |98.91562/94.55592% | 같은 행 계약의 추가 수치; 이 단계에서 직접 판독했다고 확대하지 않음 |
+
+첫 after 빌드는 계약명 변경 중 전달 구조체 한 곳을 빠뜨려 테스트 전 exit101로 실패했다. 내 오류를 바로잡고 전체 참조를 확인했으며 결함 검출 증거로 세지 않았다. 최종 source의6unit/66integration을 실행했다. 편집/텍스트 재조판 제외의 실제 편집 counter는 이번 단계에서 직접 실행하지 않았으며, 코드 보호 조건과 정상 대조군 통과를 실제 편집 검증으로 확대하지 않는다. 추가 설명 주석은 한글이고 추가 영어 설명 주석 잔여0개다.
+
+106/107/108의 review·standalone overlay6개를 직접 판독했다. 표 외곽·캡션·뒤 본문 소유는 개선됐으나106/107 셀 안 글줄이 기준과 다른 위치에 있어 **gate는 보류**다. 글꼴 예외로 분류하지 않고 후속 셀 배치 보정에서 확인한다. [manifest](../assets/pr7382_20260926/stage16_native_manifest.json)·[summary](../assets/pr7382_20260926/stage16_native_summary.json)·[metrics](../assets/pr7382_20260926/stage16_native_overlay_metrics.json). 전체/fresh WASM/최종 필수 검증 미완료이며 PR 생성 보류다.
+
+![Native106 남은 셀 글줄 차이](../assets/pr7382_20260926/stage16_native_review_106.png)
+![Native107 남은 셀 글줄 차이](../assets/pr7382_20260926/stage16_native_review_107.png)
+![Native108 본문 꼬리와 그림 복원](../assets/pr7382_20260926/stage16_native_review_108.png)
+![Native108 overlay](../assets/pr7382_20260926/stage16_native_overlay_108.png)

@@ -385,6 +385,26 @@ impl TypesetEngine {
             }
             p
         });
+        // 온전한 행을 실제 높이로 소비하는 저장 되감김 조각은 새 물리 프레임에서
+        // 바깥 상자를 다시 연다. 이 원점과 끝 여백을 예산·확정·배치가 함께 소비한다.
+        // 행 내부 컷과 쪽 중간 조각은 해당 원점을 이미 소유하므로 재개하지 않는다.
+        let fragment_placement = fragment_placement.or_else(|| {
+            (prepared.stored_rewinding_rowbreak_uses_painted_row_footprint
+                && is_continuation
+                && start_cut.is_empty()
+                && st.current_height <= 0.5)
+                .then(|| {
+                    let top =
+                        st.current_height + hwpunit_to_px(table.outer_margin_top as i32, self.dpi);
+                    crate::renderer::float_placement::ParagraphFloatPlacement {
+                        flow: crate::renderer::float_placement::ParagraphFloatFlow::NextLine,
+                        anchor_y: st.current_height,
+                        stored_host_origin: None,
+                        table_top: top,
+                        occupied_bottom: top,
+                    }
+                })
+        });
         let page_avail = fragment_placement.map_or(page_avail, |p| {
             let boundary = if is_continuation
                 || prepared.host_frame

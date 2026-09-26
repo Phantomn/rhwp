@@ -1370,3 +1370,60 @@ fn empty_line_before_visible_body_keeps_its_height_before_later_page_reset() {
     }
     assert_eq!(core.page_count(), 215, "원본 쪽 수 보존");
 }
+
+/// 동일 저장 표를 담은 직접 HWPX도 원본 한컴의 온전한 행 점유로 분할한다.
+#[test]
+fn stored_rewinding_table_preserves_whole_row_footprint_and_caption() {
+    let core = core();
+    let first = core.build_page_render_tree(105).expect("106쪽 표");
+    let next = core.build_page_render_tree(106).expect("107쪽 이어받기");
+    let first_table = table_for_para(&first.root, 1136).expect("표29 앞 조각");
+    let next_table = table_for_para(&next.root, 1136).expect("표29 뒤 조각");
+    assert_eq!(visible_rows(first_table), BTreeSet::from([0, 1, 2]));
+    assert_eq!(visible_rows(next_table), BTreeSet::from([3, 4, 5, 6, 7]));
+    for (label, actual, expected) in [
+        ("앞 표 상단", first_table.bbox.y, 670.947),
+        (
+            "앞 표 하단",
+            first_table.bbox.y + first_table.bbox.height,
+            986.121,
+        ),
+        (
+            "뒤 표 하단",
+            next_table.bbox.y + next_table.bbox.height,
+            517.833,
+        ),
+        (
+            "끝 캡션",
+            line_top(&next.root, "표 29.").expect("캡션"),
+            529.714,
+        ),
+        (
+            "뒤 본문",
+            line_top(&next.root, "O 미성년자").expect("뒤 본문"),
+            592.901,
+        ),
+    ] {
+        assert!(
+            (actual - expected).abs() <= 1.5,
+            "{label}: 실제{actual}, 독립PDF{expected}"
+        );
+    }
+}
+
+/// 표의 실제 끝점을 예약해야 뒤 본문1144의 물리 경계를 같은 쪽에서 소비한다.
+#[test]
+fn stored_rewinding_table_keeps_following_body_tail_before_figure() {
+    let core = core();
+    let first = core.build_page_render_tree(106).expect("107쪽 본문");
+    let next = core.build_page_render_tree(107).expect("108쪽 꼬리와 그림");
+    let needle = "적으로 적합하다는 결정은 주치의가";
+    assert!(
+        !text(&first.root).contains(needle),
+        "본문 꼬리 조기 소비 금지"
+    );
+    let tail = line_top(&next.root, needle).expect("그림 앞 원본 꼬리");
+    assert!((tail - 83.141).abs() <= 1.5, "꼬리{tail} vs PDF83.141");
+    let title = line_top(&next.root, "1) 장기 기증 관련 결정 순서").expect("그림 제목");
+    assert!((title - 189.861).abs() <= 1.5, "제목{title} vs PDF189.861");
+}
