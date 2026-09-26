@@ -948,3 +948,27 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 ![재생성 대조군 첫쪽](../assets/pr7382_20260926/stage37_resaved_review_001.png)
 ![재생성 대조군 다음쪽](../assets/pr7382_20260926/stage37_resaved_review_002.png)
 ![원본 실문서의 남은 시각 차이](../assets/pr7382_20260926/stage37_stage36_real_overlay_001.png)
+
+
+## 보정38 사전 분석 — 쪽 시작 RowBreak 합성 표의 짧은 마지막 셀
+
+- 남은 #2105 검사는 #2097과 같은 수동500HU 마지막 셀/1200HU 저장 줄을 쪽 시작에 둔다. 큰 첫 행68000HU와 두 짧은 셀1200/500HU를69700HU 표 선언으로 묶었으므로 선언 합이 본문에 들어간다는 이유만으로 가시 내용까지 수용한다고 볼 수 없다.
+- 먼저 같은 입력의 한컴2020 독립 PDF와 기존 실패를 보존한다. 원본을 재저장 대조군으로 바꾸어 승인하지 않고, 쪽 시작/중간 쪽의 실제 행 소유와 표 끝/뒤 문단을 각각 검사한다. README에서 언급한19378753 원본은 저장소와 Mac 기준 자료 경로에서 아직 확인하지 못했으므로 그 실물의 정합은 미검증으로 둔다.
+
+
+재생성 대조군의 새 정식 검사는 수정 전 마지막 행 조각 누락으로FAIL했고 실제 표 하단이 본문을7.3px 넘었다. `TABLE_DRIFT`의 실측940.9px/본문933.6px와 `DIAG_FIT`의plain=false/declared=false/overlay=true를 대조했다. 원인은 빈 `current_items`의 `all(Shape)`가 참이 되어 실제 배경 개체가 없는데도12px 여유 경로를 사용한 것이다. 저장 높이 수용이나 측정 행 높이를 바꾸는 원인이 아니므로 그 조건을 넓히지 않는다. `TypesetState`의 실제 배경 개체 조회를 block/inline 호출이 공유하게 한다. inline 호출은 뒤의 명시적 `!current_items.is_empty()`가 빈 단의 이월 자체를 막으므로 이번 빈 단 결과 변경으로 동작이 바뀌지 않는다. 실제 Shape만 있는 비빈 단의 기존 판정/12px 값은 동일하다.
+
+
+### 보정38 결과
+
+- 원본 수동 #2105의 통째 기대는 독립 한컴2020 PDF의 행 소유와 달라 교정했다. 원본 PDF는 BIG/MID ROW가1쪽, TAIL ROW/AFTER TABLE이2쪽이다. 수동 원본과 HWP→HWPX 독립 재저장 대조군 및 두 PDF를 각각 보존했다. 재저장은 표69700→69282HU, 줄높이1200→1000HU/vpos141→0 등을 바꿨으며 대조군 통과를 원본 전체 일치로 바꾸지 않는다. [입력·PDF 해시/독립 좌표/재생성 명령](../assets/pr7382_20260926/stage38_independent_geometry.json).
+- 재저장 대조군의 정식 검사는 수정 전217PASS/1FAIL(exit100,6.805s)에서 마지막 행 조각 누락과 본문7.3px 초과를 검출했다. 빈 배열의 `all(Shape)`가 참이어서 빈 단을 배경 도형만 있는 단으로 판단한 것이 실제 원인이다. `current_column_has_only_overlay_shapes`가 실제 개체 존재·Shape만 소유·흐름 높이를 함께 확인하고 block/inline 두 소비 지점이 같은 결과를 사용한다. 기존12px 예산·정상 배경 도형 경로·표 프레임 높이는 바꾸지 않았다.
+- 최종 확대219개는219PASS/0FAIL(exit0,6.907s,threads8)이다. 쪽 시작/중간 쪽의 원본·재저장 행 단일 소유와 물리 하단·뒤 TextLine, 정상 실물17행 및 배경 도형 대조군을 검사했다. 기존 원본 기대 실패와 새 실제 구현 결함 실패를 구분한다. fmt·고정base manifest(6229 attrs)·source-unit(4205/298)은exit0, 불변 release-test CLI 빌드는exit0/78.616s다. [정확한 명령·source/test/CLI 해시·로그 해시·판정](../assets/pr7382_20260926/stage38_validation.json).
+- Native 재저장 대조군은 수정 전83.99649/28.92386%에서 수정 후100/100%로 두 쪽의 마지막 행·뒤 글줄 소유와 표 경계가 복원됐다. 이는2px 관용 점수이며 완전 픽셀 일치가 아니다. 원본 수동 입력은78.03985/64.42264%로 unchanged이고 저장 줄 높이/괘선 차이가 남는다. 원본 점수 실패를 재생성 입력으로 숨기지 않는다.
+- 주 원본 HWPX/HWP의14/120/156쪽 새 review·standalone overlay12개를 직접 읽었다. 각각97.52614/99.67776/93.52007% 및97.54155/99.67776/94.81768%이며 그림·표·캡션·각주와 후속 본문을 보존했다. 전체215쪽 tree는 두 형식 모두 변경 없이 유지됐다. [전체 tree 범위](../assets/pr7382_20260926/stage38_original_tree_difference.json). 전후 원본/재저장까지 새PNG32개를 직접 확인하고 보존했으며 tree 동일성을 전체 래스터 검증으로 보고하지 않는다.
+- 추가 설명 주석902줄을 재검색하여 [영어 설명 주석0개](../assets/pr7382_20260926/stage38_english_comment_scan.json)를 확인했다. 활성 수정 파일의 기존 영어 설명도 한글로 바꿨다. 제품/형식/API 식별자는 유지한다.19378753 실제 원본은 Mac 및 Windows 지정 자료 경로에서 찾지 못해 실물 정합을 미검증으로 남겼다. 로그·중간 자료·generated는output에만 두고 커밋하지 않는다.
+- 판정: 빈 단의 배경 오인 및 원본 행 소유 기대는 충족. 원본 수동/실문서 전체 시각,126쪽·#6782의76/78쪽,실제 TABLE 편집/래퍼 분할·최신 전체 Native/fresh WASM·전체 nextest/lint/Skia는 남아 통합 PR 생성/승인은 계속 보류한다. 이 단계 커밋 뒤126쪽 표/캡션/각주를 다음 개별 보정으로 분석한다.
+
+![재저장 첫쪽의 표 분할 복원](../assets/pr7382_20260926/stage38_after_resaved_review_001.png)
+![재저장 다음쪽의 마지막 행과 뒤 글줄](../assets/pr7382_20260926/stage38_after_resaved_review_002.png)
+![원본 수동 입력의 남은 차이](../assets/pr7382_20260926/stage38_after_original_overlay_002.png)

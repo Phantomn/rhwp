@@ -42,14 +42,13 @@ fn rows(node: &RenderNode) -> BTreeSet<u16> {
         .collect()
 }
 
-#[test]
-fn manually_short_terminal_cell_preserves_rows_and_physical_budget() {
-    let core = load("samples/task2097/rowbreak_midpage_declared_fits.hwpx");
+fn assert_terminal_row_ownership(sample: &str, host: usize, has_head: bool) {
+    let core = load(sample);
     assert_eq!(core.page_count(), 2, "독립 한컴2020 PDF2쪽");
     let first = core.build_page_render_tree(0).expect("첫쪽");
     let next = core.build_page_render_tree(1).expect("이어받기쪽");
-    let first_table = table(&first.root, 1).expect("첫 표 조각");
-    let next_table = table(&next.root, 1).expect("마지막 행 조각");
+    let first_table = table(&first.root, host).expect("첫 표 조각");
+    let next_table = table(&next.root, host).expect("마지막 행 조각");
     assert_eq!(
         rows(first_table),
         BTreeSet::from([0, 1]),
@@ -66,8 +65,14 @@ fn manually_short_terminal_cell_preserves_rows_and_physical_budget() {
         first_table.bbox.y + first_table.bbox.height <= body_bottom + 0.5,
         "마지막 행을 강제 소비해 첫쪽 paint가 본문 밖으로 넘치면 안 됨"
     );
+    if has_head {
+        assert_eq!(
+            text(&first.root).matches("HEAD LINE BEFORE TABLE").count(),
+            1
+        );
+        assert!(!text(&next.root).contains("HEAD LINE BEFORE TABLE"));
+    }
     for (needle, page) in [
-        ("HEAD LINE BEFORE TABLE", 0),
         ("BIG ROW", 0),
         ("MID ROW", 0),
         ("TAIL ROW EXPANDING", 1),
@@ -129,4 +134,33 @@ fn independently_resaved_terminal_row_keeps_page_ownership() {
             "각 실제 행은 해당 쪽에 한 번만 출력"
         );
     }
+}
+
+#[test]
+fn manually_short_terminal_cell_preserves_rows_and_physical_budget() {
+    assert_terminal_row_ownership(
+        "samples/task2097/rowbreak_midpage_declared_fits.hwpx",
+        1,
+        true,
+    );
+}
+
+/// 쪽 시작도 가시 줄이 남은 물리 공간보다 크면 마지막 행을 이월한다.
+#[test]
+fn manually_short_fragment_start_cell_preserves_rows_and_physical_budget() {
+    assert_terminal_row_ownership(
+        "samples/task2105/rowbreak_table_declared_fits.hwpx",
+        0,
+        false,
+    );
+}
+
+/// 원본과 구분한 독립 한컴 재저장 입력에서도 같은 실제 소유 계약을 확인한다.
+#[test]
+fn independently_resaved_fragment_start_keeps_rows_and_physical_budget() {
+    assert_terminal_row_ownership(
+        "samples/issue2097/rowbreak-fragment-start-resaved-2020.hwpx",
+        0,
+        false,
+    );
 }

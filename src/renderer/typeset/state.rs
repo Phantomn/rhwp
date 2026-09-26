@@ -33,6 +33,18 @@ use crate::renderer::page_layout::LayoutRect;
 use crate::renderer::pagination::PageItem;
 
 impl TypesetState {
+    /// 빈 단은 배경 개체가 있는 단이 아니다. 통째 표의 별도 여유 경로는
+    /// 실제 Shape가 있고 흐름을 점유한 다른 항목이 없을 때만 사용한다.
+    pub(super) fn current_column_has_only_overlay_shapes(&self) -> bool {
+        self.data.current_height <= 0.5
+            && !self.data.current_items.is_empty()
+            && self
+                .data
+                .current_items
+                .iter()
+                .all(|item| matches!(item, PageItem::Shape { .. }))
+    }
+
     /// 지연 그림 조회의 불변 관측값. 가용 높이는 이 snapshot에 넣지 않는다.
     pub(super) fn deferred_picture_page(
         &self,

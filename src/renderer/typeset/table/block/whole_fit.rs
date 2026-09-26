@@ -290,13 +290,8 @@ impl TypesetEngine {
                 }
             });
 
-        let current_column_has_only_overlay_shapes = st.current_height <= 0.5
-            && st
-                .current_items
-                .iter()
-                .all(|item| matches!(item, PageItem::Shape { .. }));
         let fits_after_overlay_shapes =
-            current_column_has_only_overlay_shapes && table_total <= available + 12.0;
+            st.current_column_has_only_overlay_shapes() && table_total <= available + 12.0;
         // [#3820] 저장된 쪽 끝 일반 RowBreak 표는 whole-fit 판단이
         // 저장 common.height(`table_total`)만 보면, renderer가 실제로 paint할 행
         // footprint보다 작게 판정해 footer 아래까지 행을 보존한다. source의 다음
@@ -359,11 +354,10 @@ impl TypesetEngine {
         // 않는다 — 선언이 fit 하지 않는 다쪽 표의 분할 의미론은 불변. CellBreak 는
         // 셀 중간 컷 의미론이 별개라 비대상. advance 는 측정 table_total 을 유지해
         // 같은 쪽 후속 겹침을 차단한다.
-        // A RowBreak table on a fresh fragment has no preceding flow to
-        // contradict its declared height. Mid-fragment, trust the declaration
-        // only when the source host records the object's bottom inside the same
-        // body frame. Measured overshoot buckets cannot distinguish a font-metric
-        // drift from a real source-owned fragment boundary.
+        // 새 조각의 RowBreak 표는 앞 흐름이 없어 선언 높이와 충돌하지 않는다.
+        // 조각 중간에서는 원본 호스트가 개체 하단을 같은 본문 안에 기록했을 때만
+        // 선언을 신뢰한다. 실측 초과량만으로 글꼴 메트릭 차이와 원본 조각 경계를
+        // 구분할 수 없다.
         let rowbreak_at_fragment_start = st.current_items.is_empty();
         let midpage_rowbreak_has_saved_object_bottom = para
             .line_segs
@@ -387,12 +381,10 @@ impl TypesetEngine {
             }
             crate::model::table::TablePageBreak::CellBreak => false,
         };
-        // Declared cell boxes are trustworthy only when every text-bearing cell
-        // has a stored lineSeg frame that fits inside its own declaration *and*
-        // the table object frame owns the declared row geometry. A percentage/
-        // cap cannot tell browser metric expansion from a genuinely taller
-        // source row, and a cell-local frame alone cannot distinguish a stale
-        // short table object from a source-owned RowBreak fragment.
+        // 텍스트 셀의 저장 줄 프레임이 각 선언 셀 안에 들어가고 표 개체 프레임이
+        // 선언 행 형상을 소유할 때만 선언 셀 상자를 신뢰한다. 비율이나 상한만으로
+        // 브라우저 측정 팽창과 실제로 큰 원본 행을 구분할 수 없다. 셀 프레임만으로도
+        // 오래된 짧은 표 개체와 원본이 소유한 RowBreak 조각을 구분할 수 없다.
         let declared_excess_has_source_frame =
             table_declared_height_has_stored_cell_content_frame(table, self.dpi)
                 && (!matches!(
@@ -422,17 +414,14 @@ impl TypesetEngine {
         } else {
             declared_object_total
         };
-        // A stored RowBreak object frame can fit in the current body while
-        // browser measurement places the table body a rounding-sized amount
-        // below it. The declared frame remains the source ownership boundary in
-        // this non-TAC, footnote-free shape for both HWP and HWPX; a genuinely
-        // tall table still takes the row scanner because its measured body
-        // exceeds this narrow 2px conversion bound.
+        // 저장 RowBreak 개체 프레임은 본문에 들어가지만 브라우저 측정이 표를
+        // 반올림 정도 아래로 둘 수 있다. 비TAC·각주 없음 형상에서는 HWP/HWPX
+        // 모두 선언 프레임을 원본 소유 경계로 유지한다. 실제로 큰 표는 실측 본문이
+        // 좁은 변환 경계2px를 넘으므로 행 스캐너로 간다.
         const NEAR_MEASURED_ROWBREAK_FIT_PX: f64 = 2.0;
-        // A vertical merge beginning in the first logical row makes that row
-        // and its successor an atomic stored band. Splitting before that band
-        // would retain a border-only fragment even though the declared object
-        // fits in the current body.
+        // 첫 논리 행에서 시작하는 세로 병합은 그 행과 다음 행을 하나의 저장
+        // 밴드로 만든다. 선언 개체가 본문에 들어가는데 밴드 앞에서 나누면
+        // 테두리만 있는 조각이 남는다.
         let has_leading_rowspan_band = table
             .cells
             .iter()
@@ -443,11 +432,10 @@ impl TypesetEngine {
                 crate::model::table::TablePageBreak::RowBreak
             )
             && ft.table_footnotes.is_empty()
-            // HWPX stored-layout keeps a pagination frame independent from
-            // the native HWP5 table declaration. Its near measured fit is a
-            // converter provenance contract; native HWP5 and HWP5-origin HWPX
-            // must additionally prove that the object frame owns all declared
-            // row geometry (#5128 스펙 문서 표 174/193/203/284 통째 흡수 방지).
+            // HWPX 저장 조판은 Native HWP5 표 선언과 별도의 페이지 프레임을
+            // 보존한다. 실측이 근접한 경우의 수용은 변환 출처의 계약이다.
+            // Native HWP5와 HWP5 출처 HWPX는 개체 프레임이 모든 선언 행 형상을
+            // 소유함도 입증해야 한다(#5128 표174/193/203/284 통째 흡수 방지).
             && (!st.profile.hwp5_stored_pagination_layout()
                 || declared_excess_has_source_frame
                 || has_leading_rowspan_band)
@@ -499,11 +487,10 @@ impl TypesetEngine {
             || hwpx_tac_cell_leftover_declared_fits
             || (!uses_painted_row_footprint_for_whole_fit
                 && declared_fit_scope_ok
-                // This HWPX compatibility route uses the measured table height,
-                // not the declared object height. Requiring the declared object to
-                // cover every cell row here turns a fitting flowWithText=0 table
-                // into an intra-row fragment solely because its source declaration
-                // is not the height authority for this profile.
+                // 이 HWPX 호환 경로는 선언 개체 대신 실측 표 높이를 사용한다.
+                // 이 프로필에서 높이의 권위가 아닌 선언 개체에 모든 셀 행을
+                // 덮도록 요구하면 실제로 들어가는 flowWithText=0 표도
+                // 선언만을 이유로 행 내부에서 나뉜다.
                 && (hwpx_noninline_tac_measured_fit || declared_excess_has_source_frame)
                 && !ft.strict_following_plain_text_fit
                 && (!table.common.treat_as_char || hwpx_noninline_tac_measured_fit)

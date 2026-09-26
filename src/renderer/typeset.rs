@@ -4384,13 +4384,8 @@ impl TypesetEngine {
             table_height
         };
         let available = st.available_height();
-        let current_column_has_only_overlay_shapes = st.current_height <= 0.5
-            && st
-                .current_items
-                .iter()
-                .all(|item| matches!(item, PageItem::Shape { .. }));
         let fits_after_overlay_shapes =
-            current_column_has_only_overlay_shapes && table_height <= available + 12.0;
+            st.current_column_has_only_overlay_shapes() && table_height <= available + 12.0;
         let tac_trailing_spacing_for_fit = if hwpx_rowbreak_tac_missing_owned_line {
             (fmt.total_height - fmt.height_for_fit).max(0.0)
         } else {
