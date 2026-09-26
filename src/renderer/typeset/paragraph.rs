@@ -723,7 +723,9 @@ pub(super) fn prepare_forced_page_boundary(
     // 실제 FootnoteArea 경계와 source/flow가 함께 맞을 때만 강제 경계로 쓴다.
     let native_hwp5_existing_footnote_reset_line =
         native_hwp5_existing_footnote_reset_overlap_break_line(st, para, fmt, paragraphs, dpi);
-    let current_page_vpos_base = st.vpos_page_base.or_else(|| {
+    // 흐름 스냅이 이미 확정한 지연 기준은 마지막 줄·내부 쪽 경계도 함께 소비한다.
+    // 첫 빈 개체 호스트의 저장 위치는 표 밴드 뒤의 줄일 수 있어 쪽 원점으로 다시 쓰지 않는다.
+    let current_page_vpos_base = st.vpos_page_base.or(st.vpos_lazy_base).or_else(|| {
         st.current_items
             .first()
             .and_then(|item| page_item_vpos_base(item, paragraphs))
