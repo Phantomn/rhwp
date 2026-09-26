@@ -10,6 +10,45 @@ use crate::{
 
 use super::GeometryError;
 
+/// A normal Hancom save can retain a minimum-width text lane even when the
+/// padded cell is narrower. Reuse the common rule, not a maximum observed sw.
+/// This extension qualifies saved plain rows only; it does not enlarge object
+/// frames, invent fresh line breaks or change physical cell padding/borders.
+pub(super) fn cell_lane_width(
+    paragraphs: &[Paragraph],
+    cell_width: f64,
+    padding: super::Insets,
+    scale: f64,
+) -> Result<Option<f64>, GeometryError> {
+    let physical = cell_width - padding.left - padding.right;
+    let minimum = crate::renderer::composer::cell_inner_text_width(
+        cell_width,
+        padding.left,
+        padding.right,
+        scale * 7200.0,
+    );
+    if minimum <= physical
+        || !paragraphs.iter().any(|p| {
+            p.line_segs
+                .iter()
+                .any(|s| s.column_start == 0 && same(f64::from(s.segment_width) * scale, minimum))
+        })
+    {
+        return Ok(None);
+    }
+    if paragraphs
+        .iter()
+        .any(|p| !p.controls.is_empty() || p.line_segs.is_empty())
+    {
+        return Err(GeometryError::Unsupported(
+            "minimum cell lane requires saved plain rows",
+        ));
+    }
+    // localize still validates source partition, row tags, margins, indentation
+    // and final bounds. Invalid/stale widths do not become a new width oracle.
+    Ok(Some(minimum))
+}
+
 fn unsupported() -> GeometryError {
     GeometryError::Unsupported("stored text requires intact single-segment rows")
 }

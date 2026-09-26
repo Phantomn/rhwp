@@ -40,6 +40,9 @@ pub(super) struct CellTrack {
     pub left: f64,
     pub width: f64,
     pub alignment: VerticalAlignment,
+    /// Qualified saved text lane, independent of the physical cell/child-table
+    /// frame. Only the IR adapter can establish a minimum-width text lane.
+    pub text_width: Option<f64>,
     /// Leading space resolved from the intact row's final physical height.
     pub content_offset_y: f64,
 }
@@ -139,6 +142,7 @@ impl TableContentPlan {
                     left,
                     width,
                     alignment: VerticalAlignment::Top,
+                    text_width: None,
                     content_offset_y: 0.0,
                 };
                 left += width;
@@ -183,6 +187,8 @@ impl TableContentPlan {
                 if inner_width < 0.0 || inner_width != cell.width {
                     return Err(GeometryError::ContentWidth { row, column });
                 }
+                let text_width = track.text_width.unwrap_or(inner_width);
+                nonnegative(text_width, "text lane width")?;
                 let mut owners = HashSet::new();
                 let mut controls = HashSet::new();
                 for block in &cell.blocks {
@@ -205,7 +211,7 @@ impl TableContentPlan {
                                     nonnegative(v, "line bounds")?;
                                 }
                                 if !((b.x + b.width).is_finite() && (b.y + b.height).is_finite())
-                                    || b.x + b.width > inner_width
+                                    || b.x + b.width > text_width
                                     || b.y + b.height > *height
                                 {
                                     return Err(GeometryError::ContentBounds { row, column });

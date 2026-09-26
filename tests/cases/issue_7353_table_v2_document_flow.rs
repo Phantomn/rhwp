@@ -377,7 +377,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         DocumentV2Error::Paragraph {
             index: 5,
             reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "stored text requires intact single-segment rows"
+                "nested anchor, TAC, wrap or outer margin"
             )
         }
     ));
@@ -2611,6 +2611,79 @@ fn hancom_saved_space_before_tac_preserves_child_and_following_origins() {
     near(
         &runs[2]["bbox"]["y"],
         (7087.0 + f64::from(after.vertical_pos)) / 75.0,
+    );
+}
+
+#[test]
+fn hancom_narrow_nested_cell_keeps_minimum_text_lane_without_widening_table() {
+    let input = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue7353_narrow_cell_review/narrow-saved.hwp"
+    ))
+    .unwrap();
+    let source = rhwp::parse_document(&input).unwrap();
+    let Control::Table(parent) = &source.sections[0].paragraphs[0].controls[2] else {
+        panic!()
+    };
+    let Control::Table(child) = &parent.cells[0].paragraphs[0].controls[0] else {
+        panic!()
+    };
+    let narrow = &child.cells[1];
+    assert_eq!(narrow.width, 1303);
+    assert!(!narrow.apply_inner_margin);
+    assert_eq!((child.padding.left, child.padding.right), (510, 510));
+    assert_eq!(narrow.paragraphs[0].text, "A");
+    assert_eq!(narrow.paragraphs[0].line_segs[0].segment_width, 1440);
+    let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    assert_eq!(
+        labels(&pages[0]),
+        [
+            " ",
+            "LEFT",
+            "A",
+            "RIGHT - narrow middle cell",
+            "AFTER CELL: no missing or duplicated text"
+        ]
+    );
+    let tables = nodes(&pages[0], "Table");
+    assert_eq!(tables.len(), 2);
+    near(&tables[0]["bbox"]["width"], 48182.0 / 75.0);
+    near(&tables[0]["bbox"]["height"], 15000.0 / 75.0);
+    near(&tables[1]["bbox"]["width"], 27303.0 / 75.0);
+    near(&tables[1]["bbox"]["height"], 5000.0 / 75.0);
+    let cells = nodes(&pages[0], "TableCell");
+    let middle = cells
+        .iter()
+        .find(|c| (c["bbox"]["width"].as_f64().unwrap() - 1303.0 / 75.0).abs() < 1e-9)
+        .unwrap();
+    let line = nodes(&pages[0], "TextLine")
+        .into_iter()
+        .find(|l| {
+            l["children"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|r| r["node_type"]["TextRun"]["text"] == "A")
+        })
+        .unwrap();
+    near(
+        &line["bbox"]["x"],
+        middle["bbox"]["x"].as_f64().unwrap() + 510.0 / 75.0,
+    );
+    near(&line["bbox"]["width"], 1440.0 / 75.0);
+    near(&line["bbox"]["height"], 1000.0 / 75.0);
+    // Independent source widths keep the right neighbour at the cell edge,
+    // not at the wider text lane edge. No clipping hides the extending lane.
+    let right = cells.last().unwrap();
+    near(
+        &right["bbox"]["x"],
+        tables[1]["bbox"]["x"].as_f64().unwrap() + (6000.0 + 1303.0) / 75.0,
+    );
+    let after = nodes(&pages[0], "TextLine").last().copied().unwrap();
+    near(
+        &after["bbox"]["y"],
+        (7087.0 + f64::from(source.sections[0].paragraphs[1].line_segs[0].vertical_pos)) / 75.0,
     );
 }
 

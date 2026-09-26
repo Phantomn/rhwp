@@ -74,6 +74,7 @@ pub(super) fn resolve(table: &Table, scale: f64) -> Result<ResolvedGrid<'_>, Geo
                         VerticalAlign::Bottom => VerticalAlignment::Bottom,
                     },
                     content_offset_y: 0.0,
+                    text_width: None,
                 });
             }
             left = right;

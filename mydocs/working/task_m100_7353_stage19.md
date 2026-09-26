@@ -2981,3 +2981,72 @@ offset0에 보통 공백 한 글자, offset1에 표 control이 있는 문단이�
 전체 PR lint/CI·원격 게시·기본 엔진 전환은 수행하지 않았으며, 이번 새 절편의 메인테이너
 시각 판정은 대기한다.
 메인테이너가 이번 TAC 공백/들여쓰기 절편의 시각 판정 통과와 다음 절편 진행을 승인했다.
+
+### 후속 절편: 좁은 셀의 저장 최소 텍스트 줄 폭
+
+직전 승인 범위를 `ce3f9a53b`로 커밋한 뒤 진행했다. 원본 #6923의
+`s0/p5/t0/c0/p7/t0/c1/p0`은 빈 가운데 셀이다. 셀1303 HU−좌우 여백510 HU씩으로
+물리 안쪽 폭283 HU지만 저장 줄 폭은1440 HU다. 기존 공통 구성기의
+`composer.rs::cell_inner_text_width`가 같은 최소 폭을 적용한다. 주석의 과거 보고서만
+근거로 수용을 넓히지 않고, 좁은 셀을 새로 작성해 한컴 정상 저장으로1440 HU를 재확인했다.
+입력 생성·동일 저장 HWP의 기준 PDF·해시는
+`tests/fixtures/issue7353_narrow_cell_review/README.md`에 기록했다.
+
+구현 주장과 실제 소비 경로:
+
+| 경계 | 생산·소비와 불변식 |
+| --- | --- |
+| 공통 최소 폭 | `stored_text.rs::cell_lane_width`가 기존 공통 최소 폭과 정상 저장 줄 정보를 대조한다. 관측 sw의 최댓값으로 임의 확대하지 않는다. |
+| IR → 측정 | `ir.rs::bind_table`이 공통 폭으로 문단을 구성하고 `CellTrack.text_width`에 기록한다. 물리 `FlowCellInput.width`와 padding은 유지한다. |
+| 콘텐츠 검증 | `content.rs::from_grid_rows`의 Lines만 저장 텍스트 폭으로 검사한다. InlineTables·자식 표의 가용 폭은 물리 폭이다. |
+| 컷 → 실제 배치 | `fragment.rs::fit_rows`가 물리 셀 원점/여백을 넘기고 `flow.rs`의 Lines 분기가 이미 구성한 줄 높이와 순서로 수용/이월한다. `text.rs::TextPaint`가 그 위치로 같은 payload를 이동한다. 셀 외곽 폭은 grid에서 그대로 가져온다. |
+| 적용 제한 | 저장된 평문 셀만 확장한다. 혼합 fresh/컨트롤 셀은 거부하고, 명시 Flow 입력/본문 경로는 이 IR 증거 없이 폭을 확장하지 않는다. fresh 최소 폭 재조판은 이번 검증 범위 밖이다. |
+
+독립 기대값은 정상 저장1440 HU와 원문 셀1303 HU·여백510 HU에서 정한다. 합성 경계는
+900 HU 줄 높이·450 HU 간격·위75/아래150 HU 여백을 독립 입력으로 주고 최종 좌표를
+검사한다. 빈 줄은 높이를 가진 한 유닛이며, 마지막 문단 간격 정책 아래 총51px를 예약한다.
+20px 예산 세 쪽의 시작/끝 컷에서 A·빈 줄·B를 한 번씩 소비하고 종료하는지 검사한다.
+여기서는 rowspan·헤더·캡션·각주 경로를 수정하지 않았다.
+
+수정 전 신규 텍스트 계약은 저장 폭 거부로 FAIL했다 (`test-before.log`). 최종 한컴A
+대조군도 이전 Native에서 같은 원인으로 거부됐다 (`before-final.log`). 수정 후 직접
+텍스트 계약26건은 PASS (`text-after.log`). 빌드 실패는 결함 검출 증거에 포함하지 않는다.
+원본 전체는 이후 `nested anchor, TAC, wrap or outer margin`에서 멈춘다
+(`original-after.log`). 이를 R5 완료나 원본 전체 통과로 바꾸어 보고하지 않는다.
+
+초기 AB 대조군은 양쪽 엔진 모두B가 인접 셀에 가려지는 별도 현상이 있었다. 원본 산출을
+보존한 채 가운데 글자만A로 바꾸어 한컴에서 다시 저장했다. 이번 시각 증적은 그 최종A
+저장본/PDF를 사용한다. 기존 자료를 최종 코드의 시각 증거로 재사용하지 않는다.
+
+최종 산출 위치는 `output/7353/r19/narrow-cell/`이다. checkpoint `ce3f9a53b`와
+`source.sha256`의6개 source/test 패치를 기준으로 검증하며 `review/run.json`에 입력·PDF·
+WASM 해시를 고정했다. 파생 fixture의 생성 코드는 README의 별도 절차다.
+
+- review worktree에서 직전 절편에 기록한8개 suite·동일 nextest 필터/명령을 최종 source로
+  실행: **201 passed /0 failed /1532 skipped** (`focused.log`). 신규 저장 최소 폭·정상
+  한컴 대조군2건의 실행을 확인했다. 집중 범위이며 전체 CI가 아니다. nextest 권고 버전과
+  기존 설정 경고는 남는다.
+- `docker compose --env-file .env.docker -p rhwp run --rm wasm`: 성공7분34초
+  (`docker-wasm.log`). fresh WASM SHA-256:
+  `aa9a455ba588568f9ecb229912143e0f615e1b35290980c5f58530384c25e20b`.
+- 최종 Native probe, `pdftocairo -png -r 96 -singlefile`, `review.mjs --wasm`,
+  `focus.mjs native`, `focus.mjs wasm`: 동일 입력1쪽, Native/fresh WASM SVG 동일.
+  JSON 비수치 차이0, 수치22개/최대2.2737367544323206e-13.
+- `controls.mjs`: 기존 승인 diagonal/저장 indent/fresh indent/justify/TAC 공백
+  × 끝 간격 정책2종 **10조합**에서 기존 Native SVG 보존과 fresh WASM 동일성 통과.
+- Native/fresh WASM 전체 review·같은 영역 확대 review·standalone overlay를 직접 열어
+  A·좁은 셀/이웃 셀 경계·부모 외곽·뒤 문단을 비교했다. 한컴 선이 더 진하고 글리프
+  외형 차이는 남는다. 픽셀 점수나 백엔드 동일성으로 메인테이너 시각 판정을 대신하지 않는다.
+- `cargo fmt --all -- --check`, `git diff --check`, source manifest 검증과 review worktree의
+ 6개 변경 source/test 동일성 확인 통과. 검증 후 제품 코드 변경 없음.
+
+이번 절편 시각 판정 대상:
+
+- [가운데A·좁은 셀 경계 확대](../../output/7353/r19/narrow-cell/review/wasm-focus-review.png)
+- [전체 WASM review 및 뒤 문단](../../output/7353/r19/narrow-cell/review/wasm-review-1.png)
+- [standalone overlay](../../output/7353/r19/narrow-cell/review/wasm-overlay-1.png)
+- [한컴 저장 HWP](../../tests/fixtures/issue7353_narrow_cell_review/narrow-saved.hwp)
+- [동일 저장 HWP의 한컴 PDF](../../tests/fixtures/issue7353_narrow_cell_review/narrow-2020.pdf)
+
+메인테이너 시각 판정 대기. 전체 PR lint/CI, 원격 게시, 기본 엔진 전환은 수행하지 않았다.
+메인테이너가 좁은 셀 절편의 시각 판정 통과와 다음 절편 진행을 승인했다.

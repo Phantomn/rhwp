@@ -77,6 +77,103 @@ fn area(height: f64) -> PageArea {
 }
 
 #[test]
+fn saved_minimum_cell_lane_preserves_blank_lines_cuts_and_physical_edges() {
+    // Independent normal-save oracle: issue7353_narrow_cell_review has a1303HU
+    // cell,510HU left/right pads and1440HU stored text width (not283HU).
+    for own_padding in [false, true] {
+        let mut t = table(&["A", "", "B"]);
+        t.cells[0].width = 1303;
+        t.padding = Padding {
+            left: 510,
+            right: 510,
+            top: 75,
+            bottom: 150,
+        };
+        t.cells[0].apply_inner_margin = own_padding;
+        t.cells[0].padding = t.padding;
+        if own_padding {
+            t.padding = Padding::default();
+        }
+        for p in &mut t.cells[0].paragraphs {
+            p.line_segs = vec![LineSeg {
+                text_start: 0,
+                vertical_pos: 0,
+                line_height: 900,
+                text_height: 900,
+                baseline_distance: 765,
+                line_spacing: 450,
+                column_start: 0,
+                segment_width: 1440,
+                tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            }];
+        }
+        let before = serde_json::to_value(&t).unwrap();
+        let prepared = PreparedTextTable::prepare_with_end_policy(
+            &t,
+            &styles(),
+            96.0,
+            &[],
+            CellEndPolicy::OmitFinalParagraphGap,
+        )
+        .unwrap();
+        let page = |height| PageArea {
+            bounds: Rect {
+                x: 20.0,
+                y: 30.0,
+                width: 1303.0 / 75.0,
+                height,
+            },
+        };
+        let cursor = prepared.start();
+        let TextFragmentFit::Placed(whole) = cursor.fit(page(100.0)).unwrap() else {
+            panic!()
+        };
+        let (_, lines) = render(&whole);
+        assert_eq!(lines.iter().map(text).collect::<Vec<_>>(), ["A", "", "B"]);
+        for (i, l) in lines.iter().enumerate() {
+            assert!((l.bbox.x - 26.8).abs() < 1e-9);
+            assert!((l.bbox.width - 19.2).abs() < 1e-9);
+            assert!((l.bbox.y - (31.0 + i as f64 * 18.0)).abs() < 1e-9);
+            assert_eq!(l.bbox.height, 12.0);
+        }
+        assert!((whole.geometry().reserved_height() - 51.0).abs() < 1e-9);
+        let mut cursor = prepared.start();
+        let mut labels = Vec::new();
+        for index in 0..3 {
+            let TextFragmentFit::Placed(part) = cursor.fit(page(20.0)).unwrap() else {
+                panic!()
+            };
+            let (tree, ls) = render(&part);
+            assert_eq!(ls.len(), 1, "one full line fits per page");
+            labels.push(text(&ls[0]));
+            assert!((ls[0].bbox.x - 26.8).abs() < 1e-9);
+            assert!((ls[0].bbox.y - (30.0 + if index == 0 { 1.0 } else { 0.0 })).abs() < 1e-9);
+            let table = &tree.root.children[0];
+            assert!((table.bbox.width - 1303.0 / 75.0).abs() < 1e-9);
+            assert!((table.children[0].bbox.width - 1303.0 / 75.0).abs() < 1e-9);
+            cursor = part.continuation();
+        }
+        assert_eq!(labels, ["A", "", "B"]);
+        assert!(matches!(
+            cursor.fit(page(20.0)).unwrap(),
+            TextFragmentFit::Complete
+        ));
+        assert_eq!(serde_json::to_value(&t).unwrap(), before);
+        // The observed minimum is a rule, not permission for arbitrary width.
+        for width in [1439, 1441, 1600] {
+            let mut bad = t.clone();
+            for p in &mut bad.cells[0].paragraphs {
+                p.line_segs[0].segment_width = width;
+            }
+            assert!(PreparedTextTable::prepare(&bad, &styles(), 96.0).is_err());
+        }
+        let mut mixed = t.clone();
+        mixed.cells[0].paragraphs[1].line_segs.clear();
+        assert!(PreparedTextTable::prepare(&mixed, &styles(), 96.0).is_err());
+    }
+}
+
+#[test]
 fn negative_stored_gap_keeps_line_boxes_and_continuation_ownership() {
     // Independent synthetic HU geometry: two 12-high rows start 10HU apart.
     // The second row cannot fit a 21HU budget although its advance ends at 20.

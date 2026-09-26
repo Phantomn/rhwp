@@ -136,7 +136,7 @@ fn bind_table(
     {
         return Err(GeometryError::Unsupported("relative table size"));
     }
-    let resolved = super::grid::resolve(table, scale)?;
+    let mut resolved = super::grid::resolve(table, scale)?;
     for cell in &table.cells {
         if cell.text_direction != 0 || cell.line_wrap != 0 {
             return Err(GeometryError::Unsupported("cell direction or line wrap"));
@@ -187,6 +187,13 @@ fn bind_table(
             }
             let inner_width = resolved.tracks[r][c].width - padding.left - padding.right;
             super::contracts::nonnegative(inner_width, "IR content width")?;
+            let text_width = super::stored_text::cell_lane_width(
+                &cell.paragraphs,
+                resolved.tracks[r][c].width,
+                padding,
+                scale,
+            )?;
+            resolved.tracks[r][c].text_width = text_width;
             let mut blocks = Vec::new();
             for (pi, para) in cell.paragraphs.iter().enumerate() {
                 if para.column_type != ColumnBreakType::None {
@@ -207,7 +214,7 @@ fn bind_table(
                 }
                 let mut seen = vec![false; para.controls.len()];
                 for item in super::paragraph_end::into_flow_items_at_end(
-                    composer.compose(para, inner_width)?,
+                    composer.compose(para, text_width.unwrap_or(inner_width))?,
                     policy,
                     pi + 1 == cell.paragraphs.len(),
                 ) {
