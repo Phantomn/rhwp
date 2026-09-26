@@ -33,7 +33,7 @@ impl TypesetState {
         self.add_footnote_fragment_height(height, true);
     }
 
-    /// 각주 fragment 높이 추가. 연속 tail은 다음 page에서 separator를 반복하지 않는다.
+    /// 각주 조각 높이 추가. 물리 쪽의 구분선은 표시 플래그에 따라 한 번만 예약한다.
     pub(in crate::renderer::typeset) fn add_footnote_fragment_height(
         &mut self,
         height: f64,

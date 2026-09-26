@@ -1286,3 +1286,67 @@ fn synthetic_body_reset_does_not_create_a_saved_footnote_boundary() {
         "합성 되감김을 각주 소유 증거로 쓰지 않음"
     );
 }
+
+/// 번호 없는 이월 꼬리에도 한컴의 해당 물리 쪽 각주 구분선은 남는다.
+fn assert_continued_body_note_separator(core: DocumentCore) {
+    for (page, expected_y) in [(30, 1018.725), (31, 1018.725)] {
+        let tree = core.build_page_render_tree(page).expect("실제 각주 쪽");
+        let area = notes(&tree.root).expect("각주 영역");
+        let lines: Vec<_> = area
+            .children
+            .iter()
+            .filter_map(|n| match &n.node_type {
+                RenderNodeType::Line(line) => Some(line),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(lines.len(), 1, "물리{}쪽 구분선 누락·중복 금지", page + 1);
+        let line = lines[0];
+        for (actual, expected) in [
+            (line.x1, 94.509),
+            (line.x2, 283.528),
+            (line.y1, expected_y),
+            (line.y2, expected_y),
+        ] {
+            assert!(
+                (actual - expected).abs() <= 1.5,
+                "구분선 좌표{actual} vs 독립PDF{expected}"
+            );
+        }
+        let note = text(area);
+        if page == 30 {
+            assert!(note.contains("30)"));
+        } else {
+            assert!(
+                !note.contains("30)") && note.contains("Transplantationszentren"),
+                "번호 없는 꼬리 보존"
+            );
+            let y = line_top(area, "Transplantationszentren").expect("꼬리 줄");
+            assert!((y - 1027.569).abs() <= 1.5, "꼬리 위치{y}");
+        }
+    }
+    // 꼬리와 정상 각주가 함께 있어도 페이지당 구분선을 한 번만 칠한다.
+    let tree = core
+        .build_page_render_tree(178)
+        .expect("각주240 꼬리와241/242");
+    let area = notes(&tree.root).expect("뒤 각주 영역");
+    assert_eq!(
+        area.children
+            .iter()
+            .filter(|n| matches!(n.node_type, RenderNodeType::Line(_)))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn hwpx_continued_body_note_keeps_page_separator_without_number_repeat() {
+    assert_continued_body_note_separator(core());
+}
+
+#[test]
+fn hwp_continued_body_note_keeps_page_separator_without_number_repeat() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE.replace(".hwpx", ".hwp"));
+    let bytes = std::fs::read(path).expect("같은 보고서 원본HWP");
+    assert_continued_body_note_separator(DocumentCore::from_bytes(&bytes).expect("HWP 로드"));
+}

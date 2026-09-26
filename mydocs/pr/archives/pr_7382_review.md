@@ -9,7 +9,7 @@ last_verified: 2026-09-26
 
 ## 현재 판정
 
-**머지 보류.** 원 변경은 기준 PDF의 행·각주 소유와 전체 페이지 수를 충족하지 않는다. 보정13 통합 후보는215쪽을 유지하고 선택66/67·30/31·178/179쪽을 개선했지만, 전체 시각 비교의 본문 소유 차이와 최종 필수 게이트가 남았다. 통합 PR 생성·승인을 완료했다고 보고하지 않는다.
+**머지 보류.** 원 변경은 기준 PDF의 행·각주 소유와 전체 페이지 수를 충족하지 않는다. 보정14 통합 후보는215쪽을 유지하고 선택66/67·30/31·178/179쪽을 개선했지만, 전체 시각 비교의 본문 소유 차이와 최종 필수 게이트가 남았다. 통합 PR 생성·승인을 완료했다고 보고하지 않는다.
 
 ## 접수와 provenance
 
@@ -292,3 +292,28 @@ Producer `4001f5b0c` + Rust/test diff SHA256 `ccca0de8ec46961ba9473f98e3e756a7cc
 ## 사용자 요청: 추가한 영어 주석 전체 한글화
 
 사전 범위는 이번 통합 branch의 base 대비 추가 설명 주석 전체다. 코드·회귀 검사20개 파일의 영어108줄을 한글로 바꿨다. 변경 전후 주석을 제외한 파일 내용이 바이트 단위로 같음을 검사했고, base 대비 추가 영어 설명 주석 잔여0개, `cargo fmt --all -- --check`·`git diff --check` exit0을 확인했다. [파일별 검증](../assets/pr7382_20260926/comment_translation_validation.json). 이는 설명 주석 변경이며 새 렌더링 검증 통과를 주장하지 않는다. 최종 head의 필수 검증은 후속 기능 보정 뒤 실행한다.
+
+
+## 메인터너 보정 14: 이월 각주의 물리 쪽 구분선 보존
+
+같은 원본 보고서의 HWP/HWPX 한컴2024 PDF32는 번호 없는30 꼬리 위에 `x94.509..283.528/y1018.725px` 구분선을 표시한다. [두 기준 출력의 선 좌표와 해시](../assets/pr7382_20260926/stage14_independent_geometry.json)로 독립 기대값을 정했다. 기존 조각 조회와 문서가 구분선·번호를 모두 첫 조각에만 표시한다고 가정한 원인을 수정했다.
+
+`boundary.rs`의 두 줄/저장 reset 조각 플래그 생산 → `state/notes.rs`의 실제 예약·투영·영역 동기화 → `picture_footnote.rs`의 동일 `any(draw_separator)` 높이와 선 배치로 이어진다. 각 물리 쪽에서 구분선은 한 번만 예약·배치하며 번호는 앞 조각만 표시한다. 명시적으로 구분선을 생략하는 기존 플래그의 소비 계약은 유지하고, 실제 물리 각주 경계 query가 올바른 표시 값을 생산하게 했다. 본문 위치와 그림색 차이를 이 변경으로 해결했다고 확대하지 않는다.
+
+Producer `477c9aeb8` + Rust/test diff SHA256 `3d707ab6f3dd52af178be2ab424c21a52c7e65d8ac71df1148058479b57662f7`; [전후 검사](../assets/pr7382_20260926/stage14_validation.json).
+
+| 검사 | 결과 | 의미 |
+| --- | --- | --- |
+| 같은 HWP/HWPX 실제 꼬리, 수정 전 | 2FAIL, exit100,0.247s |32쪽 구분선 수0/기대1로 실제 누락 검출 |
+| 수정 후 관련·정상 대조군 | 40PASS, exit0,3.443s | 구분선 좌표·꼬리 위치·번호 무반복, 꼬리+정상 각주에서 선1개, 기존 표/각주/미주/왕복 보존 |
+| 새 CLI/쪽수 | build exit0,1m46s;215/PDF215 | 중간 쪽수 유지 |
+| Native32 review/overlay 직접 판독 |81.85013%, sweep 전체 exit1 | 구분선 복원; 뒤 문단 위치·그림색 등 잔여로 보류 |
+| Native179 review/overlay 직접 판독 |97.53225% | 꼬리와 뒤 정상 각주의 구분선 중복 없음, 앞 단계 무회귀 |
+| Native31/178 재캡처 |97.33830% /94.31041% | 선택 지표 무회귀; 이 단계에서 직접 판독을 반복했다고 확대하지 않음 |
+
+[manifest](../assets/pr7382_20260926/stage14_native_manifest.json)·[summary](../assets/pr7382_20260926/stage14_native_summary.json)·[metrics](../assets/pr7382_20260926/stage14_native_overlay_metrics.json). 전체/fresh WASM/최종 필수 검증은 미완료이며 PR 생성·승인 보류다. 추가·수정한 설명 주석은 한글로 작성했다.
+
+![Native32 구분선 복원](../assets/pr7382_20260926/stage14_native_review_032.png)
+![Native32 overlay](../assets/pr7382_20260926/stage14_native_overlay_032.png)
+![Native179 정상 대조](../assets/pr7382_20260926/stage14_native_review_179.png)
+![Native179 overlay](../assets/pr7382_20260926/stage14_native_overlay_179.png)

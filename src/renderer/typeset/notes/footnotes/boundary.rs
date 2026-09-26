@@ -10,7 +10,8 @@ use crate::renderer::typeset::{
 /// native HWP5의 두 줄짜리 단일 각주를 물리 페이지 경계에서 연속 fragment로 나눈다.
 ///
 /// 한컴은 본문 `LINE_SEG` reset 앞의 첫 줄은 해당 page의 separator 아래에 두고,
-/// 둘째 줄만 다음 page의 bottom footnote lane에 둔다. 일반 각주는 원자적으로 유지한다.
+/// 둘째 줄만 다음 page의 bottom footnote lane에 둔다. 각 물리 쪽은 구분선을
+/// 표시하되 번호는 첫 조각에만 둔다. 일반 각주는 원자적으로 유지한다.
 pub(in crate::renderer::typeset) fn native_hwp5_two_line_footnote_fragments(
     footnote: &Footnote,
 ) -> Option<(FootnoteFragment, FootnoteFragment)> {
@@ -28,7 +29,7 @@ pub(in crate::renderer::typeset) fn native_hwp5_two_line_footnote_fragments(
         FootnoteFragment {
             start_line: 1,
             end_line: 2,
-            draw_separator: false,
+            draw_separator: true,
             draw_number: false,
         },
     ))
@@ -114,7 +115,7 @@ pub(in crate::renderer::typeset) fn native_hwp5_footnote_reset_fragments(
     let suffix = FootnoteFragment {
         start_line: split_line,
         end_line: line_count,
-        draw_separator: false,
+        draw_separator: true,
         draw_number: false,
     };
     let fragment_height = |fragment: FootnoteFragment| {
