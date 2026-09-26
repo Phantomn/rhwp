@@ -3362,6 +3362,18 @@ impl HeightMeasurer {
                     }
                 };
 
+                // 닫힌 원본 프레임의 빈 마지막 줄은 그림 띠와 별도의 실제 공간이다.
+                let text_height = if self.is_native_hwp5
+                    && !self.session_edited
+                    && !self.render_normalization.table_text_reflowed(table)
+                {
+                    crate::renderer::float_placement::stored_empty_picture_cell_frame(cell, table)
+                        .map(|frame| hwpunit_to_px(frame.content_height_hu, self.dpi))
+                        .unwrap_or(text_height)
+                } else {
+                    text_height
+                };
+
                 // 패딩 포함 총 필요 높이
                 // [Task #501] cell.padding 이 IR cell.height 자체를 넘는 비정상 케이스
                 // (mel-001 p2 셀[21]: cell.h=1280 HU, pad.top+bottom=3400 HU) 가드:

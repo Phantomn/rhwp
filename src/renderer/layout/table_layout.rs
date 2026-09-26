@@ -4797,6 +4797,25 @@ impl LayoutEngine {
             && (painted_height - cut_height - lost_padding).abs() <= ROW_CUT_CAPACITY_FP_EPSILON_PX
     }
 
+    /// 미편집 원본 셀의 닫힌 그림·빈 줄 프레임을 측정과 같은 판별로 얻는다.
+    pub(crate) fn stored_empty_picture_cell_frame(
+        &self,
+        cell: &crate::model::table::Cell,
+        table: &crate::model::table::Table,
+    ) -> Option<crate::renderer::float_placement::StoredEmptyPictureCellFrame> {
+        let profile = self.profile.get();
+        if !profile.hwp5_stored_pagination_layout()
+            || profile.session_edited()
+            || self
+                .render_normalization
+                .borrow()
+                .table_text_reflowed(table)
+        {
+            return None;
+        }
+        crate::renderer::float_placement::stored_empty_picture_cell_frame(cell, table)
+    }
+
     /// 일반 부분 표의 온전한 행에서 MeasuredTable이 실제 paint 높이를 소유한다.
     /// 시작/끝 내용 컷 또는 rowspan 블록 컷에는 적용하지 않는다.
     /// 예약과 배치가 별도 조건으로 다른 높이를 선택하지 않도록 owner를 공유한다.
@@ -5646,6 +5665,10 @@ impl LayoutEngine {
             replay_terminal_boundary_unit,
             split_terminal,
         } = v;
+        let stored_empty_picture_frame = (row_filter.is_none() && !single_row_fragment)
+            .then(|| self.stored_empty_picture_cell_frame(cell, table))
+            .flatten()
+            .filter(|frame| hwpunit_to_px(frame.content_height_hu, self.dpi) <= inner_height + 0.5);
         let inner_area = LayoutRect {
             x: inner_x,
             y: text_y_start,
@@ -6857,6 +6880,13 @@ impl LayoutEngine {
                             // 모델이 정해질 때까지 칸 안으로 묶는다. 칸보다 큰 그림은
                             // 건드리지 않는다 — 그 경우 봉쇄는 위치를 바꿀 뿐 결과를
                             // 개선하지 못하고, 종전 배치를 흔들 위험만 남는다.
+                            let pic_y = stored_empty_picture_frame
+                                .map(|frame| {
+                                    text_y_start - hwpunit_to_px(frame.line_offset_hu, self.dpi)
+                                        + hwpunit_to_px(frame.picture_band_origin_hu, self.dpi)
+                                        + hwpunit_to_px(pic.common.vertical_offset as i32, self.dpi)
+                                })
+                                .unwrap_or(pic_y);
                             let pic_y = {
                                 let cell_top = content_cell_y.min(inner_area.y);
                                 let cell_bottom = (content_cell_y + cell_h)
@@ -8666,6 +8696,15 @@ impl LayoutEngine {
             } else {
                 total_content_height
             };
+            let stored_empty_picture_frame = (row_filter.is_none() && !single_row_fragment)
+                .then(|| self.stored_empty_picture_cell_frame(cell, table))
+                .flatten()
+                .filter(|frame| {
+                    hwpunit_to_px(frame.content_height_hu, self.dpi) <= inner_height + 0.5
+                });
+            let total_content_height = stored_empty_picture_frame
+                .map(|frame| hwpunit_to_px(frame.content_height_hu, self.dpi))
+                .unwrap_or(total_content_height);
             let use_top_vpos_anchor = matches!(effective_valign, VerticalAlign::Top);
             // [#6630] 세로 가운데/아래 셀: 첫 문단의 위 여백(저장 vpos 상한)이 내용 높이에 없어
             // 정렬이 그만큼 위로 쏠린다 — 정렬 계산에만 넣는다. Top 셀은 text_y_start 가 저장
@@ -8727,7 +8766,15 @@ impl LayoutEngine {
                     }
                 }
             };
-            let text_y_start = text_y_start + upper_page_clip_line_reservation;
+            let text_y_start = stored_empty_picture_frame
+                .map(|frame| {
+                    content_cell_y
+                        + pad_top
+                        + (inner_height - hwpunit_to_px(frame.content_height_hu, self.dpi)).max(0.0)
+                        + hwpunit_to_px(frame.line_offset_hu, self.dpi)
+                })
+                .unwrap_or(text_y_start)
+                + upper_page_clip_line_reservation;
             // 세로쓰기 셀
             if cell.text_direction != 0 {
                 let vert_inner_area = LayoutRect {
@@ -10623,6 +10670,32 @@ impl LayoutEngine {
         table: &crate::model::table::Table,
         styles: &ResolvedStyleSet,
     ) -> Vec<CellUnit> {
+        if let Some(frame) = self.stored_empty_picture_cell_frame(cell, table) {
+            // 같은 원본 프레임의 그림 띠와 마지막 빈 줄은 하나의 배치 소유다.
+            // 작은 빈 줄만 먼저 소비하면 그림의 흐름 공간이 뒤 조각으로 갈라진다.
+            return vec![CellUnit {
+                height: hwpunit_to_px(frame.content_height_hu, self.dpi),
+                hard_break_before: false,
+                stored_frame_break_before: false,
+                page_frame_reset_before: false,
+                vpos_gap_before: false,
+                para_idx: 0,
+                vis_start: 0,
+                vis_end: 1,
+                nested_row: None,
+                nested_table_fragment: None,
+                mixed_nested_fragment: false,
+                mixed_nested_trailing: false,
+                mixed_nested_content_height: 0.0,
+                mixed_nested_recursive: false,
+                mixed_nested_starts_after_table: false,
+                mixed_nested_source_para_idx: None,
+                recursive_block_prelude_role: RecursiveBlockPreludeRole::None,
+                top_and_bottom_flow: true,
+                empty_spacer: false,
+                non_inline_control_range: Some((0, cell.paragraphs[0].controls.len() - 1)),
+            }];
+        }
         let (pad_left, pad_right, pad_top, pad_bottom) = self.resolve_cell_padding(cell, table);
         let cell_w = if cell.width < 0x8000_0000 {
             hwpunit_to_px(cell.width as i32, self.dpi) * self.render_table_width_scale(table)

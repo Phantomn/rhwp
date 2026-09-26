@@ -1,4 +1,4 @@
-//! Flow reservation helpers for non-inline floating objects.
+//! 부동 개체의 흐름 예약과 실제 배치가 함께 쓰는 프레임.
 
 use std::ops::Range;
 
@@ -22,6 +22,100 @@ use super::page_layout::LayoutRect;
 /// 소비하므로 음수 저장값을 별도의 정렬 이동으로 다시 적용하지 않는다.
 pub(crate) fn topbottom_flow_vertical_offset_hu(common: &CommonObjAttr) -> i32 {
     signed_hwpunit(common.vertical_offset).max(0)
+}
+
+/// 그림 띠 뒤의 빈 마지막 줄을 담는 원본 셀 프레임.
+/// 그림들은 같은 띠의 원점에서 움직이며 각 그림 높이로 원점을 따로 역산하지 않는다.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct StoredEmptyPictureCellFrame {
+    pub line_offset_hu: i32,
+    pub picture_band_origin_hu: i32,
+    pub content_height_hu: i32,
+}
+
+pub(crate) fn stored_empty_picture_cell_frame(
+    cell: &crate::model::table::Cell,
+    table: &Table,
+) -> Option<StoredEmptyPictureCellFrame> {
+    use crate::model::paragraph::LineSeg;
+    use crate::model::table::VerticalAlign;
+    if cell.row_span != 1
+        || cell.text_direction != 0
+        || cell.vertical_align != VerticalAlign::Bottom
+    {
+        return None;
+    }
+    let [para] = cell.paragraphs.as_slice() else {
+        return None;
+    };
+    let [line] = para.line_segs.as_slice() else {
+        return None;
+    };
+    if !para.text.trim().is_empty()
+        || para.column_type != crate::model::paragraph::ColumnBreakType::None
+        || para.stored_text_partition_is_dirty()
+        || para.cell_format_vpos_dirty
+        || para.controls.is_empty()
+        || line.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
+        || line.vertical_pos <= 0
+        || line.line_height <= 0
+    {
+        return None;
+    }
+    let padding = cell.effective_padding(&table.padding);
+    let tail_height = line
+        .line_height
+        .checked_add(i32::from(padding.top))?
+        .checked_add(i32::from(padding.bottom))?;
+    let row_height = table
+        .cells
+        .iter()
+        .filter(|other| other.row == cell.row && other.row_span == 1)
+        .map(|other| signed_hwpunit(other.height))
+        .max()?;
+    // 빈 셀의 선언 높이는 마지막 줄과 안 여백이며, 저장 줄 위치까지 더하면 행을 닫는다.
+    if padding.top < 0
+        || padding.bottom < 0
+        || signed_hwpunit(cell.height) != tail_height
+        || line.vertical_pos.checked_add(tail_height)? != row_height
+    {
+        return None;
+    }
+    let mut picture_band_end = 0;
+    let mut has_flow_picture = false;
+    for control in &para.controls {
+        let Control::Picture(picture) = control else {
+            return None;
+        };
+        let common = &picture.common;
+        let offset = signed_hwpunit(common.vertical_offset);
+        if common.treat_as_char
+            || !common.flow_with_text
+            || picture.caption.is_some()
+            || common.vert_rel_to != VertRelTo::Para
+            || common.vert_align != VertAlign::Top
+            || !matches!(
+                common.text_wrap,
+                TextWrap::TopAndBottom | TextWrap::InFrontOfText
+            )
+            || offset < 0
+            || signed_hwpunit(common.height) <= 0
+            || common.margin.top != 0
+            || common.margin.bottom != 0
+        {
+            return None;
+        }
+        has_flow_picture |= common.text_wrap == TextWrap::TopAndBottom;
+        picture_band_end = picture_band_end.max(offset.checked_add(signed_hwpunit(common.height))?);
+    }
+    if !has_flow_picture || picture_band_end > line.vertical_pos {
+        return None;
+    }
+    Some(StoredEmptyPictureCellFrame {
+        line_offset_hu: line.vertical_pos,
+        picture_band_origin_hu: line.vertical_pos - picture_band_end,
+        content_height_hu: line.vertical_pos.checked_add(line.line_height)?,
+    })
 }
 
 /// 내용 유닛을 소비하지 않는 시작 행의 물리 공간과 이어받는 행의 요구 높이.

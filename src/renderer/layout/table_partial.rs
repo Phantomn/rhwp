@@ -1703,6 +1703,17 @@ impl LayoutEngine {
             } else {
                 cell.vertical_align
             };
+            // 온전한 셀은 그림 띠와 빈 마지막 줄의 닫힌 원본 프레임을 함께 소비한다.
+            // 실제 내용 컷은 그 조각의 기존 유닛 소유를 유지한다.
+            let stored_empty_picture_frame = (!cell_was_split && !is_rowbreak_straddle)
+                .then(|| self.stored_empty_picture_cell_frame(cell, table))
+                .flatten()
+                .filter(|frame| {
+                    hwpunit_to_px(frame.content_height_hu, self.dpi) <= inner_height + 0.5
+                });
+            let total_content_height = stored_empty_picture_frame
+                .map(|frame| hwpunit_to_px(frame.content_height_hu, self.dpi))
+                .unwrap_or(total_content_height);
             // [#3820 Stage 78] RowBreak 마지막 physical tail은 paginator가 정한
             // 정확한 높이(override)를 사용한다. 저장 LINE_SEG가 glyph em보다 작은
             // 경우, 그 raw 줄높이만으로 Center를 계산하면 한 줄짜리 텍스트가 tail의
@@ -1795,6 +1806,10 @@ impl LayoutEngine {
                     cell_y + pad_top + (inner_height - total_content_height).max(0.0)
                 }
             };
+            let text_y_start = text_y_start
+                + stored_empty_picture_frame
+                    .map(|frame| hwpunit_to_px(frame.line_offset_hu, self.dpi))
+                    .unwrap_or(0.0);
 
             // 세로쓰기 셀: 별도 레이아웃 경로 (가로 레이아웃 루프 대신)
             if cell.text_direction != 0 {
@@ -2958,96 +2973,22 @@ impl LayoutEngine {
                                     } else {
                                         pic_y
                                     };
-                                    // [#7334] 일본 PS 마크처럼 저장 셀 높이가 실제 행보다
-                                    // 작고, 같은 빈 문단에 글앞·자리차지 그림이 함께 있는
-                                    // 경우의 bottom-aligned 그림 묶음이다. 저장 LINE_SEG vpos는
-                                    // 행 하단의 빈 줄 자리라서 각 그림의 Para 기준점으로 다시
-                                    // 쓰면 둘 다 다음 행까지 밀린다. 한/글은 두 마크를 실제
-                                    // 셀 안에 두되, 빈 문단 한 줄은 하단에 남긴다. 일반 부동
-                                    // 그림의 셀 밖 배치는 문서마다 의미가 있으므로 이 저장
-                                    // 형상에만 실제 content bottom 바로 위의 빈 줄로 되돌린다.
-                                    let mixed_bottom_aligned_picture_stack = para
-                                        .text
-                                        .trim()
-                                        .is_empty()
-                                        && cell.vertical_align == VerticalAlign::Bottom
-                                        && para.line_segs.len() == 1
-                                        && para
-                                            .line_segs
-                                            .first()
-                                            .is_some_and(|seg| seg.vertical_pos > 0)
-                                        && cell.height < 0x8000_0000
-                                        && hwpunit_to_px(cell.height as i32, self.dpi)
-                                            + 0.5
-                                            < inner_area.height
-                                        && para.controls.iter().all(|control| {
-                                            matches!(
-                                                control,
-                                                Control::Picture(picture)
-                                                    if !picture.common.treat_as_char
-                                                        && matches!(
-                                                            picture.common.text_wrap,
-                                                            crate::model::shape::TextWrap::InFrontOfText
-                                                                | crate::model::shape::TextWrap::TopAndBottom
-                                                        )
-                                            )
+                                    // 같은 그림 띠의 공통 원점과 각 개체 오프셋을 소비한다.
+                                    // 각 그림 높이로 하단을 역산하거나 화면 이탈 뒤에 되돌리지 않는다.
+                                    let pic_y = stored_empty_picture_frame
+                                        .map(|frame| {
+                                            text_y_start
+                                                - hwpunit_to_px(frame.line_offset_hu, self.dpi)
+                                                + hwpunit_to_px(
+                                                    frame.picture_band_origin_hu,
+                                                    self.dpi,
+                                                )
+                                                + hwpunit_to_px(
+                                                    pic.common.vertical_offset as i32,
+                                                    self.dpi,
+                                                )
                                         })
-                                        && para.controls.iter().any(|control| {
-                                            matches!(
-                                                control,
-                                                Control::Picture(picture)
-                                                    if matches!(
-                                                        picture.common.text_wrap,
-                                                        crate::model::shape::TextWrap::InFrontOfText
-                                                    )
-                                            )
-                                        })
-                                        && para.controls.iter().any(|control| {
-                                            matches!(
-                                                control,
-                                                Control::Picture(picture)
-                                                    if matches!(
-                                                        picture.common.text_wrap,
-                                                        crate::model::shape::TextWrap::TopAndBottom
-                                                    )
-                                            )
-                                        });
-                                    let reserved_empty_line_height = para
-                                        .line_segs
-                                        .first()
-                                        .map(|seg| hwpunit_to_px(seg.line_height, self.dpi))
-                                        .unwrap_or(0.0);
-                                    // 같은 빈 문단에 든 부동 그림의 vertical_offset은 공통
-                                    // bottom anchor에서의 상대 위치다. anchor를 셀 안으로
-                                    // 되돌릴 때 이 차이까지 버리면, 저장본에서 더 낮은 두 번째
-                                    // 그림이 첫 번째 그림 위로 올라가 서로 겹쳐 보인다.
-                                    let stack_first_vertical_offset = para
-                                        .controls
-                                        .iter()
-                                        .filter_map(|control| match control {
-                                            Control::Picture(picture) => {
-                                                Some(picture.common.vertical_offset as i32)
-                                            }
-                                            _ => None,
-                                        })
-                                        .min()
-                                        .unwrap_or(0);
-                                    let stack_relative_vertical_offset = hwpunit_to_px(
-                                        (pic.common.vertical_offset as i32)
-                                            .saturating_sub(stack_first_vertical_offset),
-                                        self.dpi,
-                                    );
-                                    let pic_y = if mixed_bottom_aligned_picture_stack
-                                        && pic_y + pic_h
-                                            > cell_content_bottom(cell_y, cell_h, pad_bottom) + 0.5
-                                    {
-                                        cell_content_bottom(cell_y, cell_h, pad_bottom)
-                                            - reserved_empty_line_height
-                                            - pic_h
-                                            + stack_relative_vertical_offset
-                                    } else {
-                                        pic_y
-                                    };
+                                        .unwrap_or(pic_y);
                                     let pic_area = LayoutRect {
                                         x: pic_x,
                                         y: pic_y,
