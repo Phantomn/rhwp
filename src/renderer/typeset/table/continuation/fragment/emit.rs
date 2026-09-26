@@ -108,7 +108,9 @@ impl TypesetEngine {
             && !caption_is_top
             && caption_overhead > 0.0
         {
-            let total_with_caption = partial_height + caption_overhead;
+            let total_with_caption = partial_height
+                + caption_overhead
+                + (terminal_outer_bottom_overhead - fragment_outer_bottom_overhead).max(0.0);
             let avail = if is_continuation {
                 (page_avail - header_overhead).max(0.0)
             } else {

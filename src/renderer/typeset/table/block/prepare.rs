@@ -748,11 +748,10 @@ impl TypesetEngine {
             })
             .unwrap_or(false);
 
-        let host_line_spacing_for_caption = para
-            .line_segs
-            .first()
-            .map(|seg| hwpunit_to_px(seg.line_spacing, self.dpi))
-            .unwrap_or(0.0);
+        let host_line_spacing_for_caption =
+            crate::renderer::float_placement::block_table_caption_host_spacing_px(
+                para, table, self.dpi,
+            );
         let caption_base_overhead = {
             let ch = ft.caption_height;
             if ch > 0.0 {

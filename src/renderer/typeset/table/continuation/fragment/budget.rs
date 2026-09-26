@@ -91,6 +91,23 @@ impl TypesetEngine {
                 ),
                 self.dpi,
             );
+        let hwpx_fragment_opens_outer_top = std::ptr::eq(row_geometry_table, table)
+            && crate::renderer::float_placement::hwpx_column_rowbreak_fragment_opens_outer_top(
+                st.profile.hwpx_stored_layout(),
+                table,
+                is_continuation,
+                cursor_row,
+                &start_cut,
+                st.current_height <= 0.5,
+            );
+        // The first fragment already receives this inset in host_spacing.before.
+        // A fresh continuation must reserve the same origin that paint opens.
+        let host_before_overhead = host_before_overhead
+            + if hwpx_fragment_opens_outer_top && is_continuation {
+                hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
+            } else {
+                0.0
+            };
         // The terminal cut row restarts on a fresh page with its saved outer
         // top margin. Reserve the same inset that partial-table paint opens;
         // otherwise the following table is measured 141 HU too high (86712 p28).
@@ -112,6 +129,13 @@ impl TypesetEngine {
         // - rowbreak-problem-pages 14쪽: pi13 끝 조각 뒤 pi16 이 0.2px 차로 안 들어가 18→19쪽
         // - hwpctl_API_v2.4 73쪽: pi1750 끝 조각 뒤 pi1760 13행이 74쪽으로 밀려 본문 넘침
         //   (정본은 13행을 73쪽 992.7 에 두고, 조각 아래 괘선 393.11 뒤에 여백을 두지 않는다)
+        let caption_outer_bottom =
+            crate::renderer::float_placement::column_rowbreak_bottom_caption_outer_spacing_px(
+                hwpx_fragment_opens_outer_top,
+                para,
+                table,
+                self.dpi,
+            );
         let terminal_outer_bottom_overhead = if single_cell_page_fragment {
             partial_rowbreak_fragment_spacing_px(
                 table,
@@ -126,6 +150,10 @@ impl TypesetEngine {
                 self.dpi,
             )
             .1
+        } else if caption_outer_bottom > 0.0 {
+            // The completed caption closes the object's outer box before the
+            // next paragraph. Intermediate cuts have no following body here.
+            caption_outer_bottom
         } else {
             fragment_outer_bottom_overhead
         };

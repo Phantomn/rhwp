@@ -3934,11 +3934,12 @@ impl LayoutEngine {
             .get(&para_index)
             .copied()
             .unwrap_or(0.0);
-        let host_line_spacing = para
-            .line_segs
-            .first()
-            .map(|seg| hwpunit_to_px(seg.line_spacing, self.dpi))
-            .unwrap_or(0.0);
+        let host_line_spacing =
+            crate::renderer::float_placement::block_table_caption_host_spacing_px(
+                para,
+                outer_table,
+                self.dpi,
+            );
 
         self.layout_partial_table_resolved(
             tree,
@@ -4237,26 +4238,18 @@ impl LayoutEngine {
                 start_row,
                 start_cut,
             );
-        // HWPX의 자리차지 단일 열 RowBreak 표는 저장 앵커(첫 조각) 또는
+        // HWPX의 자리차지 RowBreak 표는 저장 앵커(첫 조각) 또는
         // 다음 쪽 본문 상단(이어지는 조각) 뒤에 상단 바깥여백을 연다.
         // 중첩 표와 쪽 중간에서 이어지는 조각은 별도 흐름 좌표를 쓴다.
-        let hwpx_multirow_rowbreak_reopens_outer_top = self.profile.get().hwpx_stored_layout()
-            && !table.common.treat_as_char
-            // 문단 기준 거대 셀은 자체 flow 경계를 가지며, 여기서 여백을 다시
-            // 열면 첫 조각의 bbox·selection 이 1mm 밀린다(#1949/#2215).
-            && matches!(table.common.horz_rel_to, HorzRelTo::Column)
-            && matches!(
-                table.page_break,
-                crate::model::table::TablePageBreak::RowBreak
-            )
-            && table.row_count > 1
-            && table.col_count == 1
-            && table.outer_margin_top > 0
-            && enclosing_cell_ctx.is_none()
-            && ((!is_continuation && start_row == 0 && start_cut.is_empty())
-                || (is_continuation
-                    && col_node.children.is_empty()
-                    && (y_start - col_area.y).abs() <= 0.5));
+        let hwpx_multirow_rowbreak_reopens_outer_top = enclosing_cell_ctx.is_none()
+            && crate::renderer::float_placement::hwpx_column_rowbreak_fragment_opens_outer_top(
+                self.profile.get().hwpx_stored_layout(),
+                table,
+                is_continuation,
+                start_row,
+                start_cut,
+                col_node.children.is_empty() && (y_start - col_area.y).abs() <= 0.5,
+            );
         // 저장 HWP5의 반복 제목행을 가진 다행 RowBreak 표도 첫 저장 앵커와
         // 다음 쪽에서 반복 제목행을 여는 조각마다 바깥 위 여백을 다시 둔다.
         // 제목행 없는 이어지는 표(76076 34쪽)는 본문 상단에 붙는 별도 계약이다.
@@ -5445,7 +5438,21 @@ impl LayoutEngine {
         }
         // Do not move subsequent flow or change PageItem ownership: Stage 120 changes only the
         // painted frame/clip.  The paginator consumed the original composed cut height.
-        y_start + partial_table_height + stored_reset_logical_height_delta + caption_total
+        let caption_outer_bottom = if render_bottom_caption {
+            crate::renderer::float_placement::column_rowbreak_bottom_caption_outer_spacing_px(
+                hwpx_multirow_rowbreak_reopens_outer_top,
+                &paragraphs[para_index],
+                outer_table,
+                self.dpi,
+            )
+        } else {
+            0.0
+        };
+        y_start
+            + partial_table_height
+            + stored_reset_logical_height_delta
+            + caption_total
+            + caption_outer_bottom
     }
 }
 

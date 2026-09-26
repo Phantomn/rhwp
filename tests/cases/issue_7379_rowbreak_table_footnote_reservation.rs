@@ -86,6 +86,85 @@ fn notes(root: &RenderNode) -> Option<&RenderNode> {
     root.children.iter().find_map(notes)
 }
 
+fn line_top(root: &RenderNode, needle: &str) -> Option<f64> {
+    if matches!(root.node_type, RenderNodeType::TextLine(_)) && text(root).contains(needle) {
+        return Some(root.bbox.y);
+    }
+    root.children
+        .iter()
+        .find_map(|child| line_top(child, needle))
+}
+
+/// PDF의 표 괘선과 캡션/뒤 본문 좌표. 좌표는 PDF pt를96dpi로 환산했고
+/// 저장 gap850HU=11.333px가 표 하단과 캡션 사이 거리임을 별도로 확인했다.
+#[test]
+fn split_table_outer_origin_caption_gap_and_following_body_match_pdf() {
+    let core = core();
+    let first = core.build_page_render_tree(65).expect("66쪽");
+    let next = core.build_page_render_tree(66).expect("67쪽");
+    let first_table = host_table(&first.root).expect("66쪽 표");
+    let next_table = host_table(&next.root).expect("67쪽 표");
+    assert!(
+        (first_table.bbox.y - 799.925).abs() <= 1.5,
+        "66쪽 표 상단: {}",
+        first_table.bbox.y
+    );
+    assert!(
+        (next_table.bbox.y - 86.945).abs() <= 1.5,
+        "67쪽 표 상단: {}",
+        next_table.bbox.y
+    );
+    let caption = line_top(&next.root, "표 23.").expect("표23 캡션");
+    let body = line_top(&next.root, "○ 42 CFR Part 482").expect("표 뒤 본문");
+    assert!((caption - 156.434).abs() <= 1.5, "캡션: {caption}");
+    assert!((body - 200.261).abs() <= 1.5, "뒤 본문: {body}");
+}
+
+/// IR 여백 변형은 캡션 종료 예산의 알고리즘 반례이며 한컴 출력의 대용이 아니다.
+/// 모든 행을 한 번씩 보존하고 캡션과 끝 바깥여백도 각주 lane 밖에 수용해야 한다.
+#[test]
+fn terminal_caption_margin_budget_preserves_rows_and_footer_space() {
+    for (margin, gap) in [(283, 850), (30_000, 850), (30_000, 31_000)] {
+        let mut core = core();
+        let mut doc = core.document().clone();
+        let rhwp::model::control::Control::Table(table) =
+            &mut doc.sections[0].paragraphs[HOST_PARA].controls[0]
+        else {
+            panic!("표23")
+        };
+        table.outer_margin_bottom = margin;
+        table.caption.as_mut().expect("아래 캡션").spacing = gap;
+        core.set_document(doc);
+        let mut rows = Vec::new();
+        let mut caption_count = 0;
+        for page in 65..70 {
+            let tree = core.build_page_render_tree(page).expect("변형 경계 쪽");
+            if let Some(table) = host_table(&tree.root) {
+                rows.extend(visible_rows(table));
+            }
+            if let Some(caption_y) = line_top(&tree.root, "표 23.") {
+                caption_count += 1;
+                let body = tree
+                    .root
+                    .children
+                    .iter()
+                    .find(|node| matches!(node.node_type, RenderNodeType::Body { .. }))
+                    .expect("본문 영역");
+                let boundary =
+                    notes(&tree.root).map_or(body.bbox.y + body.bbox.height, |area| area.bbox.y);
+                let occupied_end = caption_y + 1000.0 / 75.0 + f64::from(margin) / 75.0;
+                assert!(
+                    occupied_end <= boundary + 1.0,
+                    "margin={margin}, page={}, caption end={occupied_end}, footer={boundary}",
+                    page + 1
+                );
+            }
+        }
+        assert_eq!(rows, (0..7).collect::<Vec<_>>(), "행 소유 margin={margin}");
+        assert_eq!(caption_count, 1, "캡션 중복/누락 margin={margin}");
+    }
+}
+
 /// 한컴 PDF p66은 머리행+본문4행, p67은 나머지2행이다. 원본 개체
 /// 11645HU도 첫5행의 저장 높이 합과 같고 각주77은 2줄 뒤 vpos=0으로 재시작한다.
 /// 조각 높이 합만으로는 행 소유와 각주 prefix/tail의 보존을 입증할 수 없다.

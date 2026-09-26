@@ -17,6 +17,69 @@ use super::layout::picture_flow_frame_size_hu;
 use super::layout_frame::{FrameExclusion, FrameExclusionPolicy, LayoutFrame};
 use super::page_layout::LayoutRect;
 
+/// A zero-width saved line containing only one non-inline table is its
+/// object anchor. Its paragraph line spacing is not the object's caption gap.
+pub(crate) fn object_only_saved_table_anchor(para: &Paragraph, table: &Table) -> bool {
+    !table.common.treat_as_char
+        && is_para_topbottom_float(&table.common)
+        && para.text.is_empty()
+        && matches!(para.controls.as_slice(), [Control::Table(_)])
+        && matches!(para.line_segs.as_slice(), [line] if line.segment_width == 0 && line.tag & 0x8000_0000 == 0)
+}
+
+pub(crate) fn block_table_caption_host_spacing_px(
+    para: &Paragraph,
+    table: &Table,
+    dpi: f64,
+) -> f64 {
+    if object_only_saved_table_anchor(para, table) {
+        0.0
+    } else {
+        para.line_segs
+            .first()
+            .map_or(0.0, |line| hwpunit_to_px(line.line_spacing, dpi))
+    }
+}
+
+/// The outer inset belongs to the object frame, independently of its cell
+/// column count. A resolved paint origin or nested frame is handled by callers.
+pub(crate) fn hwpx_column_rowbreak_fragment_opens_outer_top(
+    hwpx_stored: bool,
+    table: &Table,
+    is_continuation: bool,
+    start_row: usize,
+    start_cut: &[usize],
+    starts_at_column_top: bool,
+) -> bool {
+    hwpx_stored
+        && !table.common.treat_as_char
+        && is_para_topbottom_float(&table.common)
+        && table.common.horz_rel_to == HorzRelTo::Column
+        && table.page_break == TablePageBreak::RowBreak
+        && table.row_count > 1
+        && table.outer_margin_top > 0
+        && ((!is_continuation && start_row == 0 && start_cut.is_empty())
+            || (is_continuation && starts_at_column_top))
+}
+
+pub(crate) fn column_rowbreak_bottom_caption_outer_spacing_px(
+    fragment_opens_outer_margin: bool,
+    para: &Paragraph,
+    table: &Table,
+    dpi: f64,
+) -> f64 {
+    if fragment_opens_outer_margin
+        && object_only_saved_table_anchor(para, table)
+        && table.caption.as_ref().is_some_and(|caption| {
+            caption.direction == crate::model::shape::CaptionDirection::Bottom
+        })
+    {
+        hwpunit_to_px(table.outer_margin_bottom as i32, dpi)
+    } else {
+        0.0
+    }
+}
+
 /// Saved blank paragraph immediately after a terminal table fragment can
 /// start at the fragment's physical bottom. Its `spacing_before` is already
 /// represented by that shared boundary, so both pagination and paint reuse
