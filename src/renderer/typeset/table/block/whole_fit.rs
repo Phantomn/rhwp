@@ -573,7 +573,17 @@ impl TypesetEngine {
                         ft.effective_height,
                         st.vpos_page_base.unwrap_or(0),
                         self.dpi,
-                    )?;
+                    )
+                    .or_else(|| {
+                        crate::renderer::float_placement::stored_empty_control_table_frame(
+                            para,
+                            next,
+                            table,
+                            ft.effective_height,
+                            st.vpos_page_base.unwrap_or(0),
+                            self.dpi,
+                        )
+                    })?;
                 // 저장 프레임은 본문 기준이며 공유 계획은 현재 단 영역 기준이다.
                 placement.anchor_y -= st.current_zone_y_offset;
                 placement.table_top -= st.current_zone_y_offset;

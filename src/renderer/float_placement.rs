@@ -364,6 +364,69 @@ pub(crate) fn stored_interior_control_table_frame(
     })
 }
 
+/// 폭0 빈 호스트와 다음 저장 줄이 전체 개체 바깥 상자를 정확히 닫는다.
+/// 실측 높이가 선언된 전체 높이와 같을 때만 오프셋·양쪽 여백을 한 번 소비한다.
+/// 분할 조각의 선언 높이, 편집 뒤 캐시, 합성 줄은 이 원점의 증거가 아니다.
+pub(crate) fn stored_empty_control_table_frame(
+    host: &Paragraph,
+    successor: &Paragraph,
+    table: &Table,
+    measured_height: f64,
+    frame_vpos: i32,
+    dpi: f64,
+) -> Option<ParagraphFloatPlacement> {
+    use crate::model::paragraph::{ColumnBreakType, LineSeg};
+    let [anchor] = host.line_segs.as_slice() else {
+        return None;
+    };
+    let next = successor.line_segs.first()?;
+    let offset = signed_hwpunit(table.common.vertical_offset);
+    if !host.text.trim().is_empty()
+        || !matches!(host.controls.as_slice(), [Control::Table(_)])
+        || host.stored_text_partition_is_dirty()
+        || successor.stored_text_partition_is_dirty()
+        || host.cell_format_vpos_dirty
+        || successor.cell_format_vpos_dirty
+        || host.column_type != ColumnBreakType::None
+        || successor.column_type != ColumnBreakType::None
+        || anchor.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
+        || next.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
+        || anchor.segment_width != 0
+        || anchor.line_height <= 0
+        || next.line_height <= 0
+        || anchor.vertical_pos < frame_vpos
+        || !table.common.flow_with_text
+        || !is_para_topbottom_float(&table.common)
+        || table.common.horz_rel_to != HorzRelTo::Column
+        || !matches!(table.common.vert_align, VertAlign::Top | VertAlign::Inside)
+        || offset < 0
+        || table.caption.is_some()
+        || table.common.height == 0
+        || table.common.height > i32::MAX as u32
+        || !measured_height.is_finite()
+        || !dpi.is_finite()
+        || dpi <= 0.0
+        || (measured_height * 7200.0 / dpi).round() != f64::from(table.common.height)
+    {
+        return None;
+    }
+    let top =
+        i64::from(anchor.vertical_pos) + i64::from(offset) + i64::from(table.outer_margin_top);
+    let bottom = top + i64::from(table.common.height) + i64::from(table.outer_margin_bottom);
+    if bottom != i64::from(next.vertical_pos) {
+        return None;
+    }
+    let px = |value: i64| (value - i64::from(frame_vpos)) as f64 * dpi / 7200.0;
+    Some(ParagraphFloatPlacement {
+        flow: ParagraphFloatFlow::NextLine,
+        anchor_y: px(i64::from(anchor.vertical_pos)),
+        stored_host_origin: None,
+        table_left: None,
+        table_top: px(top),
+        occupied_bottom: px(bottom),
+    })
+}
+
 /// 문단 상대 떠 있는 개체의 확정된 배치. 모든 값은 단 상대 px다.
 /// 예약과 출력이 같은 결과를 사용하므로 renderer에서 원점을 다시 더하지 않는다.
 #[derive(Debug, Clone, Copy, PartialEq)]

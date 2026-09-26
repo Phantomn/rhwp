@@ -757,3 +757,23 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 ![#6312 3쪽 overlay](../assets/pr7382_20260926/stage29_native_6312_overlay_003.png)
 ![분할 표 시작175쪽 정상 제목 보존](../assets/pr7382_20260926/stage29_native_hwpx_review_175.png)
 ![175쪽 overlay](../assets/pr7382_20260926/stage29_native_hwpx_overlay_175.png)
+
+## 보정30 사전 분석 — 빈 개체 앵커의 오프셋·바깥 상자 소유
+
+- 기준은 원본 HWPX 11쪽과 한컴2024 PDF다. 그림6 앞 본문239는313.5px/PDF313.381px로 맞지만 그림 상단373.0px/PDF376.229329px, 뒤 제목692.17px/PDF703.781006px가 어긋난다. 글꼴로 분류하지 않는다.
+- 원본240의 호스트21265HU, 오프셋319HU, 위283HU, 전체 표22400HU, 아래283HU는 다음 빈 문단241의44550HU를 정확히 닫는다:21265+319+283+22400+283=44550. 그림/캡션 셀의 실측 전체 높이도21118+1282=22400HU다. 본문 원점6239HU를 더한 뒤 제목242의 논리 상단은703.853333px다.
+- `empty_float::prepare`는 세로 오프셋이 있는 단일 T&B 표를 거절해 block whole-fit으로 보낸다. 기존 내부 줄 프레임 helper는 가시 다행 호스트/RowBreak만 수용하므로 이 빈 CellBreak 앵커는 공통 결과가 없다. paint의 빈 lane은 위여백을 누락하고 흐름 끝은 실제 오프셋을 제외한다. 그 뒤 lazy base874HU가 뒤 본문을 끌어올린다.
+- 적용 조건은 원본 단일 단·미편집·표 재조판 아님, 유효 폭0 단일 빈 호스트와 다음 저장 줄, 선언 높이와 실측 전체 내용의 일치 및 위 등식이다. 합성/편집/잘못된 간격·높이, 여러 호스트 개체, 분할 저장 높이는 수용하지 않는다. `저장 닫힌 상자 → whole-fit 점유 하단/기록 → layout 원점/점유 하단`으로 한 결과를 소비하게 보정한다. 실제 정식 tree와 정상 대조군을 먼저 확인하고 새 시각 증적 뒤 결과를 보고·커밋한다.
+
+### 보정 결과
+
+- `stored_empty_control_table_frame`이 유효 빈 호스트와 다음 저장 줄 사이에서 오프셋·위/아래 여백·실측 전체 높이가 정확히 닫히는 원본 프레임을 만든다. whole-fit이 이를 예약·fit·배치 기록에 사용하고 기존 layout은 같은 표 상단과 점유 하단을 소비한다. 그림6 표 논리 상단374.746667px와 뒤 제목703.853333px를 복원했다. 합성/편집·높이/간격 불일치 및 분할 높이를 같은 근거로 수용하지 않는다.
+- 원본 HWP/HWPX 정식2개는 수정 전0PASS/2FAIL(exit100,0.197s),수정 후2PASS(exit0,0.214s)다. 합성 호스트/후속 줄, 닫힘 간격 불일치, 선언/실측 높이 불일치의 수동 IR 대조까지 최종 집중108PASS/0FAIL(exit0,4.199s,threads8)이다. 이전 suite 번호로 정상3개를 놓친105PASS 시도는 최종 검증으로 세지 않고 현재 manifest의 실제 번호에서 재실행했다.
+- Native HWPX의11쪽66.82800→94.81767%,14쪽81.51575→90.37937%,210쪽72.49487→99.91680%다. HWP의 같은 쪽은94.81767/91.00235/99.91680%다. 그림6·캡션과 뒤 제목/본문,14쪽 첫 표/그림10 프레임,210쪽 표 외곽/셀 글자를 직접 확인했다.2쪽 표 상단도142.0→143.9px로 PDF143.84269px에 맞아졌다. HWPX2쪽 점수95.34141→94.69572% 감소만으로 배치 회귀라고 판정하지 않는다.
+- 양쪽 입력의2/11/12/13/14/23/68/210쪽 새 review·standalone overlay32개를 직접 읽었다.12/13쪽 앞 보정·68쪽 표/각주와215쪽 수는 유지됐다.23쪽은74.73376→75.76624%로 여전히 gate 미충족이다. 점수가 통과한11쪽 그림5 오른쪽 지도와14쪽 아래 그림11도 위로 치우친 차이가 남는다. 글꼴 예외나 점수 통과로 이 의미 차이를 해소하지 않으며 PR 보류를 유지한다.
+- fmt·manifest(6206 static attrs)·source-unit(4205검사/298모듈)은 고정base eb9142dd7에서 exit0이다. 새 불변 CLI는 release-test 빌드exit0,1m28s다. [source/diff/CLI 해시·실제 명령·판정](../assets/pr7382_20260926/stage30_validation.json), [독립 HU/PDF](../assets/pr7382_20260926/stage30_independent_geometry.json), [영어 추가 설명 주석0개](../assets/pr7382_20260926/stage30_english_comment_scan.json)를 연결했다. 전체 최종 Rust/lint/Skia/fresh WASM과 최신 전수는 미검증이다. 로그·output·generated는 커밋하지 않는다.
+
+![11쪽 그림6과 뒤 본문 복원](../assets/pr7382_20260926/stage30_native_hwpx_review_011.png)
+![11쪽 overlay](../assets/pr7382_20260926/stage30_native_hwpx_overlay_011.png)
+![210쪽 표 프레임 복원](../assets/pr7382_20260926/stage30_native_hwpx_review_210.png)
+![23쪽 남은 그림/캡션 차이](../assets/pr7382_20260926/stage30_native_hwpx_review_023.png)

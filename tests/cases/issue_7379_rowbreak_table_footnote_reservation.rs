@@ -2206,3 +2206,109 @@ fn square_sibling_synthetic_host_does_not_admit_original_outer_frame() {
     assert!(text(&page.root).contains("표 2. OPTN"));
     assert!(text(&page.root).contains("그림 9. OPTN"));
 }
+
+fn assert_empty_picture_table_closed_outer_frame(hwpx: bool) {
+    let core = original_picture_wrapper_core(hwpx);
+    assert_eq!(core.page_count(), 215, "독립 PDF 쪽 수");
+    let page = core.build_page_render_tree(10).expect("11쪽 그림6");
+    let table = table_for_para(&page.root, 240).expect("원래 그림6 표 소유");
+    let image = find_picture(table).expect("원래 그림6");
+    // 원본 호스트21265+오프셋319+위여백283은 논리 표 상단이다.
+    // 그림의 가시 외곽은 같은 원본 한컴 PDF에서 독립적으로 읽었다.
+    let table_top = (6239.0 + 21265.0 + 319.0 + 283.0) / 75.0;
+    assert!(
+        (table.bbox.y - table_top).abs() <= 0.5,
+        "표 원점 {}/{table_top}",
+        table.bbox.y
+    );
+    assert!(
+        (table.bbox.height - 22400.0 / 75.0).abs() <= 0.1,
+        "실제 전체 표 높이 {}",
+        table.bbox.height
+    );
+    assert!(
+        (image.bbox.y - 376.229329).abs() <= 1.5,
+        "독립 그림 상단 {}",
+        image.bbox.y
+    );
+    assert!(
+        (image.bbox.y + image.bbox.height - 653.685303).abs() <= 1.5,
+        "독립 그림 하단 {}",
+        image.bbox.y + image.bbox.height
+    );
+    let caption = line_top(table, "그림 6.").expect("캡션 한 번 보존");
+    assert!(
+        (caption - 658.0526).abs() <= 1.5,
+        "독립 캡션 상단 {caption}"
+    );
+    assert_eq!(text(table).matches("그림 6.").count(), 1, "캡션 무중복");
+    let heading = line_top(&page.root, "다. 장기 매매 현황").expect("뒤 제목");
+    assert!(
+        (heading - (6239.0 + 46550.0) / 75.0).abs() <= 0.5,
+        "독립 저장 줄 제목 {heading}"
+    );
+    let body = line_top(&page.root, "장기거래는 인간의 존엄").expect("뒤 본문");
+    assert!((body - 730.5011).abs() <= 1.5, "독립 뒤 본문 {body}");
+    assert!(text(notes(&page.root).expect("같은 쪽 각주6")).contains("6)"));
+}
+
+#[test]
+fn hwpx_empty_picture_table_closes_offset_and_outer_frame_once() {
+    assert_empty_picture_table_closed_outer_frame(true);
+}
+
+#[test]
+fn native_empty_picture_table_closes_offset_and_outer_frame_once() {
+    assert_empty_picture_table_closed_outer_frame(false);
+}
+
+/// 수동 메타데이터 대조군은 한컴 출력의 일치 증거가 아니다.
+/// 저장 상자의 증거를 없애면 앞 본문의 실제 줄 끝에서 흐름 배치해야 한다.
+#[test]
+fn unproven_empty_picture_table_frame_keeps_measured_flow_origin() {
+    use rhwp::model::{control::Control, paragraph::LineSeg};
+    for variant in 0..4 {
+        let mut core = core();
+        let mut doc = core.document().clone();
+        match variant {
+            0 => {
+                doc.sections[0].paragraphs[240].line_segs[0].tag |=
+                    LineSeg::TAG_IMPLEMENTATION_PROPERTY
+            }
+            1 => {
+                doc.sections[0].paragraphs[241].line_segs[0].tag |=
+                    LineSeg::TAG_IMPLEMENTATION_PROPERTY
+            }
+            2 => doc.sections[0].paragraphs[241].line_segs[0].vertical_pos += 75,
+            3 => {
+                let Control::Table(table) = &mut doc.sections[0].paragraphs[240].controls[0] else {
+                    panic!("원래 그림6 표");
+                };
+                table.common.height -= 75;
+            }
+            _ => unreachable!(),
+        }
+        core.set_document(doc);
+        let page = core.build_page_render_tree(10).expect("반례 실제 쪽");
+        let table = table_for_para(&page.root, 240).expect("일반 흐름 표 보존");
+        let previous = line_top(&page.root, "에는 생존 간 이식이").expect("직전 실제 글줄");
+        // 직전 줄1000HU와 뒤 간격1000HU를 소비한 흐름에 개체 오프셋319HU를 더한다.
+        // 증거가 없는 위여백 원점을 저장 상자로 승격하지 않는다.
+        let flow_top = previous + (1000.0 + 1000.0 + 319.0) / 75.0;
+        assert!(
+            (table.bbox.y - flow_top).abs() <= 0.1,
+            "반례{variant}: 일반 원점{}/{flow_top}",
+            table.bbox.y
+        );
+        assert!(find_picture(table).is_some(), "그림 유닛 누락 없음");
+        assert_eq!(
+            text(table).matches("그림 6.").count(),
+            1,
+            "캡션 유닛 중복 없음"
+        );
+        assert!(
+            line_top(&page.root, "다. 장기 매매 현황").is_some(),
+            "뒤 본문 보존"
+        );
+    }
+}
