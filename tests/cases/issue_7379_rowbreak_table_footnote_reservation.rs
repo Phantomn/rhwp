@@ -3182,3 +3182,184 @@ fn assert_captioned_terminal_fragment_outer_frame(sample: &str) {
     assert!(tail.contains("Part 482(CONDITIONS"), "77 꼬리 소유");
     assert!(!tail.contains("77)"), "번호 반복 금지");
 }
+
+/// 실제 셀 편집의 재조판 결과는 저장 표 프레임을 그대로 재사용하지 않는다.
+/// 작은 삽입과 너비 부족 줄바꿈에서 전체 내용·캡션·물리 점유를 확인한다.
+#[test]
+fn actual_cell_edit_preserves_reflowed_table_payload_and_budget_hwpx() {
+    assert_actual_cell_edit_table_contract(SAMPLE);
+}
+
+#[test]
+fn actual_cell_edit_preserves_reflowed_table_payload_and_budget_hwp() {
+    assert_actual_cell_edit_table_contract(&SAMPLE.replace(".hwpx", ".hwp"));
+}
+
+fn assert_actual_cell_edit_table_contract(sample: &str) {
+    use rhwp::model::control::Control;
+    use std::collections::BTreeMap;
+    fn normalize(value: &str) -> String {
+        value
+            .chars()
+            .filter(|ch| !ch.is_whitespace() && !ch.is_control() && *ch != '•')
+            .collect()
+    }
+    fn collect(
+        node: &RenderNode,
+        row: u16,
+        col: u16,
+        out: &mut BTreeMap<(u16, u16, usize), String>,
+        cell_top: f64,
+        cell_bottom: f64,
+    ) {
+        if let RenderNodeType::TextLine(line) = &node.node_type {
+            assert!(
+                node.bbox.y >= cell_top - 0.5
+                    && node.bbox.y + node.bbox.height <= cell_bottom + 0.5,
+                "수용한 글줄이 셀 상자 안에 표시됨: {:?}, 셀{cell_top}..{cell_bottom}",
+                node.bbox
+            );
+            out.entry((row, col, line.para_index.expect("원본 셀 문단")))
+                .or_default()
+                .push_str(&text(node));
+            return;
+        }
+        for child in &node.children {
+            collect(child, row, col, out, cell_top, cell_bottom);
+        }
+    }
+    for inserted in [" ".to_owned(), "표셀편집검증".repeat(20)] {
+        let bytes =
+            std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(sample)).expect("원본");
+        let mut core = DocumentCore::from_bytes(&bytes).expect("원본 표29");
+        let Control::Table(original) = &core.document().sections[0].paragraphs[1136].controls[0]
+        else {
+            panic!("원래 표");
+        };
+        let prior_lines = original.cells[0].paragraphs[0].line_segs.len();
+        let prior_text = original.cells[0].paragraphs[0].text.clone();
+        core.insert_text_in_cell_native(0, 1136, 0, 0, 0, 0, &inserted)
+            .expect("실제 셀 편집");
+        let Control::Table(edited) = &core.document().sections[0].paragraphs[1136].controls[0]
+        else {
+            panic!("편집 표");
+        };
+        let paragraph = &edited.cells[0].paragraphs[0];
+        assert_eq!(
+            paragraph.text,
+            format!("{inserted}{prior_text}"),
+            "편집 명령의 실제 문자열"
+        );
+        assert!(!paragraph.line_segs.is_empty(), "실제 재조판 줄 생성");
+        assert!(
+            paragraph
+                .line_segs
+                .windows(2)
+                .all(|pair| pair[1].vertical_pos > pair[0].vertical_pos),
+            "원래 되감김 대신 연속 재조판 줄"
+        );
+        if inserted.len() > 1 {
+            assert!(
+                paragraph.line_segs.len() > prior_lines,
+                "실제 너비 부족 줄바꿈"
+            );
+        }
+        let mut expected = BTreeMap::new();
+        for cell in &edited.cells {
+            for (pi, para) in cell.paragraphs.iter().enumerate() {
+                expected.insert((cell.row, cell.col, pi), normalize(&para.text));
+            }
+        }
+        let mut actual: BTreeMap<_, _> = expected.keys().map(|key| (*key, String::new())).collect();
+        let def = &core.document().sections[0].section_def.page_def;
+        let top = f64::from(def.margin_top + def.margin_header) / 75.0;
+        let bottom = f64::from(def.height - def.margin_bottom - def.margin_footer) / 75.0;
+        let mut table_pages = Vec::new();
+        let mut caption_pages = Vec::new();
+        let mut following_pages = Vec::new();
+        for index in 0..core.page_count() {
+            let page = core.build_page_render_tree(index).expect("편집 뒤 실제 쪽");
+            if let Some(table) = table_for_para(&page.root, 1136) {
+                table_pages.push(index);
+                if let Ok(root) = std::env::var("RHWP_PR7382_EDIT_EVIDENCE_DIR") {
+                    let kind = if sample.ends_with(".hwpx") {
+                        "hwpx"
+                    } else {
+                        "hwp"
+                    };
+                    let case = if inserted.len() == 1 {
+                        "small"
+                    } else {
+                        "growth"
+                    };
+                    let dir = Path::new(&root).join(format!("{kind}-{case}"));
+                    std::fs::create_dir_all(&dir).expect("output 증적 폴더");
+                    let svg = core
+                        .render_page_svg_with_fonts(
+                            index as u32,
+                            rhwp::renderer::svg::FontEmbedMode::Style,
+                            &[],
+                        )
+                        .expect("폰트 공급 규칙을 포함한 실제 편집 상태 SVG");
+                    std::fs::write(dir.join(format!("page_{:03}.svg", index + 1)), svg)
+                        .expect("실제 편집 상태 증적");
+                }
+                let limit = notes(&page.root).map_or(bottom, |area| area.bbox.y);
+                assert!(
+                    table.bbox.y >= top - 0.5 && table.bbox.y + table.bbox.height <= limit + 0.5,
+                    "실제 조각의 본문/각주 예산: 쪽{index}, 표{:?}, 끝{limit}",
+                    table.bbox
+                );
+                for child in &table.children {
+                    if let RenderNodeType::TableCell(cell) = &child.node_type {
+                        collect(
+                            child,
+                            cell.row,
+                            cell.col,
+                            &mut actual,
+                            child.bbox.y,
+                            child.bbox.y + child.bbox.height,
+                        );
+                    }
+                }
+            }
+            if let Some(caption_top) = line_top(&page.root, "표 29.") {
+                caption_pages.push(index);
+                let last_table = table_for_para(&page.root, 1136).expect("캡션의 끝 표 조각");
+                assert!(
+                    caption_top + 0.5 >= last_table.bbox.y + last_table.bbox.height,
+                    "끝 캡션이 표 내용과 겹치지 않음"
+                );
+                if let Some(following_top) = line_top(&page.root, "O 미성년자") {
+                    assert!(
+                        following_top >= caption_top + 0.5,
+                        "같은 쪽 뒤 본문이 캡션 뒤에 배치됨"
+                    );
+                }
+            }
+            if line_top(&page.root, "O 미성년자").is_some() {
+                following_pages.push(index);
+            }
+        }
+        let actual: BTreeMap<_, _> = actual
+            .into_iter()
+            .map(|(key, value)| (key, normalize(&value)))
+            .collect();
+        assert_eq!(
+            actual, expected,
+            "편집된 원본의 전체 셀 문단 내용 누락/중복 없음"
+        );
+        assert!(!table_pages.is_empty(), "원래 표 내용 보존");
+        assert_eq!(
+            caption_pages,
+            vec![*table_pages.last().expect("끝 조각")],
+            "끝 조각 캡션 한 번"
+        );
+        assert_eq!(following_pages.len(), 1, "뒤 본문 한 번");
+        assert!(
+            following_pages[0] >= caption_pages[0],
+            "뒤 본문의 실제 순서"
+        );
+        println!("실제 셀 편집: {sample}, 삽입{}자, 전체{}쪽, 표조각{table_pages:?}, 캡션{caption_pages:?}, 뒤본문{following_pages:?}", inserted.chars().count(), core.page_count());
+    }
+}

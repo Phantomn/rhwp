@@ -194,9 +194,12 @@ impl TypesetEngine {
                         *cut,
                         *painted,
                     );
-                if stored_rewinding_rowbreak_uses_painted_row_footprint {
-                    // 저장 되감김 경로는 두 컨테이너에서 같은 물리 행 높이를 소비한다.
-                    // 패딩 축소 복구와 무관한 행을 새 resolve 결과로 바꾸지 않는다.
+                if stored_rewinding_rowbreak_uses_painted_row_footprint
+                    || layout_engine
+                        .reflowed_fragment_row_uses_measured_height(row_geometry_table, row)
+                {
+                    // 온전한 행은 실제 배치가 소유한 측정 높이를 함께 예약한다.
+                    // 재조판에서는 원본 저장 프레임이나 저장 안전 여유를 재사용하지 않는다.
                     cut.max(mt.row_heights[row])
                 } else if declared_whole_table_matches_paint
                     && padding_explains_drift

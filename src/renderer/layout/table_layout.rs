@@ -4817,6 +4817,19 @@ impl LayoutEngine {
         crate::renderer::float_placement::stored_empty_picture_cell_frame(cell, table)
     }
 
+    /// 실제 셀 재조판 뒤 온전한 행의 예약도 배치와 같은 측정 결과를 소비한다.
+    /// 저장 프레임의 유효성이나 행 내부 내용 컷을 이 판정으로 대신하지 않는다.
+    pub(crate) fn reflowed_fragment_row_uses_measured_height(
+        &self,
+        table: &crate::model::table::Table,
+        row: usize,
+    ) -> bool {
+        self.render_normalization
+            .borrow()
+            .table_text_reflowed(table)
+            && self.whole_fragment_row_uses_measured_height(table, row)
+    }
+
     /// 일반 부분 표의 온전한 행에서 MeasuredTable이 실제 paint 높이를 소유한다.
     /// 시작/끝 내용 컷 또는 rowspan 블록 컷에는 적용하지 않는다.
     /// 예약과 배치가 별도 조건으로 다른 높이를 선택하지 않도록 owner를 공유한다.

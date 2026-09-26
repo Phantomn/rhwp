@@ -332,8 +332,28 @@ impl TypesetEngine {
                     + measured.cell_spacing * measured.row_heights.len().saturating_sub(1) as f64
             })
         });
+        // 재조판한 온전한 일반 행도 실제 배치 높이로 통째 수용 여부를 정한다.
+        // 원본의 저장 되감김/프레임 원점 조건과 별개이며 중첩 내용 컷은 제외한다.
+        let reflowed_table_uses_painted_whole_rows = if table.row_count > 0
+            && matches!(
+                table.page_break,
+                crate::model::table::TablePageBreak::RowBreak
+            )
+            && self.render_normalization.table_text_reflowed(table)
+        {
+            let layout_engine = crate::renderer::layout::LayoutEngine::new(self.dpi);
+            layout_engine.set_layout_profile(st.profile);
+            layout_engine.set_render_normalization_overlay(std::sync::Arc::clone(
+                &self.render_normalization,
+            ));
+            (0..table.row_count as usize)
+                .all(|row| layout_engine.reflowed_fragment_row_uses_measured_height(table, row))
+        } else {
+            false
+        };
         let uses_painted_row_footprint_for_whole_fit =
-            stored_rewinding_rowbreak_uses_painted_row_footprint
+            (stored_rewinding_rowbreak_uses_painted_row_footprint
+                || reflowed_table_uses_painted_whole_rows)
                 && measured_row_table_height
                     .is_some_and(|height| height > ft.effective_height + 0.5);
         let whole_fit_table_total = if uses_painted_row_footprint_for_whole_fit {
