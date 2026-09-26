@@ -377,7 +377,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         DocumentV2Error::Paragraph {
             index: 5,
             reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "TAC carrier paragraph constraints"
+                "text preview run outside occupied line"
             )
         }
     ));
@@ -2413,6 +2413,128 @@ fn inline_carrier(separate: bool) -> Paragraph {
         })
         .collect();
     para
+}
+
+#[test]
+fn unpainted_tac_carrier_reference_keeps_body_and_nested_geometry() {
+    use rhwp::model::style::Alignment;
+    for nested in [false, true] {
+        for separate in [false, true] {
+            let mut d = source(vec![p("before"), inline_carrier(separate), p("after")]);
+            d.doc_info.para_shapes[0].alignment = Alignment::Center;
+            if nested {
+                let mut outer = table(&[], TablePageBreak::CellBreak);
+                outer.cells[0].width = 22500;
+                outer.cells[0].paragraphs = vec![inline_carrier(separate)];
+                d.sections[0].paragraphs[1] = host("host", outer);
+            }
+            let expected = drain(&mut open(&d));
+            d.doc_info.border_fills.push(BorderFill {
+                borders: [BorderLine {
+                    line_type: BorderLineType::None,
+                    ..Default::default()
+                }; 4],
+                ..Default::default()
+            });
+            let mut shape = d.doc_info.para_shapes[0].clone();
+            shape.border_fill_id = 2;
+            d.doc_info.para_shapes.push(shape);
+            let carrier = if nested {
+                let Control::Table(t) = &mut d.sections[0].paragraphs[1].controls[0] else {
+                    unreachable!()
+                };
+                &mut t.cells[0].paragraphs[0]
+            } else {
+                &mut d.sections[0].paragraphs[1]
+            };
+            carrier.para_shape_id = 1;
+            assert_eq!(
+                drain(&mut open(&d)),
+                expected,
+                "nested={nested}, separate={separate}"
+            );
+            // Missing references and real decorations must not disappear.
+            for reference in [1, 3] {
+                d.doc_info.para_shapes[1].border_fill_id = reference;
+                assert!(matches!(
+                    DocumentV2Session::from_bytes(&bytes(&d), r#"{"dpi":96,"max_pages":20}"#),
+                    Err(DocumentV2Error::Paragraph { .. })
+                ));
+            }
+        }
+    }
+}
+
+#[test]
+fn hancom_saved_nested_tac_with_unpainted_paragraph_border_is_admitted() {
+    let data = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue7353_tac_noop_review/noop-saved.hwp"
+    ))
+    .unwrap();
+    let parsed = rhwp::parse_document(&data).unwrap();
+    let outer = parsed.sections[0].paragraphs[0]
+        .controls
+        .iter()
+        .find_map(|c| {
+            if let Control::Table(t) = c {
+                Some(t)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let carrier = &outer.cells[0].paragraphs[1];
+    assert_eq!(
+        parsed.doc_info.para_shapes[carrier.para_shape_id as usize].border_fill_id,
+        1
+    );
+    assert_eq!(carrier.line_segs[0].vertical_pos, 1760);
+    assert_eq!(carrier.line_segs[0].line_height, 5000);
+    assert_eq!(carrier.line_segs[0].segment_width, 31432);
+    let pages = drain(
+        &mut DocumentV2Session::from_bytes(
+            &data,
+            r#"{"dpi":96,"max_pages":20,"cell_end_policy":"omit_final_paragraph_gap"}"#,
+        )
+        .unwrap(),
+    );
+    assert_eq!(pages.len(), 1);
+    assert_eq!(
+        labels(&pages[0]),
+        [
+            "NO-PAINT PARAGRAPH STYLE: NESTED INLINE TABLE",
+            "CELL BEFORE",
+            "INLINE CHILD TABLE",
+            "CELL AFTER",
+            "AFTER PARENT TABLE"
+        ]
+    );
+    let tables = nodes(&pages[0], "Table");
+    assert_eq!(tables.len(), 2);
+    // Authored outer minimum18000HU, offset2835 + outer top283, page top5669.
+    // Saved carrier local y1760 and width31432; center the24000HU child once.
+    for (t, [x, y, w, h]) in tables.iter().zip([
+        [3969.0, 8787.0, 32000.0, 18000.0],
+        [
+            3969.0 + 283.0 + (31432.0 - 24000.0) / 2.0,
+            8787.0 + 283.0 + 1760.0,
+            24000.0,
+            5000.0,
+        ],
+    ]) {
+        for (key, value) in [("x", x), ("y", y), ("width", w), ("height", h)] {
+            near(&t["bbox"][key], value / 75.0);
+        }
+    }
+    let lines = nodes(&pages[0], "TextLine");
+    for (line, y) in lines
+        .iter()
+        .zip([5669.0, 9070.0, 11113.0, 16490.0, 5669.0 + 21685.0])
+    {
+        near(&line["bbox"]["y"], y / 75.0);
+        near(&line["bbox"]["height"], 1100.0 / 75.0);
+    }
 }
 
 #[test]

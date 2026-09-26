@@ -2722,3 +2722,78 @@ diff check 및 review source 동일성을 확인했다.
 
 메인테이너가 시각 판정 통과 및 다음 절편 진행을 승인했다. 기존 정책과 Legacy/default를 유지하며,
 그림/TAC·분할 rowspan의 추가 독립 출력 검증과 원본 #6923/R5 완료는 남아 있다.
+
+#### 후속: TAC carrier의 비표시 문단 테두리 참조
+
+직전 셀 끝 아래 간격 절편은 시각 판정 승인 후 `6c535e20d`에 보존했다.
+이번 대상은 원본 #6923의 index5 내부 TAC carrier가 borderFill1을 가진다는 이유로
+`TAC carrier paragraph constraints`에 걸리는 경계다. 원본의 이 참조는 보이는 장식이 아니다.
+일반 텍스트와 다른 수용 조건을 두지 않고, 기존 `paragraph_is_unpainted` 계약을 TAC/그림의
+공통 `carrier_style`에 적용한다. margin/indent·줄 소속·저장 점유 상자 검사는 완화하지 않는다.
+
+규칙과 실제 소비 경로:
+
+- 원본 `DocInfo → validate_paragraph_source`가 3D·채움 등 source 효과와 참조 유효성을 검사한다.
+- `ResolvedStyleSet → tac::carrier_style → paragraph_is_unpainted`에서 실제 장식 없는 참조만
+  수용한다. `text`와 같은 규칙이며 missing reference와 실제 선·채움은 여전히 거부한다.
+- `tac::compose / pictures::compose → stored_object_rows`의 원래 줄 소속/기하를 그대로
+  사용한다. `ParagraphItem → content/flow`의 요구·예약/컷과 재귀 표·그림 paint는 바꾸지 않는다.
+  참조를 지우거나 좌표·height·clamp를 보정하지 않는다. 본문/중첩/그림의 실제 최종 트리를 비교한다.
+
+독립 입력은 `tests/fixtures/issue7353_tac_noop_review/`의 정상 한컴 저장본과 대응 PDF다.
+생성 출처·해시·기대 좌표는 해당 README에 한 번만 기록한다. 원본 #6923과 혼동하지 않도록
+부모/자식 및 앞뒤 문단을 명시한 읽을 수 있는1쪽 대조군이다. 저장본은 수동 수정하지 않았다.
+Native review/overlay를 직접 확인한 결과 표 외곽·중첩 배치·뒤 문단은 기준과 정합하고,
+글꼴 외형 차이는 남는다. 메인테이너 최종 판정과 fresh WASM은 아래 결과로 연결한다.
+
+수정 전후 작은 검증 (`output/7353/r19/tac-noop/`):
+
+- 수정 전 `6c535e20d`와 동일한 release-test lib로 최종 정상 HWP 및 비표시 참조 반례를
+  실행하여 두 검사 모두 **TAC carrier paragraph constraints**로 FAIL (`before.log`).
+- 초기 검사에서 필수 max_pages 옵션 누락/BorderLine 기본값을 None으로 오인한 오류와
+  fixture generator의 borrow 및 진단 필드명 오류는 수정했다. 이를 결함 검출 근거로 세지 않는다.
+- body/nested × 같은 줄/다른 줄 TAC의 참조0 대조군과 비표시 참조 입력은 전체 tree/SVG가 같다.
+  missing/visible 참조의 명시적 실패도 검사한다. 그림 carrier의 같은 줄/다른 줄은 별도 export
+  계약으로 실제 image·분할·뒤 문단/종료의 동일성을 검사한다.
+- 원본 전체의 다음 거부는 index5 `text preview run outside occupied line`으로 진전했다.
+  기존 admission 검사는 이 정확한 다음 경계를 기록하도록 갱신했다. 수용 조건 해제만으로
+  원본 전체나 R5 완료로 판단하지 않는다. baseline/ignore와 Legacy/default는 변경하지 않았다.
+
+소규모 최종 document-flow 검사61건은 모두 PASS (`after-final.log`). 실제 한컴 저장본의
+선언 최소 높이·저장 TAC 줄 폭/높이·앞뒤 문단 vpos로 기대값을 정해 최종 표/줄 좌표를 검사했다.
+수정 전 Docker WASM(`7d9fa78b…`)으로도 같은 최종 HWP의 거부를 확인했다
+(`before-wasm.json`). 제품 코드 변경은 V2의 공유 수용 조건 한 곳이며, 이전 검증한 셀 끝 정책은
+그대로 유지한다. source/head는 `6c535e20d`+패치, 정확한 source/cases 해시는
+`tac-noop/source.sha256`에 고정하고 review worktree와의 동일성을 확인했다.
+
+최종 출력 검증:
+
+- Docker `wasm` 성공, **7분28초** (`tac-noop/docker-wasm.log`), WASM SHA-256
+  `1860044d9a401502bb886a4412d033318f1bc8ceecdb2b816f26e312e2ee2964`.
+- `bash output/7353/r19/tac-noop/finalize.sh`로 최종 release-test Native probe와 fresh WASM을
+  같은 저장본에 실행했다. SVG byte-identical, JSON 수치 차이26개/최대
+  `5.684341886080802e-14`, 비수치 차이0 (`review/backend-comparison.json`).
+- diagonal/저장 indent/fresh indent × 두 끝 간격 정책6조합의 기존 승인 SVG 보존과
+  Native/WASM 일치를 확인했다 (`controls.log`). 이는 동일 출력 보존 검사이며 각 입력의
+  모든 미지원 동작을 새로 시각 승인한 결과는 아니다.
+- 최종 Native/fresh WASM review 및 standalone overlay를 직접 열어 부모·자식 표 외곽,
+  셀 앞/뒤 문단과 표 뒤 본문을 확인했다. 별도의 좌표 정합 변환은 하지 않았다.
+  대체 글꼴 폭·굵기 차이는 별도로 남긴다. 원본 #6923 전체는 다음 텍스트 경계에서 미수용이다.
+
+메인테이너 판정 자료:
+
+- [fresh WASM review](../../output/7353/r19/tac-noop/review/wasm-review-1.png)
+- [standalone overlay](../../output/7353/r19/tac-noop/review/wasm-overlay-1.png)
+- [Native review](../../output/7353/r19/tac-noop/review/native-review-1.png)
+- [동일 HWP 샘플](../../tests/fixtures/issue7353_tac_noop_review/noop-saved.hwp)
+- [한컴 기준 PDF](../../tests/fixtures/issue7353_tac_noop_review/noop-2020.pdf)
+
+메인테이너가 이 절편의 시각 판정 통과와 다음 절편 진행을 승인했다. 전체 PR CI/lint·원격 게시·기본 엔진 전환은
+수행하지 않았으며, 집중 회귀 최종 결과는 아래에 기록한다.
+
+집중 release-test 결과: **193 passed /0 failed /1532 skipped** (`tac-noop/focused.log`).
+review worktree에서 이전 절편과 동일한8개 suite(002/003/004/005/015/017/027/028)에
+`test(issue_7353_table_v2) | test(issue_4755) | test(issue_6102) | test(issue_3128)` 필터,
+`--locked --cargo-profile release-test --no-fail-fast --target-dir /home/edward/mygithub/rhwp/target/pr-review`
+옵션으로 실행했다. nextest0.9.137/권고0.9.140 및 기존 설정 경고는 유지된다.
+최종 source manifest3건·fmt·diff check를 확인했고, 검증 이후 제품 코드 변경은 없다.

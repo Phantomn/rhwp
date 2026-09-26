@@ -243,7 +243,10 @@ pub(super) fn carrier_style<'a>(
         .para_styles
         .get(para.para_shape_id as usize)
         .ok_or_else(unsupported)?;
-    if style.border_fill_id != 0
+    // A reference is not itself a painted paragraph decoration. Match the
+    // text adapter's resolved-style contract; source effects are checked by
+    // validate_paragraph_source before this shared table/picture boundary.
+    if !super::decoration::paragraph_is_unpainted(style.border_fill_id, styles)
         || style.head_type != crate::model::style::HeadType::None
         || style.keep_lines
         || style.keep_with_next

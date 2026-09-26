@@ -233,6 +233,41 @@ fn picture_document(alignment: rhwp::model::style::Alignment, separate: bool) ->
 }
 
 #[test]
+fn unpainted_picture_carrier_preserves_images_cuts_and_following_text() {
+    for separate in [false, true] {
+        let mut d = picture_document(rhwp::model::style::Alignment::Center, separate);
+        let original = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+        let config = options(&original);
+        let expected = drain(&mut open(&original, &config));
+        d.doc_info.border_fills.push(BorderFill {
+            borders: [BorderLine {
+                line_type: BorderLineType::None,
+                ..Default::default()
+            }; 4],
+            ..Default::default()
+        });
+        let reference = d.doc_info.border_fills.len() as u16;
+        let mut shape = d.doc_info.para_shapes[0].clone();
+        shape.border_fill_id = reference;
+        d.doc_info.para_shapes.push(shape);
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            panic!()
+        };
+        t.cells[0].paragraphs[1].para_shape_id = 1;
+        let input = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+        assert_eq!(drain(&mut open(&input, &config)), expected);
+        // Real source effects and unresolved references are still rejected.
+        d.doc_info.border_fills[reference as usize - 1].borders[0].line_type =
+            BorderLineType::Solid;
+        let input = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+        assert!(TablePreviewExportSession::from_bytes(&input, &config.to_string()).is_err());
+        d.doc_info.para_shapes[1].border_fill_id = reference + 1;
+        let input = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+        assert!(TablePreviewExportSession::from_bytes(&input, &config.to_string()).is_err());
+    }
+}
+
+#[test]
 fn stored_picture_rows_move_atomically_keep_resources_and_following_text() {
     use rhwp::model::style::Alignment;
     for (suffix, alignment, x) in [
