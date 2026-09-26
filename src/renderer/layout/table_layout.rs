@@ -4875,6 +4875,26 @@ impl LayoutEngine {
         cell: &crate::model::table::Cell,
         table: &crate::model::table::Table,
     ) -> (f64, f64, f64, f64) {
+        self.resolve_cell_padding_at_height(cell, table, None)
+    }
+
+    /// 온전한 행 조각은 측정에서 확정한 물리 높이로 안 여백을 판단한다.
+    /// 저장된 최소 셀 높이로 다시 축소하면 측정과 글줄 배치가 어긋난다.
+    pub(crate) fn resolve_cell_padding_for_physical_height(
+        &self,
+        cell: &crate::model::table::Cell,
+        table: &crate::model::table::Table,
+        height: f64,
+    ) -> (f64, f64, f64, f64) {
+        self.resolve_cell_padding_at_height(cell, table, Some(height))
+    }
+
+    fn resolve_cell_padding_at_height(
+        &self,
+        cell: &crate::model::table::Cell,
+        table: &crate::model::table::Table,
+        physical_height: Option<f64>,
+    ) -> (f64, f64, f64, f64) {
         // HWP 스펙: aim(apply_inner_margin)=true → cell.padding,
         //           aim=false → table.padding 우선.
         // 한컴은 aim=false일 때 cell.padding 원값을 파일에 보존하더라도 렌더에는 쓰지 않는다.
@@ -4936,8 +4956,13 @@ impl LayoutEngine {
         // 비례 축소 (HWP 스펙 외 한컴 동작 모방).
         // 발동 기준은 측정(height_measurer)과 공유한다 (#5751).
         let padding_guard_height = cell.vertical_padding_guard_height_hu(table);
-        let (pad_top, pad_bottom) = if padding_guard_height < 0x80000000 {
-            let cell_h_px = hwpunit_to_px(padding_guard_height as i32, self.dpi);
+        let guard_height = physical_height
+            .filter(|height| height.is_finite() && *height > 0.0)
+            .or_else(|| {
+                (padding_guard_height < 0x80000000)
+                    .then(|| hwpunit_to_px(padding_guard_height as i32, self.dpi))
+            });
+        let (pad_top, pad_bottom) = if let Some(cell_h_px) = guard_height {
             let total_v_pad = pad_top + pad_bottom;
             if crate::model::table::Cell::vertical_padding_is_abnormal(cell_h_px, total_v_pad) {
                 let max_v_pad = cell_h_px * 0.5;

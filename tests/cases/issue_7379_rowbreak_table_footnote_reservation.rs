@@ -1427,3 +1427,31 @@ fn stored_rewinding_table_keeps_following_body_tail_before_figure() {
     let title = line_top(&next.root, "1) 장기 기증 관련 결정 순서").expect("그림 제목");
     assert!((title - 189.861).abs() <= 1.5, "제목{title} vs PDF189.861");
 }
+
+/// 셀 선언 높이는 최소값이며 실제 온전한 행 안 여백을 줄이는 근거가 아니다.
+/// 원본510HU 위 여백과 같은 입력 한컴 PDF의 실제 글줄 위치를 검사한다.
+#[test]
+fn whole_row_cell_uses_its_allocated_height_for_saved_inner_margin() {
+    let core = core();
+    for (page, row, needle, expected) in [
+        (105, 0, "법적 자격이 있는 관계 속에", 678.514),
+        (106, 3, "어떠한 기존 관계 없는 지정", 91.794),
+    ] {
+        let tree = core.build_page_render_tree(page).expect("실제 표 조각");
+        let table = table_for_para(&tree.root, 1136).expect("표29");
+        let cell = table.children.iter().find(|node| {
+            matches!(&node.node_type, RenderNodeType::TableCell(cell) if cell.row == row && cell.col == 0)
+        }).expect("온전한 첫 열 셀");
+        let y = line_top(cell, needle).expect("저장 첫 글줄");
+        assert!(
+            (y - expected).abs() <= 1.5,
+            "{}쪽 글줄{y} vs 독립PDF{expected}",
+            page + 1
+        );
+        assert!(
+            (y - cell.bbox.y - 510.0 / 75.0).abs() <= 0.01,
+            "실제 셀 상자는 저장 위 여백6.8px를 소유: cell{}, line{y}",
+            cell.bbox.y
+        );
+    }
+}

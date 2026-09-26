@@ -371,3 +371,31 @@ Producer `415b4b046` + Rust/test diff SHA256 `2ca3b8cc2b49496dd93d46d04e808aa351
 ![Native107 남은 셀 글줄 차이](../assets/pr7382_20260926/stage16_native_review_107.png)
 ![Native108 본문 꼬리와 그림 복원](../assets/pr7382_20260926/stage16_native_review_108.png)
 ![Native108 overlay](../assets/pr7382_20260926/stage16_native_overlay_108.png)
+
+
+## 메인터너 보정 17: 온전한 행의 실제 높이와 안 여백 공유
+
+원본 표29의 셀 최소 높이는282HU지만 실제 첫 행은90.933px이며, 저장 안 여백은 위·아래 각각510HU(6.8px)다. 기존 배치가 최소 셀 높이로 다시 판단해 위 여백을0.933px로 축소했고, 첫 조각에서 예산에 예약한141HU 위 여백도 배치 원점에 전달되지 않았다. [동일 입력/PDF의 독립 글줄 좌표](../assets/pr7382_20260926/stage17_independent_geometry.json)는106쪽678.514px,107쪽91.794px다.
+
+온전한 단일 행의 측정 높이 생산 → `table_partial` 실제 셀 상자 높이 → 공통 `resolve_cell_padding_at_height`의 축 선택·이상값 방어 → 실제 글줄 원점으로 연결했다. 행 내부 컷·높이 덮어쓰기·병합 셀 및 측정 높이를 사용하지 않는 중첩 경로는 기존 컷 계약을 유지한다. 첫 되감김 조각은 기존 `host_before_overhead + vert_offset_overhead`를 공통 배치 plan에 전달하고, 예산·확정·배치가 같은 원점과 아래 여백을 소비한다. 새 수치 특례나 허용치 완화는 없다. 이전 #7406의 관련 영어 설명 주석9줄도 한글로 변경했다.
+
+Producer `bacbabc9e` + Rust/test diff SHA256 `d1abcad092e275a6d3bce3c8f8da9f05056f9e379f474feae37dd7c55bbc6627`; [실행·소스·잔여 범위](../assets/pr7382_20260926/stage17_validation.json).
+
+| 검사 | 결과 | 의미 |
+| --- | --- | --- |
+| 수정 전 실제 좌표 회귀 |1FAIL, exit100,0.166s |106쪽 글줄670.767/기대678.514로 조기 배치 검출 |
+| 수정 후 관련·정상 대조군 |76PASS, exit0,3.319s | 실제 셀 안 여백·독립 글줄 좌표, 조밀 표/음수·쓰레기 여백/중첩/병합/행 내부 컷 보존 |
+| 라이브러리 대조군 |6PASS, exit0,0.225s | Native 저장 되감김 표·그림 캡션·빈 문단·조각 생명주기 보존 |
+| CLI·쪽수 |build exit0,1m57s;215/PDF215 | 필수 페이지 수 일치 |
+| Native106/107 |99.94111/99.02564% | 기존80.27049/85.40785%에서 개선, 셀 글줄과 표 경계를 함께 직접 판독 |
+| Native94/95/108 |98.91562/94.55592/99.94123% | 선택 gate exit0, 글꼴 예외 없음; 모든 review/overlay 직접 판독 |
+| fmt·추가 설명 주석 |exit0 / 영어0개 | 이 단계에서 추가·수정한 설명 주석은 한글 |
+
+[manifest](../assets/pr7382_20260926/stage17_native_manifest.json)·[summary](../assets/pr7382_20260926/stage17_native_summary.json)·[metrics](../assets/pr7382_20260926/stage17_native_overlay_metrics.json). 선택5쪽의 review/standalone overlay10개를 직접 확인했다. 표 행·캡션·뒤 본문과108쪽 꼬리/그림의 누락·겹침은 보이지 않는다. 일부 글자 실루엣·획·간격과 그림 색은 남아 있으므로 완전 픽셀 일치를 주장하지 않는다. 전체 최종/fresh WASM/lint는 미완료여서 PR 생성·승인 보류다.
+
+![Native106 셀 안 여백 복원](../assets/pr7382_20260926/stage17_native_review_106.png)
+![Native106 overlay](../assets/pr7382_20260926/stage17_native_overlay_106.png)
+![Native107 이어받기 셀](../assets/pr7382_20260926/stage17_native_review_107.png)
+![Native107 overlay](../assets/pr7382_20260926/stage17_native_overlay_107.png)
+![Native108 후속 내용](../assets/pr7382_20260926/stage17_native_review_108.png)
+![Native108 overlay](../assets/pr7382_20260926/stage17_native_overlay_108.png)

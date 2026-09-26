@@ -390,12 +390,18 @@ impl TypesetEngine {
         // 행 내부 컷과 쪽 중간 조각은 해당 원점을 이미 소유하므로 재개하지 않는다.
         let fragment_placement = fragment_placement.or_else(|| {
             (prepared.stored_rewinding_rowbreak_uses_painted_row_footprint
-                && is_continuation
                 && start_cut.is_empty()
-                && st.current_height <= 0.5)
+                && ((!is_continuation && cursor_row == 0)
+                    || (is_continuation && st.current_height <= 0.5)))
                 .then(|| {
-                    let top =
-                        st.current_height + hwpunit_to_px(table.outer_margin_top as i32, self.dpi);
+                    // 첫 조각은 이미 예약한 문단 앞 여백과 오프셋을 배치에도 전달한다.
+                    // 새 쪽의 이어받기 조각은 바깥 위 여백을 다시 연다.
+                    let top = st.current_height
+                        + if is_continuation {
+                            hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
+                        } else {
+                            host_before_overhead + vert_offset_overhead
+                        };
                     crate::renderer::float_placement::ParagraphFloatPlacement {
                         flow: crate::renderer::float_placement::ParagraphFloatFlow::NextLine,
                         anchor_y: st.current_height,

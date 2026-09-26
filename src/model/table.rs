@@ -297,15 +297,13 @@ impl Cell {
         cell_height_px > 0.0 && total_v_pad_px >= cell_height_px
     }
 
-    /// A 1×1 table's declared outer height is also a physical height for its
-    /// only cell. Some saved cells keep a tiny row seed even when the table
-    /// itself spans pages; judging padding against that seed discards the
-    /// table's real inset (#7406, PrEP pp.39–40: cell 282HU, table 68738HU,
-    /// top/bottom inset 850HU each). Require the saved insets to exceed the
-    /// seed height: equality alone also occurs in ordinary compact tables
-    /// (80168), where the seed does not prove that the outer box owns them.
-    /// Measurement and paint use this same height when deciding whether the
-    /// inset is malformed.
+    /// 1×1 표의 선언된 바깥 높이는 유일한 셀의 물리 높이이기도 하다.
+    /// 여러 쪽에 걸치는 표도 셀에는 작은 초기 행 높이를 저장할 수 있다.
+    /// 이 초기값만으로 판단하면 실제 안 여백이 축소된다(#7406, PrEP 39–40쪽:
+    /// 셀 282HU, 표 68738HU, 위·아래 안 여백 각각 850HU).
+    /// 저장 안 여백이 초기 높이를 초과해야 한다. 둘이 같은 경우는 일반적인
+    /// 조밀한 표(80168)에도 있으므로 바깥 상자가 여백을 소유한다는 근거가 아니다.
+    /// 측정과 배치는 이 높이를 함께 사용해 안 여백의 비정상 여부를 판단한다.
     pub fn vertical_padding_guard_height_hu(&self, table: &Table) -> u32 {
         let pad = self.effective_padding(&table.padding);
         if table.row_count == 1
