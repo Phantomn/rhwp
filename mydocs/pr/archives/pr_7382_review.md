@@ -993,3 +993,25 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 ![표31과 뒤 본문의 원점 복원](../assets/pr7382_20260926/stage39_after_hwpx_review_126.png)
 ![동일 프레임을 쓰는131쪽의 개선](../assets/pr7382_20260926/stage39_extra_after_hwpx_review_131.png)
 ![남은 각주 들여쓰기 차이](../assets/pr7382_20260926/stage39_after_hwpx_overlay_126.png)
+
+
+## 보정40 사전 분석 — 번호 있는 각주의 이어지는 줄 내어쓰기
+
+- 원본 각주171/172는 문단속성3의 indent=-2620HU(해석 후-1310HU=-17.466667px), margin_left=0을 공유한다. 저장 첫 줄 플래그0x60000/나머지0x160000은 둘째 줄부터 내어쓰기를 적용한다. 두 독립 한컴2024 PDF126쪽은 번호를 포함한 첫 줄 x94.56px, 이어지는 줄 x112.0px이며 현재 번호 전용 경로는 모든 줄을 각주 영역x94.466667px에서 시작한다.
+- 생산은 공통 ParaShape 해석→ResolvedParaStyle.margin_left/indent→compose_footnote_paragraph의 저장 글줄이고, 번호 없는 조각은 공통 문단 배치의 줄별 들여쓰기를 소비한다. 번호 있는 경로 `layout_footnote_paragraph_with_number`는 문단 여백/들여쓰기를 조회하지 않고 매 줄 area.x를 사용한다. 번호 너비를 상수로 복제하거나 좌표 clamp하지 않고 같은 문단 줄별 규칙을 실제 원본 줄 번호로 소비해야 한다. 가시 높이·페이지 소유·줄 내용/간격은 변경하지 않는다.
+- 먼저 원본 두 형식의 번호/이어지는 줄 TextRun 좌표·전체 내용·쪽 소유 실패를 검사한다. zero/positive/negative 문단 계약과 번호 없는 실제 이어받기 정상 경로를 함께 대조한다. 수동 IR 변형은 독립 한컴 출력 일치 증거로 사용하지 않는다.
+
+
+### 보정40 결과
+
+- 기존 일반 문단의 줄별 들여쓰기/저장 플래그 판정을 공통 `paragraph_line_indent_for_source`로 옮기고 번호 있는 각주도 동일 결과를 소비한다. 실제 원본 줄 번호 `line_start+offset`을 사용하며 첫 줄 번호와 뒤 텍스트는 같은 원점에서 이어진다. 문단 좌/우 여백을 함께 반영한다. 셀/재조판의 기존 적용 조건은 유지하고 각주 가시 높이·쪽 소유·줄 내용/간격은 변경하지 않는다.
+- 원본 HWP/HWPX 정식 두 검사는 수정 전0PASS/2FAIL(exit100,0.208s)로 이어지는 줄x94.493333px를 검출했다. 수정 후 두 형식과 0/양수/음수 들여쓰기·저장 적용 비트 없는 수동 변형의3검사는3PASS/0FAIL(1.029s)다. 원본171/172 전체 내용과1172HU 줄 전진, 첫 줄 번호와 이어지는 글줄·인접 쪽 중복 없음을 함께 확인했다. 수동 문단속성 변형은 한컴 재저장 일치 증거가 아니다.
+- 최종 확대는 이전40모듈에 #6190의 저장 비트·셀 내어쓰기·HWP3·각주 폭 재조판/줄 높이 대조군을 추가해243PASS/0FAIL(exit0,8.465s,threads8)이다. fmt·고정base manifest(6236 attrs)·source-unit(4205/298)은exit0이며 release-test CLI 빌드는exit0/89.873s다. [정확한 명령·source/test/CLI 해시·로그 해시·판정](../assets/pr7382_20260926/stage40_validation.json), [원본 문단 속성/줄](../assets/pr7382_20260926/stage40_note_source.json), [독립 PDF 좌표](../assets/pr7382_20260926/stage40_independent_geometry.json).
+- Native126쪽은 두 형식 모두92.75732→94.99385%이며 이어지는 글줄x111.96px가 독립 PDF x112.0px와 같은 허용 범위에 들어왔다. 번호 없는 이어받기도 포함한67/179쪽을 함께 직접 확인했다. HWPX67쪽93.58939→96.21756%,179쪽은양쪽97.53225→97.93535%다. 번호 없는 기존 꼬리·각주 번호 단일 소유·표/본문·후속 제목을 보존했다. 새 review·standalone overlay24개를 직접 읽었다.
+- 전체215쪽 tree는 각주 영역 안에서만 HWPX78쪽/HWP79쪽이 바뀌었고, 두 형식 모두 각주 영역 밖의 tree는 모든215쪽에서 동일하다. [전수 tree 범위](../assets/pr7382_20260926/stage40_original_tree_difference.json). 이는 각주 전체 래스터 통과의 대용이 아니며 변경된 모든 쪽은 최종 전수 시각에서 재검토한다.
+- 현재 통합 base c80a8370a 이후 Rust·Python·JS/TS·셸·설정의 추가 설명 주석922줄을 재검색해 [영어 설명 주석0개](../assets/pr7382_20260926/stage40_all_language_comment_scan.json)를 확인했다. 코드 울타리와 제품/형식/API 식별자는 유지한다. 로그·output·generated는 커밋하지 않는다.
+- 판정: 번호 있는 각주 내어쓰기 누락은 충족. HWP67쪽은 수정 전72.73184%→수정 후74.64010%로 표/뒤 본문이 PDF보다 위에 놓인 차이가 남아 gate 재검토 상태다. 이를 기존 차이라는 이유로 승인하지 않는다. #6782의76/78쪽·실제 TABLE 편집/래퍼 분할·최신 전수 Native/fresh WASM·전체 nextest/lint/Skia도 남아 통합 PR 생성/승인은 계속 보류한다. 이 단계 커밋 뒤 최신 전수 시각과 HWP67쪽 원점부터 다음 개별 사유를 분석한다.
+
+![126쪽 각주 내어쓰기 복원](../assets/pr7382_20260926/stage40_after_hwpx_review_126.png)
+![번호 없는 이어받기와 뒤 각주 보존](../assets/pr7382_20260926/stage40_after_hwpx_review_179.png)
+![HWP67쪽의 남은 표와 뒤 본문 위치 차이](../assets/pr7382_20260926/stage40_after_hwp_overlay_067.png)

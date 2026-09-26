@@ -5012,20 +5012,13 @@ impl LayoutEngine {
             // **본문 흐름 한정**이다 — 표 셀 안 문단은 한글이 들여쓰기를 적용한다
             // (오라클 7문서: 2777015 · 156548319 · 156658621 · 156428389 등 모두 셀 안
             // Center 문단이고 한글 x 가 `indent/2` 반영값과 0.0~0.4px 로 일치).
-            let stored_ladder_covers_lines = cell_ctx.is_none()
-                && para.is_some_and(|p| p.line_segs.len() == composed.lines.len());
-            let stored_seg_denies_indent = stored_ladder_covers_lines
-                && para
-                    .and_then(|p| p.line_segs.get(line_idx))
-                    .is_some_and(|seg| {
-                        seg.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
-                            && seg.tag & LineSeg::TAG_INDENTATION == 0
-                    });
-            let line_indent = if stored_seg_denies_indent {
-                0.0
-            } else {
-                crate::renderer::equation_tac_flow::paragraph_line_indent(indent, line_idx)
-            };
+            let line_indent = crate::renderer::equation_tac_flow::paragraph_line_indent_for_source(
+                indent,
+                line_idx,
+                para,
+                composed.lines.len(),
+                cell_ctx.is_none(),
+            );
             let styled_margin_left = margin_left + line_indent;
 
             // [Task #489] Picture/Shape Square wrap (어울림) 시 LINE_SEG.cs/sw 적용.

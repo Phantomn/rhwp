@@ -1242,6 +1242,7 @@ impl LayoutEngine {
                         tree,
                         fn_node,
                         &composed,
+                        para,
                         styles,
                         fn_area,
                         y,
@@ -1304,6 +1305,7 @@ impl LayoutEngine {
         tree: &mut PageLayoutContext,
         parent: &mut RenderNode,
         composed: &ComposedParagraph,
+        paragraph: &Paragraph,
         styles: &ResolvedStyleSet,
         area: &LayoutRect,
         y_start: f64,
@@ -1323,7 +1325,22 @@ impl LayoutEngine {
         let line_start = line_start.min(composed.lines.len());
         let line_end = line_end.min(composed.lines.len()).max(line_start);
 
+        let para_style = styles.para_styles.get(composed.para_style_id as usize);
+        let margin_left = para_style.map(|style| style.margin_left).unwrap_or(0.0);
+        let margin_right = para_style.map(|style| style.margin_right).unwrap_or(0.0);
+        let indent = para_style.map(|style| style.indent).unwrap_or(0.0);
+
         for (offset, comp_line) in composed.lines[line_start..line_end].iter().enumerate() {
+            // 이어받은 쪽에서도 원본 문단 안의 줄 번호로 들여쓰기를 결정한다.
+            let line_indent = crate::renderer::equation_tac_flow::paragraph_line_indent_for_source(
+                indent,
+                line_start + offset,
+                Some(paragraph),
+                composed.lines.len(),
+                true,
+            );
+            let line_x = area.x + margin_left + line_indent;
+            let line_width = (area.width - margin_left - margin_right - line_indent).max(0.0);
             // LineSeg.line_height는 HWP에서 줄간격이 이미 반영된 값.
             // [#5708] 저장 LINE_SEG 가 없는 문단의 폴백(400 HWPUNIT = 5.33px)은 글자보다
             // 작아 줄이 겹치므로 문단 줄간격 설정으로 보정한다.
@@ -1345,10 +1362,10 @@ impl LayoutEngine {
             let mut line_node = RenderNode::new(
                 line_id,
                 RenderNodeType::TextLine(TextLineNode::new(line_height, baseline)),
-                BoundingBox::new(area.x, y, area.width, line_height),
+                BoundingBox::new(line_x, y, line_width, line_height),
             );
 
-            let mut x = area.x;
+            let mut x = line_x;
 
             // 첫 줄에 각주 번호 삽입
             if offset == 0 {

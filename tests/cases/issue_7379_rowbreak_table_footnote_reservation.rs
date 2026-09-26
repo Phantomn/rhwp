@@ -2978,3 +2978,152 @@ fn captioned_closed_empty_host_frame_preserves_rows_and_caption_when_budget_requ
     assert_eq!(following_owners.len(), 1, "뒤 제목 단일 소유");
     assert!(following_owners[0] >= caption_owners[0], "뒤 제목의 순서");
 }
+
+/// 원본 각주171/172의 저장 내어쓰기와 독립 PDF126쪽 x112.0px를 대조한다.
+#[test]
+fn numbered_footnote_continuation_lines_keep_the_original_hanging_indent_hwpx() {
+    assert_numbered_footnote_hanging_indent(SAMPLE);
+}
+
+#[test]
+fn numbered_footnote_continuation_lines_keep_the_original_hanging_indent_hwp() {
+    assert_numbered_footnote_hanging_indent(&SAMPLE.replace(".hwpx", ".hwp"));
+}
+
+fn assert_numbered_footnote_hanging_indent(sample: &str) {
+    let bytes = std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(sample)).expect("원본");
+    let core = DocumentCore::from_bytes(&bytes).expect("각주 원본");
+    assert_eq!(core.page_count(), 215);
+    let page = core.build_page_render_tree(125).expect("126쪽");
+    let area = notes(&page.root).expect("각주 영역");
+    let lines: Vec<_> = area
+        .children
+        .iter()
+        .filter(|n| matches!(n.node_type, RenderNodeType::TextLine(_)))
+        .collect();
+    for (number, count) in [(171, 4), (172, 3)] {
+        let marker = format!("{number})");
+        let start = lines
+            .iter()
+            .position(|n| text(n).starts_with(&marker))
+            .expect("번호 소유");
+        let first = lines[start].children.first().expect("번호 run");
+        assert!((first.bbox.x - 94.56).abs() <= 0.5, "첫 줄 번호 위치");
+        let source_note = core.document().sections[0].paragraphs[1349]
+            .controls
+            .iter()
+            .find_map(|control| match control {
+                rhwp::model::control::Control::Footnote(note) if note.number == number => {
+                    Some(note)
+                }
+                _ => None,
+            })
+            .expect("원본 각주 내용");
+        let normalize = |value: &str| {
+            value
+                .chars()
+                .filter(|ch| !ch.is_whitespace() && !ch.is_control())
+                .collect::<String>()
+        };
+        let actual = lines[start..start + count]
+            .iter()
+            .map(|line| text(line))
+            .collect::<String>();
+        let content = actual.strip_prefix(&marker).expect("첫 줄 번호 한 번");
+        assert_eq!(
+            normalize(content),
+            normalize(&source_note.paragraphs[0].text),
+            "각주{number} 전체 내용 보존"
+        );
+        for pair in lines[start..start + count].windows(2) {
+            assert!(
+                (pair[1].bbox.y - pair[0].bbox.y - 1172.0 / 75.0).abs() <= 0.01,
+                "저장 줄 간격 보존"
+            );
+        }
+        for line in &lines[start + 1..start + count] {
+            let run = line.children.first().expect("이어지는 글줄");
+            assert!(
+                (run.bbox.x - 112.0).abs() <= 0.5,
+                "각주{number} 내어쓰기: {}",
+                run.bbox.x
+            );
+        }
+    }
+    for index in [124, 126] {
+        let other = core.build_page_render_tree(index).expect("앞뒤 쪽");
+        assert!(
+            !text(notes(&other.root).expect("앞뒤 각주")).contains("홋카이도지역"),
+            "각주171 중복"
+        );
+    }
+}
+
+/// 수동 문단속성/합성 줄 변형의 줄별 계약이며 한컴 재저장 증거가 아니다.
+#[test]
+fn numbered_footnote_uses_paragraph_margin_and_signed_indent_without_reusing_stale_flags() {
+    use rhwp::model::control::Control;
+    use rhwp::model::paragraph::LineSeg;
+    for (indent_hu, synthetic) in [(-1800, true), (0, true), (1800, true), (-1800, false)] {
+        let mut core = core();
+        let mut doc = core.document().clone();
+        let note = doc.sections[0].paragraphs[1349]
+            .controls
+            .iter()
+            .find_map(|control| match control {
+                Control::Footnote(note) if note.number == 171 => Some(note),
+                _ => None,
+            })
+            .expect("원본 각주171");
+        let mut style =
+            doc.doc_info.para_shapes[usize::from(note.paragraphs[0].para_shape_id)].clone();
+        style.margin_left = 1500;
+        style.indent = indent_hu;
+        let style_id = doc.doc_info.para_shapes.len() as u16;
+        doc.doc_info.para_shapes.push(style);
+        let note = doc.sections[0].paragraphs[1349]
+            .controls
+            .iter_mut()
+            .find_map(|control| match control {
+                Control::Footnote(note) if note.number == 171 => Some(note),
+                _ => None,
+            })
+            .expect("변형 각주171");
+        note.paragraphs[0].para_shape_id = style_id;
+        for line in &mut note.paragraphs[0].line_segs {
+            line.tag = if synthetic {
+                LineSeg::TAG_IMPLEMENTATION_PROPERTY
+            } else {
+                0
+            };
+        }
+        core.set_document(doc);
+        assert_eq!(core.page_count(), 215, "문단속성 계약의 원본 쪽 소유");
+        let page = core.build_page_render_tree(125).expect("변형126쪽");
+        let area = notes(&page.root).expect("각주 영역");
+        let lines: Vec<_> = area
+            .children
+            .iter()
+            .filter(|n| matches!(n.node_type, RenderNodeType::TextLine(_)))
+            .collect();
+        let start = lines
+            .iter()
+            .position(|n| text(n).starts_with("171)"))
+            .expect("번호 소유");
+        for (index, line) in lines[start..start + 4].iter().enumerate() {
+            let line_indent =
+                if synthetic && ((indent_hu > 0 && index == 0) || (indent_hu < 0 && index > 0)) {
+                    12.0
+                } else {
+                    0.0
+                };
+            let expected = area.bbox.x + 10.0 + line_indent;
+            let run = line.children.first().expect("원본 줄 내용");
+            assert!(
+                (run.bbox.x - expected).abs() <= 0.01,
+                "indent={indent_hu}, synthetic={synthetic}, 줄{index}: {} / {expected}",
+                run.bbox.x
+            );
+        }
+    }
+}
