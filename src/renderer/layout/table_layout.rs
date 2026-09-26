@@ -10270,6 +10270,102 @@ impl LayoutEngine {
             .map(|seg| seg.vertical_pos.max(0))
     }
 
+    /// 셀 컷과 각주 마커 소유 조회가 같은 폭/방향의 composed 줄을 사용한다.
+    fn compose_cell_unit_paragraph(
+        &self,
+        p: &Paragraph,
+        text_direction: u8,
+        inner_width: f64,
+        styles: &ResolvedStyleSet,
+    ) -> ComposedParagraph {
+        let mut comp = crate::renderer::composer::compose_paragraph_in_context(p, styles);
+        if text_direction == 0 {
+            crate::renderer::composer::recompose_horizontal_cell_lines_for_width(
+                &mut comp,
+                p,
+                inner_width,
+                styles,
+                self.dpi,
+                self.profile.get().legacy_hwp3_stored_geometry(),
+                self.profile.get().native_hwp5_layout(),
+                &self.single_line_overflow_cache,
+            );
+        } else {
+            crate::renderer::composer::recompose_cell_lines_in_frame(
+                &mut comp,
+                p,
+                crate::renderer::composer::ParagraphBox::content_width_px(inner_width, self.dpi),
+                styles,
+                self.dpi,
+                self.profile.get().legacy_hwp3_stored_geometry(),
+            );
+        }
+        comp
+    }
+
+    /// 확정한 끝 컷 이전에 실제 각주 마커의 CellUnit이 소비됐는지 조회한다.
+    /// 앞 조각에서 이미 소비한 마커의 밀린 각주도 허용하지만 미래 행/줄은 금지한다.
+    pub(crate) fn table_footnote_marker_precedes_cut(
+        &self,
+        table: &crate::model::table::Table,
+        styles: &ResolvedStyleSet,
+        cell_index: usize,
+        cell_para_index: usize,
+        cell_control_index: usize,
+        end_row: usize,
+        end_cut: &[usize],
+    ) -> bool {
+        let Some(cell) = table.cells.get(cell_index) else {
+            return false;
+        };
+        if cell.row as usize >= end_row {
+            return false;
+        }
+        if end_cut.is_empty() || cell.row as usize + 1 < end_row {
+            return true;
+        }
+        let Some(para) = cell.paragraphs.get(cell_para_index) else {
+            return false;
+        };
+        let (pad_left, pad_right, _, _) = self.resolve_cell_padding(cell, table);
+        let cell_width = if cell.width < 0x8000_0000 {
+            hwpunit_to_px(cell.width as i32, self.dpi) * self.render_table_width_scale(table)
+        } else {
+            0.0
+        };
+        let inner_width = crate::renderer::composer::cell_inner_text_width(
+            cell_width, pad_left, pad_right, self.dpi,
+        );
+        let composed =
+            self.compose_cell_unit_paragraph(para, cell.text_direction, inner_width, styles);
+        let Some(&(marker_pos, _, _)) = composed
+            .footnote_positions
+            .iter()
+            .find(|(_, _, ci)| *ci == cell_control_index)
+        else {
+            return false;
+        };
+        let Some(marker_line) = composed
+            .lines
+            .iter()
+            .rposition(|line| line.char_start <= marker_pos)
+        else {
+            return false;
+        };
+        let Some(unit) =
+            self.cell_unit_ordinal_for(cell, table, styles, cell_para_index, marker_line)
+        else {
+            return false;
+        };
+        // advance_row_cut과 같은 row_span=1·col 순서의 셀 인덱스.
+        let cut_index = table
+            .cells
+            .iter()
+            .filter(|other| other.row == cell.row && other.row_span == 1 && other.col < cell.col)
+            .count();
+        end_cut.get(cut_index).is_some_and(|end| unit < *end)
+    }
+
     /// [#4128] `(cell_para_idx, target_line)` 이 속한 `cell_units` 서수.
     /// 텍스트 줄 유닛 `(li, li+1)` / atom 유닛 `(0, line_count.max(1))` 의
     /// `vis_start..vis_end` 계약을 그대로 조회한다. 콘텐츠(비 spacer) 유닛을
@@ -10965,31 +11061,8 @@ impl LayoutEngine {
                 .filter(|(control_idx, _)| !stored_square_picture_controls.contains(control_idx))
                 .collect();
             let para_non_inline_h = para_top_and_bottom_h + para_other_non_inline_h;
-            let mut comp = crate::renderer::composer::compose_paragraph_in_context(p, styles);
-            if cell.text_direction == 0 {
-                crate::renderer::composer::recompose_horizontal_cell_lines_for_width(
-                    &mut comp,
-                    p,
-                    inner_width,
-                    styles,
-                    self.dpi,
-                    self.profile.get().legacy_hwp3_stored_geometry(),
-                    self.profile.get().native_hwp5_layout(),
-                    &self.single_line_overflow_cache,
-                );
-            } else {
-                crate::renderer::composer::recompose_cell_lines_in_frame(
-                    &mut comp,
-                    p,
-                    crate::renderer::composer::ParagraphBox::content_width_px(
-                        inner_width,
-                        self.dpi,
-                    ),
-                    styles,
-                    self.dpi,
-                    self.profile.get().legacy_hwp3_stored_geometry(),
-                );
-            }
+            let comp =
+                self.compose_cell_unit_paragraph(p, cell.text_direction, inner_width, styles);
             let para_style = styles.para_styles.get(p.para_shape_id as usize);
             let is_empty_spacer_para = p.text.trim().is_empty() && p.controls.is_empty();
             // [#6923] 겹침 걸음 사다리(음수 line_spacing)의 빈 줄은 접지 않는다 — 저장

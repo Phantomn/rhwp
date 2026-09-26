@@ -73,6 +73,10 @@ impl TypesetEngine {
         st: &mut TypesetState,
         continuation: &mut TableContinuationCursor,
         notes: &[TableCellFootnote],
+        table: &crate::model::table::Table,
+        styles: &crate::renderer::style_resolver::ResolvedStyleSet,
+        layout_engine: &crate::renderer::layout::LayoutEngine,
+        end_cut: &[usize],
         para_idx: usize,
         ctrl_idx: usize,
         fragment_start_row: usize,
@@ -154,6 +158,21 @@ impl TypesetEngine {
         }
 
         while let Some(note) = notes.get(continuation.next_table_footnote) {
+            if st.profile.hwpx_stored_layout()
+                && !terminal_fragment
+                && !queued_fresh_page
+                && !layout_engine.table_footnote_marker_precedes_cut(
+                    table,
+                    styles,
+                    note.cell_index,
+                    note.cell_para_index,
+                    note.cell_control_index,
+                    fragment_end_row,
+                    end_cut,
+                )
+            {
+                break;
+            }
             // [#5966] `force_next_page` 는 "이 각주를 다음 물리 쪽에 두라"는 저장
             // 지시다. 큐 소진을 위해 **강제로 연 새 쪽**에서는 이미 충족됐으므로
             // 일반 fit 경로(원자 배치)로 보낸다 — 종전에는 이 단락이 원자 배치를

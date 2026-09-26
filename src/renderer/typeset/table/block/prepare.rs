@@ -299,18 +299,18 @@ impl TypesetEngine {
             note.fragment_split
                 .is_some_and(|split| split.force_next_page)
         });
-        // A direct HWPX with a validated cell-footnote reset also owns
-        // physical note fragments. Keep whole-table reservation in entry;
-        // only after whole fit fails may the split queue reserve the notes
-        // accepted by this fragment. Other HWPX tables keep atomic notes.
-        let hwpx_saved_table_footnote_split = st.profile.hwpx_stored_layout()
-            && row_count > 1
-            && ft
-                .table_footnotes
-                .iter()
-                .any(|note| note.fragment_split.is_some());
+        // The accepted RowBreak body fragments own the note queue even when
+        // each note is atomic. A reset inside a note selects its prefix/tail;
+        // it is not a prerequisite for deferring other fragments' notes.
+        // Keep whole-table reservation in entry and edited/reflowed paths out.
+        let hwpx_stored_multirow_table_footnote_queue = st.profile.hwpx_stored_layout()
+            && !st.profile.session_edited()
+            && !self.render_normalization.table_text_reflowed(table)
+            && is_para_topbottom_float(&table.common)
+            && table.row_count > 1;
         let queue_table_footnotes = !table.common.treat_as_char
-            && (st.profile.hwp5_stored_pagination_layout() || hwpx_saved_table_footnote_split)
+            && (st.profile.hwp5_stored_pagination_layout()
+                || hwpx_stored_multirow_table_footnote_queue)
             && matches!(
                 table.page_break,
                 crate::model::table::TablePageBreak::RowBreak
