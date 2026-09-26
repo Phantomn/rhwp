@@ -17,6 +17,13 @@ use super::layout::picture_flow_frame_size_hu;
 use super::layout_frame::{FrameExclusion, FrameExclusionPolicy, LayoutFrame};
 use super::page_layout::LayoutRect;
 
+/// 내용 유닛을 소비하지 않는 시작 행의 물리 공간과 이어받는 행의 요구 높이.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct StoredEmptyOpeningRowFrame {
+    pub opening_height: f64,
+    pub continuation_height: f64,
+}
+
 /// 자리차지하지 않는 표 하나만 든 폭0 저장 줄은 그 개체의 앵커다.
 /// 이 문단의 줄 간격을 개체의 캡션 간격으로 사용하지 않는다.
 pub(crate) fn object_only_saved_table_anchor(para: &Paragraph, table: &Table) -> bool {
@@ -249,6 +256,80 @@ pub(crate) fn stored_table_frame_with_guides(
         guide_range: host_index + 1..end,
         top_hu,
         bottom_hu,
+    })
+}
+
+/// 문단 내부 컨트롤은 그 원시 UTF-16 위치가 속한 저장 줄을 앵커로 사용한다.
+/// 전체 표 높이와 바깥여백이 뒤 문단의 저장 원점을 정확히 닫는 경우만
+/// 원점을 확정한다. 첫/끝 줄의 기존 배치와 편집·재조판은 호출자가 분리한다.
+pub(crate) fn stored_interior_control_table_frame(
+    host: &Paragraph,
+    successor: &Paragraph,
+    control_index: usize,
+    table: &Table,
+    measured_height: f64,
+    frame_vpos: i32,
+    dpi: f64,
+) -> Option<ParagraphFloatPlacement> {
+    use crate::model::paragraph::LineSeg;
+    let valid = |para: &Paragraph| {
+        !para.stored_text_partition_is_dirty()
+            && !para.line_segs.is_empty()
+            && para
+                .line_segs
+                .iter()
+                .all(|line| line.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0)
+            && para.line_segs.windows(2).all(|pair| {
+                pair[1].text_start > pair[0].text_start
+                    && pair[1].vertical_pos > pair[0].vertical_pos
+            })
+    };
+    if !valid(host)
+        || !valid(successor)
+        || host.text.trim().is_empty()
+        || host.controls.len() != 1
+        || !matches!(host.controls.first(), Some(Control::Table(_)))
+        || !table.common.flow_with_text
+        || !is_para_topbottom_float(&table.common)
+        || table.common.horz_rel_to != HorzRelTo::Column
+        || !matches!(table.common.vert_align, VertAlign::Top | VertAlign::Inside)
+        || signed_hwpunit(table.common.vertical_offset) <= 0
+        || table.page_break != TablePageBreak::RowBreak
+        || table.caption.is_some()
+        || table.common.height == 0
+        || table.common.height > i32::MAX as u32
+        || (measured_height * 7200.0 / dpi).round() != f64::from(table.common.height)
+    {
+        return None;
+    }
+    let line_index = *stored_control_line_indices(host)?.get(control_index)?;
+    if line_index == 0 || line_index + 1 >= host.line_segs.len() {
+        return None;
+    }
+    let anchor = host.line_segs.get(line_index)?.vertical_pos;
+    let top = i64::from(anchor)
+        + i64::from(signed_hwpunit(table.common.vertical_offset))
+        + i64::from(table.outer_margin_top);
+    let bottom = top + i64::from(table.common.height) + i64::from(table.outer_margin_bottom);
+    let host_end = host
+        .line_segs
+        .iter()
+        .map(|line| i64::from(line.vertical_pos) + i64::from(line.line_height))
+        .max()?;
+    // 남은 호스트 글줄과 표가 겹치지 않는 독립 저장 프레임이어야 한다.
+    if anchor < frame_vpos
+        || top < host_end
+        || bottom != i64::from(successor.line_segs.first()?.vertical_pos)
+    {
+        return None;
+    }
+    let px = |value: i64| (value - i64::from(frame_vpos)) as f64 * dpi / 7200.0;
+    Some(ParagraphFloatPlacement {
+        flow: ParagraphFloatFlow::NextLine,
+        anchor_y: px(i64::from(anchor)),
+        stored_host_origin: None,
+        table_top: px(top),
+        occupied_bottom: px(bottom),
     })
 }
 

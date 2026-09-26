@@ -13946,6 +13946,116 @@ impl LayoutEngine {
         })
     }
 
+    /// 그림을 수용하지 않는 첫 행의 빈 물리 조각과 다음 조각의 요구 높이.
+    /// 저장 셀 높이는 내용 높이가 아니라 여러 물리 조각에 걸친 최소 공간이다.
+    /// 다음 저장 문단의 되감긴 원점이 잔여 행·캡션·바깥 여백을 정확히 닫을 때만
+    /// 내용 유닛을 소비하지 않는 시작 조각을 인정한다. 수용 예산은 호출자가 확인한다.
+    pub(crate) fn saved_picture_row_empty_opening_frame(
+        &self,
+        host: &Paragraph,
+        successor: &Paragraph,
+        table: &crate::model::table::Table,
+        styles: &ResolvedStyleSet,
+    ) -> Option<crate::renderer::float_placement::StoredEmptyOpeningRowFrame> {
+        use crate::model::paragraph::LineSeg;
+        use crate::model::shape::{HorzRelTo, TextWrap, VertAlign, VertRelTo};
+        use crate::model::table::TablePageBreak;
+        let profile = self.profile.get();
+        let valid_source = |para: &Paragraph| {
+            !para.stored_text_partition_is_dirty()
+                && !para.line_segs.is_empty()
+                && para
+                    .line_segs
+                    .iter()
+                    .all(|line| line.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0)
+        };
+        if !(profile.hwpx_stored_layout() || profile.hwp5_stored_pagination_layout())
+            || profile.session_edited()
+            || self
+                .render_normalization
+                .borrow()
+                .table_text_reflowed(table)
+            || !valid_source(host)
+            || !valid_source(successor)
+            || !crate::renderer::float_placement::object_only_saved_table_anchor(host, table)
+            || !table.common.flow_with_text
+            || table.common.vert_rel_to != VertRelTo::Para
+            || !matches!(table.common.vert_align, VertAlign::Top | VertAlign::Inside)
+            || table.common.horz_rel_to != HorzRelTo::Column
+            || table.page_break != TablePageBreak::RowBreak
+            || table.row_count != 2
+            || table.col_count != 1
+            || table.cells.len() != 2
+            || table.cell_spacing != 0
+            || table.common.height == 0
+            || table.common.height > i32::MAX as u32
+            || table.cells.iter().any(|cell| {
+                cell.row_span != 1
+                    || cell.col_span != 1
+                    || cell.col != 0
+                    || cell.paragraphs.iter().any(|para| !valid_source(para))
+            })
+        {
+            return None;
+        }
+        let first = table.cells.iter().find(|cell| cell.row == 0)?;
+        let caption = table.cells.iter().find(|cell| cell.row == 1)?;
+        let [picture_para] = first.paragraphs.as_slice() else {
+            return None;
+        };
+        let [Control::Picture(picture)] = picture_para.controls.as_slice() else {
+            return None;
+        };
+        if !picture_para.text.trim().is_empty()
+            || !picture.common.flow_with_text
+            || picture.common.vert_rel_to != VertRelTo::Para
+            || picture.common.treat_as_char
+            || picture.common.text_wrap != TextWrap::TopAndBottom
+            || first.height == 0
+            || first.height > i32::MAX as u32
+            || !caption
+                .paragraphs
+                .iter()
+                .any(|para| !para.text.trim().is_empty())
+            || caption.paragraphs.iter().any(|para| {
+                para.controls
+                    .iter()
+                    .any(|control| !matches!(control, Control::Footnote(_) | Control::Endnote(_)))
+            })
+        {
+            return None;
+        }
+        let source_start = host.line_segs.first()?.vertical_pos;
+        let source_end = successor.line_segs.first()?.vertical_pos;
+        if source_end <= 0 || source_end >= source_start {
+            return None;
+        }
+        let opening_height = hwpunit_to_px(table.common.height as i32, self.dpi);
+        // 비어 있지 않은 0 컷은 선언 높이를 재사용하지 않고 모든 실제 내용과 패딩을 잰다.
+        let content_minimum = self.row_cut_content_height(table, 0, &[0], &[], styles);
+        if opening_height >= content_minimum || content_minimum <= 0.0 {
+            return None;
+        }
+        let continuation_height =
+            (hwpunit_to_px(first.height as i32, self.dpi) - opening_height).max(content_minimum);
+        let terminal_frame = continuation_height
+            + self.row_cut_content_height(table, 1, &[], &[], styles)
+            + hwpunit_to_px(
+                i32::from(table.outer_margin_top) + i32::from(table.outer_margin_bottom),
+                self.dpi,
+            );
+        // 원본 HU 사다리의 반올림만 허용한다. 기준 PDF 점수나 임의 픽셀 허용치가 아니다.
+        if (terminal_frame * 7200.0 / self.dpi).round() != f64::from(source_end) {
+            return None;
+        }
+        Some(
+            crate::renderer::float_placement::StoredEmptyOpeningRowFrame {
+                opening_height,
+                continuation_height,
+            },
+        )
+    }
+
     /// 저장된 다행 시작 프레임은 일반 문단 재시작에서 소비한 텍스트 유닛과
     /// 별도로 물리 공간을 소유한다. 페이지 분할과 배치는 같은 원본 프레임을
     /// 조회하며, 실제 수용 예산은 호출자가 확인한다.

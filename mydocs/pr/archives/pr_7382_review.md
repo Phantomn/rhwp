@@ -9,7 +9,7 @@ last_verified: 2026-09-27
 
 ## 현재 판정
 
-**머지 보류.** 보정23 후보는 원본 HWP/HWPX215쪽을 유지하며, HWPX87/91/95의 캡션 각주138/142/147 등록 누락을 해결했다. 영향6쪽의 선택 Native gate와 직접 판독은 통과했다. 전체 Native/fresh WASM 최신 head 비교 및 최종 필수 게이트는 미완료이며, 통합 PR 생성·승인을 완료했다고 보고하지 않는다.
+**머지 보류.** 보정24 후보는 원본 HWP/HWPX215쪽을 유지하며 그림7의 문단 내부 저장 줄 앵커와 그림8의 빈 물리 첫 조각·이어받기를 복원했다. 두 형식12쪽은99.76685%이나13쪽 하단 표2·그림9 및11·14쪽은 차이가 남아 선택 gate도 재검토다. 보정 전 전체 Native215쪽 중32쪽이90% 미만이었다. 이 전수 수치를 보정24 최종 head의 결과로 재사용하지 않으며, 전체/fresh WASM·최종 필수 게이트 완료 전 통합 PR 생성·승인을 보류한다.
 
 ## 접수와 provenance
 
@@ -580,3 +580,41 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 - [정확한 source 해시·명령·결과](../assets/pr7382_20260926/stage23_validation.json): producer `04b4162f2`, Rust/test diff SHA256 `f5f7e03e5be8678e2b3bb3b3bed6891ca8dc62f0968ef709f45a0b0cc9dd087d`. 자동 gate는 passed/exit0이며 글꼴 예외 없음.
 - [87쪽 review](../assets/pr7382_20260926/stage23_native_hwpx_review_087.png) · [overlay](../assets/pr7382_20260926/stage23_native_hwpx_overlay_087.png), [91쪽 review](../assets/pr7382_20260926/stage23_native_hwpx_review_091.png) · [overlay](../assets/pr7382_20260926/stage23_native_hwpx_overlay_091.png), [95쪽 review](../assets/pr7382_20260926/stage23_native_hwpx_review_095.png) · [overlay](../assets/pr7382_20260926/stage23_native_hwpx_overlay_095.png).
 - 남는 목록 표식/가로 시작·글자 메트릭 차이와 전체 전수 gate는 이 각주 등록 통과로 완료 처리하지 않는다. 영어 설명 주석 추가 없음. 모든 로그·진단·generated 파일은 output/ignored 증적이며 커밋하지 않는다.
+
+
+## 메인터너 보정24 — 내부 저장 줄 앵커와 내용 없는 물리 첫 조각
+
+### 사전 근거와 공통 소비 경로
+
+- 그림7의 원본 문단246은 가시 저장5줄을 가지며, 원본 제어 UTF16 위치207은171..230 구간의 내부 줄(vpos12000HU)에 속한다. 기존 Native의 호스트 뒤 원점과 HWPX의 첫 줄 원점은 둘 다 잘못된 앵커였다. `12000+offset3618+outerTop283+height18534+outerBottom283=후행34718HU`로 닫히는 저장 프레임과 PDF 그림 상단296.794667px를 확인했다. 문서 번호나 좌표 상수를 구현 분기로 사용하지 않는다.
+- `stored_control_line_indices → stored_interior_control_table_frame → whole_fit`은 유효 미편집 원본의 내부 줄 소유와 실제 측정 높이/저장 전체 프레임 일치를 확인해 공통 `ParagraphFloatPlacement`를 생산한다. fit 예산·최종 배치가 같은 table_top/occupied_bottom을 소비한다. 첫/끝 줄, 무효·합성·편집·표 재조판·다단은 새 저장 계약으로 승격하지 않는다.
+- 그림8의 표250은 첫 조각13678HU 동안 내용 유닛을 소비하지 않지만 물리 공간을 점유한다. 첫 셀25619HU 전체를 무시하거나 첫 쪽에서 그림을 잘라 보이는 처리는 원인 해결이 아니다. 이어받기 요구 높이는 `max(25619-13678,17772+282)+1282+283+283=19902HU`이며 후행 저장 vpos와 정확히 닫힌다.
+- `saved_picture_row_empty_opening_frame → prepare의 실제 각주 경계/수용 검사 → scan의 양수 높이·빈 컷[0] → emit의 남은 물리 높이 → budget/PartialTable paint`가 같은 계획을 소비한다. 첫/다음 조각의 위여백과 끝 조각의 아래여백도 같은 확정 소유에 연결한다. 첫 조각 각주7, 다음 조각 각주8/9/10 및 뒤 본문을 정식 최종 tree에서 검사한다.
+- [독립 입력·HU·PDF 좌표](../assets/pr7382_20260926/stage24_independent_geometry.json), [대조군 단일 속성 변경·입력 해시](../assets/pr7382_20260926/stage24_input_provenance.json), [전체215쪽 대조 좌표](../assets/pr7382_20260926/stage24_all_page_controlled_geometry.json). 높이0은 각주8을 앞쪽으로 이동시키므로 원본 통과의 대용이 아니다. 높이40000은216쪽과 더 큰 이어받기로 선언 높이 전역 무시를 기각한다. noAdjust 변경은 원인이 아니었다.
+- [한컴 가시 괘선 대조 PDF](../../../pdf/issue7379/liver7379-table250-visible-border-2024.pdf)는 두 셀의 같은 .12mm NONE 괘선만 SOLID로 바꾼 수동 대조군이다. 원본과215쪽 전체의 텍스트/그림 bbox가 정확히 같으며,12쪽 빈 괘선820.062663..1002.263997px와13쪽86.945312/327.321370/344.422689px가 물리 첫 조각·이어받기를 드러낸다. 대조군 출력을 원본 일치로 보고하지 않는다.
+
+### 전후 결과와 남은 보류
+
+| 검사 | 실제 결과 | 판정 |
+| --- | --- | --- |
+| 정확한 보정 전6fa 코드 + 최종 신규6개 회귀 | 0PASS/6FAIL,exit100,0.275s | 앵커·빈 조각·이어받기 결함 검출 |
+| 최종 집중·정상 대조군 | 102PASS/0FAIL,exit0,6.337s,threads8 | 해당 소유/좌표/물리 높이 계약 충족 |
+| fmt·새 CLI | 각각exit0 | 동일 Rust/test diff의 불변 CLI로 캡처 |
+| manifest / source 단위 정책 | exit0 /4205검사·298모듈,base eb9142dd7 | fmt 뒤 prepare하고 별도 명령의 exit 확인 |
+| Native HWP11/12/13/14 | 80.37557/99.76685/77.85867/82.03316% | exit1,re_review_required |
+| Native HWPX11/12/13/14 | 68.96816/99.76685/77.05428/81.51575% | exit1,re_review_required |
+| 직접 판독 | 두 형식4쪽 review·standalone overlay16개 | 12쪽 그림7/뒤 본문,13쪽 상단 그림8/캡션/각주 개선 |
+| 남은 차이 | 13쪽 하단 표2·그림9 위치,11·14쪽 차이 | 미충족; 다음 개별 보정 |
+| 최종 전체 회귀·Clippy·Skia·fresh WASM·전수 시각 | 미완료 | 미검증 |
+
+[정확한 해시·명령·결과](../assets/pr7382_20260926/stage24_validation.json): producer `6fa58aef8813c185ce113754fbda60792db2a84e` + Rust/test diff SHA256 `5cdda382e642690e2a2728c11667e40eee305b55abbd8864c0718d748ae369a9`, 불변 CLI SHA256 `8477eeca956b269d3cc33608f2b355e048da784df2f99ef728c28587586b8b04`.
+중간 후보의 ctrl_idx 누락 컴파일 실패는 수정 후 재검증했으며 결함 재현으로 세지 않는다. 첫 manifest 검사의 fmt 뒤 파생 drift도 prepare 후 별도 check에서 통과했다. 기존 baseline·golden·시각 허용치와 글꼴 예외를 변경하지 않았다. 추가한 설명 주석은 한글이다. 로그/output/generated suite는 커밋하지 않는다.
+
+[보정 전 전체 Native inventory](../assets/pr7382_20260926/stage23_full_native_hold_inventory.json)는6fa의215쪽 전수 완료/32쪽90% 미만/exit1이다. 보정24 뒤 전수 통과로 바꾸어 보고하지 않는다. 단계16의 실제 TABLE 편집/재조판 반례도 최종 검증 전에 남아 있다.
+
+[HWP manifest](../assets/pr7382_20260926/stage24_native_hwp_manifest.json) · [metrics](../assets/pr7382_20260926/stage24_native_hwp_overlay_metrics.json), [HWPX manifest](../assets/pr7382_20260926/stage24_native_hwpx_manifest.json) · [metrics](../assets/pr7382_20260926/stage24_native_hwpx_overlay_metrics.json).
+
+![HWP12 그림7와 뒤 본문 복원](../assets/pr7382_20260926/stage24_native_hwp_review_012.png)
+![HWP12 overlay](../assets/pr7382_20260926/stage24_native_hwp_overlay_012.png)
+![HWPX13 그림8 복원과 하단 잔여](../assets/pr7382_20260926/stage24_native_hwpx_review_013.png)
+![HWPX13 overlay](../assets/pr7382_20260926/stage24_native_hwpx_overlay_013.png)

@@ -474,12 +474,18 @@ impl TypesetEngine {
         st.advance_column_or_new_page();
 
         // 커서 전진 — [Task #993] 컷은 절대 유닛 인덱스이므로 누적 없이 대입.
+        let empty_opening_next_height = input
+            .prepared
+            .empty_opening_row_frame
+            .filter(|_| !is_continuation && cursor_row == 0 && split_end_cut == [0])
+            .map(|frame| frame.continuation_height);
         let next_cut = if split_end_limit > 0.0 {
             split_end_cut
         } else {
             Vec::new()
         };
-        let next_start_row_height_override = end_row_height_override
+        let next_start_row_height_override = empty_opening_next_height
+            .or_else(|| end_row_height_override
             .filter(|_| !first_fragment_blank_band)
             .and_then(|limit| {
             let full = cut_row_h.get(end_row.saturating_sub(1)).copied()?;
@@ -506,7 +512,7 @@ impl TypesetEngine {
                 );
             }
             (tail > 0.5 && tail_band_continues).then_some(tail)
-        });
+        }));
         continuation.advance(end_row, split_block_start, next_cut, split_end_limit > 0.0);
         continuation.start_row_height_override = next_start_row_height_override;
         TableContinuationIteration::Emitted

@@ -129,13 +129,30 @@ impl TypesetEngine {
         // - rowbreak-problem-pages 14쪽: pi13 끝 조각 뒤 pi16 이 0.2px 차로 안 들어가 18→19쪽
         // - hwpctl_API_v2.4 73쪽: pi1750 끝 조각 뒤 pi1760 13행이 74쪽으로 밀려 본문 넘침
         //   (정본은 13행을 73쪽 992.7 에 두고, 조각 아래 괘선 393.11 뒤에 여백을 두지 않는다)
-        let caption_outer_bottom =
+        let empty_opening_continuation =
+            input.prepared.empty_opening_row_frame.is_some_and(|frame| {
+                is_continuation
+                    && cursor_row == 0
+                    && start_cut.iter().copied().eq([0])
+                    && input.start.start_row_height_override == Some(frame.continuation_height)
+            });
+        // 빈 시작 조각 뒤에서는 두 포맷 모두 같은 바깥 상자를 다시 연다.
+        let host_before_overhead = host_before_overhead
+            + if empty_opening_continuation && !hwpx_fragment_opens_outer_top {
+                hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
+            } else {
+                0.0
+            };
+        let caption_outer_bottom = if empty_opening_continuation {
+            hwpunit_to_px(table.outer_margin_bottom as i32, self.dpi)
+        } else {
             crate::renderer::float_placement::column_rowbreak_caption_outer_spacing_px(
                 hwpx_fragment_opens_outer_top,
                 para,
                 table,
                 self.dpi,
-            );
+            )
+        };
         let terminal_outer_bottom_overhead = if single_cell_page_fragment {
             partial_rowbreak_fragment_spacing_px(
                 table,
@@ -285,9 +302,9 @@ impl TypesetEngine {
                 .max(0.0)
         } else if let Some(footnote_boundary) = first_fragment_actual_footnote_boundary {
             // 일반 RowBreak 표의 safety budget은 첫 fragment에서 보수적으로
-            // 40px를 남긴다. 다만 조판 전에 검증한 native HWP5 그림+caption
-            // 2행 표는 표 전체가 기존 각주 경계 안에 들어가므로, 같은 정확한
-            // 경계로 row scan을 수행해 그림 행과 caption 행을 분리하지 않는다.
+            // 40px를 남긴다. 사전에 확인한 저장 표의 전체 수용 또는 빈 첫 물리
+            // 조각만 기존 각주 직전까지의 실제 경계를 사용한다. 뒤 조각의
+            // 그림·캡션과 각주 유닛은 이 예산에서 미리 소비하지 않는다.
             (footnote_boundary
                 - st.current_height
                 - caption_extra

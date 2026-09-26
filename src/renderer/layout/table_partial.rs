@@ -4253,6 +4253,39 @@ impl LayoutEngine {
         // 여는 규칙은 근거가 없어 최상위 조각으로 좁히고, 중첩 조각은 종전 좌표를 유지한다.
         let single_cell_page_fragment =
             self.single_cell_rowbreak_page_fragment(table) && enclosing_cell_ctx.is_none();
+        let empty_opening_continuation = enclosing_cell_ctx.is_none()
+            && is_continuation
+            && start_row == 0
+            && start_cut.iter().copied().eq([0])
+            && paragraphs
+                .get(para_index + 1)
+                .and_then(|next| {
+                    self.saved_picture_row_empty_opening_frame(
+                        &paragraphs[para_index],
+                        next,
+                        table,
+                        styles,
+                    )
+                })
+                .is_some_and(|frame| start_row_height_override == Some(frame.continuation_height));
+        let empty_opening_first_fragment = enclosing_cell_ctx.is_none()
+            && !is_continuation
+            && start_row == 0
+            && start_cut.is_empty()
+            && end_row == 1
+            && end_cut.iter().copied().eq([0])
+            && paragraphs
+                .get(para_index + 1)
+                .and_then(|next| {
+                    self.saved_picture_row_empty_opening_frame(
+                        &paragraphs[para_index],
+                        next,
+                        table,
+                        styles,
+                    )
+                })
+                .is_some_and(|frame| end_row_height_override == Some(frame.opening_height));
+        // 처음과 이어받기 조각은 예산이 이미 예약한 같은 바깥 위 여백을 연다.
         let terminal_multirow_reopens_outer_top = enclosing_cell_ctx.is_none()
             && crate::renderer::float_placement::native_terminal_multirow_rowbreak_reopens_outer_top(
                 self.profile.get().hwp5_stored_pagination_layout(),
@@ -4307,7 +4340,9 @@ impl LayoutEngine {
         let y_start = if (single_cell_page_fragment
             || terminal_multirow_reopens_outer_top
             || hwpx_rowbreak_reopens_outer_top
-            || native_repeated_header_reopens_outer_top)
+            || native_repeated_header_reopens_outer_top
+            || empty_opening_continuation
+            || empty_opening_first_fragment)
             && stored_reset_paint_geometry.is_none()
             && resolved_table_top.is_none()
         {
@@ -5473,7 +5508,10 @@ impl LayoutEngine {
         // Do not move subsequent flow or change PageItem ownership: Stage 120 changes only the
         // painted frame/clip.  The paginator consumed the original composed cut height.
         let caption_outer_bottom =
-            if hwpx_rowbreak_reopens_outer_top && end_row >= row_count && end_cut.is_empty() {
+            if empty_opening_continuation && end_row >= row_count && end_cut.is_empty() {
+                hwpunit_to_px(table.outer_margin_bottom as i32, self.dpi)
+            } else if hwpx_rowbreak_reopens_outer_top && end_row >= row_count && end_cut.is_empty()
+            {
                 crate::renderer::float_placement::column_rowbreak_caption_outer_spacing_px(
                     hwpx_rowbreak_reopens_outer_top,
                     &paragraphs[para_index],

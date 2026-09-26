@@ -45,6 +45,23 @@ impl TypesetEngine {
             avail_for_rows,
             ..
         } = *budget;
+        // 실제 기존 각주 경계 안에 들어오는 것으로 준비 단계에서 확인한 빈
+        // 시작 조각은 유닛을 소비하지 않는다. 양수 물리 전진과 0 컷을 함께
+        // 반환해 다음 조각이 같은 그림·캡션을 처음부터 소유하게 한다.
+        if !is_continuation && cursor_row == 0 && start_cut.is_empty() {
+            if let Some(frame) = input.prepared.empty_opening_row_frame {
+                if frame.opening_height <= avail_for_rows + 0.5 {
+                    return BlockTableRowScan {
+                        consumed: frame.opening_height,
+                        end_row: 1,
+                        split_block_start: None,
+                        split_end_cut: vec![0],
+                        split_end_limit: frame.opening_height,
+                        end_row_height_override: Some(frame.opening_height),
+                    };
+                }
+            }
+        }
         // [Task #993] 컷 기반 행 경계 walk — cursor_row 부터 avail_for_rows
         // 안에 들어가는 행을 advance_row_cut(단일 권위 함수)으로 누적 배치한다.
         // 예산을 못 채우거나 vpos 리셋(hard break)을 만난 첫 행이 분할 행이

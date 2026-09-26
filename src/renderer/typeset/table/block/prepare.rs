@@ -242,6 +242,29 @@ impl TypesetEngine {
             );
         }
 
+        let actual_first_boundary = st.base_available_height()
+            - st.current_footnote_height
+            - st.current_zone_y_offset
+            - st.current_bottom_fixed_exclusion;
+        let empty_opening_row_frame = (st.col_count == 1
+            && std::ptr::eq(table, row_geometry_table))
+        .then(|| paragraphs_all.get(para_idx + 1))
+        .flatten()
+        .and_then(|next| {
+            layout_engine.saved_picture_row_empty_opening_frame(para, next, table, styles)
+        })
+        .filter(|frame| {
+            let positive_offset =
+                hwpunit_to_px((table.common.vertical_offset as i32).max(0), self.dpi);
+            st.current_height > 0.0
+                && st.current_height
+                    + ft.host_spacing.before
+                    + positive_offset
+                    + frame.opening_height
+                    <= actual_first_boundary + 0.5
+                && frame.continuation_height <= base_available
+        });
+
         // [#3738 Stage 9/17] RowBreak 표의 셀 각주를 첫 행 전부터 전부 예약하면,
         // 표가 여러 physical page로 나뉘는 경우에도 첫 fragment가 통째로 밀린다.
         // 실제로 표 25(pi=885)는 18개 URL 각주 667px을 먼저 빼서 p78의 표 시작을
@@ -322,6 +345,7 @@ impl TypesetEngine {
             && ((row_count > 1
                 // 기존 page의 일반 각주는 유지한 채, 표 첫 행만은 실제로 시작할 수 있어야 한다.
                 && no_table_note_available >= st.current_height + cut_row_h[0] + 0.5)
+                || empty_opening_row_frame.is_some()
                 || hwpx_saved_single_cell_frame.is_some()
                 || native_hwp5_oversized_single_row_fragment_queues_footnotes
                 || native_hwp5_stored_page_footnote_split);
@@ -593,8 +617,9 @@ impl TypesetEngine {
                 st.base_available_height(),
                 self.dpi,
             );
-        if stored_page_top_tac_table
-            || (remaining_on_page < split_unit_h && !st.current_items.is_empty())
+        if empty_opening_row_frame.is_none()
+            && (stored_page_top_tac_table
+                || (remaining_on_page < split_unit_h && !st.current_items.is_empty()))
         {
             // [#7288] 원자 단위가 새 쪽에 통째로 들어가면 여기서 자르지 않고 이월한다.
             // 값 2 «나눔» 만 그 자리에서 행 내부를 자르고, 값 0 «나누지 않음»·값 1
@@ -917,6 +942,7 @@ impl TypesetEngine {
         let prepared = BlockTableContinuationPreparedState {
             host_placement: fragment_host_placement,
             host_frame,
+            empty_opening_row_frame,
             row_count,
             cell_spacing: cs,
             can_intra_split,
@@ -944,13 +970,14 @@ impl TypesetEngine {
             first_fragment_actual_footnote_boundary:
                 (native_picture_caption_fits_actual_footnote_boundary
                     || stored_ordinary_rowbreak_rewind_uses_actual_footnote_boundary
-                    || native_hwp5_internal_reset_rewind_needs_anchor_resync)
-                    .then(|| {
-                        st.base_available_height()
-                            - st.current_footnote_height
-                            - st.current_zone_y_offset
-                            - st.current_bottom_fixed_exclusion
-                    }),
+                    || native_hwp5_internal_reset_rewind_needs_anchor_resync
+                    || empty_opening_row_frame.is_some())
+                .then(|| {
+                    st.base_available_height()
+                        - st.current_footnote_height
+                        - st.current_zone_y_offset
+                        - st.current_bottom_fixed_exclusion
+                }),
             source_next_positive_rewind: next_rewinds_after_table && !next_starts_new_page,
             first_fragment_saved_offset: {
                 let column = st.inline_flow_column();

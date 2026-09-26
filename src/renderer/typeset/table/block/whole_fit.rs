@@ -208,6 +208,7 @@ impl TypesetEngine {
     ) -> WholeFit {
         let BlockTableInput {
             para_idx,
+            ctrl_idx,
             para,
             table,
             ft,
@@ -541,14 +542,42 @@ impl TypesetEngine {
         });
         let saved_table_source_frame =
             saved_single_inline_table_source_frame.or(saved_rowbreak_object_frame);
-        let closed_source_frame_placement = self.query_closed_source_frame_placement(
-            st,
-            paragraphs_all,
-            para_idx,
-            table,
-            ft.effective_height,
-            available,
-        );
+        let closed_source_frame_placement = self
+            .query_closed_source_frame_placement(
+                st,
+                paragraphs_all,
+                para_idx,
+                table,
+                ft.effective_height,
+                available,
+            )
+            .or_else(|| {
+                if st.col_count != 1
+                    || !(st.profile.hwpx_stored_layout()
+                        || st.profile.hwp5_stored_pagination_layout())
+                    || st.profile.session_edited()
+                    || self.render_normalization.table_text_reflowed(table)
+                {
+                    return None;
+                }
+                let next = paragraphs_all.get(para_idx + 1)?;
+                let mut placement =
+                    crate::renderer::float_placement::stored_interior_control_table_frame(
+                        para,
+                        next,
+                        ctrl_idx,
+                        table,
+                        ft.effective_height,
+                        st.vpos_page_base.unwrap_or(0),
+                        self.dpi,
+                    )?;
+                // 저장 프레임은 본문 기준이며 공유 계획은 현재 단 영역 기준이다.
+                placement.anchor_y -= st.current_zone_y_offset;
+                placement.table_top -= st.current_zone_y_offset;
+                placement.occupied_bottom -= st.current_zone_y_offset;
+                (placement.table_top >= 0.0 && placement.occupied_bottom <= available)
+                    .then_some(placement)
+            });
         WholeFit {
             para_has_stored_line_seg,
             single_row_object_height_advance,

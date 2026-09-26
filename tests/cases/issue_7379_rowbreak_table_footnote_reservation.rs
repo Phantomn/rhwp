@@ -1919,3 +1919,168 @@ fn native_caption_notes_keep_existing_terminal_table_page_owners() {
         assert_caption_note_owner(false, page, number, y);
     }
 }
+fn original_picture_wrapper_core(hwpx: bool) -> DocumentCore {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(if hwpx {
+        SAMPLE.to_owned()
+    } else {
+        SAMPLE.replace(".hwpx", ".hwp")
+    });
+    DocumentCore::from_bytes(&std::fs::read(path).expect("정식 원본")).expect("문서 로드")
+}
+
+fn find_picture(root: &RenderNode) -> Option<&RenderNode> {
+    if matches!(root.node_type, RenderNodeType::Image(_)) {
+        Some(root)
+    } else {
+        root.children.iter().find_map(find_picture)
+    }
+}
+
+fn assert_empty_opening_picture_fragment(hwpx: bool) {
+    let core = original_picture_wrapper_core(hwpx);
+    assert_eq!(core.page_count(), 215, "독립 기준 쪽 수");
+    let page = core.build_page_render_tree(11).expect("12쪽");
+    let table = table_for_para(&page.root, 250).expect("그림 앞의 빈 첫 물리 조각");
+    // 두 셀의 괘선만 표시한 독립 한컴 PDF의 상단/하단이다.
+    assert!(
+        (table.bbox.y - 820.062663).abs() <= 1.5,
+        "빈 조각 상단 {}",
+        table.bbox.y
+    );
+    assert!(
+        (table.bbox.y + table.bbox.height - 1002.263997).abs() <= 1.5,
+        "빈 조각 하단 {}",
+        table.bbox.y + table.bbox.height
+    );
+    assert!(
+        find_picture(table).is_none(),
+        "그림 유닛은 첫 빈 조각에서 소비하지 않음"
+    );
+    assert!(
+        !text(table).contains("그림 8."),
+        "캡션은 이어받는 쪽의 소유"
+    );
+    let area = notes(&page.root).expect("기존 각주7");
+    assert!(text(area).contains("7)"));
+    assert!(
+        !text(area).contains("8)"),
+        "이어받는 캡션 각주를 앞쪽에 등록하지 않음"
+    );
+}
+
+fn assert_picture_fragment_remainder(hwpx: bool) {
+    let core = original_picture_wrapper_core(hwpx);
+    assert_eq!(core.page_count(), 215, "독립 기준 쪽 수");
+    let page = core.build_page_render_tree(12).expect("13쪽");
+    let table = table_for_para(&page.root, 250).expect("그림과 캡션의 이어받기 조각");
+    let image = find_picture(table).expect("그림8");
+    // 원본 PDF의 그림 외곽과 괘선 대조군의 동일 배치다.
+    assert!(
+        (image.bbox.y - 88.702637).abs() <= 1.5,
+        "그림 상단 {}",
+        image.bbox.y
+    );
+    assert!(
+        (image.bbox.y + image.bbox.height - 325.403971).abs() <= 1.5,
+        "그림 하단 {}",
+        image.bbox.y + image.bbox.height
+    );
+    assert!(
+        (table.bbox.y + table.bbox.height - 344.422689).abs() <= 1.5,
+        "캡션 포함 표 하단 {}",
+        table.bbox.y + table.bbox.height
+    );
+    assert!(
+        text(table).contains("그림 8. 장기매매 유형"),
+        "이어받는 캡션 보존"
+    );
+    let caption_top = line_top(table, "그림 8.").expect("그림8 캡션 줄");
+    // 가시 글자 상단329.541056px는 저장 논리 줄의 내부에 있다.
+    assert!(
+        caption_top <= 329.541056 + 0.5 && 329.541056 <= caption_top + 1000.0 / 75.0 + 0.5,
+        "독립 캡션 글자 상단과 실제 줄의 포함 관계 {caption_top}"
+    );
+    let next = line_top(&page.root, "2. 미국").expect("그림 뒤 본문");
+    // 저장 줄 vpos23902HU와 본문 원점6239HU로 정한 논리 줄 상단이다.
+    let expected = (6239.0 + 23902.0) * 96.0 / 7200.0;
+    assert!(
+        (next - expected).abs() <= 1.5,
+        "뒤 본문 상단 {next}, 독립 저장 줄 {expected}"
+    );
+    let area = notes(&page.root).expect("13쪽 각주");
+    for marker in ["8)", "9)", "10)"] {
+        assert!(text(area).contains(marker), "각주 {marker}의 물리 쪽 소유");
+    }
+    assert!(!text(area).contains("7)"), "앞쪽 각주 중복 없음");
+}
+
+#[test]
+fn hwpx_picture_wrapper_preserves_empty_opening_physical_fragment() {
+    assert_empty_opening_picture_fragment(true);
+}
+
+#[test]
+fn native_picture_wrapper_preserves_empty_opening_physical_fragment() {
+    assert_empty_opening_picture_fragment(false);
+}
+
+#[test]
+fn hwpx_picture_wrapper_continuation_consumes_remaining_physical_height() {
+    assert_picture_fragment_remainder(true);
+}
+
+#[test]
+fn native_picture_wrapper_continuation_consumes_remaining_physical_height() {
+    assert_picture_fragment_remainder(false);
+}
+
+fn assert_interior_control_picture_table_anchor(hwpx: bool) {
+    let core = original_picture_wrapper_core(hwpx);
+    let host = &core.document().sections[0].paragraphs[246];
+    assert_eq!(
+        host.control_text_positions(),
+        [207],
+        "실제 원문 컨트롤 위치"
+    );
+    assert_eq!(host.line_segs[3].text_start, 171, "컨트롤 소유 줄 시작");
+    assert_eq!(host.line_segs[4].text_start, 230, "다음 줄 시작");
+    let tree = core.build_page_render_tree(11).expect("12쪽 그림7");
+    let table = table_for_para(&tree.root, 246).expect("그림7 표");
+    let image = find_picture(table).expect("그림7");
+    // 원본의 원시 컨트롤207은 저장 줄171..230에 속한다. 줄vpos12000HU와
+    // 개체offset3618HU·위여백283HU가 독립 PDF의 표/그림 상단을 결정한다.
+    let top = (6239.0 + 12000.0 + 3618.0 + 283.0) / 75.0;
+    assert!(
+        (table.bbox.y - top).abs() <= 1.5,
+        "컨트롤 소유 줄의 표 상단 {} vs {top}",
+        table.bbox.y
+    );
+    assert!(
+        (image.bbox.y - 296.794667).abs() <= 1.5,
+        "독립 PDF 그림7 상단 {}",
+        image.bbox.y
+    );
+    let next = line_top(&tree.root, "질적으로 매매가 이루어짐").or_else(|| {
+        fn para_line(node: &RenderNode) -> Option<f64> {
+            if matches!(&node.node_type, RenderNodeType::TextLine(line) if line.para_index == Some(247)) {
+                return Some(node.bbox.y);
+            }
+            node.children.iter().find_map(para_line)
+        }
+        para_line(&tree.root)
+    }).expect("그림7 뒤 문단247");
+    assert!(
+        (next - (6239.0 + 34718.0) / 75.0).abs() <= 1.5,
+        "다음 문단 상단 {next}"
+    );
+}
+
+#[test]
+fn hwpx_picture_table_uses_interior_control_stored_line_anchor() {
+    assert_interior_control_picture_table_anchor(true);
+}
+
+#[test]
+fn native_picture_table_uses_interior_control_stored_line_anchor() {
+    assert_interior_control_picture_table_anchor(false);
+}

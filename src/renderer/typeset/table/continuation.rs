@@ -18,9 +18,9 @@ pub(in crate::renderer::typeset) struct TableContinuationCursor {
     pub(in crate::renderer::typeset) row: usize,
     pub(in crate::renderer::typeset) start_cut: Vec<usize>,
     pub(in crate::renderer::typeset) start_cut_is_block: bool,
-    /// 앞 조각에서 셀 내용은 전부 소비됐지만 그 행의 빈 하단 밴드는 다음
-    /// 조각에 남는 경우의 물리 높이. `start_cut`이 내용을 숨기고 이 값은
-    /// 테두리/그리드만 이어 준다.
+    /// 분할된 행의 이어받기 물리 높이. 빈 시작 조각은 유닛을 전혀 소비하지
+    /// 않을 수 있고, 빈 꼬리 조각은 내용을 전부 소비한 뒤에도 공간을 남긴다.
+    /// 내용 소유는 `start_cut`, 행 상자의 점유는 이 값으로 각각 보존한다.
     pub(in crate::renderer::typeset) start_row_height_override: Option<f64>,
     pub(in crate::renderer::typeset) is_continuation: bool,
     pub(in crate::renderer::typeset) fragments_emitted: usize,
@@ -100,6 +100,9 @@ pub(in crate::renderer::typeset) struct BlockTableContinuationPreparedState {
     pub(in crate::renderer::typeset) host_placement:
         Option<crate::renderer::float_placement::ParagraphFloatPlacement>,
     pub(in crate::renderer::typeset) host_frame: (usize, u16, u64),
+    /// 저장 첫 조각이 비가시 공간만 소비할 때의 공통 행 프레임.
+    pub(in crate::renderer::typeset) empty_opening_row_frame:
+        Option<crate::renderer::float_placement::StoredEmptyOpeningRowFrame>,
     pub(in crate::renderer::typeset) row_count: usize,
     pub(in crate::renderer::typeset) cell_spacing: f64,
     pub(in crate::renderer::typeset) can_intra_split: bool,
@@ -130,8 +133,8 @@ pub(in crate::renderer::typeset) struct BlockTableContinuationPreparedState {
     pub(in crate::renderer::typeset) terminal_host_spacing: f64,
     pub(in crate::renderer::typeset) strict_following_plain_text_fit: bool,
     pub(in crate::renderer::typeset) budget_para_start_height: f64,
-    /// native HWP5 RowBreak 표가 기존 FootnoteArea 직전까지의 물리 경계를
-    /// 사용해도 되는 것으로 조판 전에 확인됐을 때의 첫 fragment 절대 경계.
+    /// 원본 RowBreak 표가 기존 FootnoteArea 직전까지의 물리 경계를
+    /// 사용할 수 있음을 조판 전에 확인한 첫 조각의 절대 경계.
     /// 일반 표에는 `None`으로 기존 보수 budget을 유지한다.
     pub(in crate::renderer::typeset) first_fragment_actual_footnote_boundary: Option<f64>,
     /// 다음 host의 양수 vpos rewind가 현재 RowBreak 표의 continuation source
