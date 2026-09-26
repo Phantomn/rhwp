@@ -196,6 +196,64 @@ const TERMINAL_OPTIONS: &str =
     r#"{"dpi":96,"max_pages":20,"cell_end_policy":"omit_final_line_gap"}"#;
 
 #[test]
+fn terminal_paragraph_after_matches_hancom_table_and_following_body() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/issue7353_indent_review/diagnostic/indent-saved.hwp");
+    let input = std::fs::read(path).unwrap();
+    let d = rhwp::parse_document(&input).unwrap();
+    let t = d.sections[0].paragraphs[0]
+        .controls
+        .iter()
+        .find_map(|c| {
+            if let Control::Table(t) = c {
+                Some(t)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let last = t.cells[0].paragraphs.last().unwrap();
+    assert_eq!(
+        d.doc_info.para_shapes[last.para_shape_id as usize].spacing_after,
+        800
+    );
+    // Independent Hancom normal save/PDF: same table height as the separate
+    // zero-after control, despite the authored terminal400HU paragraph gap.
+    assert_eq!(t.cells[0].height, 28000); // Declared minimum, not occupied height.
+    let options = r#"{"dpi":96,"max_pages":20,"cell_end_policy":"omit_final_paragraph_gap"}"#;
+    let pages = drain(&mut DocumentV2Session::from_bytes(&input, options).unwrap());
+    assert_eq!(pages.len(), 1);
+    let cell = nodes(&pages[0], "TableCell")[0];
+    near(&cell["bbox"]["height"], 29266.0 / 75.0);
+    let mut lines = Vec::new();
+    collect(cell, "TextLine", &mut lines);
+    assert_eq!(lines.len(), 16);
+    let rows: Vec<_> = t.cells[0]
+        .paragraphs
+        .iter()
+        .flat_map(|p| &p.line_segs)
+        .collect();
+    for (line, row) in lines.iter().zip(rows) {
+        near(
+            &line["bbox"]["y"],
+            (8787.0 + 283.0 + f64::from(row.vertical_pos)) / 75.0,
+        );
+    }
+    // Body's own paragraph-after / stored advance is not a cell end.
+    let body = nodes(&pages[0], "TextLine");
+    near(&body.last().unwrap()["bbox"]["y"], 38620.0 / 75.0);
+    assert_eq!(*labels(&pages[0]).last().unwrap(), "AFTER INDENTED TABLE");
+    // A cell-end option must not trim a body paragraph's following origin.
+    let mut body = source(vec![p("before"), p("after")]);
+    body.doc_info.para_shapes[0].spacing_after = 600; // 300HU = 4px.
+    let pages = drain(&mut DocumentV2Session::from_bytes(&bytes(&body), options).unwrap());
+    let lines = nodes(&pages[0], "TextLine");
+    assert_eq!(labels(&pages[0]), ["before", "after"]);
+    near(&lines[0]["bbox"]["y"], 30.0);
+    near(&lines[1]["bbox"]["y"], 52.0); // 18px pitch + authored4px.
+}
+
+#[test]
 fn document_terminal_policy_keeps_body_paragraph_advance_after_anchored_table() {
     let d = source(vec![
         host("host", table(&["A", "B"], TablePageBreak::CellBreak)),

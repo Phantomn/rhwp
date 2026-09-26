@@ -2630,3 +2630,95 @@ node output/7353/r19/fresh-indent/control.mjs
 
 메인테이너가 이번 재조판 들여쓰기의 시각 판정 통과 및 다음 절편 진행을 승인했다.
 셀 끝 아래 간격과 원본 TAC carrier 지원은 남아 있으며 R5 완료로 보고하지 않는다.
+
+#### 후속: 셀 마지막 문단 아래 간격의 명시적 정책
+
+시각 통과한 재조판 들여쓰기는 `82b96e5ea`로 체크포인트 커밋했다. 이번에는 이전에
+보존한 `tests/fixtures/issue7353_indent_review/diagnostic/indent-saved.hwp`와 대응 PDF를
+그대로 사용한다. 새 한컴 변환이나 저장 줄 수정 없이 비영 끝 간격 문제를 검증한다.
+
+독립 근거: 한컴 저장본 마지막 줄은 cell-local y27600HU,높이1100HU이며 위아래 여백은
+각283HU다. 따라서 점유 끝 기준 외곽은29266HU다. 마지막 ParaShape 아래 간격800
+(실제400HU)을 가진 진단본과0인 승인 대조본의 한컴 외곽/뒤 문단은 동일하다.
+진단 PDF의 표 하단과 `AFTER INDENTED TABLE`,저장 뒤 문단 y32951HU를 함께 확인했다.
+선언 cell.height28000HU는 최소 높이이지 실제 점유 높이29266HU가 아니다.
+
+기존 `omit_final_line_gap`은 마지막 줄간격만 제외하고 paragraph-after를 보존하도록
+의도적으로 제한한 실험 옵션이었다. 이를 조용히 재정의하거나 Legacy/default를 바꾸지 않고,
+`cell_end_policy: "omit_final_paragraph_gap"`을 추가했다. 셀 끝의 **마지막 문단**에서만
+다음 줄간격과 문단 뒤 간격을 제외한다. 실제 빈 줄·문단 앞 간격·문단 사이 간격·명시적
+Space·padding·선언 최소 높이는 유지한다. 본문 문단에는 적용하지 않는다.
+
+생산/소비와 적용 경계:
+
+| 경계 | 이번 처리 |
+| --- | --- |
+| `text.rs`/`pictures.rs`/`tac.rs`의 `ParagraphEnd::from_composed` | 실제 줄/객체 점유와 후속 origin 외에 의미가 확인된 paragraph-after를 `Some`으로 표시 |
+| public `ParagraphEnd::new`의 사용자 composer | 뒤 공간의 의미를 모르는 `None`이므로 새 옵션에서도 임의 제거하지 않음 |
+| `ir.rs::bind_table` / `text_flow.rs::from_flow_rows_with_end_policy` | 실제 마지막 문단 경계에서만 `into_flow_items_at_end`를 호출. 후속 explicit Table이면 앞 문단 간격 보존; Space(0)/양수는 별도 물리 공간 |
+| `paragraph_end.rs::into_flow_items_at_end` | 기존 두 정책은 보존. 새 정책은 의미가 확인된 terminal after만 제외; 음수 최종 줄 advance는 기존 line-gap 정책과 같이 물리 줄 높이까지 보존 |
+| `content.rs` 물리 요구 높이 → `flow.rs::fit_cell` 예약/컷 → `TextFragment::append_to` | 같은 변환 결과를 소비. paint에서 다시 높이를 늘리거나 clamp하지 않음 |
+
+내용 컷/rowspan/제목 반복 알고리즘 자체는 바꾸지 않았다. 영향을 받는 마지막 줄의
+수용 예산·이어받기·실제 빈 줄·마지막 유닛 종료·표 뒤 문단을 검사한다. 저장/재조판 텍스트와
+중첩 explicit 자식은 검증하되,그림/TAC의 비영 after·분할 rowspan의 한컴 출력까지 이번
+단일 PDF로 입증했다고 주장하지 않는다.
+
+수정 전후 작은 검증 (`output/7353/r19/cell-after/`):
+
+- `before-selector-only.patch`는 새 옵션 이름을 기존 line-gap 동작에 연결한 진단 단계다.
+  높이 산식은 수정 전과 같고,이 상태에서 최종 이름을 사용하는 같은 검사를 실행했다.
+  `document-before.log`: 실제395.546667px 대비 독립 기대390.213333px로 FAIL.
+  `text-before.log`: 마지막 빈 줄 수용/음수 끝 간격 검사2개 FAIL,나머지20 PASS.
+  옵션이 없던 원래 `82b96e5ea`에서 새 이름을 사용할 수 있었다고 주장하지 않는다.
+- 초기 diagnostic 테스트의 선언 최소 높이와 실제 높이 혼동,수동 rustc의 서로 다른 serde
+  의존성 링크 실패는 정정했으며 결함 검출 근거에서 제외했다.
+- 수정 후 `check.sh`: document-flow59,text23,nested16 = **98 PASS**.
+  정상 한컴 진단본16줄의 최종 위치/표 높이/뒤 문단과 본문의 비영 아래 간격을 검사했다.
+  합성 경계에서는 blank 보존,양/음수 끝 줄간격,39px 정확 예산,34px 분할 후 blank 이월,
+  Space0/2/7 가산성,명시적 후속 표 앞 간격,60px 선언 최소 높이,opaque tail 보존을 검사했다.
+- Native 선행 review를 직접 열어 기존400HU 외곽·뒤 문단 초과가 사라지고 내부 줄과
+  들여쓰기/정렬은 유지됨을 확인했다. 글꼴 외형 차이는 그대로 구분한다.
+- source는 `82b96e5ea`+패치이며 `cell-after/source.sha256`으로 고정한다.
+  소스 수정 없이 본문 after 반례를 추가한 최종 cases를 review에 동기화했다.
+  집중 release-test 및 Docker fresh WASM 결과는 아래에 연결한다.
+
+최종 집중 회귀: 직전 절편과 같은8개 generated suite에서
+`test(issue_7353_table_v2) | test(issue_4755) | test(issue_6102) | test(issue_3128)` 필터,
+`--locked --cargo-profile release-test --no-fail-fast`,공유 target `rhwp/target/pr-review`로
+실행했다. **190 passed /0 failed /1532 skipped** (`cell-after/focused-final.log`).
+nextest 버전/기존 관측 설정 경고는 유지된다. 전체 CI/PR lint를 실행한 결과가 아니다.
+`82b96e5ea`의 이전 Native probe와 수정 후 기존 옵션의 진단본 JSON도 byte-identical이며,
+이전 미통과 진단 PNG의 원본 JSON과도 동일함을 확인했다. source manifest·변경 파일 fmt·
+diff check 및 review source 동일성을 확인했다.
+
+최종 fresh WASM·시각 증적:
+
+- `docker compose --env-file .env.docker -p rhwp run --rm wasm`: 성공,7분43초
+  (`cell-after/docker-wasm.log`). WASM SHA-256:
+  `7d9fa78bb6655c66ef32dbf8d3ab3bee3c7497beb74d181376a8e9947ccb83dd`.
+- release-test Native probe와 새 WASM의 동일 진단 HWP 결과는 SVG byte-identical이다.
+  JSON 수치 차이41개는 최대 `5.684341886080802e-14`,비수치 차이0이다
+  (`cell-after/review/backend-comparison.json`).
+- `node output/7353/r19/cell-after/review.mjs --wasm`으로 기존 한컴 PDF와
+  Native/fresh WASM compare·standalone overlay·review를 생성했다.
+  최종 Native/WASM review와 overlay를 직접 확인했다. 표 내부16줄을 유지하면서
+  표 하단과 `AFTER INDENTED TABLE`의 기존400HU 초과가 해소되었다.
+  글꼴 외형·폭 차이는 별도로 남으며,이 결과를 원본 #6923 전체 통과로 간주하지 않는다.
+- `node output/7353/r19/cell-after/control.mjs`: diagonal,저장 indent,fresh indent
+  3종×기존/신규 정책6조합에서 승인 출력 보존 및 Native/WASM SVG 일치를 확인했다
+  (`cell-after/controls.log`). 최초 실행의 증적 경로 오타는 출력 전용 스크립트에서
+  정정 후 재실행했으며 제품 코드/fixture는 변경하지 않았다.
+- source/head·입력/PDF·WASM 해시와 실행 profile은 `cell-after/review/run.json`,
+  검증한 소스는 `cell-after/source.sha256`에 연결했다. 최종 해시 재검사4개 모두OK.
+
+판정 자료:
+
+- [fresh WASM review](../../output/7353/r19/cell-after/review/wasm-review-1.png)
+- [fresh WASM standalone overlay](../../output/7353/r19/cell-after/review/wasm-overlay-1.png)
+- [Native review](../../output/7353/r19/cell-after/review/native-review-1.png)
+- [진단 HWP](../../tests/fixtures/issue7353_indent_review/diagnostic/indent-saved.hwp)
+- [한컴 기준 PDF](../../tests/fixtures/issue7353_indent_review/diagnostic/indent-2020.pdf)
+
+메인테이너가 시각 판정 통과 및 다음 절편 진행을 승인했다. 기존 정책과 Legacy/default를 유지하며,
+그림/TAC·분할 rowspan의 추가 독립 출력 검증과 원본 #6923/R5 완료는 남아 있다.

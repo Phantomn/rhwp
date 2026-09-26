@@ -11,6 +11,9 @@ pub enum CellEndPolicy {
     #[default]
     PreserveAdvance,
     OmitFinalLineGap,
+    /// Omit following-line and paragraph-after gaps at a cell's content end.
+    /// Authored blank lines, cell padding and explicit flow Space remain.
+    OmitFinalParagraphGap,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -18,7 +21,9 @@ pub struct ParagraphEnd {
     occupied_end: f64,
     next_origin: f64,
     tail_spaces: Vec<f64>,
-    terminal_spaces: Vec<f64>,
+    // None means an external composer supplied opaque tail bands through new().
+    // Do not reinterpret those physical bands as authored paragraph spacing.
+    paragraph_after: Option<f64>,
 }
 
 impl ParagraphEnd {
@@ -52,9 +57,7 @@ impl ParagraphEnd {
         }
         let mut end = Self::new(occupied_end, flow_end, tail_spaces)?;
         nonnegative(paragraph_after, "paragraph after spacing")?;
-        // Only the next-line gap is optional. Keep explicit paragraph-after;
-        // its independent cell-end policy is not decided by this experiment.
-        end.terminal_spaces = vec![paragraph_after];
+        end.paragraph_after = Some(paragraph_after);
         Ok(end)
     }
 
@@ -79,7 +82,7 @@ impl ParagraphEnd {
         Ok(Self {
             occupied_end,
             next_origin,
-            terminal_spaces: tail_spaces.clone(),
+            paragraph_after: None,
             tail_spaces,
         })
     }
@@ -109,17 +112,21 @@ pub(super) fn into_flow_items_at_end(
     for item in items {
         match item {
             ParagraphItem::End(end) => {
-                let spaces = if final_paragraph && policy == CellEndPolicy::OmitFinalLineGap {
+                let spaces = if final_paragraph && policy != CellEndPolicy::PreserveAdvance {
                     // A negative final text gap is carried by its row advance,
                     // not a negative physical Space. Omit it at this same
-                    // producer-owned boundary, retaining paragraph-after.
+                    // producer-owned boundary, independently of paragraph-after.
                     if let Some(ParagraphItem::Lines {
                         height, advance, ..
                     }) = resolved.last_mut()
                     {
                         *advance = *height;
                     }
-                    end.terminal_spaces
+                    match (policy, end.paragraph_after) {
+                        (CellEndPolicy::OmitFinalParagraphGap, Some(_)) => Vec::new(),
+                        (_, Some(after)) => vec![after],
+                        (_, None) => end.tail_spaces,
+                    }
                 } else {
                     end.tail_spaces
                 };

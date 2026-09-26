@@ -504,6 +504,37 @@ fn paragraph_end_distinguishes_occupied_end_and_next_origin() {
 }
 
 #[test]
+fn terminal_policy_does_not_guess_spacing_from_external_composer_tail() {
+    struct Composer;
+    impl CellParagraphComposer for Composer {
+        fn compose(&self, p: &Paragraph, width: f64) -> Result<Vec<ParagraphItem>, GeometryError> {
+            let mut items = SyntheticComposer.compose(p, width)?;
+            items.push(ParagraphItem::End(ParagraphEnd::new(
+                10.0,
+                10.0,
+                vec![6.0, 2.0],
+            )?));
+            Ok(items)
+        }
+    }
+    for policy in [
+        CellEndPolicy::PreserveAdvance,
+        CellEndPolicy::OmitFinalLineGap,
+        CellEndPolicy::OmitFinalParagraphGap,
+    ] {
+        let cursor =
+            TableContentPlan::from_ir_contents_with_end_policy(&ir_leaf(), 1.0, &Composer, policy)
+                .unwrap()
+                .start();
+        let fragment = fit(&cursor, 18.0);
+        assert_eq!(fragment.reserved_height(), 18.0);
+        assert_eq!(fragment.placement().cells[0].lines.len(), 1);
+        assert_eq!(fragment.placement().cells[0].lines[0].bounds.height, 10.0);
+        assert!(fragment.continuation().is_complete());
+    }
+}
+
+#[test]
 fn paragraph_end_bands_and_external_space_keep_blank_line_ownership() {
     struct Composer(f64);
     impl CellParagraphComposer for Composer {
