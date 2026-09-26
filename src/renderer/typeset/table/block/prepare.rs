@@ -299,10 +299,10 @@ impl TypesetEngine {
             note.fragment_split
                 .is_some_and(|split| split.force_next_page)
         });
-        // The accepted RowBreak body fragments own the note queue even when
-        // each note is atomic. A reset inside a note selects its prefix/tail;
-        // it is not a prerequisite for deferring other fragments' notes.
-        // Keep whole-table reservation in entry and edited/reflowed paths out.
+        // 각 각주가 통째 단위여도 수용한 RowBreak 본문 조각이 각주 큐를 소유한다.
+        // 각주 내부 재시작은 그 각주의 앞·뒤 조각을 선택하며,
+        // 다른 조각의 각주를 이월하기 위한 필수 조건이 아니다.
+        // 진입점의 통째 표 예약과 편집·재조판 경로에는 적용하지 않는다.
         let hwpx_saved_single_cell_frame = (!ft.table_footnotes.is_empty())
             .then(|| layout_engine.saved_single_cell_opening_frame_cut(table, styles))
             .flatten()
@@ -885,9 +885,9 @@ impl TypesetEngine {
             self.dpi,
         ) + layout_engine
             .saved_single_cell_terminal_host_spacing_px(table, para, styles);
-        // Clean deferral may have changed the fragment since host placement was
-        // first queried. Resolve the closed source box in that actual new frame,
-        // then let the scanner budget and commit share its origin and flow end.
+        // 호스트 배치를 처음 조회한 뒤 내용 소비 없는 이월로 조각이 바뀔 수 있다.
+        // 실제 새 프레임에서 닫힌 원본 상자를 다시 결정하고,
+        // 스캐너 예산과 확정 단계가 그 원점·흐름 끝을 함께 사용하게 한다.
         let closed_source_frame_placement = self.query_closed_source_frame_placement(
             st,
             paragraphs_all,

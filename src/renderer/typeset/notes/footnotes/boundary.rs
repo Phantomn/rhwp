@@ -140,10 +140,10 @@ pub(in crate::renderer::typeset) fn native_hwp5_footnote_reset_fragments(
     })
 }
 
-/// Stored body/note boundaries share the same physical ownership contract.
-/// HWPX local writer cursors remain excluded unless the input is unedited and
-/// single-column; each query still validates real nonsynthetic line boundaries
-/// and its own marker/available-footnote geometry.
+/// 저장된 본문·각주 경계는 같은 물리 소유 계약을 사용한다.
+/// 미편집 단일 단 입력 외에는 HWPX의 문단 내부 작성 좌표를 제외한다.
+/// 각 조회는 실제 비합성 줄 경계와 해당 표시 위치·각주 가용 공간을
+/// 추가로 확인한다.
 fn stored_body_note_pagination(st: &TypesetState) -> bool {
     st.profile.hwp5_stored_pagination_layout()
         || (st.profile.hwpx_stored_layout() && !st.profile.session_edited() && st.col_count == 1)

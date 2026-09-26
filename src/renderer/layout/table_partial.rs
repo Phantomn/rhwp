@@ -1289,8 +1289,8 @@ impl LayoutEngine {
             // 소비한다. 다중줄은 padding shrink의 조기 반환, split_proven은 Top
             // 정렬을 보장하므로 창 밖의 compose/높이 합산은 결과에 쓰이지 않는다.
             // rowspan·세로쓰기·실제로 잘리지 않는 셀은 기존 전량 경로를 유지한다.
-            // A finite saved frame can preserve Center/Bottom. The Top-only
-            // probe optimization cannot skip the selected prefix's height.
+            // 유한한 저장 프레임은 가운데·아래 정렬도 보존할 수 있다.
+            // 위 정렬 전용 탐색 최적화로 선택한 앞 조각의 높이를 생략하지 않는다.
             let saved_frame_needs_alignment = align_saved_opening_frame
                 && cell_row + 1 == end_row
                 && cell.vertical_align != crate::model::table::VerticalAlign::Top;
@@ -1683,8 +1683,8 @@ impl LayoutEngine {
                 && cell_row + 1 == end_row
                 && !cell_content_cut_by_slice
             {
-                // This finite saved frame owns only the selected prefix. Its
-                // original alignment uses line_ranges, never the remaining tail.
+                // 이 유한한 저장 프레임은 선택한 앞 조각만 소유한다.
+                // 원래 정렬은 남은 꼬리가 아니라 line_ranges를 사용한다.
                 cell.vertical_align
             } else if (is_in_split_row || is_rowbreak_straddle)
                 && (cell_was_split || cell_content_cut_by_slice)

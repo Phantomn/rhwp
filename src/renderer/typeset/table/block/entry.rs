@@ -76,9 +76,9 @@ impl TypesetEngine {
         // p77에는 row 전체가 재배치되어 그림 51이 별도 page로 밀린다. native HWP5의
         // 비-TAC TopAndBottom RowBreak 표, 기존 각주, 표 자체 각주 없음, 실제 cell
         // reset이라는 네 축이 모두 있을 때만 실제 FootnoteArea 직전까지의 공간을 쓴다.
-        // A direct HWPX can record the same physical reset inside one cell
-        // paragraph. Paragraph-local zero origins alone are not that evidence.
-        // Keep the stored contract out of edited/reflowed and rowspan paths.
+        // 원본 HWPX도 한 셀 문단 안에 같은 물리 재시작을 저장할 수 있다.
+        // 문단 내부의0 원점만으로는 이를 입증할 수 없다.
+        // 편집·재조판·여러 행에 걸친 셀 경로에는 이 저장 계약을 적용하지 않는다.
         let hwpx_stored_cell_page_reset =
             st.profile.hwpx_stored_layout()
                 && !st.profile.session_edited()

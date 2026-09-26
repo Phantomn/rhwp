@@ -100,8 +100,8 @@ impl TypesetEngine {
                 &start_cut,
                 st.current_height <= 0.5,
             );
-        // The first fragment already receives this inset in host_spacing.before.
-        // A fresh continuation must reserve the same origin that paint opens.
+        // 첫 조각은 이미 host_spacing.before에서 이 여백을 받는다.
+        // 새 이어받기 조각도 실제 배치가 여는 원점과 같은 공간을 예약한다.
         let host_before_overhead = host_before_overhead
             + if hwpx_fragment_opens_outer_top && is_continuation {
                 hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
@@ -151,8 +151,8 @@ impl TypesetEngine {
             )
             .1
         } else if caption_outer_bottom > 0.0 {
-            // Completing a vertically captioned object closes its outer box
-            // before the next paragraph, whether its caption was above or below.
+            // 위·아래 캡션 개체를 끝내면 캡션 방향과 무관하게
+            // 다음 문단 전에 개체의 바깥 상자를 닫는다.
             caption_outer_bottom
         } else {
             fragment_outer_bottom_overhead
@@ -356,8 +356,8 @@ impl TypesetEngine {
                         table_top: st.current_height + host_before_overhead,
                         occupied_bottom: st.current_height + host_before_overhead,
                     };
-                // An unchanged first unit still owns its paragraph offset after
-                // clean deferral. A continuation has already consumed that anchor.
+                // 내용 소비 없이 이월한 첫 유닛은 원래 문단 오프셋을 계속 소유한다.
+                // 이어받기 조각은 그 앵커를 이미 소비했다.
                 captioned_current_placement
                     .filter(|_| !is_continuation)
                     .unwrap_or(unanchored_fragment)
@@ -401,8 +401,8 @@ impl TypesetEngine {
                 - p.table_top
                 - caption_extra
                 - if captioned_object_frame {
-                    // Closing caption margin belongs only to the terminal unit;
-                    // scan reserves it when accepting that unit.
+                    // 종료 캡션 여백은 마지막 유닛에만 속한다.
+                    // 스캔에서 해당 유닛을 수용할 때 함께 예약한다.
                     fragment_outer_bottom_overhead
                 } else {
                     hwpunit_to_px(table.outer_margin_bottom as i32, self.dpi)

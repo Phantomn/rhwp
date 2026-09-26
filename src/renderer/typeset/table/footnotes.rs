@@ -33,9 +33,9 @@ impl TypesetEngine {
         source: FootnoteSource,
         content_height: f64,
     ) {
-        // Whole-table registration must preserve the same validated stored
-        // footer boundary as the fragment queue. Container format does not
-        // change ownership of a repeated page-top line; edited HWPX does.
+        // 통째 표 등록도 조각 큐와 같은 유효한 저장 각주 영역 경계를 보존한다.
+        // 컨테이너 형식은 반복 페이지 시작 줄의 소유를 바꾸지 않는다.
+        // 편집된 HWPX에는 이 저장 계약을 적용하지 않는다.
         let saved_note_layout = st.profile.hwp5_stored_pagination_layout()
             || (st.profile.hwpx_stored_layout() && !st.profile.session_edited());
         let split = saved_note_layout
@@ -232,10 +232,10 @@ impl TypesetEngine {
             let force_source_page_split = !queued_fresh_page
                 && note.fragment_split.is_some_and(|split| {
                     split.force_next_page
-                            // A validated HWPX footer reset belongs to the
-                            // marker's intermediate table page even if the
-                            // complete note would fit the numeric budget.
-                            // Capacity cannot erase a saved physical boundary.
+                            // 유효한 HWPX 각주 영역 재시작은 표시가 속한
+                            // 중간 표 조각 쪽에 속한다. 전체 각주 높이가 수치 예산에
+                            // 들어가더라도 저장된 물리 경계를
+                            // 수용 공간만으로 없애지 않는다.
                             || (st.profile.hwpx_stored_layout()
                                 && !terminal_fragment
                                 && !fragment_has_intra_row_cut

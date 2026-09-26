@@ -184,9 +184,9 @@ impl TypesetEngine {
             // tail page가 소유한다(p129 note 176). 표 셀용으로 검증된 같은
             // 보수적 판정을 재사용하되 Body tail과 기존 marker-page 각주를
             // 모두 확인해 일반 각주를 임의 capacity로 나누지 않는다.
-            // An unedited HWPX body note shares the same one-to-one stored
-            // footer reset contract as table notes. Synthetic/recomposed lines
-            // are rejected by the query; edited HWPX retains atomic ownership.
+            // 편집하지 않은 HWPX 본문 각주도 표 각주와 같은 저장 줄의 일대일
+            // 대응 및 각주 영역 재시작 계약을 사용한다. 조회에서 합성·재구성 줄을
+            // 거절하며, 편집한 HWPX는 기존 통째 각주 소유를 유지한다.
             let saved_note_layout = st.profile.hwp5_stored_pagination_layout()
                 || (st.profile.hwpx_stored_layout() && !st.profile.session_edited());
             let source_reset_fragments = saved_note_layout
@@ -195,10 +195,10 @@ impl TypesetEngine {
             let stored_reset_fragments = body_tail_reset
                 .filter(|_| {
                     multi_note_routed.is_some()
-                        // A first-note collision also proves that the marker
-                        // belongs to a completed prefix page. The independently
-                        // validated note reset then owns the matching tail;
-                        // existing notes are not required for that contract.
+                        // 첫 각주 충돌 경로도 표시가 완료된 앞 조각 쪽에 속함을
+                        // 입증한다. 독립적으로 유효성을 확인한 각주 재시작은
+                        // 이에 대응하는 꼬리를 소유한다. 이 계약에는
+                        // 기존 각주가 있을 필요가 없다.
                         || collision_routed.flatten().is_some()
                 })
                 .and(source_reset_fragments);

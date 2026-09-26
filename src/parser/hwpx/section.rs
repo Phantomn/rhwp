@@ -5884,12 +5884,11 @@ fn normalize_hwpx_note_line_vpos(paragraph: &mut Paragraph, preserve_all_zero: b
         return;
     }
 
-    // A footnote starting at its own page origin can restart after positive
-    // lines (e.g. 0,1172,0). This is a physical footer-page boundary, not the
-    // trailing-zero artifact whose first line already starts above zero.
-    // Repeated page-top lines (0,0,1172) likewise place the second line
-    // on the next physical footer page. Keep endnote normalization and the
-    // [2344,0] artifact contract unchanged.
+    // 자기 쪽 원점에서 시작한 각주는 양수 위치 뒤 다시 시작할 수 있다
+    // (예: 0/1172/0). 이는 각주 영역의 물리 페이지 경계다.
+    // 첫 줄이 이미 양수에서 시작하는 후속0 연속줄 보정과 구분한다.
+    // 반복 페이지 시작0/0/1172도 두 번째 줄을 다음 물리 쪽에 둔다.
+    // 기존 미주 정규화와2344/0 연속줄 보정 계약은 유지한다.
     if preserve_all_zero
         && paragraph.line_segs[0].vertical_pos == 0
         && (paragraph.line_segs.windows(2).any(|lines| {

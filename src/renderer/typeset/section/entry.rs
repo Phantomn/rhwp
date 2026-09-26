@@ -128,8 +128,8 @@ impl TypesetEngine {
             })
         });
         if closed_frame_guide {
-            // The table placement already accepted this exact source frame.
-            // Preserve paragraph provenance without spending its guide twice.
+            // 표 배치가 이 정확한 원본 프레임을 이미 수용했다.
+            // 안내 줄을 두 번 소비하지 않고 문단 출처를 보존한다.
             st.hide_empty_paragraph(para_idx);
             st.append_item(PageItem::FullParagraph {
                 para_index: para_idx,

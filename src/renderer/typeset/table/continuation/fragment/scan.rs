@@ -251,13 +251,13 @@ impl TypesetEngine {
             }
         }
 
-        // A bottom caption and terminal outer margin close the final unit.
-        // An opening caption is already charged to the first fragment budget.
-        // If that unit cannot close here, rescan the accepted
-        // prefix rather than changing only end_row after heights/cuts were fixed.
+        // 아래 캡션과 종료 바깥 여백이 마지막 유닛을 닫는다.
+        // 시작 캡션은 이미 첫 조각 예산에서 계상됐다.
+        // 현재 쪽에서 마지막 유닛을 닫을 수 없으면 수용한 앞 조각을 다시 스캔한다.
+        // 높이·컷을 확정한 뒤 end_row만 바꾸지 않는다.
         if end_row >= row_count && split_end_limit == 0.0 && input.prepared.caption_overhead > 0.0 {
             let closing_overhead = if input.prepared.caption_is_top {
-                // The opening caption is already deducted from page_avail.
+                // 시작 캡션은 이미 page_avail에서 뺐다.
                 0.0
             } else {
                 input.prepared.caption_overhead
@@ -288,9 +288,9 @@ impl TypesetEngine {
                     && closing_height + budget.caption_extra + budget.host_before_overhead
                         <= st.base_available_height()
                 {
-                    // No preceding table unit can be committed. Clear actual
-                    // earlier items, preserving the cursor. A saved positive
-                    // anchor on an otherwise empty frame must not loop forever.
+                    // 앞선 표 유닛을 하나도 확정할 수 없으므로 커서를 보존한 채
+                    // 실제 앞 항목이 점유한 쪽을 비운다. 다른 항목이 없는 프레임의
+                    // 양수 저장 앵커 때문에 이월을 무한 반복하지 않아야 한다.
                     return BlockTableRowScan {
                         consumed: 0.0,
                         end_row: cursor_row,

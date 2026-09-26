@@ -13922,9 +13922,9 @@ impl LayoutEngine {
         })
     }
 
-    /// A saved multirow opening frame owns a physical band independently of
-    /// the text units consumed at its plain-paragraph reset. Pagination and
-    /// painting query the same source frame; the caller still checks capacity.
+    /// 저장된 다행 시작 프레임은 일반 문단 재시작에서 소비한 텍스트 유닛과
+    /// 별도로 물리 공간을 소유한다. 페이지 분할과 배치는 같은 원본 프레임을
+    /// 조회하며, 실제 수용 예산은 호출자가 확인한다.
     pub(crate) fn saved_multirow_opening_frame_height(
         &self,
         table: &crate::model::table::Table,
@@ -14017,10 +14017,10 @@ impl LayoutEngine {
         }
         let closing_para = cell.paragraphs.get(closing.para_idx)?;
         let next_para = cell.paragraphs.get(next.para_idx)?;
-        // Inline note markers belong to the stored text line; their footer
-        // bodies do not add a block to this cell's opening frame. Padding
-        // abnormality and frame ownership are separate contracts: the exact
-        // saved closing line plus insets validates this physical frame.
+        // 인라인 각주 표시는 저장된 글줄에 속한다. 하단의 각주 본문을
+        // 이 셀의 시작 프레임에 별도 블록으로 더하지 않는다. 패딩 이상과
+        // 프레임 소유는 별도 계약이며, 저장된 종료 줄과 여백의 정확한 합으로
+        // 이 물리 프레임의 유효성을 확인한다.
         let only_inline_notes = |para: &Paragraph| {
             para.controls
                 .iter()
@@ -14052,8 +14052,8 @@ impl LayoutEngine {
         Some(hwpunit_to_px(table.common.height as i32, self.dpi))
     }
 
-    /// Find the exact source cut before reserving a single-cell note queue.
-    /// The same validator is later consumed by the scanner and painter.
+    /// 단일 셀 각주 큐를 예약하기 전에 정확한 원본 컷을 찾는다.
+    /// 이후 스캐너와 실제 배치도 같은 유효성 검사를 소비한다.
     pub(crate) fn saved_single_cell_opening_frame_cut(
         &self,
         table: &crate::model::table::Table,
@@ -14067,11 +14067,11 @@ impl LayoutEngine {
         })
     }
 
-    /// The saved single-cell frame owns its anchor line box, while the
-    /// anchor's trailing spacing and outer bottom margin close the host flow.
-    /// A zero-width object-only anchor has no text-line advance (the same
-    /// contract used by caption host spacing), so it must not add this band.
-    /// Consume them once after the terminal fragment, outside the table bbox.
+    /// 저장된 단일 셀 프레임은 앵커 줄 상자를 소유하며, 앵커의 뒤 줄 간격과
+    /// 바깥 아래 여백은 호스트 흐름을 닫는다. 폭0의 개체 전용 앵커는
+    /// 캡션 호스트 간격과 같은 계약에 따라 글줄 흐름을 전진시키지 않으므로
+    /// 이 공간을 추가하지 않는다. 종료 조각 뒤에서 표 상자 바깥의 여백을
+    /// 한 번만 소비한다.
     pub(crate) fn saved_single_cell_terminal_host_spacing_px(
         &self,
         table: &crate::model::table::Table,

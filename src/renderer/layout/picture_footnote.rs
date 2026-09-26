@@ -1083,7 +1083,7 @@ impl LayoutEngine {
         )
     }
 
-    /// Pagination queues and final paint consume the same selected-line metric.
+    /// 페이지 분할 큐와 최종 배치는 같은 선택 줄 메트릭을 소비한다.
     pub(crate) fn estimate_footnote_area_height_with_metrics(
         &self,
         footnotes: &[FootnoteRef],

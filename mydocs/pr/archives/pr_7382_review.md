@@ -287,3 +287,8 @@ Producer `4001f5b0c` + Rust/test diff SHA256 `ccca0de8ec46961ba9473f98e3e756a7cc
 ![Native31 overlay](../assets/pr7382_20260926/stage13_native_overlay_031.png)
 ![Native32 남은 차이](../assets/pr7382_20260926/stage13_native_review_032.png)
 ![Native32 overlay](../assets/pr7382_20260926/stage13_native_overlay_032.png)
+
+
+## 사용자 요청: 추가한 영어 주석 전체 한글화
+
+사전 범위는 이번 통합 branch의 base 대비 추가 설명 주석 전체다. 코드·회귀 검사20개 파일의 영어108줄을 한글로 바꿨다. 변경 전후 주석을 제외한 파일 내용이 바이트 단위로 같음을 검사했고, base 대비 추가 영어 설명 주석 잔여0개, `cargo fmt --all -- --check`·`git diff --check` exit0을 확인했다. [파일별 검증](../assets/pr7382_20260926/comment_translation_validation.json). 이는 설명 주석 변경이며 새 렌더링 검증 통과를 주장하지 않는다. 최종 head의 필수 검증은 후속 기능 보정 뒤 실행한다.

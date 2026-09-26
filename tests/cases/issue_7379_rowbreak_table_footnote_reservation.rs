@@ -145,8 +145,8 @@ fn terminal_caption_withholds_the_last_rowspan_unit_together() {
     assert_terminal_caption_budget(32_700, 32_700, 0, true);
 }
 
-/// Only the current fragment budget is short: one final row and its caption
-/// fit a fresh page. Deferral must preserve that row and the following body.
+/// 현재 조각의 예산만 부족하며 마지막 행 하나와 캡션은 새 쪽에 들어간다.
+/// 이월하면서 그 행과 뒤 본문을 보존해야 한다.
 #[test]
 fn terminal_caption_last_single_row_defers_without_consuming_it() {
     assert_single_row_caption_deferral(rhwp::model::shape::CaptionDirection::Bottom, 0);
@@ -306,9 +306,9 @@ fn assert_terminal_caption_budget(
         panic!("표23")
     };
     if protect_terminal_rows {
-        // This counterexample isolates an atomic caption unit that fits a fresh
-        // page. The source table's six notes plus the enlarged caption cannot
-        // jointly fit there; their ownership is checked by separate real tests.
+        // 이 반례는 새 쪽에 들어가는 통째 캡션 유닛만 분리한다.
+        // 원표의 각주 여섯 개와 키운 캡션은 한 새 쪽에 함께 들어가지 않으므로
+        // 각주 소유는 별도의 실제 원본 검사로 확인한다.
         for cell in &mut table.cells {
             for paragraph in &mut cell.paragraphs {
                 paragraph.controls.retain(|control| {
@@ -316,7 +316,7 @@ fn assert_terminal_caption_budget(
                 });
             }
         }
-        // The final rowspan is one row-break unit, including both rows' text.
+        // 마지막 행 병합 셀은 두 행의 텍스트를 모두 포함하는 분할 유닛 하나다.
         let lower = table
             .cells
             .iter()
@@ -338,8 +338,8 @@ fn assert_terminal_caption_budget(
     core.set_document(doc);
     let mut rows = Vec::new();
     let mut caption_count = 0;
-    // A smaller physical budget can move preceding body paragraphs too.
-    // Locate the table's actual owners; synthetic input has no PDF page ID.
+    // 물리 예산을 줄이면 앞 본문 문단도 이동할 수 있다.
+    // 표의 실제 소유 쪽을 찾는다. 합성 입력에는 기준 PDF 페이지 번호가 없다.
     let owners: Vec<u32> = core
         .dump_page_items_json(None)
         .as_array()
@@ -374,8 +374,8 @@ fn assert_terminal_caption_budget(
                     let body_y = dump[0]["bodyArea"]["y"].as_f64().expect("본문 원점");
                     let reserved = column["usedHeight"].as_f64().expect("예약 높이");
                     let painted_end = table.bbox.y + table.bbox.height - body_y;
-                    // A nonterminal fragment owns only its accepted rows;
-                    // caption and terminal bottom margin are still pending.
+                    // 종료 전 조각은 수용한 행만 소유한다.
+                    // 캡션과 종료 아래 여백은 아직 소비하지 않았다.
                     assert!((reserved - painted_end).abs() <= 0.5,
                         "중간 조각 내용/물리 공간: page={}, rows={owned_rows:?}, reserved={reserved}, painted_end={painted_end}", page + 1);
                 }

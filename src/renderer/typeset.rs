@@ -4803,8 +4803,8 @@ impl TypesetEngine {
             .get(&(para_idx, ctrl_idx))
             .copied()
         {
-            // Empty stored hosts can own a closed source frame too. Consume
-            // the accepted physical bottom, not a second host/guide advance.
+            // 빈 저장 호스트도 닫힌 원본 프레임을 소유할 수 있다.
+            // 수용한 물리 하단을 소비하며 호스트·안내 줄을 다시 전진시키지 않는다.
             st.align_flow_to(placement.occupied_bottom);
         } else if tac_wrap_split {
             st.advance_flow_by(table_total_height);

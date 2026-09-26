@@ -13190,8 +13190,8 @@ impl LayoutEngine {
                     .paragraph_float_placements
                     .get(&(para_index, control_index))
                 {
-                    // The same accepted frame owns both paint origin and flow.
-                    // Later anchor/host-tail branches must not replace its end.
+                    // 같은 수용 프레임이 실제 배치 원점과 흐름 끝을 함께 소유한다.
+                    // 뒤의 앵커·호스트 꼬리 분기가 이 끝점을 덮어쓰지 않아야 한다.
                     col_area.y + placement.occupied_bottom
                 } else if let Some(bottom) = deferred_empty_offset_float_bottom {
                     // 생성 본문을 먼저 gap에 배치한 뒤에는 offset을 뺀 예약 높이가 아니라
@@ -13953,8 +13953,8 @@ impl LayoutEngine {
                         .paragraph_float_placements
                         .get(&(para_index, control_index))
                     {
-                        // Resolved caption frames share both origin and flow end.
-                        // The terminal margin is trailing flow, not table content.
+                        // 결정된 캡션 프레임의 원점과 흐름 끝을 함께 사용한다.
+                        // 종료 여백은 표 내용이 아닌 뒤 흐름에 속한다.
                         y_offset = col_area.y + placement.occupied_bottom;
                     }
                 }

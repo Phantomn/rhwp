@@ -17,8 +17,8 @@ use super::layout::picture_flow_frame_size_hu;
 use super::layout_frame::{FrameExclusion, FrameExclusionPolicy, LayoutFrame};
 use super::page_layout::LayoutRect;
 
-/// A zero-width saved line containing only one non-inline table is its
-/// object anchor. Its paragraph line spacing is not the object's caption gap.
+/// 자리차지하지 않는 표 하나만 든 폭0 저장 줄은 그 개체의 앵커다.
+/// 이 문단의 줄 간격을 개체의 캡션 간격으로 사용하지 않는다.
 pub(crate) fn object_only_saved_table_anchor(para: &Paragraph, table: &Table) -> bool {
     !table.common.treat_as_char
         && is_para_topbottom_float(&table.common)
@@ -41,8 +41,8 @@ pub(crate) fn block_table_caption_host_spacing_px(
     }
 }
 
-/// The outer inset belongs to the object frame, independently of its cell
-/// column count. A resolved paint origin or nested frame is handled by callers.
+/// 바깥 여백은 셀 열 수와 무관하게 개체 프레임에 속한다.
+/// 이미 결정된 배치 원점과 중첩 프레임은 호출자가 처리한다.
 pub(crate) fn hwpx_column_rowbreak_fragment_opens_outer_top(
     hwpx_stored: bool,
     table: &Table,
@@ -158,10 +158,10 @@ pub(crate) fn hwpx_after_picture_caption_shared_spacing_px(
     }
 }
 
-/// A restarted successor exactly closes the declared object outer box.
-/// The intervening saved empty ladder belongs to that frame, not additional
-/// paragraph flow. This source proof also gives a new-column object origin;
-/// the original paragraph-relative offset was consumed before deferral.
+/// 다시 시작하는 뒤 문단이 선언된 개체 바깥 상자를 정확히 닫는다.
+/// 사이의 저장된 빈 줄 사다리는 이 프레임에 속하며 별도 문단 전진이 아니다.
+/// 이 원본 관계는 새 단의 개체 원점도 결정한다.
+/// 원래 문단 기준 오프셋은 이월 전에 이미 소비됐다.
 #[derive(Debug, Clone)]
 pub(crate) struct StoredTableFrameWithGuides {
     pub guide_range: Range<usize>,

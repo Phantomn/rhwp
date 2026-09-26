@@ -35,8 +35,8 @@ pub(super) struct WholeFit {
 }
 
 impl TypesetEngine {
-    /// Validate a stored closed object frame against the actual fragment budget.
-    /// Whole placement and the scanner's post-deferral entry consume this result.
+    /// 실제 조각 예산으로 저장된 닫힌 개체 프레임의 유효성을 확인한다.
+    /// 통째 배치와 이월 후 스캐너 진입이 이 결과를 함께 소비한다.
     pub(super) fn query_closed_source_frame_placement(
         &self,
         st: &TypesetState,
@@ -70,8 +70,8 @@ impl TypesetEngine {
         })
     }
 
-    /// A zero-width object anchor owns the table/caption outer box. Its declared
-    /// table height alone cannot accept a caption that exceeds the body budget.
+    /// 폭0 개체 앵커는 표·캡션 바깥 상자를 소유한다. 선언된 표 높이만으로
+    /// 본문 예산을 넘는 캡션을 수용할 수 없다.
     pub(in crate::renderer::typeset) fn query_captioned_column_rowbreak_placement(
         &self,
         st: &TypesetState,
@@ -90,9 +90,9 @@ impl TypesetEngine {
             st.current_height <= 0.5,
         );
         let signed_offset = signed_hwpunit(table.common.vertical_offset);
-        // This plan advances a paragraph-anchored object. Absolute references,
-        // center/bottom alignment and backward anchors retain their positioned
-        // object resolver rather than being reinterpreted as a forward flow box.
+        // 이 계획은 문단에 고정된 개체를 앞으로 전진시킨다. 절대 기준 좌표,
+        // 가운데·아래 정렬과 뒤쪽 앵커는 기존 위치 결정 경로를 유지하며,
+        // 앞으로 진행하는 흐름 상자로 재해석하지 않는다.
         if !opens
             || !matches!(
                 table.common.vert_rel_to,
