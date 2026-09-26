@@ -3363,3 +3363,93 @@ Native 문서 흐름71건, 텍스트29건 통과. 같은 영역의 Native compar
 메인테이너가 위치 일치로 판정하고 다음 절편 진행을 승인했다. 글리프 외형의 완전 일치나
 원본 전체 통과로 확대 해석하지 않는다. 원본 #6923 전체는 다음 저장 TAC 줄 소속 경계로
 진행했으며 아직 미완료다.
+
+### 다음 절편: 저장 공백 줄과 뒤 TAC 표의 줄 소속
+
+승인된 탭 절편은 `68059d15f`로 커밋했다. 원본의 prefix 진단에서 p68까지의 다음 실패는
+`V2 cell border style`, p69를 포함하면 저장 TAC 거부로 바뀐다. p69는 공백60개가 첫 줄을
+차지하고, source offset60의 표가 둘째 줄에 있다. 첫 줄1400HU와 다음 원점2116HU를
+표가 없다는 이유로 지우면 편집자의 줄 구성과 뒤 표 위치를 훼손한다.
+
+원본 p69를 기존 검증용 부모1×1 표에 분리하고 저장 줄을 제거한 HWPX를 한컴에서 정상
+저장했다. 문단/자식 표의 원본 속성은 보존했고 부모 높이26000HU·독립적인 뒤 문단을 사용한다.
+입력 XML의 음수 바깥여백-1HU를 한컴은0으로 다시 저장했으며 둘째 줄 높이도14845에서
+14847HU로 바뀌었다. 따라서 이 저장본을 원본 음수 여백의 배치 근거로 대신하지 않는다.
+
+이번 구현 대상은 **정상 저장본의 공백 전용 첫 줄 보존**이다. `tac::object_rows`가 줄 소유와
+공백 advance를 확정하고 `compose`는 그 실제 줄 상자를 `ParagraphItem::Lines`로 전달한다.
+`ir::bind_table`/`FlowBlock::Lines`의 기존 fit·continuation과 같은 payload의 TextPaint가
+측정/실제 배치를 소비한다. 공백을 Space(0)으로 바꾸거나 표 줄에 합치지 않는다.
+음수 여백은 명시적 미지원으로 유지한다. 원본과 정상 저장본은 따로 추적한다.
+
+전체 자식 내용을 보존한 분리본은 수정 뒤 `text preview run outside occupied line`에서
+거부된다. 이 별도 경계를 숨기지 않고 원본/분리본을 output에 보존했다. 줄 소속의 시각
+검증용 대조군은 같은 문단·공백60개·자식 표45360×14847HU를 유지하고 자식 내부만
+읽을 수 있는1×1 `TABLE ON SECOND LINE`로 재작성해 다시 한컴 정상 저장했다.
+`tests/fixtures/issue7353_tac_blank_row_review/README.md`에 변경점·생성 job·해시를 기록했다.
+
+실제 적용 경로와 경계:
+
+| 경계 | 이번 결과 및 소비 경로 |
+| --- | --- |
+| 저장 줄 소속 → 높이/원점 | `tac::object_rows`가 공백 전용 줄에도 source offset의 공백 payload를 귀속한다. `tac::compose`는1400HU 줄과716HU 다음 간격, 둘째 줄의1000HU indent를 보존한다. |
+| 컷/예약 → 이월 | `ir.rs`의 Lines 변환 → `flow.rs`의 Lines 분기는 전체1400HU 상자가 fit할 때만 소유 줄을 소비한다. 공간만 fit하면 기존 Space 규칙으로 패딩만 소비하며 공백 줄은 남는다. 이어 TAC InlineTables 분기는14847HU 표 전체를 원자적으로 예약한다. |
+| 실제 배치 | `TextPaint::build_node`의 소유 key와 확정 LinePlacement가 같은 payload를 평행이동한다. 뒤 표 원점은 별도 텍스트 가시성으로 추측하지 않는다. Native/fresh WASM의 실제 출력 비교를 수행한다. |
+| 합성 분할 경계 | 정상 저장본의 부모 break 정책만 CellBreak로 바꾸고 공백 줄까지1HU 부족/표까지1HU 부족 예산을 실행한다. 전자는 패딩만 소비 후 공백 줄 보존, 후자는 공백60개1회 출력 후 표만 이어받기, 최종 종료를 검사한다. 한컴 분할 일치 증거로 부르지 않는다. |
+| 비해당 | rowspan·반복 제목·각주·캡션·일반 어울림·음수 여백 정책은 바꾸지 않았다. Legacy/default와 편집 재조판도 변경하지 않았다. |
+
+새 정상 저장본 계약은 수정 전 release-test 라이브러리에서
+`TAC spaces without occupied object row`로 FAIL(`contract-before.log`), 수정 후 Native에서
+PASS다. 문서 흐름72건·텍스트30건 통과. 같은 HWP의 PDF에서 추출한 표 외곽 간 변위도
+별도로 검사한다: x=(74.960938−56.609375)pt, y=(770.156250−746.183594)pt,
+300dpi1dot 허용. 저장 메트릭 기반 실제 좌표 검사는 기존대로 정확한 값이다.
+
+Native compare·standalone overlay를 직접 확인했다. 부모 상단에서 자식 표까지 공백 줄이
+보존되고 자식/부모 외곽·뒤 문단 위치가 대응한다. 선 농도와 폴백 글리프 외형 차이는 남는다.
+최종 집중 회귀와 fresh WASM 결과는 아래에 이어 기록한다.
+
+최종 backend 검증(source `68059d15f`+`output/7353/r19/tac-next/final-source-tests.sha256`):
+
+- Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm` 성공7분27초.
+  WASM SHA-256 `5ec3c08a5358eee9f97ab7ac75997eb8e5e33673515611176c7af4f9a4fc1288`.
+- 최적화 완료 후 `review.mjs --wasm` 재캡처. Native/fresh WASM의 SVG·RenderTree 동일,
+  numeric diff0. `review/run.json`에 source/input/PDF/WASM 해시 고정.
+  같은 영역의 WASM review와 standalone overlay를 직접 확인했다.
+- `controls.mjs`: 기존 승인 대조군7개×끝 간격 정책2개=14조합의 SVG 유지와 Native/WASM
+  동일성 통과. 자동 비교는 기존 출력 무회귀 근거이지 새 한컴 시각 판정의 대체가 아니다.
+- review worktree의 V2 source와 현재 작업 source가 모두 같음을 확인했다. 첫 nextest 실행은
+  이전 release-test 라이브러리의 거부로 신규2건이 실패했다. 그 결과를 수정 후 결과로
+  인정하지 않고 `cargo build --locked --profile release-test --lib --target-dir
+  /home/edward/mygithub/rhwp/target/pr-review`로 라이브러리를 명시적으로 갱신했다.
+  갱신된 release-test probe의 전체 출력이 Native debug와 동일함을 확인했다.
+- `cargo fmt --all -- --check`, `git diff --check`, source 해시 검사 통과.
+  전체 PR lint/CI·원격 게시·기본 엔진 전환은 수행하지 않았다.
+
+명시적 library 갱신 후 동일 집중 nextest 필터의 최종 결과는 **277 passed /0 failed**,
+2565 skipped,13개 suite binary다(`output/7353/r19/tac-next/focused-final.log`). 필터는
+`test(issue_7353_table_v2) | test(issue_7353_rowspan_roundoff) | test(issue_4755) |
+test(issue_6102) | test(issue_3128)`이며 release-test profile과 고정 review target을 썼다.
+최종 source/test와 review worktree 입력의 일치, 포맷·diff 검사를 다시 확인했다.
+
+메인테이너 판정 대상은 **공백 전용 첫 줄 + 둘째 줄 TAC 표의 정상 저장 분리 대조군1쪽**:
+
+- [fresh WASM review](../../output/7353/r19/tac-next/review/wasm-review-1.png)
+- [standalone overlay](../../output/7353/r19/tac-next/review/wasm-overlay-1.png)
+- [정상 저장 HWP](../../tests/fixtures/issue7353_tac_blank_row_review/space-row-saved.hwp)
+- [동일 HWP의 한컴 PDF](../../tests/fixtures/issue7353_tac_blank_row_review/space-row-2020.pdf)
+
+메인테이너가 위치 일치로 판정하고 다음 절편 진행을 승인했다. 승인 범위는 부모 상단과 자식
+표 사이 공백 줄, 둘째 줄 들여쓰기, 양쪽 표 외곽과 AFTER CELL 위치다. 원본 전체 통과나
+음수 여백 지원, 글리프 외형의 완전 일치를 뜻하지 않는다.
+
+### 전체 진행 현황 — 위치 일치 판정 후
+
+승인된 R2~R5 전체 범위에 대한 거친 진행 추정은 약45%(40~50% 범위)다. 절편·커밋·테스트
+개수의 비율이나 측정된 일정이 아니다. R2의 공통 계획/소유권/경로 격리 기반은 확보했고,
+R3는 본문·중첩 표·저장 줄·Native/WASM 연결을 구현했지만 #6923 원본 전체 수용과 기준
+출력 대조는 미완료다. R4의 정렬·제목 반복·그림/서식은 일부 확보했으나 일반 어울림,
+복합 분할·각주·캡션·편집/캐시/커서·세로쓰기 등은 남았다. R5의 최신 devel 통합·전체 검증·
+전환 판단도 남아 있다. 반 이상 잔여가 있다고 보고하며, 지원 경계를 숨긴 완료율로 쓰지 않는다.
+
+다음은 원본 p69의 음수 바깥여백과 저장 TAC 점유 높이 관계를 독립 근거로 추적한다.
+정상 HWPX 재저장으로 여백이0이 된 대조군은 이 원본 규칙의 근거로 대신하지 않는다.

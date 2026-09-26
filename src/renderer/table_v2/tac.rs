@@ -239,22 +239,23 @@ fn object_rows(
         ));
     }
     for row in &mut rows {
-        let Some((ci, last)) = row.tables.last() else {
-            continue;
-        };
-        let (_, margins) = object_box(&para.controls[*ci], pictures)?;
         let source_row = &para.line_segs[row.source_line];
         let stop = rows_stop(para, row.source_line);
+        let (occupied, after_last) = if let Some((ci, last)) = row.tables.last() {
+            let (_, margins) = object_box(&para.controls[*ci], pictures)?;
+            (
+                last.x + last.width + f64::from(margins[1]),
+                positions[*ci] + 8,
+            )
+        } else {
+            (0.0, para.line_seg_text_start(row.source_line))
+        };
         let trailing: f64 = spaces
             .iter()
-            .filter(|s| s.position >= positions[*ci] + 8 && s.position < stop)
+            .filter(|s| s.position >= after_last && s.position < stop)
             .map(|s| s.width_hu)
             .sum();
-        let free = f64::from(source_row.segment_width)
-            - last.x
-            - last.width
-            - f64::from(margins[1])
-            - trailing;
+        let free = f64::from(source_row.segment_width) - occupied - trailing;
         if free < 0.0 {
             return Err(GeometryError::Unsupported("TAC row exceeds stored width"));
         }
@@ -264,8 +265,10 @@ fn object_rows(
                 // Non-final mixed rows can distribute word spaces. Their
                 // justification result is not supplied by this saved-box query.
                 Alignment::Justify
-                    if row.tables.len() == 1
-                        && (spaces.is_empty() || row.source_line + 1 == para.line_segs.len()) =>
+                    if row.tables.is_empty()
+                        || (row.tables.len() == 1
+                            && (spaces.is_empty()
+                                || row.source_line + 1 == para.line_segs.len())) =>
                 {
                     0.0
                 }
@@ -453,7 +456,7 @@ pub(super) fn compose(
             items.push(ParagraphItem::Space((row.top - end) * scale));
         }
         end = row.top + advance;
-        if row.tables.is_empty() {
+        if row.tables.is_empty() && row.spaces.is_empty() {
             if advance != row.height {
                 return Err(GeometryError::Unsupported("overlapping empty TAC row"));
             }
@@ -494,6 +497,17 @@ pub(super) fn compose(
                 }
                 lines.push((nodes.len(), bounds));
                 nodes.push(node);
+            }
+            if row.tables.is_empty() {
+                // A no-ink source row is still an owned, indivisible line.
+                // Its saved box and advance must survive before the TAC row,
+                // including when the following table defers to another page.
+                items.push(ParagraphItem::Lines {
+                    height: row.height * scale,
+                    advance: advance * scale,
+                    lines,
+                });
+                continue;
             }
             items.push(ParagraphItem::InlineTables {
                 height: row.height * scale,

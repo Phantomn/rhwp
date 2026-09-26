@@ -25,6 +25,101 @@ fn styles() -> ResolvedStyleSet {
     s
 }
 
+#[test]
+fn blank_stored_row_consumes_once_when_following_inline_table_defers() {
+    use rhwp::{model::control::Control, renderer::style_resolver::resolve_styles};
+    let d = rhwp::parse_document(include_bytes!(
+        "../fixtures/issue7353_tac_blank_row_review/space-row-saved.hwp"
+    ))
+    .unwrap();
+    let Control::Table(t) = d.sections[0].paragraphs[0]
+        .controls
+        .iter()
+        .find(|c| matches!(c, Control::Table(_)))
+        .unwrap()
+    else {
+        panic!()
+    };
+    let mut t = t.clone();
+    // Synthetic budget boundary using the independent saved row boxes.
+    t.page_break = TablePageBreak::CellBreak;
+    let s = resolve_styles(&d.doc_info, 96.0);
+    let p = PreparedTextTable::prepare_with_end_policy(
+        &t,
+        &s,
+        96.0,
+        &d.bin_data_content,
+        CellEndPolicy::OmitFinalParagraphGap,
+    )
+    .unwrap();
+    let bounds = |height| PageArea {
+        bounds: Rect {
+            x: 20.0,
+            y: 30.0,
+            width: 700.0,
+            height,
+        },
+    };
+    let cursor = p.start();
+    // Existing cell flow may consume top padding alone. It must not consume
+    // the no-ink line when its complete occupied box is one HU too tall.
+    let TextFragmentFit::Placed(padding) =
+        cursor.fit(bounds((283.0 + 1400.0 - 1.0) / 75.0)).unwrap()
+    else {
+        panic!()
+    };
+    assert!(render(&padding).1.is_empty());
+    let TextFragmentFit::Placed(retry) = padding.continuation().fit(bounds(400.0)).unwrap() else {
+        panic!()
+    };
+    let (_, retry_lines) = render(&retry);
+    assert_eq!(
+        retry_lines.iter().map(text).collect::<Vec<_>>(),
+        [" ".repeat(60), "TABLE ON SECOND LINE".into()]
+    );
+    let TextFragmentFit::Placed(first) = cursor
+        .fit(bounds((283.0 + 2116.0 + 14847.0 - 1.0) / 75.0))
+        .unwrap()
+    else {
+        panic!()
+    };
+    let (tree, lines) = render(&first);
+    assert_eq!(lines.len(), 1);
+    assert_eq!(text(&lines[0]), " ".repeat(60));
+    assert!((lines[0].bbox.y - (30.0 + 283.0 / 75.0)).abs() < 1e-9);
+    let mut first_tables = Vec::new();
+    visit(&tree.root, &mut first_tables);
+    assert_eq!(first_tables.len(), 1, "the child must defer intact");
+    let next = first.continuation();
+    let TextFragmentFit::Placed(second) = next.fit(bounds(400.0)).unwrap() else {
+        panic!()
+    };
+    let (tree, lines) = render(&second);
+    assert_eq!(
+        lines.iter().map(text).collect::<Vec<_>>(),
+        ["TABLE ON SECOND LINE"]
+    );
+    let mut tables = Vec::new();
+    fn visit<'a>(n: &'a RenderNode, out: &mut Vec<&'a RenderNode>) {
+        if matches!(n.node_type, RenderNodeType::Table(_)) {
+            out.push(n);
+        }
+        for child in &n.children {
+            visit(child, out);
+        }
+    }
+    visit(&tree.root, &mut tables);
+    assert_eq!(tables.len(), 2);
+    assert!(
+        (tables[1].bbox.y - 30.0).abs() < 1e-9,
+        "space row must not repeat"
+    );
+    assert!(matches!(
+        second.continuation().fit(bounds(400.0)).unwrap(),
+        TextFragmentFit::Complete
+    ));
+}
+
 fn para(text: &str) -> Paragraph {
     Paragraph {
         text: text.into(),

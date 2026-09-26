@@ -1027,6 +1027,67 @@ fn labels(page: &Value) -> Vec<&str> {
         .map(|v| v["node_type"]["TextRun"]["text"].as_str().unwrap())
         .collect()
 }
+
+#[test]
+fn normal_saved_blank_tac_row_preserves_child_and_following_origins() {
+    let input = include_bytes!("../fixtures/issue7353_tac_blank_row_review/space-row-saved.hwp");
+    let mut session = DocumentV2Session::from_bytes(input, TERMINAL_OPTIONS).unwrap();
+    let pages = drain(&mut session);
+    assert_eq!(pages.len(), 1);
+    let tables = nodes(&pages[0], "Table");
+    assert_eq!(tables.len(), 2);
+    // Independent source geometry: page origin(5669,7087), padding283,
+    // saved first row1400+gap716, second-row margin550+indent1000 HU.
+    near(&tables[0]["bbox"]["y"], 7087.0 / 75.0);
+    near(&tables[0]["bbox"]["height"], 26000.0 / 75.0);
+    near(
+        &tables[1]["bbox"]["x"],
+        (5669.0 + 283.0 + 550.0 + 1000.0) / 75.0,
+    );
+    near(&tables[1]["bbox"]["y"], (7087.0 + 283.0 + 2116.0) / 75.0);
+    near(&tables[1]["bbox"]["height"], 14847.0 / 75.0);
+    // Independent same-HWP PDF edge coordinates in pt (pdftocairo -svg).
+    // Relative placement tolerates one300dpi printer dot; source boxes above
+    // remain exact. These values are not harvested from the V2 renderer.
+    for (axis, pdf) in [
+        ("x", (74.960938 - 56.609375) * 96.0 / 72.0),
+        ("y", (770.156250 - 746.183594) * 96.0 / 72.0),
+    ] {
+        let offset =
+            tables[1]["bbox"][axis].as_f64().unwrap() - tables[0]["bbox"][axis].as_f64().unwrap();
+        assert!((offset - pdf).abs() <= 96.0 / 300.0);
+    }
+    let lines = nodes(&pages[0], "TextLine");
+    assert_eq!(lines.len(), 3);
+    near(&lines[0]["bbox"]["y"], (7087.0 + 283.0) / 75.0);
+    near(&lines[0]["bbox"]["height"], 1400.0 / 75.0);
+    near(&lines[2]["bbox"]["y"], (7087.0 + 26000.0 + 516.0) / 75.0);
+    let texts = labels(&pages[0]);
+    assert_eq!(texts.iter().filter(|s| **s == " ").count(), 60);
+    assert_eq!(
+        texts
+            .iter()
+            .filter(|s| **s == "TABLE ON SECOND LINE")
+            .count(),
+        1
+    );
+    assert_eq!(
+        texts
+            .iter()
+            .filter(|s| s.starts_with("AFTER CELL:"))
+            .count(),
+        1
+    );
+    // Actual paint preserves the same table origins, not only a helper value.
+    let xml = roxmltree::Document::parse(pages[0]["svg"].as_str().unwrap()).unwrap();
+    let painted: String = xml
+        .descendants()
+        .filter(|n| n.is_text())
+        .filter_map(|n| n.text())
+        .collect();
+    let ink: String = painted.chars().filter(|c| !c.is_whitespace()).collect();
+    assert!(ink.contains("TABLEONSECONDLINE"));
+}
 fn near(value: &Value, expected: f64) {
     let value = value.as_f64().unwrap();
     assert!((value - expected).abs() < 1e-6, "{value} != {expected}");
