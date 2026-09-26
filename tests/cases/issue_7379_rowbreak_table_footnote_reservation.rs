@@ -675,3 +675,75 @@ fn small_note_queue_reserves_the_actual_painted_footnote_area() {
     assert!(following_lines > 0, "각주 공동 소유 후속 본문을 실제 실행");
     assert_eq!(published, [1, 1], "각주 몸통 누락/중복 금지");
 }
+
+/// 원본 마지막 저장 줄43311+1000+padding282=첫 프레임44593HU.
+/// PDF174는그림66/미치지않음.224)까지,175는나머지표·223..231각주를소유한다.
+#[test]
+fn single_cell_saved_frame_preserves_picture_and_note_page_owners() {
+    let core = core();
+    let first = core.build_page_render_tree(173).expect("174쪽");
+    let next = core.build_page_render_tree(174).expect("175쪽");
+    let following = core.build_page_render_tree(175).expect("176쪽");
+    let a = table_for_para(&first.root, 1822).expect("174쪽첫조각");
+    let b = table_for_para(&next.root, 1822).expect("175쪽꼬리");
+    fn has_image(node: &RenderNode) -> bool {
+        matches!(node.node_type, RenderNodeType::Image(_)) || node.children.iter().any(has_image)
+    }
+    assert!(has_image(a), "그림66은첫저장프레임174쪽소유");
+    assert!(
+        text(a).contains("미치지 않음"),
+        "224번표시를가진첫프레임꼬리문장보존"
+    );
+    assert!(!text(b).contains("미치지 않음"), "첫문장꼬리중복금지");
+    assert!(
+        text(b).contains("연령은 주요한 이식 합병증"),
+        "175쪽마지막셀문단보존"
+    );
+    assert!(
+        table_for_para(&following.root, 1822).is_none(),
+        "176쪽불필요한세번째조각금지"
+    );
+    let area = notes(&next.root).expect("175쪽각주");
+    let body = text(area);
+    for number in 223..=231 {
+        assert_eq!(
+            body.matches(&format!("{number})")).count(),
+            1,
+            "175쪽각주{number}소유"
+        );
+    }
+    assert!(
+        text(&next.root).contains("기증자 비만도"),
+        "표뒤본문175쪽소유"
+    );
+    assert!(
+        b.bbox.y + b.bbox.height <= area.bbox.y + 0.5,
+        "표/각주비충돌"
+    );
+}
+
+/// 같은 Hancom PDF174/175의 외곽선과 뒤 제목 좌표; 페이지 소유만으로 대체하지 않는다.
+#[test]
+fn single_cell_saved_frame_border_and_following_heading_match_pdf() {
+    let core = core();
+    let first = core.build_page_render_tree(173).expect("174쪽");
+    let next = core.build_page_render_tree(174).expect("175쪽");
+    let a = table_for_para(&first.root, 1822).expect("첫프레임");
+    let b = table_for_para(&next.root, 1822).expect("마지막프레임");
+    for (label, actual, expected) in [
+        ("첫위", a.bbox.y, 433.127),
+        ("첫끝", a.bbox.y + a.bbox.height, 1027.036),
+        ("꼬리위", b.bbox.y, 86.945),
+        ("꼬리끝", b.bbox.y + b.bbox.height, 583.361),
+        (
+            "뒤제목",
+            line_top(&next.root, "기증자 비만도").expect("뒤제목줄"),
+            641.061,
+        ),
+    ] {
+        assert!(
+            (actual - expected).abs() <= 1.5,
+            "{label}: 실제{actual}, 독립PDF{expected}"
+        );
+    }
+}

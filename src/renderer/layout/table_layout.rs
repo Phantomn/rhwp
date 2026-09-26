@@ -13983,6 +13983,10 @@ impl LayoutEngine {
     ) -> Option<f64> {
         if !self.profile.get().hwpx_stored_layout()
             || self.profile.get().session_edited()
+            || self
+                .render_normalization
+                .borrow()
+                .table_text_reflowed(table)
             || table.common.treat_as_char
             || !matches!(
                 table.page_break,
@@ -13998,9 +14002,6 @@ impl LayoutEngine {
             return None;
         }
         let cell = &table.cells[0];
-        if cell.vertical_padding_guard_height_hu(table) != table.common.height {
-            return None;
-        }
         let units = self.cell_units(cell, table, styles);
         let end = *end_cut.first()?;
         if end == 0 || end >= units.len() || end_cut.len() != 1 {
@@ -14016,8 +14017,17 @@ impl LayoutEngine {
         }
         let closing_para = cell.paragraphs.get(closing.para_idx)?;
         let next_para = cell.paragraphs.get(next.para_idx)?;
-        if !closing_para.controls.is_empty()
-            || !next_para.controls.is_empty()
+        // Inline note markers belong to the stored text line; their footer
+        // bodies do not add a block to this cell's opening frame. Padding
+        // abnormality and frame ownership are separate contracts: the exact
+        // saved closing line plus insets validates this physical frame.
+        let only_inline_notes = |para: &Paragraph| {
+            para.controls
+                .iter()
+                .all(|control| matches!(control, Control::Footnote(_) | Control::Endnote(_)))
+        };
+        if !only_inline_notes(closing_para)
+            || !only_inline_notes(next_para)
             || closing.vis_end != closing_para.line_segs.len()
         {
             return None;
@@ -14040,6 +14050,51 @@ impl LayoutEngine {
             return None;
         }
         Some(hwpunit_to_px(table.common.height as i32, self.dpi))
+    }
+
+    /// Find the exact source cut before reserving a single-cell note queue.
+    /// The same validator is later consumed by the scanner and painter.
+    pub(crate) fn saved_single_cell_opening_frame_cut(
+        &self,
+        table: &crate::model::table::Table,
+        styles: &ResolvedStyleSet,
+    ) -> Option<(Vec<usize>, f64)> {
+        let cell = table.cells.first()?;
+        let units = self.cell_units(cell, table, styles);
+        (1..units.len()).find_map(|end| {
+            self.saved_single_cell_opening_frame_height(table, 0, &[], &[end], styles)
+                .map(|height| (vec![end], height))
+        })
+    }
+
+    /// The saved single-cell frame owns its anchor line box, while the
+    /// anchor's trailing spacing and outer bottom margin close the host flow.
+    /// A zero-width object-only anchor has no text-line advance (the same
+    /// contract used by caption host spacing), so it must not add this band.
+    /// Consume them once after the terminal fragment, outside the table bbox.
+    pub(crate) fn saved_single_cell_terminal_host_spacing_px(
+        &self,
+        table: &crate::model::table::Table,
+        para: &Paragraph,
+        styles: &ResolvedStyleSet,
+    ) -> f64 {
+        if !para.text.is_empty()
+            || para.controls.len() != 1
+            || para.line_segs.len() != 1
+            || crate::renderer::float_placement::object_only_saved_table_anchor(para, table)
+            || !crate::renderer::float_placement::is_para_topbottom_float(&table.common)
+            || self
+                .saved_single_cell_opening_frame_cut(table, styles)
+                .is_none()
+        {
+            return 0.0;
+        }
+        let line = &para.line_segs[0];
+        if line.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0 {
+            return 0.0;
+        }
+        hwpunit_to_px(table.outer_margin_bottom as i32, self.dpi)
+            + hwpunit_to_px(line.line_spacing, self.dpi)
     }
 
     /// An ordinary cut can stop one line before a saved opening frame ends.

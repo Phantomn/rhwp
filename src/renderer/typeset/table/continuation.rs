@@ -126,7 +126,7 @@ pub(in crate::renderer::typeset) struct BlockTableContinuationPreparedState {
     pub(in crate::renderer::typeset) host_spacing_after_only: f64,
     /// 마지막 RowBreak child 뒤의 저장 empty-host line spacing. 첫 anchor
     /// fragment가 아니라 terminal continuation 뒤에서 한 번만 소비한다.
-    pub(in crate::renderer::typeset) terminal_nested_child_host_line_spacing: f64,
+    pub(in crate::renderer::typeset) terminal_host_spacing: f64,
     pub(in crate::renderer::typeset) strict_following_plain_text_fit: bool,
     pub(in crate::renderer::typeset) budget_para_start_height: f64,
     /// native HWP5 RowBreak 표가 기존 FootnoteArea 직전까지의 물리 경계를

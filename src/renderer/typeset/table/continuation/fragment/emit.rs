@@ -34,8 +34,7 @@ impl TypesetEngine {
         let table_footnotes = &input.prepared.table_footnotes;
         let host_spacing_total = input.prepared.host_spacing_total;
         let host_spacing_after_only = input.prepared.host_spacing_after_only;
-        let terminal_nested_child_host_line_spacing =
-            input.prepared.terminal_nested_child_host_line_spacing;
+        let terminal_host_spacing = input.prepared.terminal_host_spacing;
         let relax_terminal_table_footnote_fit = input.prepared.relax_terminal_table_footnote_fit;
         let cursor_row = input.start.cursor_row;
         let is_continuation = input.start.is_continuation;
@@ -224,7 +223,7 @@ impl TypesetEngine {
                                 + partial_height
                                 + terminal_outer_bottom_overhead
                                 + host_spacing_after_only
-                                + terminal_nested_child_host_line_spacing
+                                + terminal_host_spacing
                                 + spacing_before;
                             (stored_px > st.current_height).then_some(stored_px - projected_px)
                         });
@@ -267,7 +266,7 @@ impl TypesetEngine {
                         + bottom_caption_extra
                         + terminal_outer_bottom_overhead
                         + host_spacing_after_only
-                        + terminal_nested_child_host_line_spacing,
+                        + terminal_host_spacing,
                 );
             }
             commit_fragment(
@@ -442,7 +441,7 @@ impl TypesetEngine {
                 + fragment_outer_bottom_overhead,
         );
         if terminal_cut_consumed {
-            st.advance_flow_by(host_spacing_after_only + terminal_nested_child_host_line_spacing);
+            st.advance_flow_by(host_spacing_after_only + terminal_host_spacing);
             commit_fragment(st, caption_extra + partial_height, true);
             continuation.finish(row_count, true);
             return TableContinuationIteration::Complete;

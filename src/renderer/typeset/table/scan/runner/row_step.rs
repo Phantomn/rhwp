@@ -523,19 +523,30 @@ impl TypesetEngine {
             // fragment instead of reserving it twice (#7406 p34→35).
             let mut saved_opening_frame_height = None;
             if r == cursor_row && !is_continuation && consumed == 0.0 {
-                if let Some((source_cut, frame_height)) = layout_engine
-                    .saved_single_cell_opening_frame_tail(
+                saved_opening_frame_height = layout_engine
+                    .saved_single_cell_opening_frame_height(
                         table,
                         r,
                         row_start_cut,
                         &res.end_cut,
                         styles,
                     )
-                {
-                    if frame_height <= avail_for_rows - cs_before + 0.5 {
-                        budget = source_cut.consumed_height;
-                        res = source_cut;
-                        saved_opening_frame_height = Some(frame_height);
+                    .filter(|height| *height <= avail_for_rows - cs_before + 0.5);
+                if saved_opening_frame_height.is_none() {
+                    if let Some((source_cut, frame_height)) = layout_engine
+                        .saved_single_cell_opening_frame_tail(
+                            table,
+                            r,
+                            row_start_cut,
+                            &res.end_cut,
+                            styles,
+                        )
+                    {
+                        if frame_height <= avail_for_rows - cs_before + 0.5 {
+                            budget = source_cut.consumed_height;
+                            res = source_cut;
+                            saved_opening_frame_height = Some(frame_height);
+                        }
                     }
                 }
             }

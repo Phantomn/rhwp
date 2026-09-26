@@ -56,7 +56,6 @@ pub(crate) fn hwpx_column_rowbreak_fragment_opens_outer_top(
         && is_para_topbottom_float(&table.common)
         && table.common.horz_rel_to == HorzRelTo::Column
         && table.page_break == TablePageBreak::RowBreak
-        && table.row_count > 1
         && table.outer_margin_top > 0
         && ((!is_continuation && start_row == 0 && start_cut.is_empty())
             || (is_continuation && starts_at_column_top))

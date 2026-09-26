@@ -303,15 +303,18 @@ impl TypesetEngine {
         // each note is atomic. A reset inside a note selects its prefix/tail;
         // it is not a prerequisite for deferring other fragments' notes.
         // Keep whole-table reservation in entry and edited/reflowed paths out.
-        let hwpx_stored_multirow_table_footnote_queue = st.profile.hwpx_stored_layout()
+        let hwpx_saved_single_cell_frame = (!ft.table_footnotes.is_empty())
+            .then(|| layout_engine.saved_single_cell_opening_frame_cut(table, styles))
+            .flatten()
+            .filter(|(_, height)| no_table_note_available >= st.current_height + height);
+        let hwpx_stored_table_footnote_queue = st.profile.hwpx_stored_layout()
             && !st.profile.session_edited()
             && !self.render_normalization.table_text_reflowed(table)
             && is_para_topbottom_float(&table.common)
-            && table.row_count > 1
-            && st.col_count == 1;
+            && st.col_count == 1
+            && (table.row_count > 1 || hwpx_saved_single_cell_frame.is_some());
         let queue_table_footnotes = !table.common.treat_as_char
-            && (st.profile.hwp5_stored_pagination_layout()
-                || hwpx_stored_multirow_table_footnote_queue)
+            && (st.profile.hwp5_stored_pagination_layout() || hwpx_stored_table_footnote_queue)
             && matches!(
                 table.page_break,
                 crate::model::table::TablePageBreak::RowBreak
@@ -321,6 +324,7 @@ impl TypesetEngine {
             && ((row_count > 1
                 // 기존 page의 일반 각주는 유지한 채, 표 첫 행만은 실제로 시작할 수 있어야 한다.
                 && no_table_note_available >= st.current_height + cut_row_h[0] + 0.5)
+                || hwpx_saved_single_cell_frame.is_some()
                 || native_hwp5_oversized_single_row_fragment_queues_footnotes
                 || native_hwp5_stored_page_footnote_split);
         if queue_table_footnotes {
@@ -875,6 +879,12 @@ impl TypesetEngine {
             .unwrap_or(usize::MAX);
         #[cfg(target_arch = "wasm32")]
         let continuation_fragment_budget = usize::MAX;
+        let terminal_host_spacing = native_terminal_child_host_line_spacing(
+            self.profile.get().hwp5_stored_pagination_layout(),
+            table,
+            self.dpi,
+        ) + layout_engine
+            .saved_single_cell_terminal_host_spacing_px(table, para, styles);
         let prepared = BlockTableContinuationPreparedState {
             host_placement: fragment_host_placement,
             host_frame,
@@ -898,11 +908,7 @@ impl TypesetEngine {
             host_spacing_total,
             host_spacing_before: ft.host_spacing.before,
             host_spacing_after_only: ft.host_spacing.spacing_after_only,
-            terminal_nested_child_host_line_spacing: native_terminal_child_host_line_spacing(
-                self.profile.get().hwp5_stored_pagination_layout(),
-                table,
-                self.dpi,
-            ),
+            terminal_host_spacing,
             strict_following_plain_text_fit: ft.strict_following_plain_text_fit,
             budget_para_start_height,
             first_fragment_actual_footnote_boundary:

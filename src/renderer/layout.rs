@@ -13973,6 +13973,8 @@ impl LayoutEngine {
                             table,
                             self.dpi,
                         );
+                        y_offset +=
+                            self.saved_single_cell_terminal_host_spacing_px(table, para, styles);
                     }
                 }
             }
