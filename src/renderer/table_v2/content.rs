@@ -242,6 +242,7 @@ impl TableContentPlan {
                             height,
                             advance,
                             tables,
+                            lines,
                         } => {
                             nonnegative(*advance, "inline advance")?;
                             if *advance == 0.0 || *advance > *height {
@@ -251,6 +252,18 @@ impl TableContentPlan {
                             }
                             if tables.is_empty() {
                                 return Err(GeometryError::Unsupported("empty inline group"));
+                            }
+                            for line in lines {
+                                let b = line.bounds;
+                                for v in [b.x, b.y, b.width, b.height] {
+                                    nonnegative(v, "inline text bounds")?;
+                                }
+                                if b.x + b.width > inner_width || b.y + b.height > *height {
+                                    return Err(GeometryError::ContentBounds { row, column });
+                                }
+                                if !owners.insert(line.owner) {
+                                    return Err(GeometryError::DuplicateLineOwner { row, column });
+                                }
                             }
                             for child in tables {
                                 nonnegative(child.x, "inline table x")?;

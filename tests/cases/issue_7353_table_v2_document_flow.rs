@@ -377,7 +377,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         DocumentV2Error::Paragraph {
             index: 5,
             reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "TAC carrier paragraph constraints"
+                "stored text requires intact single-segment rows"
             )
         }
     ));
@@ -2413,6 +2413,205 @@ fn inline_carrier(separate: bool) -> Paragraph {
         })
         .collect();
     para
+}
+
+#[test]
+fn inline_spaces_and_tables_share_the_row_cut_and_physical_insets() {
+    use rhwp::model::{paragraph::LineSeg, style::Alignment};
+    // Independent ownership: space at0, table at1, space at9, table at10,
+    // terminator18. The second object's start includes the intervening space.
+    for nested in [false, true] {
+        for active_indent in [false, true] {
+            for separate in [false, true] {
+                for alignment in [Alignment::Left, Alignment::Center, Alignment::Right] {
+                    let mut carrier = inline_carrier(separate);
+                    carrier.text = "  ".into();
+                    carrier.char_offsets = vec![0, 9];
+                    carrier.char_count = 19;
+                    carrier.para_shape_id = 1;
+                    for (i, row) in carrier.line_segs.iter_mut().enumerate() {
+                        row.column_start = 750;
+                        row.segment_width = 21000;
+                        row.text_start = i as u32 * 9;
+                    }
+                    if active_indent {
+                        carrier.line_segs[0].tag |= LineSeg::TAG_INDENTATION;
+                    }
+                    let mut d =
+                        source(vec![p("before"), p("before2"), carrier.clone(), p("after")]);
+                    let mut style = d.doc_info.para_shapes[0].clone();
+                    style.alignment = alignment;
+                    style.margin_left = 1500; // paragraph margins/indent are doubled HWP units
+                    style.margin_right = 1500;
+                    style.indent = -3000;
+                    d.doc_info.para_shapes.push(style);
+                    if nested {
+                        let mut parent = table(&[], TablePageBreak::CellBreak);
+                        parent.cells[0].width = 22500;
+                        parent.cells[0].paragraphs =
+                            vec![p("before"), p("before2"), carrier, p("after")];
+                        d.sections[0].paragraphs = vec![host("", parent)];
+                    }
+                    let pages = drain(&mut open(&d));
+                    // Before consumes36px of a72px body. The40px occupied inline row
+                    // must defer atomically; neither space nor either child stays behind.
+                    assert!(nodes(&pages[0], "TextRun")
+                        .iter()
+                        .all(|n| n["node_type"]["TextRun"]["text"] != " "));
+                    let all_tables: Vec<_> = pages.iter().flat_map(|p| nodes(p, "Table")).collect();
+                    let children: Vec<_> = all_tables
+                        .into_iter()
+                        .filter(|t| t["bbox"]["width"].as_f64() == Some(80.0))
+                        .collect();
+                    assert_eq!(children.len(), 2);
+                    let spaces: Vec<_> = pages
+                        .iter()
+                        .flat_map(|p| nodes(p, "TextRun"))
+                        .filter(|n| n["node_type"]["TextRun"]["text"] == " ")
+                        .collect();
+                    assert_eq!(spaces.len(), 2);
+                    // Stored margin10px plus flagged20px. Dormant hanging indent does not shift row0.
+                    let x = |n: &Value| n["bbox"]["x"].as_f64().unwrap();
+                    let width = |n: &Value| n["bbox"]["width"].as_f64().unwrap();
+                    let inset = if active_indent { 20.0 } else { 0.0 };
+                    let factor = match alignment {
+                        Alignment::Left => 0.0,
+                        Alignment::Center => 0.5,
+                        _ => 1.0,
+                    };
+                    let occupied = if separate {
+                        84.0 + width(spaces[0])
+                    } else {
+                        168.0 + width(spaces[0]) + width(spaces[1])
+                    };
+                    near(
+                        &spaces[0]["bbox"]["x"],
+                        30.0 + inset + factor * (280.0 - inset - occupied),
+                    );
+                    near(
+                        &children[0]["bbox"]["x"],
+                        x(spaces[0]) + width(spaces[0]) + 2.0,
+                    );
+                    if separate {
+                        near(
+                            &spaces[1]["bbox"]["x"],
+                            30.0 + factor * (280.0 - 84.0 - width(spaces[1])),
+                        );
+                        assert_eq!(
+                            nodes(&pages[1], "TextRun")
+                                .iter()
+                                .filter(|n| n["node_type"]["TextRun"]["text"] == " ")
+                                .count(),
+                            1
+                        );
+                    } else {
+                        near(&spaces[1]["bbox"]["x"], x(children[0]) + 80.0 + 2.0);
+                    }
+                    near(
+                        &children[1]["bbox"]["x"],
+                        x(spaces[1]) + width(spaces[1]) + 2.0,
+                    );
+                    near(&children[0]["bbox"]["y"], 32.0);
+                    near(&children[1]["bbox"]["y"], 32.0);
+                    for text in ["before", "after", "A", "a", "B", "b"] {
+                        assert_eq!(
+                            pages.iter().flat_map(labels).filter(|s| *s == text).count(),
+                            1
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn inline_spaces_reject_stale_axis_painted_text_and_unqualified_rows() {
+    for kind in 0..6 {
+        let mut carrier = inline_carrier(false);
+        carrier.text = " ".into();
+        carrier.char_offsets = vec![0];
+        carrier.char_count = 18;
+        match kind {
+            0 => carrier.char_offsets[0] = 2, // incomplete source coverage
+            1 => carrier.text = "x".into(),
+            2 => carrier.text = "\t".into(),
+            3 => carrier.line_segs[0].segment_width = 12600, // tables alone fit, space does not
+            4 => {
+                carrier.line_segs.clear();
+            } // edited/recomposed stream is not a stored row
+            _ => {
+                carrier = inline_carrier(true);
+                carrier.text = "  ".into();
+                carrier.char_offsets = vec![0, 9];
+                carrier.char_count = 19;
+                carrier.line_segs[1].text_start = 9;
+                // Justified non-final mixed rows require a distribution result.
+            }
+        }
+        let d = source(vec![carrier]);
+        assert!(
+            DocumentV2Session::from_bytes(&bytes(&d), TERMINAL_OPTIONS).is_err(),
+            "kind={kind}"
+        );
+    }
+}
+
+#[test]
+fn hancom_saved_space_before_tac_preserves_child_and_following_origins() {
+    let input = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue7353_tac_space_review/space-saved.hwp"
+    ))
+    .unwrap();
+    let source = rhwp::parse_document(&input).unwrap();
+    let Control::Table(parent) = &source.sections[0].paragraphs[0].controls[2] else {
+        panic!()
+    };
+    let carrier = &parent.cells[0].paragraphs[0];
+    assert_eq!(carrier.text, " ");
+    assert_eq!(carrier.char_offsets, [0]);
+    assert_eq!(carrier.control_text_positions(), [1]);
+    assert_eq!(
+        source.doc_info.para_shapes[carrier.para_shape_id as usize].indent,
+        -4624
+    );
+    assert!(!carrier.line_segs[0].has_indentation());
+    let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    assert_eq!(
+        labels(&pages[0]),
+        [
+            " ",
+            "SPACE BEFORE TABLE",
+            "AFTER CELL: no missing or duplicated text"
+        ]
+    );
+    let tables = nodes(&pages[0], "Table");
+    assert_eq!(tables.len(), 2);
+    near(&tables[0]["bbox"]["x"], 5669.0 / 75.0);
+    near(&tables[0]["bbox"]["y"], 7087.0 / 75.0);
+    near(&tables[0]["bbox"]["height"], 15000.0 / 75.0);
+    let runs = nodes(&pages[0], "TextRun");
+    let space = runs[0];
+    near(&space["bbox"]["x"], (5669.0 + 283.0) / 75.0);
+    near(&space["bbox"]["height"], 5000.0 / 75.0);
+    near(&space["node_type"]["TextRun"]["baseline"], 4250.0 / 75.0);
+    near(
+        &tables[1]["bbox"]["x"],
+        space["bbox"]["x"].as_f64().unwrap() + space["bbox"]["width"].as_f64().unwrap(),
+    );
+    near(&tables[1]["bbox"]["y"], (7087.0 + 283.0) / 75.0);
+    near(&tables[1]["bbox"]["height"], 5000.0 / 75.0);
+    // Independent Hancom PDF vertical strokes: parent x56.609375pt,
+    // child x66.804688pt. Allow one300dpi printer dot, not a page-count baseline.
+    let delta = tables[1]["bbox"]["x"].as_f64().unwrap() - tables[0]["bbox"]["x"].as_f64().unwrap();
+    assert!((delta - (66.804688 - 56.609375) * 96.0 / 72.0).abs() < 96.0 / 300.0);
+    let after = &source.sections[0].paragraphs[1].line_segs[0];
+    near(
+        &runs[2]["bbox"]["y"],
+        (7087.0 + f64::from(after.vertical_pos)) / 75.0,
+    );
 }
 
 #[test]

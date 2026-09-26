@@ -34,6 +34,8 @@ pub enum ParagraphItem {
         height: f64,
         advance: f64,
         tables: Vec<(usize, Rect)>,
+        /// Text payloads sharing this atomic row and its single flow advance.
+        lines: Vec<(usize, Rect)>,
     },
 }
 
@@ -301,6 +303,7 @@ fn bind_table(
                             height,
                             advance,
                             tables,
+                            lines,
                         } => {
                             let mut bound = Vec::new();
                             for (ci, rect) in tables {
@@ -332,6 +335,16 @@ fn bind_table(
                                 height,
                                 advance,
                                 tables: bound,
+                                lines: lines
+                                    .into_iter()
+                                    .map(|(line, bounds)| LineBox {
+                                        owner: LineOwner {
+                                            paragraph: pi,
+                                            line,
+                                        },
+                                        bounds,
+                                    })
+                                    .collect(),
                             });
                         }
                     }

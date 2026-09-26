@@ -30,6 +30,7 @@ mod pictures;
 mod session;
 mod stored_text;
 mod tac;
+mod tac_spaces;
 mod text;
 mod text_flow;
 mod text_ir;

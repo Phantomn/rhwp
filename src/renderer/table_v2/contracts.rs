@@ -90,6 +90,7 @@ pub enum FlowBlock {
         /// Next flow origin; signed source spacing can make this less than height.
         advance: f64,
         tables: Vec<InlineTableInput>,
+        lines: Vec<LineBox>,
     },
     Table {
         owner: ControlOwner,

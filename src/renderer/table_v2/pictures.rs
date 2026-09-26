@@ -93,6 +93,12 @@ pub(super) fn compose(
 ) -> Result<(Vec<ParagraphItem>, Vec<RenderNode>), GeometryError> {
     let style = super::tac::carrier_style(para, styles)?;
     let scale = dpi / 7200.0;
+    // Table-space composition does not qualify the picture inset paint path.
+    if style.margin_left != 0.0 || style.margin_right != 0.0 || style.indent != 0.0 {
+        return Err(GeometryError::Unsupported(
+            "TAC carrier paragraph constraints",
+        ));
+    }
     let rows = super::tac::stored_object_rows(para, width / scale, style.alignment, true)?;
     let mut items = vec![ParagraphItem::Space(style.spacing_before)];
     let mut nodes = Vec::new();

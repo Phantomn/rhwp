@@ -93,6 +93,7 @@ impl FlowCursor {
                     height,
                     advance,
                     tables,
+                    lines,
                 } => {
                     if area.y + pen + height > area.y + area.height {
                         result.required = *height;
@@ -122,6 +123,15 @@ impl FlowCursor {
                         });
                     }
                     result.tables.extend(placed);
+                    result.lines.extend(lines.iter().map(|line| LinePlacement {
+                        owner: line.owner,
+                        bounds: Rect {
+                            x: area.x + line.bounds.x,
+                            y: area.y + pen + line.bounds.y,
+                            width: line.bounds.width,
+                            height: line.bounds.height,
+                        },
+                    }));
                     result.height = result.height.max(pen + height);
                     pen += advance;
                 }

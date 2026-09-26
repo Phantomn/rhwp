@@ -2887,3 +2887,97 @@ CARGO_BUILD_JOBS=2 cargo nextest run --locked --cargo-profile release-test \
 OOM 기록 부재를 확인하고 캐시로 재개한 위214건 결과만 최종 결과다. nextest0.9.137/권고0.9.140 및
 기존 설정 경고는 남는다. 최종 신규3건이 실제 실행 목록에 있음을 확인했다. source manifest3건,
 fmt check와 diff check도 통과했다. 검증 뒤 제품 코드 변경은 없다.
+
+### 다음 절편: 저장 TAC 줄의 실제 공백과 문단 안쪽 경계
+
+메인테이너의 직전 시각 통과를 반영해 `362f31d61`로 checkpoint를 커밋했다.
+이번 변경은 그 위의 작업 패치이며 legacy 기본 경로는 유지한다.
+
+원본 #6923의 다음 거부 대상은 `s0/p5/t0/c0/p7`이다. 이는 빈 carrier가 아니라
+offset0에 보통 공백 한 글자, offset1에 표 control이 있는 문단이다. 내어쓰기-4624HU가
+있지만 첫 저장 줄에는 indentation flag가 없다. 공백을 삭제하거나 내어쓰기를 무조건
+적용하는 대신 원본 소유 위치와 실제 글자 폭을 보존해야 한다.
+
+구현과 소비 경로:
+
+- `tac_spaces::compose`: 기존 글꼴/문자 위치 계산으로 ASCII 공백의 advance와 TextRun을
+  함께 만든다. tab·NBSP·가시 문자·장식 공백은 이번 범위로 임의 수용하지 않는다.
+- `tac::physical_frame` → `object_rows`: 저장 cs/sw의 문단 여백을 검증하고, bit20이 있는
+  줄에만 indent를 반영한다. 공백과8unit control의 연속 source coverage, 줄 소속,
+  바깥여백, 정렬을 같은 결과로 만든다. 공백 폭도 표 앞/사이/뒤 정렬 예산에 포함한다.
+- `tac::compose` → `ir`/`document_input`: 같은 저장 줄 상자와 TextRun을
+  `InlineTables.lines`에 바인딩한다. 공백의 no-ink 상자는 저장 줄 높이·baseline을 가진다.
+- `FlowCursor`는 줄 전체 점유 높이가 예산에 맞고 자식 표가 모두 수용된 뒤에만 같은
+  pen에서 표와 공백 줄을 방출한다. 요구 높이가 안 맞으면 전체 줄을 이월하며 이중 예약하지
+  않는다. `text_ir`와 문서 paint는 이 소유 payload/배치를 그대로 소비한다.
+- 혼합 공백의 non-final Justify 줄은 분배 결과가 없으므로 명시적으로 미지원이다.
+  그림 carrier의 여백/indent는 별도 경로이므로 기존 거부 조건을 유지했다.
+
+독립 근거/검증:
+
+- `tests/cases/issue_7353_table_v2_document_flow.rs`에 body/nested × indentation flag
+  유/무 × 같은/별도 저장 줄 × Left/Center/Right의24조합을 추가했다. 표 자체36px만 fit하고
+  줄 점유40px는 fit하지 않는 경계에서 source 유닛 보존, 정확한 최종 좌표, 다음 문단을
+  검사한다. source hole·가시 문자·tab·공백 포함 너비 초과·fresh·non-final Justify는 거부한다.
+- 수정 전 lib에서 신규 positive 계약이 `TAC carrier paragraph constraints`로 FAIL
+  (`tac-insets/test-before.log`). 최종 direct document-flow 계약은 **65 passed /0 failed**
+  (`document-final.log`). 정상 한컴 저장 대조군도 이전 Native에서 같은 carrier 사유로
+  거부됐다 (`before-fixture.log`). 빌드 실패를 결함 검출 증거로 세지 않는다.
+- `tests/fixtures/issue7353_tac_space_review/README.md`에 생성 출처·변경점·입력/PDF 해시를
+  기록했다. 원본 carrier 속성을 가져오되 읽을 수 있는1×1표와 평문 부모/뒤 본문으로
+  독립 작성한 대조군을 한컴에서 정상 저장하고, **동일 저장 HWP**에서 PDF를 얻었다.
+  저장 LineSeg를 수동 편집하지 않았다.
+- PDF 부모/자식 왼쪽 선의 상대 간격은13.59375px, Native는13.573333px이다(96dpi).
+  PDF 양자화 비교 예산은300dpi 프린터 한 dot이고, 원본 치수·공백/표 인접성은 별도 정확
+  좌표 assertion으로 검사한다. 합성24조합 통과를 전부 한컴 시각 일치로 주장하지 않는다.
+
+원본 전체는 이제 다음 자식의 `stored text requires intact single-segment rows`에서 거부된다.
+해당 빈 셀의 가용 폭은1303−510−510=283HU지만 저장 줄 폭은1440HU다. 이는 별도 조사할
+입력/저장 폭 경계이며 이번 대조군 통과로 원본 전체 통과나 R5 완료를 선언하지 않는다.
+초기 대조군 작성 시 폭/페이지 장식/문자 baseline 제약이 발견된 입력은 output에 보존했고,
+수용 조건을 완화하지 않았다. 정상 재작성 절차와 차이는 fixture README에 구분했다.
+
+최종 검증 (`output/7353/r19/tac-insets/`):
+
+- `focused-qualified.log`: **199 passed /0 failed /1532 skipped**. 최종 신규3건의 실행을
+  확인했다. review worktree에서 동기화 완료 후 다음 명령을 실행했다.
+
+  ```sh
+  CARGO_BUILD_JOBS=2 cargo nextest run --locked --cargo-profile release-test \
+    --test regression_suite_002 --test regression_suite_003 \
+    --test regression_suite_004 --test regression_suite_005 \
+    --test regression_suite_015 --test regression_suite_017 \
+    --test regression_suite_027 --test regression_suite_028 \
+    -E 'test(issue_7353_table_v2) | test(issue_4755) | test(issue_6102) | test(issue_3128)' \
+    --no-fail-fast --target-dir /home/edward/mygithub/rhwp/target/pr-review
+  ```
+
+  이는 이번 집중 범위이며 전체 CI가 아니다. nextest 권고 버전/기존 설정 경고는 남는다.
+- `docker compose --env-file .env.docker -p rhwp run --rm wasm`: **성공7분46초**
+  (`docker-wasm-qualified.log`). fresh WASM SHA-256:
+  `1bcac26bd60c47b93c4333261ca425d48e979b3dbcb82673b3b72d9534885f55`.
+- final debug Native probe → `node output/7353/r19/tac-insets/review.mjs --wasm`
+  → `focus.mjs native`, `focus.mjs wasm`: 동일 입력1쪽, SVG byte-identical,
+  JSON 비수치 차이0, 수치 차이7개/최대2.2737367544323206e-13.
+  `source.sha256`11개 source/test 해시와 `review/run.json`에 source checkpoint+패치를 고정했다.
+- `node output/7353/r19/tac-insets/controls.mjs`: 기존 승인 diagonal/저장 indent/fresh
+  indent/직전 justify × 끝 간격 정책2종 = **8조합**에서 기존 Native SVG 보존 및
+  fresh WASM SVG 동일성 통과 (`controls.log`).
+- 최종 Native/fresh WASM 전체 review·동일 영역 확대 review·standalone overlay를 직접
+  열어 부모/자식 표 시작·외곽과 `AFTER CELL` 위치·보존을 확인했다. 한컴 쪽 선이 더 진하고
+  글리프 외형 차이가 남는다. 픽셀 점수를 시각 통과 판정으로 대신하지 않았다.
+- `cargo fmt --all -- --check`, `git diff --check`, source manifest 검증 통과.
+  중간 코드 변경으로 중단한 빌드/검사는 최종 증거에 포함하지 않는다. 검증 뒤 제품 코드 변경 없음.
+
+이번 절편 메인테이너 판정 요청:
+
+- [같은 영역 확대 review](../../output/7353/r19/tac-insets/review/wasm-focus-review.png)
+- [fresh WASM 전체 review](../../output/7353/r19/tac-insets/review/wasm-review-1.png)
+- [standalone overlay](../../output/7353/r19/tac-insets/review/wasm-overlay-1.png)
+- [한컴 저장 HWP 대조군](../../tests/fixtures/issue7353_tac_space_review/space-saved.hwp)
+- [동일 HWP의 한컴 PDF](../../tests/fixtures/issue7353_tac_space_review/space-2020.pdf)
+
+확인할 대상은 `부모 셀 여백 → 실제 공백1칸 → 자식 표 왼쪽`과 뒤 문단이다.
+전체 PR lint/CI·원격 게시·기본 엔진 전환은 수행하지 않았으며, 이번 새 절편의 메인테이너
+시각 판정은 대기한다.
+메인테이너가 이번 TAC 공백/들여쓰기 절편의 시각 판정 통과와 다음 절편 진행을 승인했다.

@@ -174,15 +174,26 @@ pub(super) fn prepare(
                 _ => false,
             })
         {
-            for item in super::paragraph_end::into_flow_items(
-                super::tac::compose(source, body.width, &styles, dpi).map_err(fail)?,
-            ) {
+            let (items, nodes) =
+                super::tac::compose(source, body.width, &styles, dpi).map_err(fail)?;
+            for (line, node) in nodes.into_iter().enumerate() {
+                lines.insert(
+                    LineOwner {
+                        paragraph: pi,
+                        line,
+                    },
+                    (order, node),
+                );
+                order += 1;
+            }
+            for item in super::paragraph_end::into_flow_items(items) {
                 match item {
                     ParagraphItem::Space(h) => blocks.push(FlowBlock::Space(h)),
                     ParagraphItem::InlineTables {
                         height,
                         advance,
                         tables: owned,
+                        lines: inline_lines,
                     } => {
                         let mut bound = Vec::new();
                         for (ci, rect) in owned {
@@ -211,6 +222,16 @@ pub(super) fn prepare(
                             height,
                             advance,
                             tables: bound,
+                            lines: inline_lines
+                                .into_iter()
+                                .map(|(line, bounds)| LineBox {
+                                    owner: LineOwner {
+                                        paragraph: pi,
+                                        line,
+                                    },
+                                    bounds,
+                                })
+                                .collect(),
                         });
                     }
                     _ => return Err(fail(GeometryError::InconsistentAtomicPlan)),

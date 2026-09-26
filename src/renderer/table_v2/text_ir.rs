@@ -76,7 +76,8 @@ impl CellParagraphComposer for IrTextComposer<'_> {
                     slots.extend(lines.iter().map(|(line, _)| PaintSlot::Line(*line)))
                 }
                 ParagraphItem::TableControl(ci) => slots.push(PaintSlot::Table(*ci)),
-                ParagraphItem::InlineTables { tables, .. } => {
+                ParagraphItem::InlineTables { tables, lines, .. } => {
+                    slots.extend(lines.iter().map(|(line, _)| PaintSlot::Line(*line)));
                     slots.extend(tables.iter().map(|(ci, _)| PaintSlot::Table(*ci)));
                 }
                 ParagraphItem::Space(_) | ParagraphItem::End(_) => {}
@@ -124,8 +125,8 @@ impl IrTextComposer<'_> {
             .iter()
             .all(|c| matches!(c, Control::Table(t) if t.common.treat_as_char))
         {
-            let items = super::tac::compose(para, width, self.text.styles, self.text.dpi)?;
-            self.text.payloads.borrow_mut().push(Vec::new());
+            let (items, nodes) = super::tac::compose(para, width, self.text.styles, self.text.dpi)?;
+            self.text.payloads.borrow_mut().push(nodes);
             return Ok(items);
         }
         if !para.line_segs.is_empty() {

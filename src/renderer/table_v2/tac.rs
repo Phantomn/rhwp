@@ -6,6 +6,7 @@ use crate::model::{
     paragraph::{LineSeg, Paragraph},
     style::Alignment,
 };
+use crate::renderer::render_tree::{BoundingBox, RenderNode, RenderNodeType, TextLineNode};
 use crate::renderer::style_resolver::ResolvedStyleSet;
 use std::sync::Arc;
 
@@ -18,6 +19,7 @@ pub struct StoredTacRow {
     pub height: f64,
     pub spacing: f64,
     pub tables: Vec<(usize, Rect)>,
+    pub spaces: Vec<(usize, Rect)>,
 }
 
 fn unsupported() -> GeometryError {
@@ -79,7 +81,46 @@ pub(super) fn stored_object_rows(
     alignment: Alignment,
     pictures: bool,
 ) -> Result<Vec<StoredTacRow>, GeometryError> {
-    if !complete_stream(para)
+    object_rows(para, width_hu, alignment, pictures, &[])
+}
+
+fn object_rows(
+    para: &Paragraph,
+    width_hu: f64,
+    alignment: Alignment,
+    pictures: bool,
+    spaces: &[super::tac_spaces::SpaceRun],
+) -> Result<Vec<StoredTacRow>, GeometryError> {
+    let positions = para.control_utf16_positions();
+    let complete = if spaces.is_empty() {
+        complete_stream(para)
+    } else {
+        let mut spans: Vec<_> = positions
+            .iter()
+            .map(|&p| (p, 8u32))
+            .chain(spaces.iter().map(|s| (s.position, 1)))
+            .collect();
+        spans.sort_unstable();
+        let mut end = 0u32;
+        let contiguous = spans.iter().all(|&(p, n)| {
+            if p != end {
+                return false;
+            }
+            let Some(next) = end.checked_add(n) else {
+                return false;
+            };
+            end = next;
+            true
+        });
+        contiguous
+            && end.checked_add(1) == Some(para.char_count)
+            && positions.len() == para.controls.len()
+            && para.controls.iter().all(Control::occupies_ctrl_char_slot)
+            && para.title_marks.is_empty()
+            && para.field_ranges.is_empty()
+            && para.orphan_field_ends.is_empty()
+    };
+    if !complete
         || para.stored_text_partition_is_dirty()
         || para.source_line_seg_vertical_pos.is_some()
         || para.layout_only_fill_lines != 0
@@ -106,8 +147,15 @@ pub(super) fn stored_object_rows(
     let mut rows = Vec::new();
     for (i, row) in para.line_segs.iter().enumerate() {
         if row.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
-            || !para.line_seg_text_start(i).is_multiple_of(8)
-            || u64::from(para.line_seg_text_start(i)) > para.controls.len() as u64 * 8
+            || (if spaces.is_empty() {
+                !para.line_seg_text_start(i).is_multiple_of(8)
+                    || u64::from(para.line_seg_text_start(i)) > para.controls.len() as u64 * 8
+            } else {
+                !positions.contains(&para.line_seg_text_start(i))
+                    && !spaces
+                        .iter()
+                        .any(|s| s.position == para.line_seg_text_start(i))
+            })
             || row.tag & LineSeg::TAG_SINGLE_SEGMENT_LINE != LineSeg::TAG_SINGLE_SEGMENT_LINE
             || row.line_height <= 0
             || row.baseline_distance < 0
@@ -131,6 +179,7 @@ pub(super) fn stored_object_rows(
             height: f64::from(row.line_height),
             spacing: f64::from(row.line_spacing),
             tables: Vec::new(),
+            spaces: Vec::new(),
         });
     }
     for (ci, ctrl) in para.controls.iter().enumerate() {
@@ -155,7 +204,7 @@ pub(super) fn stored_object_rows(
         if margins.iter().any(|v| *v < 0) {
             return Err(unsupported());
         }
-        let position = u32::try_from(ci).map_err(|_| unsupported())? * 8;
+        let position = positions[ci];
         let li = (0..rows.len())
             .rfind(|&i| para.line_seg_text_start(i) <= position)
             .ok_or_else(unsupported)?;
@@ -163,11 +212,22 @@ pub(super) fn stored_object_rows(
         if f64::from(a.height) + f64::from(margins[2]) + f64::from(margins[3]) != row.height {
             return Err(GeometryError::Unsupported("unequal TAC occupied envelopes"));
         }
-        let pen = if let Some((previous, r)) = row.tables.last() {
+        let mut pen = if let Some((previous, r)) = row.tables.last() {
             r.x + r.width + f64::from(object_box(&para.controls[*previous], pictures)?.1[1])
         } else {
             0.0
         };
+        let start = row
+            .tables
+            .last()
+            .map_or(para.line_seg_text_start(li), |(previous, _)| {
+                positions[*previous] + 8
+            });
+        pen += spaces
+            .iter()
+            .filter(|s| s.position >= start && s.position < position)
+            .map(|s| s.width_hu)
+            .sum::<f64>();
         row.tables.push((
             ci,
             Rect {
@@ -184,15 +244,31 @@ pub(super) fn stored_object_rows(
         };
         let (_, margins) = object_box(&para.controls[*ci], pictures)?;
         let source_row = &para.line_segs[row.source_line];
-        let free =
-            f64::from(source_row.segment_width) - last.x - last.width - f64::from(margins[1]);
+        let stop = rows_stop(para, row.source_line);
+        let trailing: f64 = spaces
+            .iter()
+            .filter(|s| s.position >= positions[*ci] + 8 && s.position < stop)
+            .map(|s| s.width_hu)
+            .sum();
+        let free = f64::from(source_row.segment_width)
+            - last.x
+            - last.width
+            - f64::from(margins[1])
+            - trailing;
         if free < 0.0 {
             return Err(GeometryError::Unsupported("TAC row exceeds stored width"));
         }
         let offset = f64::from(source_row.column_start)
             + match alignment {
                 Alignment::Left => 0.0,
-                Alignment::Justify if row.tables.len() == 1 => 0.0,
+                // Non-final mixed rows can distribute word spaces. Their
+                // justification result is not supplied by this saved-box query.
+                Alignment::Justify
+                    if row.tables.len() == 1
+                        && (spaces.is_empty() || row.source_line + 1 == para.line_segs.len()) =>
+                {
+                    0.0
+                }
                 Alignment::Center => free / 2.0,
                 Alignment::Right => free,
                 _ => return Err(GeometryError::Unsupported("TAC paragraph alignment")),
@@ -200,8 +276,51 @@ pub(super) fn stored_object_rows(
         for (_, r) in &mut row.tables {
             r.x += offset;
         }
+        for (si, space) in spaces.iter().enumerate().filter(|(_, s)| {
+            s.position >= para.line_seg_text_start(row.source_line) && s.position < stop
+        }) {
+            let before_tables: f64 = row
+                .tables
+                .iter()
+                .filter(|(ci, _)| positions[*ci] < space.position)
+                .map(|(ci, r)| {
+                    let (_, m) = object_box(&para.controls[*ci], pictures).unwrap();
+                    r.width + f64::from(m[0]) + f64::from(m[1])
+                })
+                .sum();
+            let before_spaces: f64 = spaces
+                .iter()
+                .filter(|s| {
+                    s.position >= para.line_seg_text_start(row.source_line)
+                        && s.position < space.position
+                })
+                .map(|s| s.width_hu)
+                .sum();
+            row.spaces.push((
+                si,
+                Rect {
+                    x: offset + before_tables + before_spaces,
+                    y: 0.0,
+                    width: space.width_hu,
+                    height: row.height,
+                },
+            ));
+        }
+    }
+    if rows.iter().map(|r| r.spaces.len()).sum::<usize>() != spaces.len() {
+        return Err(GeometryError::Unsupported(
+            "TAC spaces without occupied object row",
+        ));
     }
     Ok(rows)
+}
+
+fn rows_stop(para: &Paragraph, line: usize) -> u32 {
+    if line + 1 < para.line_segs.len() {
+        para.line_seg_text_start(line + 1)
+    } else {
+        para.char_count
+    }
 }
 
 fn object_box(
@@ -252,9 +371,6 @@ pub(super) fn carrier_style<'a>(
         || style.keep_with_next
         || style.widow_orphan
         || style.page_break_before
-        || style.margin_left != 0.0
-        || style.margin_right != 0.0
-        || style.indent != 0.0
     {
         return Err(GeometryError::Unsupported(
             "TAC carrier paragraph constraints",
@@ -265,15 +381,59 @@ pub(super) fn carrier_style<'a>(
     Ok(style)
 }
 
+fn physical_frame(
+    para: &Paragraph,
+    width: f64,
+    style: &crate::renderer::style_resolver::ResolvedParaStyle,
+    dpi: f64,
+) -> Result<Paragraph, GeometryError> {
+    // Margins already belong to saved cs/sw. Only the stored indentation flag
+    // requests an additional inset; never apply hanging indentation to row 0 by guess.
+    let scale = dpi / 7200.0;
+    let mut local = para.clone();
+    for row in &mut local.line_segs {
+        let left = f64::from(row.column_start) * scale;
+        let right = left + f64::from(row.segment_width) * scale;
+        if !style.margin_left.is_finite()
+            || !style.margin_right.is_finite()
+            || !style.indent.is_finite()
+            || style.margin_left < 0.0
+            || style.margin_right < 0.0
+            || (left < style.margin_left && !same(left, style.margin_left))
+            || (right > width - style.margin_right && !same(right, width - style.margin_right))
+        {
+            return Err(unsupported());
+        }
+        if row.has_indentation() {
+            let inset = style.indent.abs() / scale;
+            if inset > f64::from(i32::MAX)
+                || !same(inset, inset.round())
+                || inset >= f64::from(row.segment_width)
+            {
+                return Err(unsupported());
+            }
+            row.column_start = row
+                .column_start
+                .checked_add(inset.round() as i32)
+                .ok_or_else(unsupported)?;
+            row.segment_width -= inset.round() as i32;
+        }
+    }
+    Ok(local)
+}
+
 pub(super) fn compose(
     para: &Paragraph,
     width: f64,
     styles: &ResolvedStyleSet,
     dpi: f64,
-) -> Result<Vec<ParagraphItem>, GeometryError> {
+) -> Result<(Vec<ParagraphItem>, Vec<RenderNode>), GeometryError> {
     let style = carrier_style(para, styles)?;
     let scale = dpi / 7200.0;
-    let rows = stored_tac_rows(para, width / scale, style.alignment)?;
+    let local = physical_frame(para, width, style, dpi)?;
+    let spaces = super::tac_spaces::compose(para, styles, dpi)?;
+    let rows = object_rows(&local, width / scale, style.alignment, false, &spaces)?;
+    let mut nodes = Vec::new();
     let mut items = vec![ParagraphItem::Space(style.spacing_before)];
     let mut end = 0.0;
     for (i, row) in rows.iter().enumerate() {
@@ -299,9 +459,46 @@ pub(super) fn compose(
             }
             items.push(ParagraphItem::Space(row.height * scale));
         } else {
+            let mut lines = Vec::new();
+            if !row.spaces.is_empty() {
+                let source = &local.line_segs[row.source_line];
+                let bounds = Rect {
+                    x: f64::from(source.column_start) * scale,
+                    y: 0.0,
+                    width: f64::from(source.segment_width) * scale,
+                    height: row.height * scale,
+                };
+                let mut node = RenderNode::new(
+                    0,
+                    RenderNodeType::TextLine(TextLineNode::new(
+                        bounds.height,
+                        f64::from(source.baseline_distance) * scale,
+                    )),
+                    BoundingBox::new(bounds.x, 0.0, bounds.width, bounds.height),
+                );
+                for (si, r) in &row.spaces {
+                    let mut child = spaces[*si].node.clone();
+                    if child.bbox.height > bounds.height {
+                        return Err(unsupported());
+                    }
+                    child.bbox.x = r.x * scale;
+                    child.bbox.y = 0.0;
+                    // A no-ink space owns its advance across this stored line's
+                    // ascent/descent, not a font-height box with a baseline
+                    // outside it when an inline object raises the line.
+                    child.bbox.height = bounds.height;
+                    if let RenderNodeType::TextRun(run) = &mut child.node_type {
+                        run.baseline = f64::from(source.baseline_distance) * scale;
+                    }
+                    node.children.push(child);
+                }
+                lines.push((nodes.len(), bounds));
+                nodes.push(node);
+            }
             items.push(ParagraphItem::InlineTables {
                 height: row.height * scale,
                 advance: advance * scale,
+                lines,
                 tables: row
                     .tables
                     .iter()
@@ -330,7 +527,7 @@ pub(super) fn compose(
     tail.push(style.spacing_after);
     let ending = super::ParagraphEnd::from_composed(&items, tail, style.spacing_after)?;
     items.push(ParagraphItem::End(ending));
-    Ok(items)
+    Ok((items, nodes))
 }
 
 pub(super) fn bind(
