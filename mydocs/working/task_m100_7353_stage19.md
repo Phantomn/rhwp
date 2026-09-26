@@ -3128,3 +3128,75 @@ fresh 재조판·가시 텍스트 혼재·어울림·여러 앵커·비영 세�
 
 메인테이너 시각 판정 대기. 전체 PR lint/CI·원격 게시·기본 엔진 전환은 수행하지 않았다.
 메인테이너가 셀 내부 자리차지 표·후속 빈 문단 절편의 시각 판정 통과와 다음 절편 진행을 승인했다.
+
+### 후속 절편: 병합 셀 최소 높이의 부동소수점 오판 제거
+
+직전 승인 범위를 `893e8bc99`로 커밋했다. #6923의 다음 실패는 동일 자식
+`s0/p5/t0/c0/p26/t0`의 `rowspan height needs redistribution`이었다.
+최초에는 선언 행 높이1382 HU를 기준으로 재분배가 필요하다고 추정했으나, 실제 실행에서
+각 행은 저장 줄1200 HU+위·아래 여백141 HU씩으로1482 HU였다. 첫3행의 합4446 HU와
+`구 분` 병합 셀 최소4446 HU는 같은 높이다. 재분배 필요라는 진단을 철회한다.
+
+`content.rs::TableContentPlan::from_grid_rows`에서 실제 합은59.27999999999999403px,
+최소 높이는59.28000000000000114px였다. 최소 높이 비교에만 합산 항 수와
+`f64::EPSILON`에 비례하는 연산 오차 범위를 적용했다. 행 높이·내용 높이·배치 좌표는
+변경하지 않으며, 물리 내용의 초과와 페이지 예산 비교는 여전히 엄격하다.
+실제 부족분을 행 축소나 임의 배분으로 통과시키는 구현이 아니다.
+
+| 실제 호출 경로 | 이번 변경과 경계 검증 |
+| --- | --- |
+| 저장 셀·줄 메트릭 → `text_ir.rs`/`ir.rs` → `content.rs::from_grid_rows` | 기존 구성 결과로 비병합 행의 높이를 먼저 확정한다. 병합 셀 선언 최소와 그 행 합의 수치 비교만 변경한다. |
+| `fragment.rs::fit_rows` → `fragment/row_groups.rs::fit_row_groups` | 확정된 행 높이로 연결된 병합 그룹의 요구 높이와 누적 예약을 계산한다.4445 HU에서는 이월하고4446 HU에서는 첫 그룹을 수용한다. 컷·내용/물리 밴드·padding 계산은 변경하지 않는다. |
+| `TextFragmentPlan::append_to` → `TextPaint::build_node` | 같은 placement의 실제 셀 y/height와 표 높이를 검사한다. 각 셀 소유가 한 번씩 보존되고 마지막 조각 뒤 Complete가 되는지 확인한다. |
+| 다른 경로 | 실제 최소 높이1/100/10000 HU 추가는 기존 오류로 거부한다. 셀 내부 줄 분할·반복 헤더·캡션/각주 정책은 수정하지 않았다. |
+
+새 정식 계약은 `tests/cases/issue_7353_rowspan_roundoff.rs`다. 승인 head 라이브러리에서는
+의도한 최소 높이 오류로 FAIL(`test-before.log`), 수정 후 PASS(`test-after.log`)를 확인했다.
+원본을 수정하지 않고 읽으며 최종 셀 경계·예약12139 HU·모든 셀 보존과 종료를 검사한다.
+원본 전체의 admission 검사는 다음 `nested anchor, TAC, wrap or outer margin`을 보고한다.
+이는 원본 전체 성공이 아니라 다음 미지원 경계로 진행한 것이다.
+
+독립 시각 대조군은 원본 자식 표를 TAC 단독 표로 분리하고 뒤 문단을 추가한 정상 한컴
+저장본이다. 생성 변경점·한컴 HWP/PDF job·해시는
+`tests/fixtures/issue7353_rowspan_roundoff_review/README.md`에 기록했다.
+Native에서 병합 셀·행 경계·표 외곽·뒤 문단을 직접 확인했다. 선 농도와 글리프 외형 차이는
+남는다. 검증 코드는 checkpoint `893e8bc99`+`output/7353/r19/rowspan-height/source.sha256`다.
+fresh WASM·집중 회귀 검증 결과는 아래에 이어 기록한다.
+
+최종 검증 산출: `output/7353/r19/rowspan-height/`.
+
+- review worktree에 최종 source/test를 먼저 동기화하고
+  `node scripts/rust-test-suite-manifest.mjs --prepare`로 파생 suite를 갱신했다.
+  `rg -l 'issue_7353_table_v2|issue_7353_rowspan_roundoff|issue_4755|issue_6102|issue_3128'
+  tests/generated/regression_suite_*.rs`로 해당15개 target을 선택했다. 직전 절편의8개
+  target 목록을 재사용하지 않았다. 파생 파일은 source PR 대상이 아니다.
+- `CARGO_BUILD_JOBS=2 cargo nextest run --locked --cargo-profile release-test
+  <위15개 --test target> -E 'test(issue_7353_table_v2) | test(issue_7353_rowspan_roundoff) |
+  test(issue_4755) | test(issue_6102) | test(issue_3128)' --no-fail-fast
+  --target-dir /home/edward/mygithub/rhwp/target/pr-review`:
+  **269 passed /0 failed /3041 skipped**. 새 연산 오차 계약도 실제 실행됐다.
+  `focused.log`에 빌드9분07초와 실행 결과를 보존했다. 기존 nextest 버전/설정 경고가 있다.
+- `docker compose --env-file .env.docker -p rhwp run --rm wasm`: **성공7분49초**.
+  fresh WASM SHA-256: `139198e352972c76cfa74a65c23834f74c7e09ade73d8f1f6a4d659b57343c8d`.
+- `review.mjs --wasm`, `focus.mjs native`, `focus.mjs wasm`: Native/fresh WASM 모두1쪽,
+  SVG·RenderTree JSON 동일(수치 차이0). `review/run.json`에 입력·PDF·WASM·source 해시를 연결했다.
+- `controls.mjs`: diagonal/저장 indent/fresh indent/justify/TAC 공백/좁은 셀/셀 앵커
+  × 끝 간격 정책2종 **14조합**에서 승인 Native SVG 보존과 fresh WASM 동일성을 확인했다.
+- 같은 페이지·영역의 Native/fresh WASM 확대·전체 review와 standalone overlay를 직접 열어
+  병합 셀·행 경계·표 외곽·뒤 문단과 페이지 하단을 확인했다. 대각선2개도 출력에 존재한다.
+  한컴과 선 농도·글리프 외형 차이는 남으며, 내용 픽셀 자동 보조 일치율은42.2193%,
+  전체 픽셀 일치율은97.6851%다. 수치를 사람의 판정 정확도나 통과로 해석하지 않는다.
+- `cargo fmt --all -- --check`, `git diff --check`,3개 Rust source/test 해시 검사 통과.
+  제품 source 트리 전체가 review worktree와 동일함도 확인했다. 검증 뒤 제품 코드 변경 없음.
+
+시각 판정 대상은 **분리 대조군1쪽**이다. 원본 전체의 앵커와 다쪽 조판은 미완료다.
+
+- [병합 셀·행 경계 확대 review](../../output/7353/r19/rowspan-height/review/wasm-focus-review.png)
+- [전체 compare](../../output/7353/r19/rowspan-height/review/wasm-compare-1.png)
+- [standalone overlay](../../output/7353/r19/rowspan-height/review/wasm-overlay-1.png)
+- [전체 review](../../output/7353/r19/rowspan-height/review/wasm-review-1.png)
+- [한컴 정상 저장 HWP](../../tests/fixtures/issue7353_rowspan_roundoff_review/rowspan-saved.hwp)
+- [동일 HWP의 한컴 PDF](../../tests/fixtures/issue7353_rowspan_roundoff_review/rowspan-2020.pdf)
+
+메인테이너 시각 판정 대기. 전체 PR lint/CI·원격 게시·기본 엔진 전환은 수행하지 않았다.
+메인테이너가 병합 셀 높이 연산 오차 절편의 시각 판정 통과와 다음 절편 진행을 승인했다.

@@ -377,7 +377,7 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
         DocumentV2Error::Paragraph {
             index: 5,
             reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "rowspan height needs redistribution"
+                "nested anchor, TAC, wrap or outer margin"
             )
         }
     ));

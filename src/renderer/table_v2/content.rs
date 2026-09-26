@@ -351,7 +351,14 @@ impl TableContentPlan {
                 let height = row_heights[row..row + track.row_span].iter().sum::<f64>();
                 // Intact non-spanning cells establish the row boundaries. A
                 // spanning cell cannot silently resize an arbitrary covered row.
-                if physical > height || cell.minimum_height > height {
+                // A declared span converts once, whereas the resolved rows add
+                // independently converted content/padding. Compare its minimum
+                // with the same roundoff allowance as those positive sums. This
+                // does not grow/shrink rows or permit physical content overflow.
+                let minimum_roundoff = (track.row_span as f64 + 3.0)
+                    * f64::EPSILON
+                    * height.abs().max(cell.minimum_height.abs());
+                if physical > height || cell.minimum_height - height > minimum_roundoff {
                     return Err(GeometryError::Unsupported(
                         "rowspan height needs redistribution",
                     ));
