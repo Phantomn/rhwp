@@ -2312,3 +2312,103 @@ fn unproven_empty_picture_table_frame_keeps_measured_flow_origin() {
         );
     }
 }
+
+fn assert_centered_cell_pictures_match_independent_pdf(native: bool) {
+    let mut path = Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE);
+    if native {
+        path.set_extension("hwp");
+    }
+    let core = DocumentCore::from_bytes(&std::fs::read(path).unwrap()).unwrap();
+    for (page, para, expected) in [
+        (10, 237, [88.704, 95.096029]),
+        (22, 339, [151.994670, 166.378662]),
+    ] {
+        let tree = core.build_page_render_tree(page).unwrap();
+        let table = table_for_para(&tree.root, para).expect("원본 그림을 소유한 표");
+        fn images<'a>(node: &'a RenderNode, out: &mut Vec<&'a RenderNode>) {
+            if matches!(node.node_type, RenderNodeType::Image(_)) {
+                out.push(node);
+            }
+            for child in &node.children {
+                images(child, out);
+            }
+        }
+        let mut pictures = Vec::new();
+        images(table, &mut pictures);
+        pictures.sort_by(|a, b| a.bbox.x.total_cmp(&b.bbox.x));
+        assert_eq!(pictures.len(), 2, "두 셀 그림의 누락·중복 없음");
+        // 기대 상단은 원본 한컴2024 PDF의 그림 사각형이다.
+        for (picture, y) in pictures.iter().zip(expected) {
+            assert!(
+                (picture.bbox.y - y).abs() < 0.5,
+                "{}쪽 셀 그림의 독립 정렬 원점: {:?}, PDF {y}",
+                page + 1,
+                picture.bbox
+            );
+        }
+    }
+    assert_eq!(core.page_count(), 215);
+}
+
+#[test]
+fn hwpx_centered_cell_pictures_keep_their_flow_frame() {
+    assert_centered_cell_pictures_match_independent_pdf(false);
+}
+
+#[test]
+fn native_centered_cell_pictures_keep_their_flow_frame() {
+    assert_centered_cell_pictures_match_independent_pdf(true);
+}
+
+/// 원본을 복제한 수동 IR의 오프셋 변화이며 한컴 저장본 재생성으로 보고하지 않는다.
+#[test]
+fn centered_picture_flow_keeps_positive_space_and_discards_negative_space() {
+    use rhwp::model::control::Control;
+    for (offset, expected) in [(-1696i32, 166.378662), (0, 166.378662), (1000, 173.090678)] {
+        let mut core = core();
+        let mut doc = core.document().clone();
+        let Control::Table(table) = &mut doc.sections[0].paragraphs[339].controls[0] else {
+            panic!("그림21/22를 담은 표");
+        };
+        let Control::Picture(picture) = &mut table.cells[1].paragraphs[0].controls[0] else {
+            panic!("오른쪽 그림22");
+        };
+        picture.common.vertical_offset = offset as u32;
+        core.set_document(doc);
+        let tree = core.build_page_render_tree(22).unwrap();
+        let table = table_for_para(&tree.root, 339).unwrap();
+        let cell = table
+            .children
+            .iter()
+            .find(
+                |node| matches!(&node.node_type, RenderNodeType::TableCell(cell) if cell.col == 1),
+            )
+            .unwrap();
+        let image = find_picture(cell).expect("오른쪽 그림 유닛 보존");
+        // 두 pos.vertOffset만 바꿔 한컴2024에서 출력한 대조 PDF23쪽의 상단.
+        assert!(
+            (image.bbox.y - expected).abs() < 0.5,
+            "오프셋{offset} 흐름 프레임: {:?}, 독립 PDF{expected}",
+            image.bbox
+        );
+        assert_eq!(core.page_count(), 215);
+    }
+}
+
+/// 정렬 위치와 별도로 캡션 유닛의 단일 소유를 검증한다.
+#[test]
+fn cell_picture_bottom_caption_has_one_owner() {
+    let core = core();
+    let tree = core.build_page_render_tree(22).unwrap();
+    let table = table_for_para(&tree.root, 339).unwrap();
+    for (col, caption) in [(0, "그림 21"), (1, "그림 22")] {
+        let cell = table.children.iter().find(|node| {
+            matches!(&node.node_type, RenderNodeType::TableCell(cell) if cell.col == col)
+        }).unwrap();
+        assert_eq!(
+            text(cell).matches(caption).count(),
+            1,
+            "{caption} 캡션 단일 소유"
+        );
+    }
+}

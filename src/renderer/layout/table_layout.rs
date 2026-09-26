@@ -19,7 +19,7 @@ use crate::model::style::{Alignment, BorderLine, CenterLine};
 use crate::model::table::{TablePageBreak, VerticalAlign};
 use crate::renderer::float_placement::{
     original_hwpx_column_rowbreak_equal_outer_margin_hu, signed_hwpunit,
-    topbottom_float_outer_margin_left_hu,
+    topbottom_float_outer_margin_left_hu, topbottom_flow_vertical_offset_hu,
 };
 
 const ROWBREAK_OBJECT_BOTTOM_BLEED_TOLERANCE_PX: f64 = 64.0;
@@ -2145,7 +2145,7 @@ impl LayoutEngine {
             + hwpunit_to_px(common.margin.bottom as i32, self.dpi);
         if matches!(common.vert_rel_to, VertRelTo::Para) {
             if common.flow_with_text {
-                hwpunit_to_px((common.vertical_offset as i32).max(0), self.dpi) + object_height
+                hwpunit_to_px(topbottom_flow_vertical_offset_hu(common), self.dpi) + object_height
             } else {
                 0.0
             }
@@ -6642,7 +6642,7 @@ impl LayoutEngine {
                             //   셀=Top × pic=Center → 153.8(셀 상단)  [pic 무시 확인]
                             // 콘텐츠 box·그림 높이 기준으로 셀 valign 위치를 강제:
                             //   TOP    = content_top + vOffset
-                            //   CENTER = content_top + (content_h − pic_h + vOffset)/2
+                            //   CENTER = content_top + (content_h − pic_h + 흐름 앞 공간)/2
                             //   BOTTOM = content_bottom − pic_h − vOffset
                             let pic_y = if fragment_owned_square_flow {
                                 // partial-table와 같은 source-owner 계약: 현재 cut이
@@ -6824,8 +6824,16 @@ impl LayoutEngine {
                                     match effective_valign {
                                         VerticalAlign::Top => content_top + v_off,
                                         VerticalAlign::Center => {
+                                            // 셀 중앙은 측정한 개체 흐름 프레임의 중앙이다.
+                                            // 앞 공간을 만들지 않은 음수 저장 오프셋을 다시
+                                            // 더하면 작은 그림만 셀 위로 치우치게 된다.
+                                            let flow_offset = hwpunit_to_px(
+                                                topbottom_flow_vertical_offset_hu(&pic.common),
+                                                self.dpi,
+                                            );
                                             content_top
-                                                + (inner_height - aligned_visual_h + v_off) / 2.0
+                                                + (inner_height - aligned_visual_h + flow_offset)
+                                                    / 2.0
                                         }
                                         VerticalAlign::Bottom => {
                                             content_top + inner_height - aligned_visual_h - v_off

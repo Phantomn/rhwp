@@ -342,3 +342,54 @@ fn the_reduced_fixture_preserves_original_cell_image_geometry() {
         }
     }
 }
+
+/// 수동 IR 반례: 실제 3..14행 이어받기 조각의 가운데 정렬을 흐름 상자로 검사한다.
+/// 재저장한 한컴 문서의 출력 증거와 구분하며 원본 그림 유닛은 그대로 보존한다.
+#[test]
+fn continued_centered_image_uses_the_reserved_forward_space() {
+    use rhwp::document_core::DocumentCore;
+    use rhwp::model::control::Control;
+    let bytes =
+        std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE)).unwrap();
+    for offset in [-187i32, 0, 187] {
+        let mut core = DocumentCore::from_bytes(&bytes).unwrap();
+        let mut doc = core.document().clone();
+        let Control::Table(table) = &mut doc.sections[4].paragraphs[118].controls[0] else {
+            panic!("원본 이어받는 표");
+        };
+        let cell = table
+            .cells
+            .iter_mut()
+            .find(|cell| (cell.row, cell.col) == (4, 3))
+            .unwrap();
+        let picture = cell
+            .paragraphs
+            .iter_mut()
+            .flat_map(|p| &mut p.controls)
+            .find_map(|c| {
+                if let Control::Picture(picture) = c {
+                    Some(picture)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        picture.common.vertical_offset = offset as u32;
+        core.set_document(doc);
+        let tree = core.build_page_render_tree(PAGE_INDEX).unwrap();
+        let mut images = Vec::new();
+        collect_cell_images(&tree.root, None, &mut images);
+        assert_eq!(images.len(), 12, "이어받는 조각의 그림 누락·중복 없음");
+        let (_, _, (cell_y, cell_h), (_, image_y, _, image_h)) = images
+            .iter()
+            .find(|image| (image.0, image.1) == (4, 3))
+            .unwrap();
+        // 대칭 셀 여백의 중앙 정렬 불변식: 앞 공간은 흐름 상자에 포함되며 음수는 앞 공간이 아니다.
+        let expected = cell_y + (cell_h - image_h + f64::from(offset.max(0)) / 75.0) / 2.0;
+        assert!(
+            (image_y - expected).abs() < 0.1,
+            "이어받는 그림 오프셋{offset}의 물리 중심: {image_y}, 독립 정렬 불변식{expected}"
+        );
+        assert_eq!(core.page_count(), 103);
+    }
+}

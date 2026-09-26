@@ -1512,7 +1512,10 @@ impl HeightMeasurer {
             + hwpunit_to_px(common.margin.bottom as i32, self.dpi);
         if matches!(common.vert_rel_to, VertRelTo::Para) {
             if common.flow_with_text {
-                hwpunit_to_px((common.vertical_offset as i32).max(0), self.dpi) + object_height
+                hwpunit_to_px(
+                    crate::renderer::float_placement::topbottom_flow_vertical_offset_hu(common),
+                    self.dpi,
+                ) + object_height
             } else {
                 0.0
             }

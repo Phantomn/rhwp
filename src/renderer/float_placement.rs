@@ -17,6 +17,13 @@ use super::layout::picture_flow_frame_size_hu;
 use super::layout_frame::{FrameExclusion, FrameExclusionPolicy, LayoutFrame};
 use super::page_layout::LayoutRect;
 
+/// 자리차지 개체가 흐름에 추가하는 문단 기준 앞 공간.
+/// 음수 오프셋은 앞 공간을 만들지 않는다. 셀의 가운데 정렬도 이 점유 프레임을
+/// 소비하므로 음수 저장값을 별도의 정렬 이동으로 다시 적용하지 않는다.
+pub(crate) fn topbottom_flow_vertical_offset_hu(common: &CommonObjAttr) -> i32 {
+    signed_hwpunit(common.vertical_offset).max(0)
+}
+
 /// 내용 유닛을 소비하지 않는 시작 행의 물리 공간과 이어받는 행의 요구 높이.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct StoredEmptyOpeningRowFrame {

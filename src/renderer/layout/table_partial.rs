@@ -1,7 +1,9 @@
 //! 페이지 분할 표 레이아웃 (layout_partial_table)
 
 use super::super::composer::{compose_paragraph, ComposedParagraph};
-use super::super::float_placement::native_hwp5_stored_reset_fragment_paint_geometry;
+use super::super::float_placement::{
+    native_hwp5_stored_reset_fragment_paint_geometry, topbottom_flow_vertical_offset_hu,
+};
 use super::super::height_measurer::{
     stored_nested_table_empty_wrap_spacer, stored_nested_table_wrap_successor,
     stored_square_picture_empty_anchor_advance, stored_square_picture_has_adjacent_text,
@@ -2921,33 +2923,32 @@ impl LayoutEngine {
                                             let place = |off: f64| match effective_align {
                                                 VerticalAlign::Top => content_top + off,
                                                 VerticalAlign::Center => {
-                                                    content_top + (inner_height - pic_h + off) / 2.0
+                                                    // 이어받는 셀도 측정에 쓰인 흐름 앞 공간으로
+                                                    // 가운데를 정한다. 음수 저장값을 별도 이동으로
+                                                    // 적용한 뒤 화면 이탈 여부로 되돌리지 않는다.
+                                                    let flow_offset = hwpunit_to_px(
+                                                        topbottom_flow_vertical_offset_hu(
+                                                            &pic.common,
+                                                        ),
+                                                        self.dpi,
+                                                    );
+                                                    content_top
+                                                        + (inner_height - pic_h + flow_offset) / 2.0
                                                 }
                                                 VerticalAlign::Bottom => {
                                                     content_top + inner_height - pic_h - off
                                                 }
                                             };
                                             let with_offset = place(v_off);
-                                            // `Center` 는 이탈을 **완전** 이탈로만 보지 않는다.
-                                            // Center 공식은 음수 오프셋을 절반만 반영해 개체를
-                                            // voff/2 만큼 띄우는데, 흐름 높이 장부
-                                            // (`non_inline_control_flow_height`)는 그 음수를
-                                            // `max(voff, 0)` 으로 버린다 — 두 장부가 어긋나 개체가
-                                            // 칸 콘텐츠 상단을 넘어 뜬다(실문서 표 9 행: voff
-                                            // −45.7·−75.7px → 각 −22.9·−37.9px, 한/글 오라클은 두
-                                            // 장 모두 칸 정중앙, #7182). `Top` 은 오프셋을 그대로
-                                            // 싣는 것이 정답이라(#5734: 저장 vpos 계단의 첫 그림이
-                                            // −14.4px 로 상단을 조금 넘는 것이 한/글 배치) 종전의
-                                            // 완전 이탈 규칙을 유지한다.
+                                            // 가운데 정렬은 위 공통 흐름 프레임에서 확정한다.
+                                            // Top은 #5734처럼 작은 음수 오프셋이 실제 배치에
+                                            // 쓰이므로 기존 완전 이탈 규칙을 유지한다.
                                             let escapes_above_cell_content = v_off < 0.0
-                                                && if matches!(
+                                                && !matches!(
                                                     effective_align,
                                                     VerticalAlign::Center
-                                                ) {
-                                                    with_offset < content_top - 0.5
-                                                } else {
-                                                    with_offset + pic_h <= content_top
-                                                };
+                                                )
+                                                && with_offset + pic_h <= content_top;
                                             if escapes_above_cell_content {
                                                 place(0.0)
                                             } else {

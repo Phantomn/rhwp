@@ -777,3 +777,27 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 ![11쪽 overlay](../assets/pr7382_20260926/stage30_native_hwpx_overlay_011.png)
 ![210쪽 표 프레임 복원](../assets/pr7382_20260926/stage30_native_hwpx_review_210.png)
 ![23쪽 남은 그림/캡션 차이](../assets/pr7382_20260926/stage30_native_hwpx_review_023.png)
+
+## 보정31 사전 분석 — 가운데 정렬 셀 그림의 흐름 프레임과 음수 오프셋
+
+- 원본11쪽 그림5 오른쪽 상단은 PDF95.096029px/현재87.1px,23쪽 그림22는 PDF166.378662px/현재155.3px다. 두 그림은 단일 빈 문단·자리차지·문단 기준·흐름 제한 켜짐·가운데 셀 정렬이며 음수 오프셋−2179/−1696HU를 가진다. 왼쪽 그림은 각각0/+187HU이며 PDF88.704/151.994670px에 대응한다.
+- 측정과 cell flow는 현재 `max(offset,0)+개체·여백`으로 점유 높이를 계산한다. `table_layout`의 셀 정렬은 이후 signed offset을 다시 더하며11쪽은 마지막 cell clamp에 걸려 셀 상단으로 올라간다. 공통 점유 프레임과 정렬에 쓰인 오프셋이 다른지 확인한다. clamp로 위치를 맞추지 않는다.
+- 두 오른쪽 그림의 `pos.vertOffset`만0 및+1000HU로 바꾼 독립 한컴2024 대조군을 준비했다. 나머지 ZIP 내용·section XML 문자열은 그대로다. 저장 음수/정렬 계약은 변환 결과에서 확인한 뒤 구현하며, 먼저 원본 HWP/HWPX 정식 최종 그림 좌표 검사의 수정 전 실패를 기록한다. 양수 오프셋·다문단 저장 흐름·나란히 무리·제한 해제 경로는 적용 경계로 대조한다.
+
+0 대조군은 원본과215쪽 전체 텍스트/그림 좌표가 동일했다. +1000HU 대조군의23쪽 오른쪽 그림은166.378662→173.090678px로 이동했고 캡션도 함께 내려갔다.11쪽은 같은 수동 속성 변화에서 PDF 좌표가 변하지 않았다. 이 문서는 HWPX 재저장/LineSeg 재생성 대조군이 아니므로 그11쪽 수용 계약은 미검증으로 남기고23쪽 양수 결과를 일반화하지 않는다. 원본 정식2개는 수정 전0PASS/2FAIL(exit100,0.218s), 최초 수정 후2PASS(exit0,0.261s)다.
+
+확대125개는123PASS/2FAIL(exit100,4.631s)이었다. 새 양수/음수 정렬 대조의 캡션 단일 소유 assertion은 기존 캡션 중복을 함께 검출했다. 정렬과 캡션 소유를 별도 정식 검사로 분리해 두 의미를 모두 보존한다. #6782 일본 마크는 보정 전 불변30 CLI에서도320.2/320.5px로 동일하게 어긋나며, 이번 Center 변경의 회귀로 분류하지 않는다. 이 두 미충족을 허용치나 기대값 변경으로 숨기지 않고 다음 개별 보정에서 해결한다.
+
+### 보정 결과
+
+- `topbottom_flow_vertical_offset_hu`로 측정과 셀 흐름의 기존 앞 공간 계산을 공유했다. 온전한 셀과 이어받는 셀의 가운데 정렬은 같은 앞 공간을 소비하며 음수 저장값을 별도 이동으로 다시 더하지 않는다. 다문단 저장 vpos·나란히 무리·제한 해제, Top/Bottom의 다른 앵커 계약은 실제 기존 경로로 남는다. 부분 셀의 화면 이탈 판정을 가운데 정렬의 근거로 사용한 가정을 제거했다. 측정의 수치·컷 선택은 기존 max(offset,0)와 동일하며 paint 원점 소비를 교정한 변경이다.
+- 최종 확대126개는124PASS/2FAIL(exit100,4.696s,threads8)이다. 원본 HWP/HWPX11·23쪽 그림 위치와23쪽−1696/0/+1000HU 대조는 통과했다. 다문단/자기 변위·작은 Top 음수 오프셋·실제 부분 셀 정상 대조도 통과했다. 캡션 소유 검사는 독립 검사로 그대로 남아 FAIL이며 일본 마크 기존 차이도 FAIL이다. [전후 동일한 마크 좌표](../assets/pr7382_20260926/stage31_prior_6782_difference.json)를 보존했다.
+- 추가 이어받기 대조1개는PASS(exit0,0.448s)다. 원본103쪽 문서의 구역4/문단118은77쪽에서3..14행을 이어받는다. 그 실제 부분 셀의 그림 오프셋−187/0/+187HU를 수동 IR로 바꿔 물리 셀의 중앙 정렬 불변식·그림12개 보존·103쪽을 확인했다. 수정 후에만 실행한 경계 대조이며 수정 전 결함 검출이나 정상 한컴 재저장 문서의 증거로 세지 않는다.
+- 새 Native HWPX11/12/13/14/23/68/210쪽은98.39093/99.76685/94.51340/90.37937/99.61877/90.85432/99.91680%,HWP는98.39093/99.76685/96.29076/91.00235/99.61877/90.85432/99.91680%다. 둘 다exit0,선택 gate passed이며215쪽을 유지했다. 새 review·standalone overlay28개를 직접 읽어 지도와 오른쪽 그래프 정렬, 그림/표·뒤 본문·각주 보존을 확인했다.13쪽 왼쪽 표 그림은626.1→628.0px로 PDF627.313px에 가까워졌고 점수 감소만으로 회귀라고 판정하지 않았다.
+- 점수가 통과해도23쪽 캡션 중복과14쪽 그림11의 위치 차이는 미충족이다. 새 통합 PR을 만들거나 승인하지 않는다. 다음 개별 보정은 캡션 단일 소유를 해결한다. [독립 입력 변형·한컴 PDF 좌표](../assets/pr7382_20260926/stage31_independent_geometry.json), [재현 스크립트](../assets/pr7382_20260926/stage31_control_recipe.py), [0 대조 PDF](../../../pdf/issue7379/liver7379-cell-picture-offset-zero-2024.pdf), [+1000HU 대조 PDF](../../../pdf/issue7379/liver7379-cell-picture-offset-positive-2024.pdf)를 보존했다.
+- 최종 fmt·manifest(6211 static attrs)·source-unit(4205검사/298모듈)은 고정base eb9142dd7에서exit0이다. 불변 CLI는release-test 빌드exit0,1m21s다. [명령·source/runtime/test diff·CLI 해시·남은 판정](../assets/pr7382_20260926/stage31_validation.json). 캡처 뒤 추가한 것은 이어받기 반례 검사뿐이며 runtime4파일/diff 해시는 동일하다. 이 중간 증거를 최종 exact head 전수/전체 Rust/lint/Skia/fresh WASM의 대용으로 사용하지 않는다. [추가 영어 설명 주석0개](../assets/pr7382_20260926/stage31_english_comment_scan.json)이며 로그·output·generated를 커밋하지 않는다.
+
+![11쪽 지도 정렬 복원](../assets/pr7382_20260926/stage31_native_hwpx_review_011.png)
+![11쪽 overlay](../assets/pr7382_20260926/stage31_native_hwpx_overlay_011.png)
+![23쪽 그래프 정렬과 남은 캡션 중복](../assets/pr7382_20260926/stage31_native_hwpx_review_023.png)
+![23쪽 overlay](../assets/pr7382_20260926/stage31_native_hwpx_overlay_023.png)
