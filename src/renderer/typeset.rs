@@ -4043,6 +4043,7 @@ impl TypesetEngine {
             styles,
             para_start_height,
             lanes,
+            self.render_normalization.table_text_reflowed(table),
             self.dpi,
         )
     }

@@ -90,6 +90,7 @@ impl TypesetEngine {
             flow: placement::ParagraphFloatFlow::NextLine,
             anchor_y: anchor,
             stored_host_origin: Some(anchor),
+            table_left: None,
             table_top: top,
             occupied_bottom: top,
         })
@@ -125,6 +126,7 @@ impl TypesetEngine {
             flow: crate::renderer::float_placement::ParagraphFloatFlow::NextLine,
             anchor_y: 0.0,
             stored_host_origin: None,
+            table_left: None,
             table_top: hwpunit_to_px(frame.top_hu, self.dpi),
             occupied_bottom: bottom,
         })
@@ -193,6 +195,7 @@ impl TypesetEngine {
             flow: placement::ParagraphFloatFlow::NextLine,
             anchor_y: st.current_height,
             stored_host_origin: None,
+            table_left: None,
             table_top: top,
             occupied_bottom: top
                 + table_and_caption_height

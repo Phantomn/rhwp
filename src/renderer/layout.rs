@@ -11903,7 +11903,12 @@ impl LayoutEngine {
                         physical_outer_box_paint_inset,
                         ctx.paragraph_float_placements
                             .get(&(para_index, control_index))
-                            .map(|p| col_area.y + p.table_top),
+                            .map(|p| {
+                                (
+                                    p.table_left.map(|left| col_area.x + left),
+                                    col_area.y + p.table_top,
+                                )
+                            }),
                         Self::standalone_table_char_border_fill(Some(para), t, styles),
                     )
                 };

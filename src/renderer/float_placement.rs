@@ -24,6 +24,36 @@ pub(crate) struct StoredEmptyOpeningRowFrame {
     pub continuation_height: f64,
 }
 
+/// 빈 문단의 원본 어울림 형제 표가 공유하는 저장 호스트 프레임.
+/// 음수 세로 오프셋은 같은 저장 줄에 놓인 형제의 별도 상단이 아니다.
+/// 한컴 단일 속성 대조군에서 이를 0으로 바꿔도 전체 텍스트/그림 배치는 같다.
+pub(crate) fn stored_square_sibling_outer_frame(para: &Paragraph) -> bool {
+    if !para.text.trim().is_empty()
+        || para.stored_text_partition_is_dirty()
+        || para.cell_format_vpos_dirty
+        || para.controls.len() < 2
+        || !matches!(para.line_segs.as_slice(), [line]
+            if line.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
+                && line.vertical_pos > 0 && line.line_height > 0)
+    {
+        return false;
+    }
+    para.controls.iter().all(|control| {
+        matches!(control, Control::Table(t)
+        if !t.common.treat_as_char && t.common.flow_with_text
+            && t.caption.is_none()
+            && signed_hwpunit(t.common.width) > 0 && signed_hwpunit(t.common.height) > 0
+            && t.common.text_wrap == TextWrap::Square
+            && t.common.vert_rel_to == VertRelTo::Para
+            && t.common.vert_align == VertAlign::Top
+            && t.common.horz_rel_to == HorzRelTo::Column
+            && t.common.horz_align == HorzAlign::Left
+            && signed_hwpunit(t.common.horizontal_offset) >= 0
+            && t.cells.iter().all(|cell| cell.paragraphs.iter().all(|p|
+                !p.stored_text_partition_is_dirty() && !p.cell_format_vpos_dirty)))
+    })
+}
+
 /// 자리차지하지 않는 표 하나만 든 폭0 저장 줄은 그 개체의 앵커다.
 /// 이 문단의 줄 간격을 개체의 캡션 간격으로 사용하지 않는다.
 pub(crate) fn object_only_saved_table_anchor(para: &Paragraph, table: &Table) -> bool {
@@ -328,22 +358,25 @@ pub(crate) fn stored_interior_control_table_frame(
         flow: ParagraphFloatFlow::NextLine,
         anchor_y: px(i64::from(anchor)),
         stored_host_origin: None,
+        table_left: None,
         table_top: px(top),
         occupied_bottom: px(bottom),
     })
 }
 
-/// 문단 상대 자리차지 개체의 확정된 세로 배치. 모든 값은 단 상대 px다.
+/// 문단 상대 떠 있는 개체의 확정된 배치. 모든 값은 단 상대 px다.
 /// 예약과 출력이 같은 결과를 사용하므로 renderer에서 원점을 다시 더하지 않는다.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ParagraphFloatPlacement {
-    /// Geometry alone does not consume paragraph flow. A floating exclusion may
-    /// leave room for following text above it.
+    /// 기하만으로 문단 흐름을 소비하지 않는다. 떠 있는 배제 영역 위에
+    /// 후속 텍스트가 들어갈 공간이 남을 수 있다.
     pub flow: ParagraphFloatFlow,
     pub anchor_y: f64,
-    /// Validated single-line stored host origin, shared with text creation.
-    /// None keeps the existing flowing-host contract (including continuations).
+    /// 텍스트 생성과 공유하는 유효 단일 저장 줄 호스트 원점.
+    /// None이면 이어받기를 포함한 기존 흐름 호스트 계약을 유지한다.
     pub stored_host_origin: Option<f64>,
+    /// 바깥여백을 이미 소비한 표 왼쪽 원점. None이면 기존 가로 배치 계약이다.
+    pub table_left: Option<f64>,
     /// 표와 캡션을 함께 담는 배치 상자의 상단. 위 캡션은 이 상자 안에서 배치한다.
     pub table_top: f64,
     pub occupied_bottom: f64,
@@ -434,6 +467,7 @@ pub fn stored_picture_successor_placement(
         },
         anchor_y,
         stored_host_origin: Some(host_y),
+        table_left: None,
         table_top: top,
         occupied_bottom: bottom,
     })
@@ -696,6 +730,7 @@ impl ParagraphFloatPlacement {
                 flow: ParagraphFloatFlow::Exclusion,
                 anchor_y,
                 stored_host_origin: None,
+                table_left: None,
                 table_top,
                 occupied_bottom,
             })
@@ -764,6 +799,7 @@ impl ParagraphFloatPlacement {
                 flow: ParagraphFloatFlow::Exclusion,
                 anchor_y,
                 stored_host_origin: None,
+                table_left: None,
                 table_top,
                 occupied_bottom,
             })

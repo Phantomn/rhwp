@@ -40,6 +40,7 @@ fn first_fragment_uses_paragraph_reference_not_text_or_outer_box() {
                 flow: ParagraphFloatFlow::NextLine,
                 anchor_y: 100.0 + spacing,
                 stored_host_origin: None,
+                table_left: None,
                 table_top: 100.0 + spacing + 4129.0 / 75.0 + f64::from(margin) / 75.0,
                 occupied_bottom: 400.0 + spacing + 4129.0 / 75.0 + f64::from(margin) / 75.0,
             };
@@ -68,6 +69,7 @@ fn paragraph_completion_uses_occupied_end_once_in_either_emission_order() {
             flow: ParagraphFloatFlow::NextLine,
             anchor_y: origin + 10.0,
             stored_host_origin: None,
+            table_left: None,
             table_top: origin + 30.0,
             occupied_bottom: origin + 130.0,
         };
@@ -106,6 +108,7 @@ fn floating_band_consumes_flow_only_when_the_tail_line_has_insufficient_space() 
                     flow: ParagraphFloatFlow::Exclusion,
                     anchor_y: 10.0,
                     stored_host_origin: None,
+                    table_left: None,
                     table_top: top,
                     occupied_bottom: top + 100.0,
                 };
@@ -566,6 +569,7 @@ fn occupied_bands_move_the_box_not_the_anchor_and_are_order_independent() {
         flow: ParagraphFloatFlow::Exclusion,
         anchor_y: 20.0,
         stored_host_origin: None,
+        table_left: None,
         table_top: 50.0,
         occupied_bottom: 100.0,
     };

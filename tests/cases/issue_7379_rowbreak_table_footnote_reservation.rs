@@ -2084,3 +2084,125 @@ fn hwpx_picture_table_uses_interior_control_stored_line_anchor() {
 fn native_picture_table_uses_interior_control_stored_line_anchor() {
     assert_interior_control_picture_table_anchor(false);
 }
+
+fn assert_square_sibling_table_outer_frames(hwpx: bool) {
+    fn collect<'a>(node: &'a RenderNode, out: &mut Vec<&'a RenderNode>) {
+        if matches!(&node.node_type, RenderNodeType::Table(t) if t.para_index == Some(259)) {
+            out.push(node);
+        }
+        for child in &node.children {
+            collect(child, out);
+        }
+    }
+    let core = original_picture_wrapper_core(hwpx);
+    assert_eq!(core.page_count(), 215, "원본 독립 PDF 쪽 수");
+    let page = core.build_page_render_tree(12).expect("13쪽");
+    let mut tables = Vec::new();
+    collect(&page.root, &mut tables);
+    assert_eq!(tables.len(), 2, "두 어울림 형제 표의 같은 쪽 소유");
+    // 네 셀의 NONE 괘선만 SOLID로 바꾼 한컴 PDF의 실제 바깥 프레임이다.
+    // 원본과 대조군은 215쪽 전체 텍스트·그림 bbox가 정확히 같다.
+    for (table, x, y) in [
+        (tables[0], 98.346670, 625.395996),
+        (tables[1], 410.338664, 620.921346),
+    ] {
+        assert!(
+            (table.bbox.x - x).abs() < 0.8,
+            "바깥 왼쪽 여백 소유: {} != {x}",
+            table.bbox.x
+        );
+        assert!(
+            (table.bbox.y - y).abs() < 0.8,
+            "바깥 위여백과 호스트 오프셋 소유: {} != {y}",
+            table.bbox.y
+        );
+    }
+    // 원본 HU 프레임:본문6239 + 호스트40102 + 개체오프셋/위여백
+    // + 첫행(common.height-캡션행1282) + 캡션 셀 위패딩141이다.
+    // PDF 가시 glyph 상단897.861/880.101과 논리 줄 원점을 동일값으로 비교하지 않는다.
+    for (table, caption, logical_top) in [
+        (
+            tables[0],
+            "표 2. OPTN",
+            (6239.0 + 40102.0 + 334.0 + 283.0 + 21531.0 - 1282.0 + 141.0) / 75.0,
+        ),
+        (
+            tables[1],
+            "그림 9. OPTN",
+            (6239.0 + 40102.0 + 283.0 + 20525.0 - 1282.0 + 141.0) / 75.0,
+        ),
+    ] {
+        let y = line_top(table, caption).expect("원래 캡션 소유");
+        assert!(
+            (y - logical_top).abs() < 0.1,
+            "독립 저장 HU 캡션 논리 줄: {y}/{logical_top}"
+        );
+        assert_eq!(text(table).matches(caption).count(), 1, "캡션 무중복");
+    }
+}
+
+#[test]
+fn hwpx_square_sibling_tables_consume_same_outer_frames_in_budget_and_paint() {
+    assert_square_sibling_table_outer_frames(true);
+}
+
+#[test]
+fn native_square_sibling_tables_consume_same_outer_frames_in_budget_and_paint() {
+    assert_square_sibling_table_outer_frames(false);
+}
+
+fn square_sibling_frames(root: &RenderNode) -> Vec<(f64, f64)> {
+    fn collect(node: &RenderNode, frames: &mut Vec<(f64, f64)>) {
+        if matches!(&node.node_type, RenderNodeType::Table(t) if t.para_index == Some(259)) {
+            frames.push((node.bbox.x, node.bbox.y));
+        }
+        for child in &node.children {
+            collect(child, frames);
+        }
+    }
+    let mut frames = Vec::new();
+    collect(root, &mut frames);
+    frames
+}
+
+#[test]
+fn square_sibling_negative_offset_zero_control_preserves_original_frames() {
+    use rhwp::model::control::Control;
+    let mut core = core();
+    let before = core.build_page_render_tree(12).expect("원본 쪽");
+    let mut doc = core.document().clone();
+    let Control::Table(table) = &mut doc.sections[0].paragraphs[259].controls[1] else {
+        panic!("원본 둘째 표");
+    };
+    table.common.vertical_offset = 0;
+    core.set_document(doc);
+    assert_eq!(core.page_count(), 215);
+    let after = core
+        .build_page_render_tree(12)
+        .expect("단일 속성 대조군 쪽");
+    // 한컴 대조군은 전체215쪽 좌표가 원본과 같다. 수정 전에도 통과하는 정상 대조다.
+    assert_eq!(
+        square_sibling_frames(&before.root),
+        square_sibling_frames(&after.root)
+    );
+}
+
+#[test]
+fn square_sibling_synthetic_host_does_not_admit_original_outer_frame() {
+    use rhwp::model::paragraph::LineSeg;
+    let mut core = core();
+    let mut doc = core.document().clone();
+    doc.sections[0].paragraphs[259].line_segs[0].tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
+    core.set_document(doc);
+    let page = core
+        .build_page_render_tree(12)
+        .expect("합성 저장 줄 대조군");
+    let frames = square_sibling_frames(&page.root);
+    assert_eq!(frames.len(), 2, "폴백에서도 형제 내용 소유 보존");
+    assert!(
+        (frames[0].0 - 94.49333333333334).abs() < 0.001,
+        "합성 좌표를 유효 저장 프레임으로 승격하지 않음"
+    );
+    assert!(text(&page.root).contains("표 2. OPTN"));
+    assert!(text(&page.root).contains("그림 9. OPTN"));
+}

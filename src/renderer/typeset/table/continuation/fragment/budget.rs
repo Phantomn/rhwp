@@ -370,6 +370,7 @@ impl TypesetEngine {
                         flow: original.flow,
                         anchor_y: st.current_height,
                         stored_host_origin: None,
+                        table_left: None,
                         table_top: st.current_height + host_before_overhead,
                         occupied_bottom: st.current_height + host_before_overhead,
                     };
@@ -430,6 +431,7 @@ impl TypesetEngine {
                         flow: crate::renderer::float_placement::ParagraphFloatFlow::NextLine,
                         anchor_y: st.current_height,
                         stored_host_origin: None,
+                        table_left: None,
                         table_top: top,
                         occupied_bottom: top,
                     }

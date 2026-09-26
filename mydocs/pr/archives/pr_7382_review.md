@@ -9,7 +9,7 @@ last_verified: 2026-09-27
 
 ## 현재 판정
 
-**머지 보류.** 보정24 후보는 원본 HWP/HWPX215쪽을 유지하며 그림7의 문단 내부 저장 줄 앵커와 그림8의 빈 물리 첫 조각·이어받기를 복원했다. 두 형식12쪽은99.76685%이나13쪽 하단 표2·그림9 및11·14쪽은 차이가 남아 선택 gate도 재검토다. 보정 전 전체 Native215쪽 중32쪽이90% 미만이었다. 이 전수 수치를 보정24 최종 head의 결과로 재사용하지 않으며, 전체/fresh WASM·최종 필수 게이트 완료 전 통합 PR 생성·승인을 보류한다.
+**머지 보류.** 보정25 후보는 원본 HWP/HWPX215쪽을 유지하며13쪽 하단 표2·그림9의 바깥 프레임·캡션 위치를 복원했다. 13쪽은96.31316%/94.95851%,12쪽은양쪽99.76685%이나11·14쪽은 재검토다. 집중131개 중128PASS/3FAIL이며 #6950의 표 간격·3쪽 계약 회귀가 확인됐다. 보정 전 전체 Native215쪽 중32쪽90% 미만 수치는 최신 head에 재사용하지 않는다. 회귀 해결·전수/fresh WASM·최종 필수 게이트 완료 전 통합 PR 생성·승인을 보류한다.
 
 ## 접수와 provenance
 
@@ -618,3 +618,35 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 ![HWP12 overlay](../assets/pr7382_20260926/stage24_native_hwp_overlay_012.png)
 ![HWPX13 그림8 복원과 하단 잔여](../assets/pr7382_20260926/stage24_native_hwpx_review_013.png)
 ![HWPX13 overlay](../assets/pr7382_20260926/stage24_native_hwpx_overlay_013.png)
+
+
+## 메인터너 보정25 — 나란히 배치된 그림 표의 공통 바깥 프레임
+
+### 독립 근거와 실제 소비 경로
+
+- 원본 문단259의 비TAC Square/ParaTop/ColumnLeft 표2·그림9는 같은 유효 저장 줄40102HU를 공유한다. 기존 경로는 바깥 위/왼쪽 여백과 양수334HU 오프셋을 빠뜨렸다. [입력·대조군 provenance](../assets/pr7382_20260926/stage25_input_provenance.json).
+- [한컴 가시 괘선 PDF](../../../pdf/issue7379/liver7379-table259-visible-border-2024.pdf)는 네 셀의 같은 .12mm NONE 괘선만 SOLID로 바꿨다. 원본과215쪽 전체 텍스트/그림 bbox가 정확히 같으며 표2 원점98.346670/625.395996px, 그림9 원점410.338664/620.921346px를 확인했다. [괘선 좌표](../assets/pr7382_20260926/stage25_border_pdf_geometry.json). 음수 오프셋을0으로 바꾼 별도 한컴 출력도 전체215쪽 bbox가 같아, 이 형제 표의 음수 값을 새 상단 앵커로 해석하지 않는다. [대조군](../assets/pr7382_20260926/stage25_offset_control_provenance.json) · [좌표](../assets/pr7382_20260926/stage25_offset_pdf_geometry.json).
+- `stored_square_sibling_outer_frame → empty_float::prepare → ParagraphFloatPlacement(table_left/table_top/occupied_bottom) → layout::Table → table_layout 최종 원점`이 같은 확정 프레임을 소비한다. lane은 바깥 상자를, 실제 표는 그 안의 여백을 소비한다. 편집·합성·표 재조판·다단·외부 캡션은 원본 계약에 승격하지 않는다. 문서 번호·좌표 상수·paint clamp 분기는 추가하지 않았다.
+- 첫 후보에서 최종 x를 inline override로 전달해 그림9의 가로 오프셋이 다시 더해졌다(722.61333px). 실제 최종 소비 지점에 공통 원점 쌍을 전달해 이중 적용을 수정했다. 양수 오프셋 수동 IR 변경의10px 이동 기대값은 독립 근거가 부족해 정식 검사에서 제외하고 진단 실패 기록을 보존했다. 해당 편집 계약은 미검증이며 관측 출력에 맞춘 assertion으로 통과시키지 않았다.
+
+| 검사 | 실제 결과 | 판정 |
+| --- | --- | --- |
+| 정확한 b617 코드 + 원본 신규 좌표2개 | 0PASS/2FAIL,exit100,0.198s | 여백·원점 결함 검출 |
+| 최종 집중·정상 대조군 | 131개128PASS/3FAIL,exit100,5.821s,threads8 | #6950 기존 회귀3개 미충족 |
+| #6950 수정 전 b617 대조 | 25개22PASS/3FAIL,exit100,0.174s | 이번 Square 보정 전부터 있는 통합 회귀; 해결 필요 |
+| 원본 HWP/HWPX·음수0 대조·합성 호스트 신규4개 | 모두PASS | 해당 원본 프레임·적용 제외 계약 충족 |
+| fmt/manifest/소스 단위 정책 | exit0 /6196 static attrs /4205검사·298모듈,base eb9142dd7 | 충족 |
+| 새 CLI·쪽수 | build exit0,1m49s /두 형식215쪽,PDF215쪽 | 충족 |
+| Native HWP11/12/13/14 | 80.37557/99.76685/96.31316/82.03316% | exit1,re_review_required |
+| Native HWPX11/12/13/14 | 68.96816/99.76685/94.95851/81.51575% | exit1,re_review_required |
+| 직접 판독 | 두 형식4쪽 review·standalone overlay16개 | 13쪽 표2·그림9·캡션 복원,상단 그림8/각주 보존 |
+| 남은 차이·필수 검증 | 11·14쪽 위치/크기,전수 검증·fresh WASM·전체 회귀/lint/Skia | 미충족/미검증 |
+
+[정확한 source·diff·CLI 해시와 최종 명령](../assets/pr7382_20260926/stage25_validation.json). 최종 검사는 근거 없는 수동 IR 검사를 제외한131개 결과다. 이전132개 실행은 최종 검사로 재사용하지 않는다. 캡션의 PDF 가시 글자 상단과 저장HU 논리 줄 상단은 구분한다. 기존 baseline·golden·시각 허용치·글꼴 예외를 변경하지 않았다. 추가 주석과 이번에 손댄 기존 설명 주석은 한글로 바꿨다. 모든 로그는 output에 두며 커밋하지 않는다.
+
+![HWP13 표2·그림9 복원](../assets/pr7382_20260926/stage25_native_hwp_review_013.png)
+![HWP13 overlay](../assets/pr7382_20260926/stage25_native_hwp_overlay_013.png)
+![HWPX13 표2·그림9 복원](../assets/pr7382_20260926/stage25_native_hwpx_review_013.png)
+![HWPX13 overlay](../assets/pr7382_20260926/stage25_native_hwpx_overlay_013.png)
+
+다음 개별 단계는 #6950의 객체 전용 문단에서 표 사이 간격과3쪽 계약을 복원한다. 보정19의 복수 TopAndBottom 원점 생산·예약·실제 배치를 최신 devel 대조와 연결해 확인하며, 기존 테스트를 완화하지 않는다.

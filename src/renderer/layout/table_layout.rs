@@ -2624,7 +2624,7 @@ impl LayoutEngine {
         allow_para_top_bleed: bool,
         clamp_header_negative_para_offset: bool,
         physical_outer_box_paint_inset: bool,
-        resolved_table_top: Option<f64>,
+        resolved_table_origin: Option<(Option<f64>, f64)>,
         host_char_border_fill_id: TableCharBorder,
     ) -> f64 {
         self.layout_table_with_wrapper_margin(
@@ -2651,7 +2651,7 @@ impl LayoutEngine {
             allow_para_top_bleed,
             clamp_header_negative_para_offset,
             physical_outer_box_paint_inset,
-            resolved_table_top,
+            resolved_table_origin,
             host_char_border_fill_id,
             false,
         )
@@ -2683,7 +2683,7 @@ impl LayoutEngine {
         allow_para_top_bleed: bool,
         clamp_header_negative_para_offset: bool,
         physical_outer_box_paint_inset: bool,
-        resolved_table_top: Option<f64>,
+        resolved_table_origin: Option<(Option<f64>, f64)>,
         host_char_border_fill_id: TableCharBorder,
         wrapper_margin_already_applied: bool,
     ) -> f64 {
@@ -3203,18 +3203,24 @@ impl LayoutEngine {
         // ── 3. 위치 결정 ──
         let pw = self.current_paper_width.get();
         let paper_w = if pw > 0.0 { Some(pw) } else { None };
-        let mut table_x = self.compute_table_x_position(
-            table,
-            table_width,
-            col_area,
-            depth,
-            host_alignment,
-            host_margin_left,
-            host_margin_right,
-            inline_x_override,
-            wrapper_margin_already_applied,
-            paper_w,
-        );
+        // 확정된 원점에는 가로 오프셋과 바깥여백이 이미 포함된다.
+        // 인라인 pen 폴백에서 그 값을 다시 더하지 않는다.
+        let mut table_x = resolved_table_origin
+            .and_then(|(left, _)| left)
+            .unwrap_or_else(|| {
+                self.compute_table_x_position(
+                    table,
+                    table_width,
+                    col_area,
+                    depth,
+                    host_alignment,
+                    host_margin_left,
+                    host_margin_right,
+                    inline_x_override,
+                    wrapper_margin_already_applied,
+                    paper_w,
+                )
+            });
 
         let render_caption = should_render_table_caption(table);
         let (caption_height, caption_spacing) = if render_caption {
@@ -3259,7 +3265,7 @@ impl LayoutEngine {
 
         // inline_x_override가 있으면 외부에서 inline 위치를 계산했으므로 x/y 기준은 유지한다.
         // 단, Top 캡션은 표 본문 위의 별도 영역이므로 표 본문 y 에 캡션 높이만큼 반영한다.
-        let flow_table_y = if let Some(table_top) = resolved_table_top {
+        let flow_table_y = if let Some((_, table_top)) = resolved_table_origin {
             // typeset에서 fit과 예약까지 확정한 표 상단은 다시 해석하지 않는다.
             // 위 캡션은 예약된 상자의 내부이며 표 본체 앞에 놓는다.
             table_top
