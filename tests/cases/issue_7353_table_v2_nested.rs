@@ -347,37 +347,74 @@ fn fractional_page_budget_does_not_split_an_atomic_nested_table() {
         SplitPolicy::Never,
     )
     .unwrap();
-    let cursor = TableContentPlan::from_flow_rows(
-        vec![100.0],
-        vec![FlowRowInput {
-            cells: vec![FlowCellInput {
-                width: 100.0,
-                padding: Insets::default(),
-                minimum_height: 0.0,
-                blocks: vec![
-                    lines(0, 1.0),
-                    FlowBlock::Table {
-                        offset_x: 0.0,
-                        restart_top: 0.0,
-                        owner: ControlOwner {
-                            paragraph: 1,
-                            control: 0,
-                        },
-                        plan: Arc::new(inner),
-                    },
-                ],
+    let owner = ControlOwner {
+        paragraph: 1,
+        control: 0,
+    };
+    let inner = Arc::new(inner);
+    for nested in [
+        FlowBlock::Table {
+            offset_x: 0.0,
+            restart_top: 0.0,
+            owner,
+            plan: Arc::clone(&inner),
+        },
+        FlowBlock::AnchoredTable {
+            owner,
+            host: None,
+            host_advance: 0.0,
+            offset_x: 0.0,
+            top: 0.0,
+            bottom: 0.0,
+            plan: Arc::clone(&inner),
+        },
+    ] {
+        let cursor = TableContentPlan::from_flow_rows(
+            vec![100.0],
+            vec![FlowRowInput {
+                cells: vec![FlowCellInput {
+                    width: 100.0,
+                    padding: Insets::default(),
+                    minimum_height: 0.0,
+                    blocks: vec![lines(0, 1.0), nested],
+                }],
             }],
-        }],
-        0.0,
-        SplitPolicy::Never,
-    )
-    .unwrap()
-    .start();
-    let result = fit(&cursor, 1.2);
-    assert!(result.continuation().is_complete());
-    assert_eq!(result.placement().cells[0].tables.len(), 1);
-    let child = &result.placement().cells[0].tables[0].placement.bounds;
-    assert_eq!(child.y + child.height, 21.2);
+            0.0,
+            SplitPolicy::Never,
+        )
+        .unwrap()
+        .start();
+        for y in [0.0, 20.0, 126.48] {
+            let area = PageArea {
+                bounds: Rect {
+                    x: 10.0,
+                    y,
+                    width: 100.0,
+                    height: 1.2,
+                },
+            };
+            let FragmentFit::Placed(result) = cursor.fit(area).unwrap() else {
+                panic!("1.0 + 0.2 fits the independently declared 1.2 budget")
+            };
+            assert!(result.continuation().is_complete());
+            assert_eq!(result.reserved_height(), 1.2);
+            assert_eq!(result.placement().cells[0].tables.len(), 1);
+            let child = &result.placement().cells[0].tables[0].placement.bounds;
+            assert_eq!(child.y, y + 1.0);
+            assert_eq!(child.height, 0.2);
+            assert!(matches!(
+                cursor
+                    .fit(PageArea {
+                        bounds: Rect {
+                            height: f64::from_bits(1.2_f64.to_bits() - 1),
+                            ..area.bounds
+                        },
+                    })
+                    .unwrap(),
+                FragmentFit::DoesNotFit { .. }
+            ));
+        }
+    }
 }
 
 #[test]

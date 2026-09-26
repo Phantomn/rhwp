@@ -332,13 +332,7 @@ fn line_decoration_trim_target(
                         ..
                     } = op
                     {
-                        if run.text.chars().any(|ch| ch != ' ') {
-                            if run.is_para_end || run.is_line_break_end {
-                                *found = Some(None);
-                                return;
-                            }
-                            let trailing =
-                                run.text.chars().rev().take_while(|ch| *ch == ' ').count();
+                        if let Some(trailing) = run.soft_wrap_decoration_trim() {
                             *found = Some((trailing > 0).then_some((source.clone(), trailing)));
                             return;
                         }

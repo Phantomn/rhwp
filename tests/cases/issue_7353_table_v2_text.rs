@@ -1203,6 +1203,162 @@ fn trailing_plain_space_keeps_logical_advance_without_widening_occupied_line() {
 }
 
 #[test]
+fn soft_wrap_decoration_uses_shared_trim_but_preserves_author_spaces() {
+    use rhwp::model::style::{Alignment, UnderlineType};
+    use rhwp::paint::{LayerBuilder, LayerNode, LayerNodeKind, PaintOp, RenderProfile};
+    fn check(node: &LayerNode, count: &mut usize) {
+        match &node.kind {
+            LayerNodeKind::Group { children, .. } => {
+                for child in children {
+                    check(child, count)
+                }
+            }
+            LayerNodeKind::ClipRect { child, .. } => check(child, count),
+            LayerNodeKind::Leaf { ops } => {
+                for op in ops {
+                    if let PaintOp::TextDecoration {
+                        bbox,
+                        run,
+                        trim_trailing_spaces,
+                        ..
+                    } = op
+                    {
+                        if run.text == "AA BB   " {
+                            assert_eq!(*trim_trailing_spaces, 3);
+                            use rhwp::renderer::layout::{EmbeddedTextMeasurer, TextMeasurer};
+                            let positions =
+                                EmbeddedTextMeasurer.compute_char_positions(&run.text, &run.style);
+                            // Justification's independently specified right edge.
+                            assert!((bbox.x + positions[5] - (20.0 + 5.0 + 200.0)).abs() < 1e-7);
+                            *count += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for strike in [false, true] {
+        let mut t = table(&["AA BB   CC", "after"]);
+        let mut s = styles();
+        s.para_styles[0].alignment = Alignment::Justify;
+        s.char_styles[0].underline = if strike {
+            UnderlineType::None
+        } else {
+            UnderlineType::Bottom
+        };
+        s.char_styles[0].strikethrough = strike;
+        t.cells[0].paragraphs[0].line_segs = [0, 8]
+            .into_iter()
+            .enumerate()
+            .map(|(i, start)| LineSeg {
+                text_start: start,
+                vertical_pos: i as i32 * 24,
+                line_height: 20,
+                text_height: 20,
+                baseline_distance: 17,
+                line_spacing: 4,
+                segment_width: 200,
+                tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+                ..Default::default()
+            })
+            .collect();
+        let prepared = PreparedTextTable::prepare(&t, &s, 7200.).unwrap();
+        let (page, lines) = render(&placed(&prepared.start(), 100.));
+        assert_eq!(text(&lines[0]), "AA BB   ");
+        assert_eq!(text(&lines[1]), "CC");
+        assert_eq!(lines[1].bbox.y - lines[0].bbox.y, 24.);
+        let layer = LayerBuilder::new(RenderProfile::Screen).build(&page);
+        let mut count = 0;
+        check(&layer.root, &mut count);
+        assert_eq!(count, 1);
+        let mut svg = SvgRenderer::new();
+        svg.render_tree(&page);
+        let xml = roxmltree::Document::parse(svg.output()).unwrap();
+        let edge = xml.descendants().find(|n| n.has_tag_name("line")).unwrap();
+        assert!((edge.attribute("x2").unwrap().parse::<f64>().unwrap() - 225.0).abs() < 0.001);
+        // An authored last-line signature is not a soft-wrap separator.
+        let mut end = t.clone();
+        let p = &mut end.cells[0].paragraphs[0];
+        p.text = "AA BB   ".into();
+        p.char_count = 8;
+        p.char_offsets = (0..8).collect();
+        p.line_segs.truncate(1);
+        s.para_styles[0].alignment = Alignment::Right;
+        assert!(PreparedTextTable::prepare(&end, &s, 7200.).is_err());
+    }
+}
+
+#[test]
+fn atomic_row_fit_is_translation_invariant_at_exact_saved_height() {
+    // Two original saved row minima in HU. Their sum fits exactly; adding a
+    // page origin must not change either the cut or the reserved height.
+    let height = 14847.0 / 75.0;
+    let cursor = TableContentPlan::new(
+        vec![100.0],
+        [1765.0 / 75.0, 13082.0 / 75.0]
+            .into_iter()
+            .map(|minimum_height| RowInput {
+                cells: vec![CellInput {
+                    padding: Insets::default(),
+                    minimum_height,
+                    content: ComposedCell {
+                        width: 100.0,
+                        height: 3.0,
+                        lines: vec![LineBox {
+                            owner: LineOwner {
+                                paragraph: 0,
+                                line: 0,
+                            },
+                            bounds: Rect {
+                                x: 0.0,
+                                y: 0.0,
+                                width: 100.0,
+                                height: 3.0,
+                            },
+                        }],
+                    },
+                }],
+            })
+            .collect(),
+        0.0,
+        SplitPolicy::BetweenRows,
+    )
+    .unwrap()
+    .start();
+    for y in [0.0, 126.48, 500.0] {
+        let area = PageArea {
+            bounds: Rect {
+                x: 20.0,
+                y,
+                width: 100.0,
+                height,
+            },
+        };
+        let FragmentFit::Placed(part) = cursor.fit(area).unwrap() else {
+            panic!("exact height")
+        };
+        assert!(
+            part.continuation().is_complete(),
+            "origin {y} changed the cut"
+        );
+        assert_eq!(part.reserved_height(), height);
+        assert_eq!(part.placement().cells.len(), 2);
+        assert_eq!(part.placement().cells[1].bounds.y, y + 1765.0 / 75.0);
+        let short = PageArea {
+            bounds: Rect {
+                height: height - 1.0 / 75.0,
+                ..area.bounds
+            },
+        };
+        let FragmentFit::Placed(part) = cursor.fit(short).unwrap() else {
+            panic!("first row")
+        };
+        assert!(!part.continuation().is_complete());
+        assert_eq!(part.placement().cells.len(), 1);
+    }
+}
+
+#[test]
 fn contained_stored_frames_survive_alignment_and_continuation() {
     use rhwp::model::style::Alignment;
     for alignment in [Alignment::Left, Alignment::Center, Alignment::Right] {

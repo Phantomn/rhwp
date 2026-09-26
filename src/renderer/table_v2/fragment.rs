@@ -193,7 +193,7 @@ impl TableCursor {
                 SplitPolicy::WithinCells => 0.0,
             }
         };
-        if b.x + plan.width > b.x + b.width || b.y + required > b.y + b.height {
+        if plan.width > b.width || required > b.height {
             return Ok(FragmentFit::DoesNotFit {
                 required_width: plan.width,
                 required_height: required,
@@ -207,12 +207,12 @@ impl TableCursor {
         while next.row < end_row {
             let gap = if progressed { plan.row_spacing } else { 0.0 };
             let offset = height + gap;
-            if b.y + offset > b.y + b.height {
+            if offset > b.height {
                 break;
             }
             let available = (b.height - offset).max(0.0);
             if (atomic || plan.policy != SplitPolicy::WithinCells)
-                && b.y + offset + plan.row_heights[next.row] > b.y + b.height
+                && offset + plan.row_heights[next.row] > b.height
             {
                 break;
             }

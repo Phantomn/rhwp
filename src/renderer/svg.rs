@@ -1032,17 +1032,9 @@ impl SvgRenderer {
                 .rev()
                 .find_map(|child| {
                     if let RenderNodeType::TextRun(run) = &child.node_type {
-                        if run.text.chars().any(|ch| ch != ' ') {
-                            if run.is_para_end || run.is_line_break_end {
-                                return Some(None);
-                            }
-                            let trailing =
-                                run.text.chars().rev().take_while(|ch| *ch == ' ').count();
-                            if trailing > 0 {
-                                return Some(Some((child.id, trailing)));
-                            }
-                            return Some(None);
-                        }
+                        return run
+                            .soft_wrap_decoration_trim()
+                            .map(|trim| (trim > 0).then_some((child.id, trim)));
                     }
                     None
                 })

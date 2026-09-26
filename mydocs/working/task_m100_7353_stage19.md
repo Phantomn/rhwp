@@ -3453,3 +3453,123 @@ R3는 본문·중첩 표·저장 줄·Native/WASM 연결을 구현했지만 #692
 
 다음은 원본 p69의 음수 바깥여백과 저장 TAC 점유 높이 관계를 독립 근거로 추적한다.
 정상 HWPX 재저장으로 여백이0이 된 대조군은 이 원본 규칙의 근거로 대신하지 않는다.
+
+### 다음 묶음: 원본 차단점 분리와 자식 내용을 보존한 법령 표
+
+앞 위치 판정 절편은 `e266850af`로 커밋했다. 음수 여백은 사양의 HWPUNIT16(INT16)과
+`parser/control.rs`의 i16 파싱을 통해 IR에 그대로 들어온 값이다. 원본 p69 표는
+14847−1−1=14845HU, 본문 p29 표도11156−1−1=11154HU로 저장 줄 높이에 대응한다.
+단순 파서 오류·한 문서에만 붙일 예외가 아니다. 현재 `tac::object_rows`의 음수 거부 뒤에는
+`content.rs`의 child.y≥0/child 끝≤행 높이, `flow.rs`의 행 전체 예약, `ParagraphEnd`의
+점유 끝 계산이 연결된다. guard만 풀면 물리 표와 저장 줄 경계가 어긋난다. 위쪽 돌출과
+다음 줄 전진·페이지 경계의 계약을 함께 구현해야 하며, 이번 묶음에서는 음수 지원을
+완료로 바꾸지 않는다. 독립 기존 PDF는 그대로 보존했고 재생성으로 원본을 대체하지 않았다.
+
+동시에 자식 내용을 그대로 보존한 정상 저장 분리본의 다음 거부를 셀/문단으로 좁혔다.
+`output/7353/r19/tac-next/diagnose.rs`의1×1 분리 probe는 위치 일치 증거가 아니라 원인
+분류용이다. `c2/p1`, `c3/p1`의 줄 끝 밑줄 공백이 대상이다. 전자의 line 끝277.44px에
+run 논리 끝284.6px, 후자의 line 끝300.1066667px에 run 끝307.2666667px가 관측됐다.
+둘 다 실제 출력의 soft-wrap 공백 제외와 달리 V2 guard가 장식된 논리 공백을 표시 폭으로
+판정했다. 임시 진단 출력은 제거했고 원본·정상 저장 분리본을 변경하지 않았다.
+
+독립 규칙은 기존 #6028/#6117의 한컴 출력과 공통 paint 계약이다. 마지막 가시 run의
+자동 줄바꿈 구분 공백만 장식선에서 제외하며, 문단 끝/강제 개행/별도 공백-only run의
+작성자 공백은 보존한다. `TextRunNode::soft_wrap_decoration_trim`으로 기존 판정을 추출해
+SVG·WebCanvas·LayerBuilder와 V2 표시 폭 검사가 공유한다. 줄·논리 텍스트·font 크기·
+저장 partition은 바꾸지 않는다. 공용 출력 경로의 기존 동작은 동일하며 회귀 검사를 수행한다.
+
+이후 같은 분리본에서 자식 표 첫 행만 배치한 뒤 `InconsistentAtomicPlan`을 확인했다.
+두 행 높이는1765/75+13082/75=197.96px로 전체 높이와 같다. 그런데 원점126.48px을 더하면
+`126.48+23.533333333333335+174.42666666666668=324.44000000000005`,
+`126.48+197.96=324.44`라 전체 행 수용 검사가 둘째 행을 이월했다. `fragment::fit_rows`의
+행 수용은 공통 계획과 같은 로컬 좌표 `offset+row_height <= budget`으로 바꿨다.
+epsilon·높이 축소·추가 허용치 없이 원점 이동 불변식을 지킨다. 시작/끝 컷·rowspan 전용
+분기는 수정하지 않았고, 수용된 행의 기존 내용/최소 높이/paint 경로는 유지한다.
+
+정식 계약은 `tests/cases/issue_7353_table_v2_text.rs`의 soft-wrap 장식 및 exact-height
+원점 이동 계약, `issue_7353_table_v2_document_flow.rs`의 정상 분리본 종단 계약이다.
+수정 전 라이브러리에서 전자는 기존 표시 폭 거부로 FAIL, 후자는 y126.48에서 컷 변경으로
+FAIL했다(`output/7353/r19/underline/before-text.log`, `before-atomic.log`). 빌드 오류는
+이 red 결과에 포함하지 않는다. 수정 후 문서73건·텍스트32건 PASS이며 Native에서는
+자식 네 셀·두 행·뒤 본문까지1쪽으로 출력된다.1HU 부족 예산은 여전히 둘째 행을 이월한다.
+실제 LayerBuilder의 trim3과 SVG 장식선 끝225px도 독립 지정한200HU 줄 폭으로 검사한다.
+
+정상 저장 HWP/PDF는 `tests/fixtures/issue7353_stored_underline_review/`에 보존한다.
+이전 --simple 대조군과 달리 원래 자식 표 내용을 교체하지 않았다. 다만 원본을 분리하고
+한컴에서 재저장한 입력이며 음수 여백은0으로 바뀌었다. 원본 전체 통과 자료가 아니다.
+Native review를 직접 열어 동일 줄바꿈·두 행 외곽·공백 줄·뒤 본문을 확인했다.
+폴백 글꼴 외형/굵기와 선 농도 차이는 남는다. 집중 회귀 및 Docker fresh WASM을 진행한다.
+
+#### 법령 표 묶음의 초기 검증 — 추가 경계 보완 전
+
+- source는 `e266850af` 위 작업 diff이며 `output/7353/r19/underline/source.sha256`으로
+  변경 Rust6개와 정식 검사2개를 고정했다. 검증 worktree의 전체 `src`도 작업 소스와 같다.
+- `docker compose --env-file .env.docker -p rhwp run --rm wasm` 완료:7분36초,
+  컨테이너 exit0. 실행 CLI 연결은 종료됐지만 컨테이너의 최적화는 계속됐으므로 재빌드하지
+  않고 `docker wait`와 `docker logs --follow`로 실제 완료를 확인했다.
+  `docker-completion.log`, `docker-container-exit.log`에 보존했다.
+- WASM SHA-256은 `cd7609258bc7564d5b23843136f3ec9aa5b2f4c8dd28cd23ac58be52f2e83036`.
+  `node output/7353/r19/underline/review.mjs --wasm`의 브라우저 DocumentV2 출력은
+  Native와 JSON 숫자·기타 필드 차이0, SVG 동일, 각각1쪽이다. `review/run.json`에 입력·
+  기준 PDF·source·WASM 해시가 연결된다.
+- `node output/7353/r19/underline/controls.mjs`: 기존 승인7개×끝 간격 정책2개=14조합
+  모두 기존 SVG 유지 및 Native/WASM 일치. 새 한컴 피델리티 판정의 대체 근거는 아니다.
+- `cargo clippy --locked -p rhwp --lib --target-dir /home/edward/mygithub/rhwp/target/pr-review
+  -- -D warnings`와 같은 명령의 `--target wasm32-unknown-unknown` 모두 통과했다.
+  전체 workspace/all-targets CI lint나 전체 회귀를 실행한 것으로 보고하지 않는다.
+- 최종 WASM review와 standalone overlay를 직접 열어 법령 두 셀의 줄바꿈, 자식 표 두 행·
+  외곽, 부모 공백 줄과 뒤 본문 위치를 확인했다. 폴백 글꼴 굵기/외형 및 테두리 농도 차이는
+  남는다. 새 묶음의 메인테이너 시각 판정은 대기이며 앞 묶음의 위치 승인을 재사용하지 않는다.
+
+시각 판정 자료(동일 정상 저장 분리본1쪽, 원본 전체 수용 자료 아님):
+
+- [fresh WASM review](../../output/7353/r19/underline/review/wasm-review-1.png)
+- [standalone overlay](../../output/7353/r19/underline/review/wasm-overlay-1.png)
+- [정상 저장 HWP](../../tests/fixtures/issue7353_stored_underline_review/carrier-saved.hwp)
+- [동일 HWP의 한컴 PDF](../../tests/fixtures/issue7353_stored_underline_review/carrier-2020.pdf)
+
+집중 release-test 결과는285건 중284PASS/1FAIL이었다(`underline/focused.log`). 기존
+`fractional_page_budget_does_not_split_an_atomic_nested_table`가 `InconsistentAtomicPlan`으로
+실패했으므로 이 시점의 완료·시각 판정 요청은 보류했다. 위 초기 WASM 해시와 manifest는
+`underline/run-before-budget.json`에 보존하며 최종 소스 증거로 재사용하지 않는다.
+
+추가 원인은 부모1.2 예산에서 앞 내용1.0을 빼면 자식0.2보다 작은 값이 전달되는 데 있다.
+절대 좌표의 반올림에 의존하던 원래 초기 fit 검사도 로컬 폭/높이 비교로 바꾸고,
+`flow::child_budget`은 부모 로컬 좌표에서 `pen + (prefix + child_plan.height) <= total`이
+입증된 경우 이미 수용 가능한 계획 높이를 자식 query에 보존한다. 실제 초과는 남은 예산만
+전달하며 epsilon이나 선언 높이 축소로 통과시키지 않는다. 일반 Table와 AnchoredTable가
+같은 함수를 사용하고 InlineTables는 이미 계획 높이를 직접 전달한다. 자식의 실제 예약은
+기존 `fragment.reserved_height()`를 통해 부모 pen/occupied end/placement로 이어진다.
+rowspan 전용 컷·헤더 반복 경로는 변경하지 않았다.
+
+기존 실패 계약을 일반/앵커 자식과 원점0/20/126.48로 확장했다. 독립 예산1.2는 자식0.2와
+앞 내용1.0을 완전히 수용하며, 바로 아래의 표현 가능한 f64 예산은 부모 원점과 무관하게
+거부한다. 중첩 계약16건과 정상 분리본1쪽은 수정 후 통과했다. 최종 집중 검증은 빠른
+경계 재검증을 위해 **dev profile**을 사용하며 release-test 결과와 혼동하지 않는다.
+현재 source7개/정식 검사3개로 manifest를 갱신했고 Docker fresh WASM과 시각 캡처도
+다시 생성한다.
+
+보완 후 집중 검사 결과: `underline/focused-final.log`의 dev profile
+nextest는 **285PASS/0FAIL**,3244 skipped,16개 suite binary다. 필터는
+`test(issue_7353_table_v2) | test(issue_7353_rowspan_roundoff) | test(issue_4755) |
+test(issue_6102) | test(issue_3128) | test(issue_6028) | test(issue_6117) | test(issue_6451)`.
+초기 release-test의1건 실패와 분리해 기록하며 전체 CI 통과로 보고하지 않는다.
+
+보완 후 최종 검증도 완료했다. Native/WASM lib Clippy는 각각
+`clippy-native-final.log`, `clippy-wasm-final.log`에서 통과했고 포맷·diff·source 해시와
+검증 worktree 전체 source 일치를 다시 확인했다. Docker 빌드는7분37초, exit0이며
+`docker-final-completion.log`와 `docker-final-exit.log`에 보존했다. 최종 WASM SHA-256은
+`bd2a3cce4e82853e01809e8a2850b87072b25ae4b2b63b232d8a1c6d1c6ed97a`다.
+
+최종 `review.mjs --wasm` 실행에서 Native/WASM 각각1쪽, JSON 숫자·기타 필드 차이0,
+SVG 동일을 확인했다. `controls-final.log`의 기존 승인 대조군14조합도 모두 유지됐다.
+최종 source로 갱신한 위 **WASM review와 standalone overlay를 다시 직접 열었다**.
+두 법령 셀의 줄 구성과 표/뒤 본문 위치는 유지되며 글꼴 외형·선 농도 차이는 남는다.
+새 묶음은 메인테이너 시각 판정 대기다. 원본 음수 여백·원본 전체 수용은 계속 미완료이며,
+전체 CI·기본 경로 전환·원격 게시를 수행하지 않았다.
+
+메인테이너가 위 분리본을 통과로 판정했다. 부모26000HU의 남는 공간은 생성기에서 정한
+검증용 높이이며 자식2행4셀이 조기 분할된 결과가 아님을 확인한 뒤의 승인이다. 승인 범위는
+해당 분리본의 줄바꿈·밑줄·표/뒤 문단 위치이며 원본 전체 페이지네이션 통과로 확대하지 않는다.
+전체 진행 추정은 약45%(40~50% 범위)로 유지한다. 다음은 원본 음수 바깥여백에서
+줄 전진과 실제 표 점유의 공통 계약 및 실제 원본 다음 차단점을 추적한다.

@@ -26,6 +26,19 @@ pub(super) struct FlowFit {
     pub tables: Vec<NestedTablePlacement>,
 }
 
+/// Preserve a proven complete child extent when subtraction loses a low bit
+/// (1.2 - 1.0 < 0.2). Acceptance is in the parent's local coordinate system,
+/// using the same prefix + child height that advances its pen. A real deficit
+/// still passes only the remaining budget to the child's fragmentation query.
+fn child_budget(total: f64, pen: f64, prefix: f64, child_height: f64) -> f64 {
+    let remaining = ((total - pen).max(0.0) - prefix).max(0.0);
+    if pen + (prefix + child_height) <= total {
+        remaining.max(child_height)
+    } else {
+        remaining
+    }
+}
+
 impl FlowCursor {
     pub fn fit(&self, cell: &FlowCellInput, area: Rect) -> Result<FlowFit, GeometryError> {
         self.fit_until(cell, area, cell.blocks.len())
@@ -84,7 +97,7 @@ impl FlowCursor {
                                 x: area.x + offset_x,
                                 y: area.y + pen + top,
                                 width: area.width - offset_x,
-                                height: available - top,
+                                height: child_budget(area.height, pen, *top, plan.height),
                             },
                         })? {
                             FragmentFit::Placed(fragment) => {
@@ -269,7 +282,7 @@ impl FlowCursor {
                             x: area.x + offset_x,
                             y: area.y + pen + prefix,
                             width: area.width - offset_x,
-                            height: (available - prefix).max(0.0),
+                            height: child_budget(area.height, pen, prefix, plan.height),
                         },
                     })? {
                         FragmentFit::Placed(fragment) => {

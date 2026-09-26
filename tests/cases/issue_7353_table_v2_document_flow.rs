@@ -1088,6 +1088,37 @@ fn normal_saved_blank_tac_row_preserves_child_and_following_origins() {
     let ink: String = painted.chars().filter(|c| !c.is_whitespace()).collect();
     assert!(ink.contains("TABLEONSECONDLINE"));
 }
+
+#[test]
+fn normal_saved_underlined_wrap_keeps_child_geometry_and_following_body() {
+    let input = include_bytes!("../fixtures/issue7353_stored_underline_review/carrier-saved.hwp");
+    let mut session = DocumentV2Session::from_bytes(input, TERMINAL_OPTIONS).unwrap();
+    let pages = drain(&mut session);
+    assert_eq!(pages.len(), 1);
+    let tables = nodes(&pages[0], "Table");
+    assert_eq!(tables.len(), 2);
+    // Normal Hancom saved source: same carrier/parent as the blank-row
+    // fixture, but the original four-cell child content is NOT substituted.
+    near(&tables[0]["bbox"]["height"], 26000.0 / 75.0);
+    near(&tables[1]["bbox"]["x"], (5669.0 + 283.0 + 1550.0) / 75.0);
+    near(&tables[1]["bbox"]["y"], (7087.0 + 283.0 + 2116.0) / 75.0);
+    near(&tables[1]["bbox"]["height"], 14847.0 / 75.0);
+    let lines = nodes(&pages[0], "TextLine");
+    let after = lines.last().unwrap();
+    near(&after["bbox"]["y"], (7087.0 + 26000.0 + 516.0) / 75.0);
+    let texts = labels(&pages[0]);
+    assert_eq!(
+        texts
+            .iter()
+            .filter(|s| s.starts_with("AFTER CELL:"))
+            .count(),
+        1
+    );
+    assert!(texts
+        .iter()
+        .any(|s| s.contains("소비자를 속이거나 소비자로 ")));
+    assert!(texts.iter().any(|s| s.contains("사실을 지나치게 부풀려")));
+}
 fn near(value: &Value, expected: f64) {
     let value = value.as_f64().unwrap();
     assert!((value - expected).abs() < 1e-6, "{value} != {expected}");

@@ -304,9 +304,16 @@ pub(super) struct TextComposer<'a> {
 /// inline extent, using the same replay positions that backends consume.
 /// Decorations, interior spaces and visible glyphs keep their full bounds.
 fn painted_inline_ends(nodes: &[RenderNode], styles: &ResolvedStyleSet) -> Vec<Option<f64>> {
+    let decoration_target = nodes.iter().enumerate().rev().find_map(|(i, node)| {
+        if let RenderNodeType::TextRun(run) = &node.node_type {
+            run.soft_wrap_decoration_trim().map(|trim| (i, trim))
+        } else {
+            None
+        }
+    });
     let mut suffix = true;
     let mut ends = Vec::with_capacity(nodes.len());
-    for node in nodes.iter().rev() {
+    for (index, node) in nodes.iter().enumerate().rev() {
         let full = Some(node.bbox.x + node.bbox.width);
         let RenderNodeType::TextRun(run) = &node.node_type else {
             suffix = false;
@@ -319,8 +326,8 @@ fn painted_inline_ends(nodes: &[RenderNode], styles: &ResolvedStyleSet) -> Vec<O
             && run.rotation == 0.0
             && !run.is_vertical
             && run.field_marker == crate::renderer::render_tree::FieldMarkerType::None
-            && s.underline == crate::model::style::UnderlineType::None
-            && !s.strikethrough
+            && ((s.underline == crate::model::style::UnderlineType::None && !s.strikethrough)
+                || decoration_target.is_some_and(|(i, trim)| i == index && trim > 0))
             && crate::model::color::char_shade(s.shade_color).is_none()
             && s.tab_leaders.is_empty()
             && s.outline_type == 0

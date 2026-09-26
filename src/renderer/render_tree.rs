@@ -952,6 +952,19 @@ pub struct TextRunNode {
 }
 
 impl TextRunNode {
+    /// A line scans runs backwards: None skips space-only runs, Some(0) stops
+    /// without trimming. Author-owned paragraph/forced-break spaces stay ink
+    /// when decorated; only a soft-wrap separator is omitted by replay.
+    pub(crate) fn soft_wrap_decoration_trim(&self) -> Option<usize> {
+        self.text.chars().any(|ch| ch != ' ').then(|| {
+            if self.is_para_end || self.is_line_break_end {
+                0
+            } else {
+                self.text.chars().rev().take_while(|ch| *ch == ' ').count()
+            }
+        })
+    }
+
     /// [#6801] 다음 블록 배치가 확정한 끝 탭 경계를 모든 replay 소비자에 전달한다.
     /// 앞선 가시 문자의 폭은 보존하고 뒤 공백/탭만 남은 advance에 맞춘다.
     pub(crate) fn resolve_trailing_tab_end(
