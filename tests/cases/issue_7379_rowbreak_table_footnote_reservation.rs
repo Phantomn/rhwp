@@ -6,9 +6,9 @@
 //! 각주77은 저장 vpos [0,1172,0]의 앞 두 줄을66쪽에 두고,
 //! Part 482... 및 출처 꼬리는67쪽에 번호 반복 없이 이어야 한다.
 //!
-//! 원 contributor 변경은 전체 각주 사전 예약을 whole/split 모두에서 제거해
+//! 원 기여자 변경은 전체 각주 사전 예약을 통째/분할 경로 모두에서 제거해
 //! 표 존재 검사를 개선했지만 3+3행과 각주77 누락이 남았다. 메인터너는
-//! whole 예약을 유지하고 유효 저장 각주 경계를 split queue에 연결한다.
+//! 통째 예약을 유지하고 유효 저장 각주 경계를 분할 대기열에 연결한다.
 //! 행·각주 소유 개선과 전체 페이지/시각 gate 통과는 별도다. 남은 차이와
 //! 실제 전후 실행은 mydocs/pr/archives/pr_7382_review.md에 기록한다.
 //!
@@ -441,7 +441,7 @@ fn stored_cell_reset_preserves_prefix_tail_and_following_figure_page() {
 }
 
 /// PDF78: 기존105/106, PDF79: 표107..111, PDF80: 남은112..124.
-/// source marker 행과 실제 footer의 물리 소유를 별도로 확인한다.
+/// 원본 참조 번호 행과 실제 각주 영역의 물리 소유를 별도로 확인한다.
 #[test]
 fn multirow_table_queues_cell_notes_after_the_accepted_body_fragments() {
     let core = core();
@@ -500,7 +500,7 @@ fn multirow_table_queues_cell_notes_after_the_accepted_body_fragments() {
     }
 }
 
-/// 빈 각주 몸통으로 footer capacity와 marker 소유를 분리한 합성 IR 계약.
+/// 빈 각주 몸통으로 각주 영역 용량과 참조 번호 소유를 분리한 합성 IR 계약.
 /// 원본 저장 줄/표를 유지하며 본문에 아직 없는 row6의82번은 먼저 등록할 수 없다.
 /// 이 변형은 한컴 출력 일치 증거가 아니다.
 #[test]
@@ -954,7 +954,7 @@ fn single_cell_saved_frame_preserves_picture_and_note_page_owners() {
     );
 }
 
-/// 같은 Hancom PDF174/175의 외곽선과 뒤 제목 좌표; 페이지 소유만으로 대체하지 않는다.
+/// 같은 한컴 PDF174/175의 외곽선과 뒤 제목 좌표; 페이지 소유만으로 대체하지 않는다.
 #[test]
 fn single_cell_saved_frame_border_and_following_heading_match_pdf() {
     let core = core();
@@ -980,7 +980,7 @@ fn single_cell_saved_frame_border_and_following_heading_match_pdf() {
     }
 }
 
-/// 실제 HWPX note234는 저장 두 줄의 vpos0/0을 보존한다. 독립 PDF176에는
+/// 실제 HWPX 각주234는 저장 두 줄의 vpos0/0을 보존한다. 독립 PDF176에는
 /// 번호와 첫 줄,177에는 번호/구분선 없는 꼬리와 뒤 각주235가 있다.
 #[test]
 fn unqueued_cell_note_preserves_repeated_page_top_prefix_and_tail() {
@@ -1228,7 +1228,7 @@ fn body_note_invalid_saved_reset_stays_atomic() {
     }
 }
 
-/// 한컴 PDF31의 첫 두 줄은 앞쪽 본문407의 stored reset 뒤 꼬리다.
+/// 한컴 PDF31의 첫 두 줄은 앞쪽 본문407의 저장 되감김 뒤 꼬리다.
 #[test]
 fn body_first_note_reservation_preserves_saved_reset_tail_owner() {
     let core = core();
@@ -1270,7 +1270,7 @@ fn body_two_line_note_preserves_reset_tail_before_following_picture() {
     assert!(tail.contains("Transplantationszentren") && !tail.contains("30)"));
 }
 
-/// 합성 되감김은 원본 저장 경계의 대용이 아니며 이 physical route를 켜지 않는다.
+/// 합성 되감김은 원본 저장 경계의 대용이 아니며 이 물리 경로를 켜지 않는다.
 #[test]
 fn synthetic_body_reset_does_not_create_a_saved_footnote_boundary() {
     use rhwp::model::paragraph::LineSeg;
@@ -2490,7 +2490,7 @@ fn assert_figure11_closed_source_frame(hwpx: bool) {
     );
     assert!((table.bbox.height - 17819.0 / 75.0).abs() < 0.1);
     let image = find_picture(table).expect("그림11 원본 그림");
-    // 두 형식의 원본 crop을 적용한 HWPX PDF 가시 bbox. HWP PDF 원시 bbox는 clip 전이다.
+    // 두 형식의 원본 자르기 정보를 적용한 HWPX PDF 가시 상자. HWP PDF 원시 상자는 자르기 전이다.
     assert!(
         (image.bbox.y - 711.382650).abs() < 1.5,
         "독립 가시 그림 위치: {:?}",

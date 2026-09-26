@@ -1009,7 +1009,7 @@ impl TypesetEngine {
                 )
                 .map(|top| top - column.y)
                 .or_else(|| {
-                    // HWPX의 한 줄 캡션 다음에 오는 빈-host Square RowBreak 표는
+                    // HWPX의 한 줄 캡션 다음에 오는 빈 호스트의 Square RowBreak 표는
                     // 저장 LineSeg 사다리에서 표의 첫 원점이 확정된다. 앞 문단을
                     // 재측정한 흐름이 한 줄 이상 길어져도 분할 스캐너는 paint와
                     // 같은 저장 원점에서 남은 쪽 높이를 계산해야 한다.

@@ -1009,7 +1009,7 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 - 최종 확대는 이전40모듈에 #6190의 저장 비트·셀 내어쓰기·HWP3·각주 폭 재조판/줄 높이 대조군을 추가해243PASS/0FAIL(exit0,8.465s,threads8)이다. fmt·고정base manifest(6236 attrs)·source-unit(4205/298)은exit0이며 release-test CLI 빌드는exit0/89.873s다. [정확한 명령·source/test/CLI 해시·로그 해시·판정](../assets/pr7382_20260926/stage40_validation.json), [원본 문단 속성/줄](../assets/pr7382_20260926/stage40_note_source.json), [독립 PDF 좌표](../assets/pr7382_20260926/stage40_independent_geometry.json).
 - Native126쪽은 두 형식 모두92.75732→94.99385%이며 이어지는 글줄x111.96px가 독립 PDF x112.0px와 같은 허용 범위에 들어왔다. 번호 없는 이어받기도 포함한67/179쪽을 함께 직접 확인했다. HWPX67쪽93.58939→96.21756%,179쪽은양쪽97.53225→97.93535%다. 번호 없는 기존 꼬리·각주 번호 단일 소유·표/본문·후속 제목을 보존했다. 새 review·standalone overlay24개를 직접 읽었다.
 - 전체215쪽 tree는 각주 영역 안에서만 HWPX78쪽/HWP79쪽이 바뀌었고, 두 형식 모두 각주 영역 밖의 tree는 모든215쪽에서 동일하다. [전수 tree 범위](../assets/pr7382_20260926/stage40_original_tree_difference.json). 이는 각주 전체 래스터 통과의 대용이 아니며 변경된 모든 쪽은 최종 전수 시각에서 재검토한다.
-- 현재 통합 base c80a8370a 이후 Rust·Python·JS/TS·셸·설정의 추가 설명 주석922줄을 재검색해 [영어 설명 주석0개](../assets/pr7382_20260926/stage40_all_language_comment_scan.json)를 확인했다. 코드 울타리와 제품/형식/API 식별자는 유지한다. 로그·output·generated는 커밋하지 않는다.
+- 현재 통합 base c80a8370a 이후 줄 시작 위치의 추가 설명 주석922줄을 재검색해 [영어 설명 주석0개](../assets/pr7382_20260926/stage40_all_language_comment_scan.json)를 확인했다. 코드 울타리와 제품/형식/API 식별자는 유지한다. 로그·output·generated는 커밋하지 않는다.
 - 판정: 번호 있는 각주 내어쓰기 누락은 충족. HWP67쪽은 수정 전72.73184%→수정 후74.64010%로 표/뒤 본문이 PDF보다 위에 놓인 차이가 남아 gate 재검토 상태다. 이를 기존 차이라는 이유로 승인하지 않는다. #6782의76/78쪽·실제 TABLE 편집/래퍼 분할·최신 전수 Native/fresh WASM·전체 nextest/lint/Skia도 남아 통합 PR 생성/승인은 계속 보류한다. 이 단계 커밋 뒤 최신 전수 시각과 HWP67쪽 원점부터 다음 개별 사유를 분석한다.
 
 ![126쪽 각주 내어쓰기 복원](../assets/pr7382_20260926/stage40_after_hwpx_review_126.png)

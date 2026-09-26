@@ -13322,7 +13322,7 @@ impl LayoutEngine {
         end_cut: usize,
         styles: &ResolvedStyleSet,
     ) -> f64 {
-        // 저장 HWPX pageBreak="CELL"은 보이는 문단으로 물리 조각을 끝낸 뒤
+        // 저장 HWPX의 pageBreak="CELL" 속성은 보이는 문단으로 물리 조각을 끝낸 뒤
         // 다음 문단을 vpos=0에서 다시 시작할 수 있다. 마지막 줄의 간격은
         // 다음 프레임에 속하므로 현재 쪽에 그 보이는 줄이 들어가는 것을
         // 막으면 안 된다(#7406, 79→80쪽).
