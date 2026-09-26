@@ -29,7 +29,17 @@ impl TypesetEngine {
             para_index: para_idx,
             control_index: ctrl_idx,
         };
-        let native_table_host_footnote = if st.profile.hwp5_stored_pagination_layout()
+        // 원본 HWPX의 표 뒤 형제 각주도 실제 끝 조각 소유를 따른다.
+        // 편집·무효 텍스트 분할·합성 줄은 원본 저장 캡션의 근거로 사용하지 않는다.
+        let original_hwpx_table_host = st.profile.hwpx_stored_layout()
+            && !st.profile.session_edited()
+            && !para.stored_text_partition_is_dirty()
+            && !para.line_segs.is_empty()
+            && para.line_segs.iter().all(|line| {
+                line.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
+            });
+        let stored_table_host_footnote = if (st.profile.hwp5_stored_pagination_layout()
+            || original_hwpx_table_host)
             && st.col_count == 1
             && para
                 .controls
@@ -52,10 +62,12 @@ impl TypesetEngine {
             match (top_level_tables.next(), top_level_tables.next()) {
                 (Some((table_control_index, table)), None)
                     if table_control_index + 1 == ctrl_idx
-                        && native_hwp5_rowbreak_host_precedes_first_fragment(para, table) =>
+                        && native_hwp5_rowbreak_host_precedes_first_fragment(para, table)
+                        && (!original_hwpx_table_host
+                            || !self.render_normalization.table_text_reflowed(table)) =>
                 {
                     let full_content_height = composed_footnote_content_height(fn_ctrl, self.dpi);
-                    st.native_table_host_terminal_fragment_placement(
+                    st.table_host_terminal_fragment_placement(
                         para_idx,
                         table_control_index,
                         table.row_count,
@@ -84,7 +96,7 @@ impl TypesetEngine {
             content_height,
             draw_separator,
             full_content_height,
-        )) = native_table_host_footnote
+        )) = stored_table_host_footnote
         {
             let overlap_guard = if terminal_fragment_is_current {
                 32.0

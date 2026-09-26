@@ -1848,3 +1848,74 @@ fn stored_bullet_origin_does_not_admit_wrong_width_or_synthetic_rows() {
         );
     }
 }
+
+fn assert_caption_note_owner(hwpx: bool, page: u32, number: u16, expected_y: f64) {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(if hwpx {
+        SAMPLE.to_owned()
+    } else {
+        SAMPLE.replace(".hwpx", ".hwp")
+    });
+    let bytes = std::fs::read(path).expect("정식 원본");
+    let core = DocumentCore::from_bytes(&bytes).expect("문서 로드");
+    assert_eq!(core.page_count(), 215, "독립 기준 PDF 쪽 수");
+    let needle = format!("{number})");
+    for index in [page - 2, page - 1, page] {
+        let tree = core
+            .build_page_render_tree(index)
+            .expect("각주 소유 인접 쪽");
+        fn note_line<'a>(node: &'a RenderNode, needle: &str) -> Option<&'a RenderNode> {
+            if matches!(&node.node_type, RenderNodeType::TextLine(_)) && text(node).contains(needle)
+            {
+                return Some(node);
+            }
+            node.children
+                .iter()
+                .find_map(|child| note_line(child, needle))
+        }
+        let found = notes(&tree.root).and_then(|area| note_line(area, &needle));
+        if index == page - 1 {
+            let line = found.expect("분할 표 캡션 각주가 끝 조각 쪽에 있어야 함");
+            // PDF는 가시 글자의 상단이고 렌더 트리는 줄 상자다. 동일 값으로 비교하지 않는다.
+            // 기준 글자 상단이 실제 해당 각주 줄 상자에 속하는지와 인접 쪽 소유를 확인한다.
+            assert!(
+                line.bbox.y - 0.5 <= expected_y
+                    && expected_y <= line.bbox.y + line.bbox.height + 0.5,
+                "각주{number} 기준 글자 상단 {expected_y}는 실제 줄 상자 {}..{}에 속해야 함",
+                line.bbox.y,
+                line.bbox.y + line.bbox.height
+            );
+        } else {
+            assert!(found.is_none(), "각주{number} 인접 쪽 중복/잘못된 소유");
+        }
+    }
+}
+
+/// 원본 HWPX PDF87의 표 캡션 각주138은 끝 조각 아래에 있다.
+#[test]
+fn hwpx_caption_note_138_is_preserved_on_terminal_table_page() {
+    assert_caption_note_owner(true, 87, 138, 1027.556885);
+}
+
+/// 원본 HWPX PDF91의 캡션 각주142는 다른 본문 각주보다 먼저 보인다.
+#[test]
+fn hwpx_caption_note_142_is_preserved_before_following_body_notes() {
+    assert_caption_note_owner(true, 91, 142, 920.368571);
+}
+
+/// 원본 HWPX PDF95의 URL 각주147도 끝 조각 소유를 따른다.
+#[test]
+fn hwpx_caption_note_147_is_preserved_on_terminal_table_page() {
+    assert_caption_note_owner(true, 95, 147, 1011.888590);
+}
+
+/// Native 원본의 기존 번호 캡션 각주 소유·좌표는 같은 독립 출력에 부합한다.
+#[test]
+fn native_caption_notes_keep_existing_terminal_table_page_owners() {
+    for (page, number, y) in [
+        (87, 138, 1027.556885),
+        (91, 142, 920.368571),
+        (95, 147, 1011.888590),
+    ] {
+        assert_caption_note_owner(false, page, number, y);
+    }
+}

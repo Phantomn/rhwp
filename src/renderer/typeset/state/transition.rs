@@ -208,7 +208,7 @@ impl TypesetState {
 
     /// 동일 표의 terminal fragment가 아직 current column에 있는지, 직전에 flush된
     /// page에 있는지 구분한다. `Some(true)`는 current, `Some(false)`는 flushed다.
-    pub(in crate::renderer::typeset) fn native_table_host_terminal_fragment_placement(
+    pub(in crate::renderer::typeset) fn table_host_terminal_fragment_placement(
         &self,
         para_index: usize,
         control_index: usize,

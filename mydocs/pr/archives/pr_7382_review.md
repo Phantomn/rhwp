@@ -2,14 +2,14 @@
 kind: snapshot
 status: active
 canonical: mydocs/manual/pr_review_workflow.md
-last_verified: 2026-09-26
+last_verified: 2026-09-27
 ---
 
 # PR #7382 리뷰 — 분할 표와 저장 각주 경계
 
 ## 현재 판정
 
-**머지 보류.** 보정22 후보는 원본 HWP/HWPX215쪽과 선택90/91쪽 자동 gate를 통과했으나, 직접 비교에서 HWPX91 캡션 각주142 누락이 남았다. 전체 Native/fresh WASM 및 최종 필수 게이트도 미완료다. 통합 PR 생성·승인을 완료했다고 보고하지 않는다.
+**머지 보류.** 보정23 후보는 원본 HWP/HWPX215쪽을 유지하며, HWPX87/91/95의 캡션 각주138/142/147 등록 누락을 해결했다. 영향6쪽의 선택 Native gate와 직접 판독은 통과했다. 전체 Native/fresh WASM 최신 head 비교 및 최종 필수 게이트는 미완료이며, 통합 PR 생성·승인을 완료했다고 보고하지 않는다.
 
 ## 접수와 provenance
 
@@ -557,3 +557,26 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 - [HWP90 review](../assets/pr7382_20260926/stage22_native_hwp_review_090.png) · [overlay](../assets/pr7382_20260926/stage22_native_hwp_overlay_090.png) · [HWP91 review](../assets/pr7382_20260926/stage22_native_hwp_review_091.png) · [overlay](../assets/pr7382_20260926/stage22_native_hwp_overlay_091.png).
 - [HWPX90 review](../assets/pr7382_20260926/stage22_native_hwpx_review_090.png) · [overlay](../assets/pr7382_20260926/stage22_native_hwpx_overlay_090.png) · [HWPX91 review](../assets/pr7382_20260926/stage22_native_hwpx_review_091.png) · [overlay](../assets/pr7382_20260926/stage22_native_hwpx_overlay_091.png).
 - 해결 범위는 저장 줄 소유와 실제 표 분할 경계다. 자동90% 이상을 캡션 각주 소유의 완료 증거로 삼지 않으며, 각주142 누락을 다음 개별 단계로 추적한다. 영어 설명 주석 추가 없음. 로그·진단·generated suite는 output/ignored 작업 증적이며 커밋하지 않는다.
+
+## 메인터너 보정23 — 분할 표 캡션의 형제 각주 등록
+
+- 원인: `section::controls → register_body_footnote(has_table=true)`에서 HWPX는 Native 전용 표 캡션 각주 분기와 `!has_table` 분기 모두 제외되어 각주 참조가 발행되지 않았다. 원본937/962/1000의 표 다음 형제 각주138/142/147은 셀 내부 각주가 아니다. [독립 입력·PDF 가시 글자 영역](../assets/pr7382_20260926/stage23_independent_geometry.json).
+- 생산→소비: 원본 유효 HWPX의 단단·단일 번호 캡션 표·직후 단일 형제 각주를 기존 구조 판별에 연결한다. 실제 확정 `Table` 또는 끝 행/빈 끝 컷 `PartialTable`의 소유를 format 중립 `table_host_terminal_fragment_placement`로 확인한 뒤, 같은 composed content 높이의 fit 검사→FootnoteRef·예약 높이→최종 각주 배치를 소비한다. Native 기존 경로와 큰 각주의 기존 다음 쪽 수용 계약은 보존한다. 편집·무효 텍스트 분할·합성·표 재조판·다단은 새 원본 HWPX 경로에 승격하지 않는다.
+- 신규 검사 첫 실행의 Native 좌표 assertion은 PDF 가시 글자 상단과 실제 논리 줄 상단을 같은 측정값으로 비교한 내 오류였다(918.16 vs920.368571). 제품 좌표를 clamp하지 않고 두 측정값을 구분해 기준 글자 상단의 실제 줄 상자 소속과 쪽 유일성을 검사했다. 교정된 수정 전 실행은 Native1PASS/HWPX3FAIL이며, 기존 golden/visual 허용치 변경은 없다.
+
+| 검사 | 실제 결과 | 판정 |
+| --- | --- | --- |
+| 정식 원본 각주 소유 전후 | 1PASS/3FAIL(exit100,0.652s) → 세 HWPX 각주 및 Native 대조 통과 | 충족 |
+| 집중·정상 대조군 | 96PASS/0FAIL(exit0,8.319s),threads8 | 충족 |
+| fmt/소스 단위 정책 | exit0 / base eb9142dd7,4205검사·298모듈 | 충족 |
+| 새 CLI / 원본 HWPX 쪽수 | exit0,1m58s /215쪽,PDF215쪽 | 충족 |
+| Native HWPX86/87 | 97.15232%/98.92215% | 선택 gate 충족 |
+| Native HWPX90/91 | 94.09514%/96.28253% | 선택 gate 충족 |
+| Native HWPX94/95 | 98.91562%/97.85246% | 선택 gate 충족 |
+| 직접 판독 | 영향6쪽의 review·standalone overlay12개; 각주138/142/147의 번호·본문 복원과 뒤 내용/표 경계 확인 | 해당 보정 의미 충족 |
+| 편집·재조판·다단 확장 | 이번 원본 출력의 대용으로 주장하지 않음 | 비적용/미검증 |
+| 전체 Native/fresh WASM·최종 회귀/lint | 최신 전수 inventory와 최종 검증을 이어서 실행할 단계 | 미검증 |
+
+- [정확한 source 해시·명령·결과](../assets/pr7382_20260926/stage23_validation.json): producer `04b4162f2`, Rust/test diff SHA256 `f5f7e03e5be8678e2b3bb3b3bed6891ca8dc62f0968ef709f45a0b0cc9dd087d`. 자동 gate는 passed/exit0이며 글꼴 예외 없음.
+- [87쪽 review](../assets/pr7382_20260926/stage23_native_hwpx_review_087.png) · [overlay](../assets/pr7382_20260926/stage23_native_hwpx_overlay_087.png), [91쪽 review](../assets/pr7382_20260926/stage23_native_hwpx_review_091.png) · [overlay](../assets/pr7382_20260926/stage23_native_hwpx_overlay_091.png), [95쪽 review](../assets/pr7382_20260926/stage23_native_hwpx_review_095.png) · [overlay](../assets/pr7382_20260926/stage23_native_hwpx_overlay_095.png).
+- 남는 목록 표식/가로 시작·글자 메트릭 차이와 전체 전수 gate는 이 각주 등록 통과로 완료 처리하지 않는다. 영어 설명 주석 추가 없음. 모든 로그·진단·generated 파일은 output/ignored 증적이며 커밋하지 않는다.
