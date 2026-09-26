@@ -3713,14 +3713,13 @@ impl TypesetEngine {
         controls::prepare_no_table_host_wrap(st, page_def, para, para_idx, has_table);
     }
 
-    /// Native HWP5의 page-tail Square 그림은 anchor 본문과 분리되어 다음 physical
-    /// page의 wrap band를 소유할 수 있다.
+    /// 저장된 쪽 말미 어울림 그림은 앵커 본문과 분리되어 다음 물리 쪽의 띠를 소유한다.
     ///
-    /// 단순히 현재 단의 여유가 작다는 이유로 Square 그림을 이월하면, 같은 쪽에 의도된
-    /// caption/side-wrap 그림을 넓게 건드린다. 따라서 다음 문단에 “vpos=0 narrow wrap
-    /// 줄”이라는 저장 계약이 있고, 현재 쪽의 기존 각주를 고려하면 그림 frame 자체가 더는
-    /// 들어가지 않는 native HWP5 Picture에만 적용한다.
-    fn native_hwp5_square_picture_next_page_owner(
+    /// 단순히 현재 단의 여유가 작다는 이유로 자리차지 그림을 이월하면 같은 쪽의
+    /// 캡션과 그림 옆 본문까지 바뀐다. 따라서 다음 문단에 vpos=0의 좁은 어울림 줄이라는
+    /// 저장 계약이 있고, 현재 쪽의 기존 각주를 고려하면 그림 프레임 자체가 더는
+    /// 들어가지 않는 유효 저장 그림에만 적용한다. 같은 HWP/HWPX 계약을 함께 확인한다.
+    fn stored_square_picture_next_page_owner(
         &self,
         st: &TypesetState,
         para_idx: usize,

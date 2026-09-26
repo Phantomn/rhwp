@@ -299,16 +299,15 @@ fn effective_tac_segment_width_hu(para: &Paragraph, fallback_width_hu: i32) -> i
     }
 }
 
-/// native HWP5 page-tail Square picture가 다음 physical page의 시작으로 defer된 경우인지
-/// 판별한다.
+/// 쪽 말미 어울림 그림을 다음 물리 쪽의 시작으로 이월했는지 판별한다.
 ///
-/// typeset은 deferred picture를 column 첫 `Shape`로 materialize하고, 같은 page의 narrow
-/// successor에만 wrap anchor를 전달한다. source host paragraph는 그 page에 Full/Partial item으로
-/// 존재하지 않는다. 이 세 가지는 일반 Square item과 구별되는 renderer 내부 contract다.
+/// 조판은 이월 그림을 단의 첫 `Shape`로 기록하고 같은 쪽의 좁은 후속 문단에만
+/// 어울림 앵커를 전달한다. 원본 호스트 문단은 이 쪽에 Full/Partial 항목으로 존재하지
+/// 않는다. 이 세 가지는 일반 자리차지 항목과 구별되는 렌더러 내부 계약이다.
 ///
-/// successor가 첫 `vpos=0` narrow band로 시작하면 source host의 positive para offset은 이전
-/// physical page 좌표다. 새 page에서 다시 적용하면 그림이 body top 아래로 이중 이동한다.
-/// full-width tail 뒤 reset되는 deferred picture는 별도의 source owner 계약을 가지므로 제외한다.
+/// 현재 쪽이 실제로 소유한 후속 시작 줄이 vpos0 어울림 띠면 원래 문단 오프셋은
+/// 앞 쪽에서 소비했다. 앞쪽 전폭 줄 뒤의 리셋도 PartialParagraph의 시작 컷으로
+/// 소유를 확인하며, 문단 전체의 첫 줄을 이 쪽 시작으로 다시 해석하지 않는다.
 fn deferred_page_start_square_picture_uses_body_top(
     col_content: &ColumnContent,
     item_ordinal: usize,
@@ -349,9 +348,26 @@ fn deferred_page_start_square_picture_uses_body_top(
         return false;
     }
 
-    paragraphs
-        .get(para_index + 1)
-        .and_then(|next| next.line_segs.first())
+    col_content
+        .items
+        .iter()
+        .find_map(|item| {
+            let (successor, start_line) = match item {
+                PageItem::FullParagraph { para_index, .. } => (*para_index, 0),
+                PageItem::PartialParagraph {
+                    para_index,
+                    start_line,
+                    ..
+                } => (*para_index, *start_line),
+                _ => return None,
+            };
+            if successor != para_index + 1
+                || col_content.wrap_anchors.get(&successor)?.anchor_para_index != para_index
+            {
+                return None;
+            }
+            paragraphs.get(successor)?.line_segs.get(start_line)
+        })
         .is_some_and(|seg| {
             seg.vertical_pos == 0
                 && seg.column_start == 0

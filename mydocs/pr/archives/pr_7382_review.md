@@ -878,3 +878,26 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 ![14쪽 overlay](../assets/pr7382_20260926/stage34_native_hwpx_overlay_014.png)
 ![154쪽 마지막 두 줄 소유 복원](../assets/pr7382_20260926/stage34_native_terminal_hwpx_review_154.png)
 ![155쪽 남은 그림 겹침](../assets/pr7382_20260926/stage34_native_terminal_hwpx_review_155.png)
+
+
+## 보정35 사전 분석 — 다음 쪽 어울림 그림의 저장 소유와 원점
+
+- 두 독립 원본 한컴2024 PDF는 그림64를155쪽이 아닌156쪽의가시상단89.981363px/캡션404.101033px에출력한다. 원본 문단1692의Square/문단Top/Column그림은오프셋518HU·높이22713HU·상하여백510HU와아래캡션을갖는다. 다음문단1693은앞쪽의전폭2줄뒤vpos0/폭25139HU로재개하며1694–1697의좁은어울림띠가이어진다. 단순빈공간추정이아니라이저장줄소유와PDF로쪽소유를확인한다.
+- HWPX는Native전용next_page_owner가같은저장계약을제외해155쪽표/본문위에그림을남겼다. Native는그림을156쪽으로이월하지만배치helper가후속문단의첫LineSeg만조회해이미앞쪽에서소비한전폭줄을읽고518HU를다시더한다(상단96.9px). 유효저장계약의출처조건과실제로이쪽이소유한PartialParagraph시작줄을함께대조해야한다. 저장리셋/어울림폭이없는일반Square그림,편집/합성정보는같은근거로이월하지않는다.
+- 소비경로는저장후속밴드조회→DeferredSquarePictureControl→push_new_page의정확한밴드문단/WrapAnchorRef→flush의첫Shape와실제후속Full/PartialParagraph→layout의그림원점→공통그림/캡션배치다. 원본두형식의155쪽없음/156쪽단일그림·캡션·독립좌표정식실패를먼저기록하고,측정·그림띠·후속본문소유와같은프레임을소비하도록보정한다.
+
+
+### 보정35 결과
+
+- 원본 정식 두 검사는 수정 전0PASS/2FAIL(exit100,0.208s), 수정 후2PASS였다. HWPX는155쪽에 그림을 남겼고 Native HWP는156쪽에서518HU를 다시 더했다. 저장 그림의 다음 쪽 조회를 두 형식에 공통으로 적용하고, 배치는 현재 쪽의 실제 Full/PartialParagraph 시작 컷과 같은 WrapAnchorRef를 확인한다. 앞쪽에서 소비한 문단 오프셋을 새 쪽에 반복하지 않는다. 일반 그림의 좌표를 clamp하거나 숨기지 않는다.
+- 원본215쪽·155쪽 그림/캡션 없음·156쪽 단일 그림/캡션과 독립89.981363/404.101033px 좌표·157쪽 중복 없음·후속 본문을 검사했다. 저장 어울림 폭을1000HU 바꾼 수동 IR 대조군에서는 그림을 임의로 다음 쪽에 넘기지 않는다. 이 대조군을 한컴 재저장 출력 일치로 보고하지 않는다. 편집/합성 줄을 제외하는 소스 조건과 기존 객체 편집 검사를 확인했지만 이 그림의 실제 편집 후 한컴 대조는 미검증이다.
+- 기존 #3738 검사의96.9px 기대값은 다른 문서의 문단 기준 그림으로 이 이월 경로를 추정한 값이었다. 동일 원본 한컴 PDF156쪽의67.486008pt 가시 상단과 새 원본 검사를 근거로89.981344px로 갱신했다. 허용치를 완화하지 않았다. 최종 실제 suite 배정을 재발견한 확대 검사는192개 중191PASS/1FAIL(exit100,8.350s,threads8)이며 실패는 기존120쪽 표1283의 중복 위여백이다. 보정 전34의 전체 tree에도 상단90.7px이며 PDF 괘선86.945312px와 다르다. 이 실패를 승인 가능으로 바꾸지 않는다.
+- 검사 보강 중 지역 탐색 함수 참조 빌드 오류와 prepare 뒤 suite 이동으로 빠진 범위는 최종 검증으로 세지 않는다. 최종 정확한 명령·source/test/CLI 해시·실패 시도·판정은 [검증 기록](../assets/pr7382_20260926/stage35_validation.json)에 연결했다. fmt·고정base manifest(6222 attrs)·source-unit(4205/298)은exit0, 불변 CLI 빌드는exit0/94.476s다. 추가 영어 설명 주석은 [0개](../assets/pr7382_20260926/stage35_english_comment_scan.json)이며 변경한 경로의 기존 영어 설명도 한글로 바꿨다.
+- HWPX155/156쪽은75.49194→99.15740%/66.51470→93.52007%, HWP156쪽은86.04285→94.81768%다. 각주211–215·표36·뒤 제목을 보존하고 그림64/캡션 원점을 복원했다. 전후 review와 standalone overlay16개를 직접 읽었다. 남은 글자 메트릭/일부 표 내부 차이를 완전 일치로 보고하지 않는다.
+- 전체215쪽 tree 변화는 HWPX126/127/155/156쪽, HWP156쪽뿐이다. [전후 범위](../assets/pr7382_20260926/stage35_original_tree_difference.json). 추가 HWPX126/127쪽의 전후 review/overlay8개도 직접 읽었다. 그림56이126쪽 표/각주를 덮지 않고127쪽 좁은 띠에 출력되어67.14618→84.96470%/65.32413→97.52687%다.126쪽의 표 원점·캡션과 각주 차이는 남으며 이 선택 gate는 `re_review_required`다. 총 새PNG24개를 보존했다.
+- 판정: 그림64 쪽 소유/원점은 충족.120쪽 표 회귀와126쪽 시각 gate는 미충족. 최신 전체215쪽 시각/fresh WASM·전체 nextest/lint/Skia·TABLE 편집 및 wrapper 분할 반례는 미검증이다. 통합 PR 생성/승인은 계속 보류하고, 이 단계 커밋 뒤120쪽 표 위여백을 다음 개별 보정으로 처리한다. 로그·output·generated는 커밋하지 않는다.
+
+![155쪽 그림 겹침 해소](../assets/pr7382_20260926/stage35_after_hwpx_review_155.png)
+![156쪽 그림64 원점](../assets/pr7382_20260926/stage35_after_hwpx_review_156.png)
+![156쪽 독립 overlay](../assets/pr7382_20260926/stage35_after_hwpx_overlay_156.png)
+![127쪽 그림56 소유 복원](../assets/pr7382_20260926/stage35_after_normal_hwpx_review_127.png)

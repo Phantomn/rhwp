@@ -133,7 +133,7 @@ impl TypesetEngine {
                         // band에 배치한다. p155 그림 64처럼 현재 PageItem에 넣으면
                         // caption이 기존 FootnoteArea와 겹친다.
                         if let Some((wrap_target_para_indices, wrap_anchor)) = self
-                            .native_hwp5_square_picture_next_page_owner(
+                            .stored_square_picture_next_page_owner(
                                 &st, para_idx, para, paragraphs, ctrl, styles,
                             )
                         {

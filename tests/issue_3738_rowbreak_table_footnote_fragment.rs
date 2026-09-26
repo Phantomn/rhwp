@@ -1853,10 +1853,9 @@ fn native_hwp5_square_picture_uses_the_next_page_wrap_owner() {
     let bytes = fs::read(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
     let doc = HwpDocument::from_bytes(&bytes).expect("parse stage22 HWP evidence fixture");
 
-    // 그림 64의 anchor(pi=1692)와 p1693의 첫 두 줄은 p155에 남는다. 그러나
-    // Square 그림+caption은 native HWP5의 다음 physical-page wrap owner(p156)에
-    // 속한다. anchor 문단에서 즉시 PageItem을 만들면 p155의 표·본문·각주 211을
-    // 덮는 회귀가 난다.
+    // 그림64의 앵커 문단1692와 문단1693의 첫 두 줄은155쪽에 남는다.
+    // 자리차지 그림과 캡션은 다음 물리 쪽인156쪽의 어울림 띠에 속한다.
+    // 앵커 문단에서 즉시 PageItem을 만들면155쪽 표·본문·각주211을 덮는다.
     let p155 = page_text(&doc, PAGE_155);
     let p156 = page_text(&doc, PAGE_156);
     assert!(
@@ -1897,13 +1896,14 @@ fn native_hwp5_square_picture_uses_the_next_page_wrap_owner() {
         "그림 64는 PDF처럼 p156 우측 Square band에 있어야 함: {:?}",
         p156_images[0]
     );
-    // [#6596] 그림 64 는 outMargin top=510HU(6.8px). 한/글은 여백을 포함한 상자를 문단 상단 +
-    // 518HU 오프셋에 놓고 잉크를 그 안쪽에 그린다 — 쪽 상단 문단도 같다(hwp3-sample 3쪽
-    // pi=41: 오프셋 0·여백 11.4px 그림의 한/글 PDF 잉크 y=143.5 = 본문 상단 132.3 + 11.4).
-    // 잉크 y = 83.2(본문 상단) + 6.9(518HU) + 6.8(510HU) = 96.9.
+    // 원본 한컴2024 PDF의156쪽 가시 그림 상단은67.486008pt다.
+    // 앞쪽 전폭 줄 뒤에 재개한 그림은 원본 문단 오프셋518HU를 이미 소비했다.
+    // 실제 다음 쪽 소유는 본문 원점과 그림 위여백510HU를 함께 적용한다.
+    // 다른 문서의 문단 기준 그림으로 이 이월 경로의 기대값을 대신하지 않는다.
+    let pdf_image_top = 67.486008 * 4.0 / 3.0;
     assert!(
-        (p156_images[0].1 - 96.9).abs() <= 1.0,
-        "p156 그림 64는 full-width tail 뒤 reset contract의 518HU offset과 바깥 위 여백 510HU 를 유지해야 함: {:?}",
+        (p156_images[0].1 - pdf_image_top).abs() <= 0.5,
+        "156쪽 그림64의 독립 PDF 가시 상단: {:?}, 기대{pdf_image_top}",
         p156_images[0]
     );
 

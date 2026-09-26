@@ -2667,3 +2667,88 @@ fn hwpx_terminal_source_note_keeps_both_lines_on_original_page() {
         );
     }
 }
+
+fn figure64_source_picture_count(node: &RenderNode) -> usize {
+    usize::from(
+        matches!(&node.node_type, RenderNodeType::Image(image) if image.para_index == Some(1692) && image.control_index == Some(1)),
+    ) + node
+        .children
+        .iter()
+        .map(figure64_source_picture_count)
+        .sum::<usize>()
+}
+
+fn assert_figure64_next_page_source_frame(hwpx: bool) {
+    fn source_picture(node: &RenderNode) -> Option<&RenderNode> {
+        if matches!(&node.node_type, RenderNodeType::Image(image) if image.para_index == Some(1692) && image.control_index == Some(1))
+        {
+            return Some(node);
+        }
+        node.children.iter().find_map(source_picture)
+    }
+    let core = original_picture_wrapper_core(hwpx);
+    assert_eq!(core.page_count(), 215);
+    let previous = core.build_page_render_tree(154).unwrap();
+    assert!(
+        source_picture(&previous.root).is_none(),
+        "원본 그림64는155쪽본문/표와겹치지않고다음쪽이소유한다"
+    );
+    assert!(!text(&previous.root).contains("그림 64. 일본 평가절차"));
+    assert!(text(&previous.root).contains("일본 각 병원에서 일반적으로 진행되는 절차"));
+    let page = core.build_page_render_tree(155).unwrap();
+    let picture = source_picture(&page.root).expect("원본156쪽단일그림64");
+    assert_eq!(figure64_source_picture_count(&page.root), 1);
+    let following = core.build_page_render_tree(156).unwrap();
+    assert!(
+        source_picture(&following.root).is_none(),
+        "뒤 쪽에 그림 중복 없음"
+    );
+    assert!(!text(&following.root).contains("그림 64. 일본 평가절차"));
+    assert!(
+        (picture.bbox.y - 89.981363).abs() < 0.5,
+        "독립PDF그림원점: {:?}",
+        picture.bbox
+    );
+    let caption = line_top(&page.root, "그림 64. 일본 평가절차").expect("같은쪽캡션");
+    assert!(
+        (caption - 404.101033).abs() < 0.5,
+        "독립PDF캡션원점: {caption}"
+    );
+    assert_eq!(
+        text(&page.root).matches("그림 64. 일본 평가절차").count(),
+        1
+    );
+    assert!(text(&page.root).contains("교토대병원은 생존 간 기증자의 검사 내용"));
+}
+
+#[test]
+fn hwpx_figure64_uses_next_page_source_band_origin() {
+    assert_figure64_next_page_source_frame(true);
+}
+
+#[test]
+fn native_figure64_uses_next_page_source_band_origin() {
+    assert_figure64_next_page_source_frame(false);
+}
+
+/// 수동 원본 대조군에서 저장 어울림 폭이 맞지 않으면 다음 쪽 소유를 추측하지 않는다.
+/// 한컴 재저장 출력 일치가 아니라 저장 계약이 없는 입력의 잘못된 이월 방지 검사다.
+#[test]
+fn figure64_mismatched_successor_band_does_not_claim_next_page() {
+    for hwpx in [false, true] {
+        let mut core = original_picture_wrapper_core(hwpx);
+        let mut doc = core.document().clone();
+        for seg in &mut doc.sections[0].paragraphs[1693].line_segs {
+            if seg.vertical_pos == 0 {
+                seg.segment_width += 1000;
+            }
+        }
+        core.set_document(doc);
+        let page = core.build_page_render_tree(154).unwrap();
+        assert_eq!(
+            figure64_source_picture_count(&page.root),
+            1,
+            "저장 띠 계약이 없는 그림은 원본 호스트가 소유: 형식{hwpx}"
+        );
+    }
+}
