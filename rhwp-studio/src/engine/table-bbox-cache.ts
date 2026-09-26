@@ -64,7 +64,11 @@ export function tableIdentity(tableRef: TableRef): string {
   const base = `${tableRef.sec}:${tableRef.ppi}:${tableRef.ci}`;
   const path = tableRef.path;
   if (!path || path.length <= 1) return base;
-  return `${base}|${path.map((s) => `${s.controlIndex}.${s.cellIndex}.${s.cellParaIndex}`).join('/')}`;
+  // 경유 셀·문단은 표의 위치를 식별하지만 마지막 셀·문단은 그 표 안의
+  // 커서 위치다. ByPath 조회와 같은 표 단위를 사용해 셀 이동에도 재사용한다.
+  return `${base}|${path.map((s, i) => i === path.length - 1
+    ? `${s.controlIndex}`
+    : `${s.controlIndex}.${s.cellIndex}.${s.cellParaIndex}`).join('/')}`;
 }
 
 function sameTable(a: TableRef, b: TableRef): boolean {
