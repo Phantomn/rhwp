@@ -1220,3 +1220,103 @@ fn page_last_line_consumes_the_resolved_source_frame() {
     );
     assert_eq!(core.page_count(), 3, "원본 PDF의3쪽과 같은 쪽 소유");
 }
+
+/// 한컴 PDF3쪽의 큰 중첩 표는 바깥 셀의 가운데 정렬 공간을 보존한다.
+/// 저장 최소 높이54805HU와 내용52982HU·안 여백282HU가 독립 정렬 근거다.
+#[test]
+fn centered_wrapper_preserves_its_cell_frame_and_nested_table_origin() {
+    fn tables<'a>(node: &'a RenderNode, out: &mut Vec<&'a RenderNode>) {
+        if matches!(node.node_type, RenderNodeType::Table(_)) {
+            out.push(node);
+        }
+        for child in &node.children {
+            tables(child, out);
+        }
+    }
+    let core = core();
+    let Control::Table(outer) = &core.document().sections[0].paragraphs[29].controls[0] else {
+        panic!("외곽 표");
+    };
+    let cell = &outer.cells[0];
+    assert_eq!(cell.height, 54805);
+    assert_eq!(cell.paragraphs[0].line_segs[0].line_height, 52982);
+    let tree = core.build_page_render_tree(2).expect("원본3쪽");
+    let mut nodes = Vec::new();
+    tables(&tree.root, &mut nodes);
+    let wrapper = nodes.iter().find(|n| matches!(&n.node_type,
+        RenderNodeType::Table(t) if t.para_index == Some(29) && t.row_count == 1 && t.col_count == 1))
+        .expect("가운데 정렬과 최소 높이를 소유한 외곽 표 보존");
+    let nested: Vec<_> = nodes
+        .iter()
+        .filter(|n| {
+            matches!(&n.node_type,
+        RenderNodeType::Table(t) if t.row_count == 32 && t.col_count == 10)
+        })
+        .collect();
+    assert_eq!(nested.len(), 1, "안쪽 표 누락·중복 금지");
+    // PDF3쪽의 실제 위 괘선307.823px를 직접 대조한다.
+    // 저장 최소 높이와 내용의 차이는 위치를 맞추는 상수가 아니라 정렬 공간이다.
+    assert!(
+        (nested[0].bbox.y - 307.823).abs() < 0.6,
+        "PDF3쪽 안쪽 표 상단: {:?}",
+        nested[0].bbox
+    );
+    assert!(
+        (wrapper.bbox.height - 54805.0 / 75.0).abs() < 0.1,
+        "외곽 셀 최소 높이 보존: {:?}",
+        wrapper.bbox
+    );
+    assert!(
+        nested[0].bbox.y > wrapper.bbox.y + 8.0,
+        "셀 위 여백만 적용하고 가운데 정렬 공간을 버리지 않는다"
+    );
+    assert!(
+        nested[0].bbox.y + nested[0].bbox.height < wrapper.bbox.y + wrapper.bbox.height,
+        "안쪽 표의 실제 점유 끝이 외곽 셀 안에 남는다"
+    );
+    assert_eq!(core.page_count(), 3);
+}
+
+/// 수동 IR 변형의 정렬 불변식이며 한컴 생성 대조군의 출력 증거가 아니다.
+#[test]
+fn wrapper_alignment_variants_consume_the_cell_space_once() {
+    fn nested_table(node: &RenderNode) -> Option<&RenderNode> {
+        if matches!(&node.node_type, RenderNodeType::Table(t) if t.row_count == 32 && t.col_count == 10)
+        {
+            return Some(node);
+        }
+        node.children.iter().find_map(nested_table)
+    }
+    let source = core();
+    let mut positions = Vec::new();
+    for alignment in [
+        rhwp::model::table::VerticalAlign::Top,
+        rhwp::model::table::VerticalAlign::Center,
+        rhwp::model::table::VerticalAlign::Bottom,
+    ] {
+        let mut core = core();
+        let mut document = source.document().clone();
+        let Control::Table(table) = &mut document.sections[0].paragraphs[29].controls[0] else {
+            panic!("외곽 표");
+        };
+        table.cells[0].vertical_align = alignment;
+        core.set_document(document);
+        let tree = core.build_page_render_tree(2).unwrap();
+        positions.push(nested_table(&tree.root).expect("안쪽 표 보존").bbox.y);
+        assert_eq!(
+            core.page_count(),
+            3,
+            "정렬 공간은 같은 물리 셀 안에서 소비한다"
+        );
+    }
+    // 셀 최소54805에서 내용52982와 안 여백282를 뺀1541HU의 공간이다.
+    let half_space = (54805.0 - 52982.0 - 282.0) / 150.0;
+    assert!(
+        (positions[1] - positions[0] - half_space).abs() < 0.1,
+        "가운데 정렬의 절반 공간: {positions:?}"
+    );
+    assert!(
+        (positions[2] - positions[1] - half_space).abs() < 0.1,
+        "아래 정렬의 나머지 절반 공간: {positions:?}"
+    );
+}

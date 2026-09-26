@@ -15,6 +15,27 @@ use crate::model::shape::{
 };
 use crate::model::table::{Table, TablePageBreak};
 
+/// 가운데/아래 정렬과 별도의 최소 높이를 소유한 셀은 투명 래퍼가 아니다.
+/// 이 경우 측정과 배치 모두 외곽 셀을 보존하고 일반 셀의 실제 정렬을 소비한다.
+pub(crate) fn single_table_wrapper_has_vertical_alignment_space(
+    table: &Table,
+    nested: &Table,
+) -> bool {
+    let [cell] = table.cells.as_slice() else {
+        return false;
+    };
+    if cell.vertical_align == crate::model::table::VerticalAlign::Top {
+        return false;
+    }
+    let padding = cell.effective_padding(&table.padding);
+    let content_height = i64::from(signed_hwpunit(nested.common.height).max(0))
+        + i64::from(nested.outer_margin_top.max(0))
+        + i64::from(nested.outer_margin_bottom.max(0))
+        + i64::from(padding.top.max(0))
+        + i64::from(padding.bottom.max(0));
+    i64::from(signed_hwpunit(cell.height)) > content_height
+}
+
 /// A stored Square table fits between its host line and the next visible paragraph.
 pub(crate) fn stored_square_table_anchor_offset(
     cell: &crate::model::table::Cell,
@@ -2569,14 +2590,16 @@ impl HeightMeasurer {
                             None
                         }
                     }) {
-                        return self.measure_table_impl(
-                            nested,
-                            para_index,
-                            control_index,
-                            styles,
-                            depth + 1,
-                            width_scale,
-                        );
+                        if !single_table_wrapper_has_vertical_alignment_space(table, nested) {
+                            return self.measure_table_impl(
+                                nested,
+                                para_index,
+                                control_index,
+                                styles,
+                                depth + 1,
+                                width_scale,
+                            );
+                        }
                     }
                 }
             }

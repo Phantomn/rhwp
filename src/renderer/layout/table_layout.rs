@@ -3,7 +3,8 @@
 use super::super::composer::{compose_paragraph, ComposedLine, ComposedParagraph};
 use super::super::height_measurer::{
     fit_measured_table_declared_tail_to_declared_height,
-    fit_measured_table_nested_tail_to_declared_height, stored_nested_table_empty_wrap_spacer,
+    fit_measured_table_nested_tail_to_declared_height,
+    single_table_wrapper_has_vertical_alignment_space, stored_nested_table_empty_wrap_spacer,
     stored_nested_table_wrap_successor, stored_square_picture_empty_anchor_advance,
     stored_square_picture_has_adjacent_text, stored_square_picture_wrap_anchor_for_para,
     MeasuredTable,
@@ -2715,13 +2716,20 @@ impl LayoutEngine {
                     .chars()
                     .any(|ch| !ch.is_whitespace() && ch != '\r' && ch != '\n');
                 if !has_visible_text {
-                    if let Some(nested) = p.controls.iter().find_map(|c| {
-                        if let Control::Table(t) = c {
-                            Some(t.as_ref())
-                        } else {
-                            None
-                        }
-                    }) {
+                    if let Some(nested) = p
+                        .controls
+                        .iter()
+                        .find_map(|c| {
+                            if let Control::Table(t) = c {
+                                Some(t.as_ref())
+                            } else {
+                                None
+                            }
+                        })
+                        .filter(|nested| {
+                            !single_table_wrapper_has_vertical_alignment_space(table, nested)
+                        })
+                    {
                         // [Task #1658 v3] 외곽 1×1 래퍼가 페이지/용지 앵커 자리차지
                         // (절대배치) 표면, unwrap 이 외곽의 절대 y 를 소실시키고 내부 표를
                         // flow 커서(y_start)에 렌더하던 결함 교정 — 외곽 표 속성으로 절대
@@ -2914,10 +2922,10 @@ impl LayoutEngine {
                             true,
                         );
 
-                        // The unwrapped child determines the minimum visual content height, but it
-                        // must not erase a larger declared wrapper height.  The host 1x1 table is
-                        // still the observable box: downstream flow and its bottom border use the
-                        // larger of the padded child and the stored outer rectangle (#6621).
+                        // 펼친 자식은 가시 내용의 최소 높이를 결정하지만 더 큰 외곽 선언
+                        // 높이를 지우지 않는다. 관측 가능한 상자는 여전히 외곽1×1표다.
+                        // 뒤 흐름과 아래 테두리는 자식·여백과 저장 외곽 높이 중 큰 값을
+                        // 함께 소비한다(#6621).
                         let padded_child_y_end = y_end + om_b + pad_b;
                         let y_end = if self.profile.get().hwp5_stored_pagination_layout() {
                             let declared_outer_height = hwpunit_to_px(
