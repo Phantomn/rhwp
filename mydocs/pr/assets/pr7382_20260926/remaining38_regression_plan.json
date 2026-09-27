@@ -287,13 +287,26 @@
       "id": 19,
       "function": "issue_7390_kopub_latin_metrics::kopub_latin_line_width_matches_hancom_in_absolute_px",
       "case": "issue_7390_kopub_latin_metrics",
-      "status": "pending",
-      "individual_results": [],
+      "status": "resolved",
+      "individual_results": [
+        {
+          "before": "함수FAIL:94쪽 줄 없음,exit100",
+          "after": "1PASS,exit0",
+          "code_head": "fd10e7fd9d9fda41648b0d8ba2f57d219ae8d197",
+          "evidence_reuse": "stage59_prep2006_validation.json",
+          "visual_min_native": 91.82221,
+          "visual_min_wasm": 91.82221,
+          "test_changed": false,
+          "new_test_functions": 0
+        }
+      ],
       "resolved_plan": {
         "caseName": "issue_7390_kopub_latin_metrics",
-        "target": "regression_suite_014",
+        "target": "regression_suite_012",
         "grouped": true
-      }
+      },
+      "correction_commit": "fd10e7fd9d9fda41648b0d8ba2f57d219ae8d197",
+      "evidence": "stage63_kopubwidth_validation.json"
     },
     {
       "id": 20,
@@ -563,6 +576,6 @@
       }
     }
   ],
-  "next_candidate": "issue_7390_kopub_latin_metrics::kopub_latin_line_width_matches_hancom_in_absolute_px",
-  "next_candidate_reason": "보정62 결과 커밋 뒤 같은 PrEP 원본의 KoPub 영문 줄 폭 검사 기대값과 실제 PDF/출력부터 대조한다."
+  "next_candidate": "issue_7390_kopub_latin_metrics::kopub_space_stays_half_width",
+  "next_candidate_reason": "보정63 결과 커밋 뒤108쪽 공백 폭 하한 검사와 실제 PDF 공백의 독립 근거를 분석한다."
 }
