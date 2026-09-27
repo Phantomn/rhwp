@@ -117,13 +117,24 @@
       "id": 10,
       "function": "issue_1658_page_bottom_fixed_exclusion::gwanak_bottom_fixed_frame_renders_at_page_bottom",
       "case": "issue_1658_page_bottom_fixed_exclusion",
-      "status": "pending",
-      "individual_results": [],
+      "status": "resolved",
+      "individual_results": [
+        {
+          "before": "0PASS/1FAIL",
+          "after": "1PASS",
+          "code_head": "0c841eb4b",
+          "visual_native": 97.46031,
+          "visual_wasm": 97.46031,
+          "test_changed": false
+        }
+      ],
       "resolved_plan": {
         "caseName": "issue_1658_page_bottom_fixed_exclusion",
         "target": "regression_suite_016",
         "grouped": true
-      }
+      },
+      "correction_commit": "0c841eb4b",
+      "evidence": "stage56_fixed_frame_validation.json"
     },
     {
       "id": 11,
@@ -462,6 +473,6 @@
       }
     }
   ],
-  "next_candidate": "issue_1658_page_bottom_fixed_exclusion::gwanak_bottom_fixed_frame_renders_at_page_bottom",
-  "next_candidate_reason": "유효한 독립 PDF와 관련 페이지90% 근거를 먼저 확인한 뒤 빈 앵커의 줄 점유/고정 프레임 흐름을 분석한다. 기대값 완화나 빈 줄 숨김으로 처리하지 않는다."
+  "next_candidate": "issue_2243::issue_2243_gyeoljae_sliver_page_pins",
+  "next_candidate_reason": "4/3쪽 불일치의 입력·독립PDF·실제 소비 경로를 확인하고90% 증거 확보부터 검토한다."
 }
