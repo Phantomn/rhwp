@@ -1339,6 +1339,7 @@ pub struct HeightMeasurer {
     is_hwp3_variant: bool,
     legacy_hwp3_stored_geometry: bool,
     is_native_hwp5: bool,
+    hwpx_stored_layout: bool,
     session_edited: bool,
     use_hwp3_origin_flow_spacing_before: bool,
     render_normalization:
@@ -1441,6 +1442,7 @@ impl HeightMeasurer {
             is_hwp3_variant: false,
             legacy_hwp3_stored_geometry: false,
             is_native_hwp5: false,
+            hwpx_stored_layout: false,
             session_edited: false,
             use_hwp3_origin_flow_spacing_before: false,
             render_normalization: std::sync::Arc::new(
@@ -1475,6 +1477,12 @@ impl HeightMeasurer {
     /// 정본으로 신뢰할 수 있는 문서에서만 켠다 (HWPX 계산-lineseg 제외).
     pub fn with_native_hwp5(mut self, enabled: bool) -> Self {
         self.is_native_hwp5 = enabled;
+        self
+    }
+
+    /// 저장 HWPX의 배경 표 역할을 실제 배치와 같은 프로파일로 판정한다.
+    pub fn with_hwpx_stored_layout(mut self, enabled: bool) -> Self {
+        self.hwpx_stored_layout = enabled;
         self
     }
 
@@ -2373,8 +2381,12 @@ impl HeightMeasurer {
                         let Control::Table(nested) = ctrl else {
                             return None;
                         };
-                        if para_max_lh >= nested.common.height as i32 {
-                            return None; // 줄높이가 이미 담고 있다
+                        if crate::renderer::float_placement::nested_table_is_hwpx_overlay(
+                            nested,
+                            self.hwpx_stored_layout,
+                        ) || para_max_lh >= nested.common.height as i32
+                        {
+                            return None; // 배경은 흐름을 밀지 않고, 저장 줄의 흡수도 중복 계상하지 않는다.
                         }
                         let stretch = self.render_normalization.nested_table_width_scale(nested);
                         let mt = self.measure_table_impl(nested, 0, 0, styles, depth + 1, stretch);
@@ -2426,7 +2438,10 @@ impl HeightMeasurer {
             .map(|(pidx, p)| {
                 // 저장 줄별 그룹은 배치와 공유한다. 저장 줄의 간격과 빈 줄도
                 // 점유 범위에 포함하고, NO_LS에서는 TAC 같은 줄을 추정하지 않는다.
-                let groups = crate::renderer::float_placement::nested_table_groups(p);
+                let groups = crate::renderer::float_placement::nested_table_groups(
+                    p,
+                    self.hwpx_stored_layout,
+                );
                 let heights: Vec<f64> = p
                     .controls
                     .iter()
@@ -2446,15 +2461,12 @@ impl HeightMeasurer {
                 let para_top_hu = p.line_segs.first().map_or(0, |s| s.vertical_pos);
                 let mut nested_h = 0.0f64;
                 for group in groups {
-                    let height = if group.side_by_side {
-                        group
-                            .controls
-                            .iter()
-                            .map(|&ci| heights[ci])
-                            .fold(0.0, f64::max)
-                    } else {
-                        group.controls.iter().map(|&ci| heights[ci]).sum()
-                    };
+                    let height = crate::renderer::float_placement::nested_group_occupied_height(
+                        p,
+                        &group,
+                        &heights,
+                        self.hwpx_stored_layout,
+                    );
                     let bottom = if let Some(line) = group.line {
                         let seg = &p.line_segs[line];
                         let top =

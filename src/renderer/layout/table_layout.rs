@@ -6239,7 +6239,10 @@ impl LayoutEngine {
             let mut rendered_top_and_bottom_non_inline = false;
             // 높이 측정과 동일한 저장 줄 그룹으로 레인을 소유한다.
             // 다른 줄의 표가 앞 줄의 나란한 배치에 섞이지 않는다.
-            let nested_groups = crate::renderer::float_placement::nested_table_groups(para);
+            let nested_groups = crate::renderer::float_placement::nested_table_groups(
+                para,
+                self.profile.get().hwpx_stored_layout(),
+            );
             let stored_control_lines =
                 crate::renderer::float_placement::stored_control_line_indices(para);
             let mut cell_float_lanes = vec![None; nested_groups.len()];
@@ -7362,18 +7365,15 @@ impl LayoutEngine {
                     Control::Table(nested_table) => {
                         let is_tac_table = nested_table.common.treat_as_char;
 
-                        // HWPX의 같은 빈 host 문단 안에 있는 `글 뒤로` 1×1 표는
+                        // 저장 HWPX의 같은 host 문단 안에 있는 `글 뒤로` 표는
                         // 문단 흐름을 차지하지 않는 overlay control이다. 특히 자동날인
                         // 안내처럼 세 control이 같은 `vpos`에 있고 horzOffset만 다른
                         // 경우, 일반 nested-table 경로처럼 table_h만큼 para_y를 전진하면
                         // PDF의 가로 3개 상자가 세로로 쌓인다 (#3820 p144).
                         //
-                        // HWP5의 legacy non-TAC 정렬이나 HWPX TopAndBottom 표까지
-                        // horizontal offset을 강제하면 기존 셀 레이아웃을 바꾼다. stored
-                        // HWPX의 paragraph-relative BehindText + Column anchor에만
-                        // 한정해 parent cell x를 explicit anchor로 넘긴다. 기존
-                        // compute_table_x_position은 이 override에 non-TAC horzOffset을
-                        // 더하므로 offset의 부호/단위 규칙은 한 곳에 유지된다.
+                        // HWP5와 자리차지 표는 기존 정렬을 유지한다. 배경의 단/문단
+                        // 가로 앵커는 같은 셀 원점을 사용하며 compute_table_x_position이
+                        // 저장 가로 오프셋을 한 번 적용한다.
                         let hwpx_nested_behind_text_overlay =
                             self.nested_table_is_overlay(nested_table);
                         let stored_square_offset = (collapse_stored_wrap_spacers
@@ -7384,7 +7384,10 @@ impl LayoutEngine {
                                 )
                             })
                             .flatten();
-                        let nested_y = if let Some(offset) = stored_square_offset {
+                        let nested_y = if hwpx_nested_behind_text_overlay {
+                            // 배경은 앞 흐름 표가 전진한 커서가 아닌 같은 호스트 문단을 참조한다.
+                            para_y_before_compose
+                        } else if let Some(offset) = stored_square_offset {
                             para_y_before_compose + hwpunit_to_px(offset, self.dpi)
                         } else if let Some(origin) = sequential_nested_layout
                             .as_ref()
@@ -8929,6 +8932,7 @@ impl LayoutEngine {
             .with_hwp3_variant(self.profile.get().hwp3_layout())
             .with_legacy_hwp3_stored_geometry(self.profile.get().legacy_hwp3_stored_geometry())
             .with_native_hwp5(self.profile.get().hwp5_stored_pagination_layout())
+            .with_hwpx_stored_layout(self.profile.get().hwpx_stored_layout())
             .with_render_normalization(self.render_normalization_overlay());
         measurer.cell_controls_height(&cell.paragraphs, styles, 0, 0.0)
     }
@@ -8953,13 +8957,10 @@ impl LayoutEngine {
     }
 
     fn nested_table_is_overlay(&self, table: &crate::model::table::Table) -> bool {
-        use crate::model::shape::{HorzRelTo, TextWrap, VertRelTo};
-        self.profile.get().hwpx_stored_layout()
-            && !table.common.treat_as_char
-            && matches!(table.common.text_wrap, TextWrap::BehindText)
-            && table.common.flow_with_text
-            && matches!(table.common.vert_rel_to, VertRelTo::Para)
-            && matches!(table.common.horz_rel_to, HorzRelTo::Column)
+        crate::renderer::float_placement::nested_table_is_hwpx_overlay(
+            table,
+            self.profile.get().hwpx_stored_layout(),
+        )
     }
 
     /// 시각적 표 높이와 별개인 문단 흐름 전진량. 측정과 실제 배치가 공유한다.
@@ -9042,7 +9043,10 @@ impl LayoutEngine {
                 );
             }
             let para_top_hu = para.line_segs.first().map_or(0, |s| s.vertical_pos);
-            for group in crate::renderer::float_placement::nested_table_groups(para) {
+            for group in crate::renderer::float_placement::nested_table_groups(
+                para,
+                self.profile.get().hwpx_stored_layout(),
+            ) {
                 let line_top = group.line.map_or(0.0, |line| {
                     hwpunit_to_px(
                         para.line_segs[line]
@@ -9138,7 +9142,10 @@ impl LayoutEngine {
                 // 과 **같은 함수**로 낸다. 한 줄에 나란히 놓인 표는 그 줄이 합이 아니라
                 // 최댓값만 차지하므로, 합산하면 정렬용 콘텐츠 높이가 칸보다 커져 여유가
                 // `0` 으로 깎이고 `Center`·`Bottom` 이 상단정렬로 무너진다.
-                let groups = crate::renderer::float_placement::nested_table_groups(p);
+                let groups = crate::renderer::float_placement::nested_table_groups(
+                    p,
+                    self.profile.get().hwpx_stored_layout(),
+                );
                 let heights: Vec<f64> = p
                     .controls
                     .iter()
@@ -9158,15 +9165,12 @@ impl LayoutEngine {
                 let para_top_hu = p.line_segs.first().map_or(0, |s| s.vertical_pos);
                 let mut nested_h = 0.0f64;
                 for group in groups {
-                    let height = if group.side_by_side {
-                        group
-                            .controls
-                            .iter()
-                            .map(|&ci| heights[ci])
-                            .fold(0.0, f64::max)
-                    } else {
-                        group.controls.iter().map(|&ci| heights[ci]).sum()
-                    };
+                    let height = crate::renderer::float_placement::nested_group_occupied_height(
+                        p,
+                        &group,
+                        &heights,
+                        self.profile.get().hwpx_stored_layout(),
+                    );
                     let top = if let Some(line) = group.line {
                         let seg = &p.line_segs[line];
                         hwpunit_to_px(seg.vertical_pos.saturating_sub(para_top_hu), self.dpi)

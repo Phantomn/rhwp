@@ -411,9 +411,9 @@ Codex 응답에서 이미지를 보여준 바로 아래에는 반드시 한국�
 
 ```text
 page 22
-- compare: /private/tmp/.../compare/compare_022.png
-- overlay: /private/tmp/.../overlay/overlay_022.png
-- review: /private/tmp/.../review/review_022.png
+- compare: /Users/tsjang/rhwp/output/pr-review/<review-id>/compare/compare_022.png
+- overlay: /Users/tsjang/rhwp/output/pr-review/<review-id>/overlay/overlay_022.png
+- review: /Users/tsjang/rhwp/output/pr-review/<review-id>/review/review_022.png
 - visual_accuracy_proxy_percent: 91.23456
 
 코멘트: 내용 픽셀 중심 자동 일치율 보조값 = 약 91.23%.

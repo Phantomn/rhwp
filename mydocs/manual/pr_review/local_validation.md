@@ -187,7 +187,7 @@ renderer/layout 변경을 한컴 기준 PDF와 비교할 때는 비교 하네스
 cargo build --profile release-test --target-dir target/pr-review
 RHWP_BIN=target/pr-review/release-test/rhwp \
   venv/bin/python tools/fidelity_compare/fidelity_compare.py <키> <시작쪽> <끝쪽> \
-  --out-dir /tmp/rhwp-fidelity-<키>
+  --out-dir output/pr-review/<review-id>/fidelity-<키>
 ~~~
 
 `cargo build`는 **컴파일 전용 준비 단계**이며 테스트를 실행하지 않는다. 시각 보정 중에는 이 명령으로

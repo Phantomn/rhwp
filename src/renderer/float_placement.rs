@@ -1324,7 +1324,46 @@ pub(crate) struct NestedTableGroup {
     pub(crate) side_by_side: bool,
 }
 
-pub(crate) fn nested_table_groups(para: &Paragraph) -> Vec<NestedTableGroup> {
+/// 저장 HWPX의 글 뒤로 표는 문단 앵커를 공유하는 배경이며 흐름을 전진하지 않는다.
+/// 가로 기준이 단/문단인 경우 모두 같은 역할이다. TAC와 HWP5 기존 경로는 보존한다.
+pub(crate) fn nested_table_is_hwpx_overlay(table: &Table, hwpx_stored: bool) -> bool {
+    hwpx_stored
+        && !table.common.treat_as_char
+        && table.common.text_wrap == TextWrap::BehindText
+        && table.common.flow_with_text
+        && table.common.vert_rel_to == VertRelTo::Para
+        && matches!(
+            table.common.horz_rel_to,
+            HorzRelTo::Column | HorzRelTo::Para
+        )
+}
+
+/// 흐름 표는 나란함/적층을 따르지만 배경의 시각 높이는 같은 앵커에서 최댓값으로 합친다.
+/// 측정과 셀 정렬이 같은 결과를 소비하며 배경을 뒤에 놓인 새 흐름으로 더하지 않는다.
+pub(crate) fn nested_group_occupied_height(
+    para: &Paragraph,
+    group: &NestedTableGroup,
+    heights: &[f64],
+    hwpx_stored: bool,
+) -> f64 {
+    let mut flow_height = 0.0_f64;
+    let mut overlay_height = 0.0_f64;
+    for &ci in &group.controls {
+        let Control::Table(table) = &para.controls[ci] else {
+            continue;
+        };
+        if nested_table_is_hwpx_overlay(table, hwpx_stored) {
+            overlay_height = overlay_height.max(heights[ci]);
+        } else if group.side_by_side {
+            flow_height = flow_height.max(heights[ci]);
+        } else {
+            flow_height += heights[ci];
+        }
+    }
+    flow_height.max(overlay_height)
+}
+
+pub(crate) fn nested_table_groups(para: &Paragraph, hwpx_stored: bool) -> Vec<NestedTableGroup> {
     let lines = para_nested_table_line_indices(para);
     let mut groups: Vec<NestedTableGroup> = Vec::new();
     for (ci, ctrl) in para.controls.iter().enumerate() {
@@ -1347,7 +1386,9 @@ pub(crate) fn nested_table_groups(para: &Paragraph) -> Vec<NestedTableGroup> {
             .controls
             .iter()
             .filter_map(|&ci| match &para.controls[ci] {
-                Control::Table(t) => Some(t.as_ref()),
+                Control::Table(t) if !nested_table_is_hwpx_overlay(t, hwpx_stored) => {
+                    Some(t.as_ref())
+                }
                 _ => None,
             })
             .collect();
