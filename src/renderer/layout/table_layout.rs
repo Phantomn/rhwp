@@ -13337,6 +13337,127 @@ impl LayoutEngine {
         .min(previous_unit.height.max(0.0))
     }
 
+    /// 첫 줄0 다음에도0으로 재시작하는 저장 프레임의 끝 간격이다.
+    /// 이미 선택된 컷의 source 첫 줄과 같은 행의 다른 셀 사다리를 확인한다.
+    /// 모든 줄이0인 입력이나 control 문단의 로컬 재시작을 프레임으로 승격하지 않는다.
+    fn native_first_line_restart_cut_trailing_trim(
+        &self,
+        table: &crate::model::table::Table,
+        cell: &crate::model::table::Cell,
+        units: &[CellUnit],
+        start_cut: usize,
+        end_cut: usize,
+        styles: &ResolvedStyleSet,
+    ) -> f64 {
+        if !self.profile.get().hwp5_stored_pagination_layout()
+            || self.profile.get().session_edited()
+            || self
+                .render_normalization
+                .borrow()
+                .table_text_reflowed(table)
+            || table.common.treat_as_char
+            || !matches!(table.page_break, TablePageBreak::RowBreak)
+            || !matches!(table.common.text_wrap, TextWrap::TopAndBottom)
+            || start_cut != 0
+            || end_cut != 1
+            || end_cut >= units.len()
+        {
+            return 0.0;
+        }
+        let closing = &units[0];
+        if closing.para_idx != 0 || closing.vis_start != 0 || closing.vis_end != 1 {
+            return 0.0;
+        }
+        fn source_restart(cell: &crate::model::table::Cell) -> bool {
+            let mut lines = cell
+                .paragraphs
+                .iter()
+                .flat_map(|paragraph| paragraph.line_segs.iter().map(move |seg| (paragraph, seg)));
+            let (Some((first_para, first)), Some((next_para, next)), Some((after_para, after))) =
+                (lines.next(), lines.next(), lines.next())
+            else {
+                return false;
+            };
+            [first_para, next_para, after_para]
+                .iter()
+                .all(|para| para.controls.is_empty())
+                && [first, next, after].iter().all(|seg| {
+                    seg.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
+                })
+                && first.vertical_pos == 0
+                && next.vertical_pos == 0
+                && first.line_height > 0
+                && next.line_height > 0
+                && i64::from(after.vertical_pos)
+                    == i64::from(next.line_height) + i64::from(next.line_spacing.max(0))
+        }
+        if !source_restart(cell) {
+            return 0.0;
+        }
+        let mut siblings = table
+            .cells
+            .iter()
+            .filter(|other| other.row == cell.row && other.col != cell.col)
+            .peekable();
+        if siblings.peek().is_none() || !siblings.all(source_restart) {
+            return 0.0;
+        }
+        // 끝 컷은 첫 source 줄 뒤에 있어야 한다. 재합성으로 유닛 소유가 바뀌면 제외한다.
+        let next = &units[end_cut];
+        if !(next.para_idx == 0 && next.vis_start == 1 || next.para_idx == 1 && next.vis_start == 0)
+        {
+            return 0.0;
+        }
+        let para = &cell.paragraphs[0];
+        let line_spacing = hwpunit_to_px(para.line_segs[0].line_spacing.max(0), self.dpi);
+        let after = if next.para_idx == closing.para_idx {
+            0.0
+        } else {
+            styles
+                .para_styles
+                .get(para.para_shape_id as usize)
+                .map(|style| style.spacing_after)
+                .unwrap_or(0.0)
+                .max(0.0)
+        };
+        (line_spacing + after).min(closing.height.max(0.0))
+    }
+
+    /// 선택한 블록의 모든 소비 셀이 같은 저장 첫 프레임 경계에서 끝나는지 확인한다.
+    /// 소비하지 않은 다음 행은 제외하되, 다른 곳에서 끝난 셀이 있으면 인정하지 않는다.
+    pub(crate) fn row_block_cut_ends_at_saved_first_line_restart(
+        &self,
+        table: &crate::model::table::Table,
+        block: (usize, usize),
+        start_cut: &[usize],
+        end_cut: &[usize],
+        styles: &ResolvedStyleSet,
+    ) -> bool {
+        let mut cells = Self::row_block_cells(table, block.0, block.1);
+        cells.sort_by_key(|cell| (cell.row, cell.col));
+        let mut consumed = false;
+        for (i, cell) in cells.iter().enumerate() {
+            let units = self.cell_units(cell, table, styles);
+            let start = start_cut.get(i).copied().unwrap_or(0).min(units.len());
+            let end = end_cut
+                .get(i)
+                .copied()
+                .unwrap_or(start)
+                .clamp(start, units.len());
+            if end == start {
+                continue;
+            }
+            if self.native_first_line_restart_cut_trailing_trim(
+                table, cell, &units, start, end, styles,
+            ) <= 0.0
+            {
+                return false;
+            }
+            consumed = true;
+        }
+        consumed
+    }
+
     /// [#7203] 저장 사다리가 **같은 문단 안에서** 되감기는 조각 경계의 트림.
     ///
     /// 위 `native_multirow_saved_reset_trailing_trim` 은 **문단 경계** reset 만 본다.
@@ -13368,6 +13489,12 @@ impl LayoutEngine {
         end_cut: usize,
         styles: &ResolvedStyleSet,
     ) -> f64 {
+        let first_line_trim = self.native_first_line_restart_cut_trailing_trim(
+            table, cell, units, start_cut, end_cut, styles,
+        );
+        if first_line_trim > 0.0 {
+            return first_line_trim;
+        }
         // 저장 HWPX의 pageBreak="CELL" 속성은 보이는 문단으로 물리 조각을 끝낸 뒤
         // 다음 문단을 vpos=0에서 다시 시작할 수 있다. 마지막 줄의 간격은
         // 다음 프레임에 속하므로 현재 쪽에 그 보이는 줄이 들어가는 것을
@@ -15596,6 +15723,13 @@ impl LayoutEngine {
             {
                 hit_hard_break = true;
             }
+            if self
+                .native_first_line_restart_cut_trailing_trim(table, cell, &units, start, j, styles)
+                > 0.0
+            {
+                // 줄 뒤 간격을 뺀 실제 컷 상자와 안 여백을 paint와 같은 결과로 예약한다.
+                h = self.cell_cut_visible_height(cell, table, styles, start, j);
+            }
             if j < units.len() {
                 fully_consumed = false;
             }
@@ -15756,6 +15890,13 @@ impl LayoutEngine {
                 }
                 h += u.height;
                 j += 1;
+            }
+            if self
+                .native_first_line_restart_cut_trailing_trim(table, cell, &units, start, j, styles)
+                > 0.0
+            {
+                // 줄 뒤 간격을 뺀 실제 컷 상자와 안 여백을 paint와 같은 결과로 예약한다.
+                h = self.cell_cut_visible_height(cell, table, styles, start, j);
             }
             if j < units.len() {
                 fully_consumed = false;
