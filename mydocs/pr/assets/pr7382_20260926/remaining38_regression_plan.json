@@ -187,7 +187,8 @@
           "test_changed": "기준 PDF 설명/메시지만 갱신;140쪽 기대값 유지",
           "new_test_functions": 0,
           "candidate": 3,
-          "candidate_source_evidence": "stage59_prep2006_validation.json"
+          "candidate_source_evidence": "stage59_prep2006_validation.json",
+          "code_head": "fd10e7fd9d9fda41648b0d8ba2f57d219ae8d197"
         }
       ],
       "resolved_plan": {
@@ -195,7 +196,8 @@
         "target": "regression_suite_007",
         "grouped": true
       },
-      "evidence": "stage59_prep2006_validation.json"
+      "evidence": "stage59_prep2006_validation.json",
+      "correction_commit": "fd10e7fd9d9fda41648b0d8ba2f57d219ae8d197"
     },
     {
       "id": 13,

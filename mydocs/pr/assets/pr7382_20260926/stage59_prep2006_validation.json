@@ -10651,5 +10651,13 @@
       "src/renderer/layout/table_layout.rs:4436 rowspan line_req"
     ],
     "boundaries": "본문 표/이어받기/병합셀은 PrEP69/70/105쪽 및 기존7390의17함수, 중첩 정상 경로는 기존1658의3함수+같은 출력1쪽Native/WASM, 저장 그림 경계/적용 제외는 기존7048의6함수+6950의28함수로 확인. 원본/HWPX 저장·편집 비적용 조건은 기존 계약을 유지."
+  },
+  "code_commit": "fd10e7fd9d9fda41648b0d8ba2f57d219ae8d197",
+  "source_commit_mapping": {
+    "commit": "fd10e7fd9d9fda41648b0d8ba2f57d219ae8d197",
+    "verification": "git cat-file --batch의 커밋 blob SHA256을 고정 소스/최종 검사/도구/asset SHA와 대조",
+    "verified_file_count": 1064,
+    "result": "all_equal",
+    "captured_head_with_workingtree": "6a727833438c0082ed88031d24a0a1412a640e06"
   }
 }
