@@ -126,6 +126,14 @@
           "visual_native": 97.46031,
           "visual_wasm": 97.46031,
           "test_changed": false
+        },
+        {
+          "before": "0PASS/1FAIL (본문 뒤 기준선 검사 보완)",
+          "after": "1PASS",
+          "code_head": "1c82df86f3fe8db6837b23d3e28b890723c617bf",
+          "visual_native": 97.60662,
+          "visual_wasm": 97.60662,
+          "test_changed": true
         }
       ],
       "resolved_plan": {
@@ -164,13 +172,25 @@
       "id": 13,
       "function": "issue_2243::issue_2243_gyeoljae_sliver_page_pins",
       "case": "issue_2243",
-      "status": "pending",
-      "individual_results": [],
+      "status": "resolved",
+      "individual_results": [
+        {
+          "before": "0PASS/1FAIL",
+          "after": "1PASS",
+          "code_head": "1c82df86f3fe8db6837b23d3e28b890723c617bf",
+          "visual_min_native": 91.73884,
+          "visual_min_wasm": 91.73884,
+          "test_changed": true,
+          "new_test_functions": 0
+        }
+      ],
       "resolved_plan": {
         "caseName": "issue_2243",
         "target": "regression_suite_009",
         "grouped": true
-      }
+      },
+      "correction_commit": "1c82df86f3fe8db6837b23d3e28b890723c617bf",
+      "evidence": "stage57_sliver_validation.json"
     },
     {
       "id": 14,
@@ -473,6 +493,6 @@
       }
     }
   ],
-  "next_candidate": "issue_2243::issue_2243_gyeoljae_sliver_page_pins",
-  "next_candidate_reason": "4/3쪽 불일치의 입력·독립PDF·실제 소비 경로를 확인하고90% 증거 확보부터 검토한다."
+  "next_candidate": "issue_1733::issue_1733_hwpx_matches_hancom_pdf_page_count",
+  "next_candidate_reason": "243/PDF242쪽의 첫 차이 경계와 전체 시각 피델리티를 확인한 뒤 실제 원인을 보정한다."
 }
