@@ -1097,3 +1097,20 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 
 ![#3738 fresh WASM23쪽 직접 비교](../assets/pr7382_20260926/stage44_caption3738_wasm_review.png)
 ![#3738 fresh WASM23쪽 standalone overlay](../assets/pr7382_20260926/stage44_caption3738_wasm_overlay.png)
+
+
+## 보정45 사전 분석 — #7203 저장 사다리와 가시 표 원점 구분
+
+- 같은 원본 `56345_regulatory_impact_analysis.hwp`의11쪽에서 pi186/187 저장 vpos는24560/26992HU다. 앞 개체 상자1300+566+566HU는 뒤 앵커까지2432HU를 닫는다. 뒤 표 자체의 위여백141HU(1.88px)는 이 앵커 간격에 포함되지 않는다. 기존 검사는 두 Table bbox의 간격을 원시 앵커 간격32.42667px와 직접 같게 검사했다.
+- `stored_empty_control_table_frame`은 뒤 표의 닫힌 프레임을 anchor+offset+outer-top으로 생산하고 `query_original_control_table_frame`→whole-fit/continuation 예약→확정 ParagraphFloatPlacement→`layout.rs`의 col+placement.table_top→`table_layout.rs`의 resolved origin으로 전달한다. 확정 원점 경로는 physical inset을 재적용하지 않는다. 뒤 표 위여백은 여기서 한 번 소비된다. 앞 표는1300HU 개체 프레임과 특수 셀 여백을 가진 별도 경로이므로 두 raw bbox가 동일 앵커 규약이라고 추정하지 않는다.
+- 독립 PDF11쪽 뒤 표 가로 괘선 y436.961344px, 전435.5/후437.4px다. 전후 review를 직접 판독했으며 현재 뒤 표는 기준에 더 가깝다. 다음 검사는 저장 간격에 뒤 표 위여백을 반영해 기존0.2px 공차를 유지하고, 같은 파일의 PDF 괘선으로 절대 원점도 검사한다(이 검사군의 기존1.5px 공차). 제품 코드·기준값·래칫은 바꾸지 않는다. 기대 교정 전 실제 FAIL은 보정43의 전체 nextest 원시 로그에 보존돼 있다.
+
+
+### 보정45 결과
+
+- 기존 간격 기대32.42667px는 뒤 표 바깥 위여백141HU를 누락했다. 독립 저장 메타데이터로34.30667px를 기대하며0.2px 공차를 유지했다. PDF11쪽 가로 괘선436.961344px의 절대 원점 assertion을 추가해 상대 간격만 맞는 양쪽 오답도 거절한다. 현재437.4px는 PDF와0.439px 차이다. 제품 코드·baseline·래칫은 변경하지 않았다.
+- 같은 runtime의 기존 검사는32.43px 대신34.31px를 관측하며 FAIL(exit100)이었다. 교정 뒤 이 검사군 전체5PASS/207SKIP(exit0,4.086s,threads8)다. 저장 앵커·오프셋 적용 제외·TAC 대조·뒤 표 분할/본문 소유 검사를 함께 통과했다. 준비·fmt·Native/WASM/workspace Clippy·workspace build·고정 base manifest·diff 모두exit0이다. [입력/PDF 해시·독립 괘선·소스 메타데이터·정확한 테스트 해시·명령/exit](../assets/pr7382_20260926/stage45_anchor7203_validation.json).
+- 전후11쪽 review와 현재 standalone overlay를 직접 읽었다. 대상 뒤 표 원점은 PDF에 가까워졌으며 앞 제목/설명 텍스트의 잔여 위치 차이도 남았다. 전93.74164/후93.19785%의 자동 점수를 전체 정합 판정으로 사용하지 않았다. 이 테스트의 기대 교정은 충족이며 다른 실제 회귀·전체 시각 보류는 유지한다. 테스트 변경 head의 전체 nextest 통과 또는 새 검사의 base 실행은 주장하지 않는다.
+
+![#7203 현재11쪽 독립 기준 비교](../assets/pr7382_20260926/stage45_anchor7203_review.png)
+![#7203 현재11쪽 standalone overlay](../assets/pr7382_20260926/stage45_anchor7203_overlay.png)
