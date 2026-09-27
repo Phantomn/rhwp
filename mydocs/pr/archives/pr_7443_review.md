@@ -19,7 +19,7 @@ section 경계와 cache identity 문제는 base에도 존재했으며 이번 PR�
 2026-09-27 사용자 승인으로 원 PR을 merge commit
 `013bc846fca3434ccb1e4167744bed9440c6da6a`에 병합했다. 두 contributor commit은 이력에 보존됐다.
 연결 이슈 #7442는 devel push workflow에 의해 2026-09-27 11:44:53 UTC에 자동 종료됐다.
-보정과 이 리뷰 문서는 별도 후속 PR에서 제출한다.
+보정과 이 리뷰 문서는 [후속 PR #7446](https://github.com/edwardkim/rhwp/pull/7446)에 제출했다.
 2026-09-27에 [APPROVE 리뷰](https://github.com/edwardkim/rhwp/pull/7443#pullrequestreview-5330133765)를 게시했고,
 API 재조회로 대상 commit·APPROVED 상태·한글 본문·영상 URL이 일치함을 확인했다.
 
@@ -207,3 +207,8 @@ TypeScript 포함 build, E2E manifest와 실제 Chrome 포인터 E2E를 모두 �
 기존 `7af493cb6`와 전체 tree `98aee4a4a45a1b4d9e11582fb644845f9f9f6d77`가 같아 기존 광범위 회귀를
 중복 실행하지 않았다. 후속 diff는 Studio 제품 코드와 Rust test helper이며 Rust 제품 소스·snapshot·baseline은
 변경하지 않았다. 원 PR의 CI와 후속 PR의 CI는 별도로 판단한다.
+
+후속 PR의 현재 판정은 [#7446 개별 리뷰](pr_7446_review.md)에 분리했다.
+[원 PR 최종 코멘트](https://github.com/edwardkim/rhwp/pull/7443#issuecomment-5855597661)와
+[이슈 종료 확인 코멘트](https://github.com/edwardkim/rhwp/issues/7442#issuecomment-5855597818)를 게시했고,
+API 재조회로 한글 본문과 후속 PR 링크를 확인했다.
