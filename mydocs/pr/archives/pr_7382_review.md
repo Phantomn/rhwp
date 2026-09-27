@@ -1626,3 +1626,5 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 - 전체 compare/review/overlay와 로그는 `output/pr-review/planet6897-7382-20260926/stage58-tail1733/candidate28/visual-full-{native,wasm}-{hwp,hwpx}/tail1733-{hwp,hwpx}/`에 있습니다. `.log`·output·pkg·파생 suite는 커밋하지 않습니다.
 - 잔여 차이: 수식 자간/획(45쪽), 일부 본문 줄바꿈/각주 번호(162쪽), 얇은 화살표/작은 글자(201쪽), 지도 위 별도 글상자/프레임(215쪽)을 기록했습니다. 원본 흑백 그림의 242,748픽셀 일치는 그림 변환 범위의 증거이며 전체 배치·compact 출력 일치로 확대하지 않습니다.
 - 고정 38개 계획은 **3개 해결/35개 대기**입니다. HWP 함수는 원래 38개 밖의 거짓 양성 보완이므로 해결 건수를 두 개 늘리지 않습니다. 보정58 커밋 뒤 다음 실패 함수를 분석하고, 모든 개별 보정·고정 38개 재실행 뒤 전체 nextest·Native Skia3·최종 PR head 필수 검증을 수행합니다. 다른 문서의 쪽수·시각 보류는 유지하며 현재 PR 준비 완료로 판정하지 않습니다.
+
+- 보정58 코드·증적 커밋은 `d6992abefb46744defce93b9333aff82d699cb97`입니다. 고정 Native/fresh WASM의 변경 소스 SHA와 최종 검사 SHA를 해당 커밋의 파일과 대조해 모두 같음을 확인했습니다. 캡처 당시 git HEAD(`80f7e778a`)+작업트리 출처와 코드 커밋의 연결을 결과 JSON에 기록했으며, 이후 최종 통합 PR head 검증을 대신하지 않습니다.

@@ -160,7 +160,8 @@
           "new_test_functions": 0,
           "candidate": 28,
           "before_head": "80f7e778a6a0b2979c9cccbcd003a267ce3932e7",
-          "candidate_source_evidence": "stage58_tail1733_validation.json"
+          "candidate_source_evidence": "stage58_tail1733_validation.json",
+          "code_head": "d6992abefb46744defce93b9333aff82d699cb97"
         }
       ],
       "resolved_plan": {
@@ -168,7 +169,8 @@
         "target": "regression_suite_016",
         "grouped": true
       },
-      "evidence": "stage58_tail1733_validation.json"
+      "evidence": "stage58_tail1733_validation.json",
+      "correction_commit": "d6992abefb46744defce93b9333aff82d699cb97"
     },
     {
       "id": 12,

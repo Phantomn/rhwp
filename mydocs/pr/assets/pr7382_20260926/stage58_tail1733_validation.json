@@ -5492,5 +5492,8 @@
       "path": "stage58_before_spacing_native_hwp_review_196.png",
       "sha256": "4637c3ec0bbc6ba706bb6fc11379799dea962ca4035e5fa31b9191a2e3bd21ad"
     }
-  ]
+  ],
+  "verified_code_commit": "d6992abefb46744defce93b9333aff82d699cb97",
+  "verified_src_tree": "dea609c6dbbf3365fbd957c7a044e2fd1d29334a",
+  "source_commit_mapping": "캡처 때 git HEAD는80f7e778a+보정58 작업트리였으며, 그 Native/freshWASM 소스 파일SHA와 최종 formatted 검사SHA가 이 코드 커밋과 같음을 확인. 이후 통합 PR 최종head의 새 검증을 대체하지 않음."
 }
