@@ -9,9 +9,12 @@ last_verified: 2026-09-27
 
 ## 최종 판정
 
-**머지 보류 — 로컬 검증은 통과했으며 최신 PR head의 GitHub CI 완료를 기다린다.**
+**승인 — 로컬 검증 및 최신 head의 GitHub Full CI가 통과했다.**
 원 PR #7443은 이미 승인·병합됐다. 이 판정은 후속 PR #7446에만 적용한다.
-CI 완료 뒤 최신 head·mergeability와 사용자 병합 승인을 확인해야 한다. 이번 사용자 요청은 후속 PR 생성까지다.
+검증한 PR head는 `189ff38304263694cdd7fe8b1b399dd53b99b872`다.
+사용자는 2026-09-27 문서 push, 새 head CI 확인 후 병합·후속 처리·작업 산출물 정리를 승인했다.
+문서-only commit 뒤 새 head의 preflight·필수 aggregate와 mergeability를 확인한 다음 일반 경로로 병합한다.
+`--admin`은 사용하지 않는다.
 
 ## 접수 정보
 
@@ -63,6 +66,28 @@ WASM `91d8dfb9e44560338b1915fe1e6554b15278fe819b11ebe58feb8fdcc052909a`를 재�
 [이슈 종료 확인 코멘트](https://github.com/edwardkim/rhwp/issues/7442#issuecomment-5855597818)를 게시하고 본문을 API로 확인했다.
 원 기여자의 commit·fork branch는 보존한다. 로컬 devel은 merge SHA로 동기화했다.
 
-이 후속 PR은 아직 진행 중이므로 현재 기본 작업공간, `codex/pr-7443-followup`, 기존 보정 참조 branch,
-`output/pr-review/7443/before` 비교 worktree, 원 head 비교 서버와 검증 로그를 유지한다.
-후속 PR 종료 시 소유 산출물을 정리하며 공유 `target/pr-review`와 다른 작업의 worktree는 건드리지 않는다.
+검토에는 기본 작업공간, `codex/pr-7443-followup`, 기존 보정 참조 branch,
+`output/pr-review/7443/before` 비교 worktree, 원 head 비교 서버와 검증 로그를 사용했다.
+사용자 승인에 따라 병합·필수 후속 처리 뒤 작업 전용 서버·branch·worktree·로그·임시 산출물을 정리한다.
+리뷰 문서·영상·검증 요약은 이 PR에 보존하며 공유 `target/pr-review`와 다른 작업의 worktree는 보존한다.
+
+## GitHub CI 완료 후 collaborator 병합 조건 확인
+
+- 검증 head `189ff38304263694cdd7fe8b1b399dd53b99b872`와
+  [Full CI run](https://github.com/edwardkim/rhwp/actions/runs/36317358388)의 `headSha`가 일치하며 결과는 `success`다.
+- Rust A/B/C/D, lint, Frontend package, CodeQL 언어별 분석, Render Diff, Adapter, Proptest와 CI Impact Policy가 통과했다.
+  GHAS CodeQL 집계의 neutral 및 영향 범위상 skipped job을 실패로 해석하지 않는다.
+- `gh pr checks --required`가 반환한 필수 `Build & Test`는 PASS다. 실패·진행 중인 검사는 없다.
+- PR은 OPEN, non-draft, MERGEABLE/CLEAN이며 source는 `edwardkim/rhwp`다. code candidate 이후 diff는 mydocs 기록뿐이다.
+- @postmelee 권한은 push=true/admin=false다. review 요청·reviewDecision 차단이 없고 GitHub 병합 상태는 CLEAN이다.
+  상세 branch-protection API는 권한 제약으로 404였으며, 조회 가능한 branch ruleset은 빈 목록이다.
+  이 사실을 모든 보호 규칙 부재로 해석하지 않는다. 현재 PR의 필수 체크 조회와 병합 판정을 근거로 삼는다.
+- 본인 PR에 GitHub APPROVE를 제출하지 않는다. collaborator self-review 문서가 PR diff에 포함돼 있다.
+- 두 번째 문서 미검증은 원 PR 승인 때 명시한 기존 범위 한계이며 이번 보정의 새 blocker는 아니다.
+
+## 병합 후 기록 계획
+
+후속 PR에 새 head CI 판정, 실제 merge SHA, 로컬 검증·이슈 종료 유지 상태를 기록한다.
+원 PR #7443과 이슈 #7442에는 후속 보정까지 병합됐다는 링크를 덧붙인다.
+상세 리뷰·영상은 이번 PR head에 모두 포함돼 있으므로 종료 기록만을 위한 별도 PR은 만들지 않는다.
+최종 devel 동기화와 해당 작업 산출물 정리를 확인한 뒤 완료 보고한다.
