@@ -1357,3 +1357,40 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 - threads8/no-fail-fast로 다섯 corpus 게이트와 #1891을 실행해 **48PASS/22FAIL/1087SKIP**,70개,4slow,검사174.205s/전체201.836s,exit100을 확인했습니다. IR·셀줄 넘침 및 #1891 다섯 검사 모두PASS이고 나머지 본문 넘침/용지 밖/텍스트 겹침 실패22개는 보류합니다. 실패 입력/증가값33종은 보정53 전체 로그에 모두 존재하며 새로운 입력별 증가값은 없습니다. partition 소속 재배치로 실패 함수 수가 바뀔 수 있어 이 숫자를 고유 결함 수로 환산하지 않습니다. #80250 제거 전 전체41FAIL을 새 전체 결과로 다시 표시하지 않습니다.
 - fmt·세Clippy·workspace build·고정base manifest/unit-tier·diff check는 모두exit0입니다. 실행 전후 검사/입력/baseline 해시가 같습니다. 중간 두 상태의 중단 실행은 최종 검사에서 제외했습니다. 렌더 제품은 보정53과 같아 같은 Native/fresh WASM 전수 증거를 유지하며 테스트 제거를 새로운 시각 통과로 보고하지 않습니다. [명령·70개 결과·실패입력·lint·source 해시](../assets/issue7445/test_removal_validation.json).
 - **#80250 검사 제거와 원본 보존은 완료, 전체 피델리티는 #7445로 이관·보류, 통합 PR 보류 유지**입니다. 다음 개별 보정은 #5885의 첫 조각에서 원점0의 저장 줄 뒤 간격을 물리 컷 높이에 그대로 예약한 경로입니다. 독립 PDF 첫 조각 하단1002.902667px/현재1011.626667px와 실제 블록 컷의 네셀1유닛·25.6px·뒤 source0 재시작을 연결하며 기대값·래칫 완화 없이 해결합니다.
+
+## 보정55 사전 분석 — 첫 줄의 원점0 재시작 컷과 줄 뒤 간격
+
+- 시작 head는 `f677301d4`입니다. #5885 원본의 Native/fresh WASM 전체7쪽은 예외 없이 모두90%이상으로 검증됐으므로 그 조건 뒤에 독립 PDF 첫 조각 괘선189.233333→1002.902667px를 검사합니다. 현재 상단189.56px는 맞지만 하단1011.626667px가 약8.72px 큽니다. 실제 블록 컷은 r4 네셀 각각첫1유닛이고 각25.6px를 예약하며, 원본은 첫 줄vpos0 뒤에 새 프레임의0→1920HU 사다리를 저장했습니다. 줄높이1200HU=16px와 뒤간격720HU=9.6px 중 뒤간격은 첫 물리 조각의 표 하단을 늘리지 않습니다.
+- 기존 저장 reset 트림은 양수vpos→0을 처리하며 이 첫 줄0→0 경계는 빠집니다. 끝 컷의 실제 source unit 범위와 같은 행의 authentic/control-free 원점 재시작·후속 줄 전진을 확인합니다. 단일 셀 로컬 reset·모든줄0·합성tag·control 문단·온전한 행/컷없음·비native는 적용하지 않습니다. 전체 CellUnit 합은 유지하고 선택된 physical cut의 끝 간격만 공통 결과로 제외합니다.
+- `cell_units` 생산 → 블록 컷 scalar/row-offset 워크의 누적 높이 → `SelectedBlockCut::occupied_height`의 예산·끝행 → `row_block_content_height`/`row_cut_content_height` → `table_partial` 행 재구성·`cell_cut_visible_height`의 rowspan 보정으로 이어집니다. 원점0 경계의 같은 helper를 누적 예약과 두 paint 소비 지점이 사용하고 별도 clamp/덮어쓰기로 숨기지 않습니다. 기존 양수reset 계약은 이번 보정으로 재정의하지 않습니다.
+- 정식 첫 조각 경계 검사를 수정 전FAIL로 확인한 뒤 구현합니다. 실제 컷·첫 조각 표 하단/점유·다음쪽 시작과 마지막 내용·기존 중첩 행 바닥을 확인하며 Native/fresh WASM 전체7쪽과 #1133/#6797 정상 페이지를 직접 비교합니다. 현재 주 문서215/PDF217 및 다른 전체 실패는 보류입니다.
+
+- 첫 후보는 실제 컷 높이19.76px를 계산했지만 `BlockCutQuery::allows_split`의 일반 최소25px 조건이 유효한 저장 첫 프레임도 거절했습니다. 그 결과 첫 쪽은 해당 행을 전부 이월해 하단983.906667px, 다음 쪽 행 원점374px로 두 검사가FAIL입니다. 기대값은 유지합니다. 원본 여러 셀의 동일 첫 프레임을 모든 소비 컷으로 확인한 경우에만 짧은 완결 조각을 수용하며, 일반 최소 높이는 바꾸지 않습니다. 이 소비 분기와 실제 paint를 함께 재검증합니다.
+
+- 최종 코드 검토에서 편집 세션/실제 표 텍스트 재조판 provenance를 판정 앞에서 제외합니다. authentic tag만으로 편집 뒤 저장 캐시의 유효성을 대신하지 않습니다. Native 원본 첫 쪽은 예약 끝과 실제 괘선이1001.786667px로 일치했으며 그 계약도 정식 검사에 추가합니다. 첫 후보 Native7쪽 최저92.04292%, 정상 대조군 gatePASS/주 문서430tree불변은 후보 증거입니다. 이후 source/test가 바뀌므로 최종 검증·Native/fresh WASM 캡처를 새로 수행합니다.
+
+- 일반 per-row 분기도 실제 호출 경로를 확인했습니다. `row_step.rs`는 raw 워크 높이를 곧바로 예약하지 않고 `row_cut_content_height`의 `split_total`을 실제 예산/예약으로 쓰며, 기존 `stored_zero_origin_rewind_keep`는 확인된 저장 첫 줄 경계를 최소25px 기각에서 제외합니다. 따라서 블록 경로의 누락된 수용 분기만 보완합니다. 기존 #6761 원본/사다리 전진을 깨뜨린 정식 반례도 실행하고39·40쪽 독립 PDF를 추가 비교합니다.
+
+### 사용자 지시 반영 — 기존 전수 회귀 완료 우선
+
+- 추가 중이던 미커밋 첫 조각 검사 `issue_5885_first_fragment_closes_at_independent_pdf_border`를 제거하고 #5885 검사 원본을시작head로 복원했습니다. 해당 파일의diff는0이며 새 회귀 검사는 이번 보정에 포함하지 않습니다. 앞의2PASS/1FAIL 자료는 후보 진단 이력이며 최종 제출 검사 목록으로 보고하지 않습니다.
+- 게이트 순서 제어를 중단하고 Cargo/Rust 프로세스가 남지 않았음을 확인한 뒤 파생 목록을 다시 준비합니다. 이 중단 실행은 필수 lint 완료 증거로 세지 않습니다. 먼저 기존 전체 nextest를threads8·no-fail-fast로 완료하고 기존 Native Skia3종을 순차 실행합니다. 추가 검사·불필요한 새 픽스쳐를 만들지 않으며 실패 수와 실제 로그를 근거로 다음 보정 범위를 정합니다.
+
+- 직후 사용자께서 “현재까지 만들어 둔것은 유지”라고 명확히 하셨으므로, 방금 제거한 검사와 예약 assertion을 그대로 복원했습니다. 앞 제거 설명은 중간 이력이며 최종 상태는 **기존 작성 검사 유지/이후 추가 검사 없음**입니다. 잘못 해석해 시작한 전수 실행은 빌드 단계에서 작업 소유 프로세스만 중단했고 결과로 세지 않습니다. 복원된 목록에서 전체 nextest를 다시 시작합니다.
+
+### 보정55 결과 — 저장 첫 프레임의 물리 높이 공유
+
+- 원점0→0→전진 사다리가 같은 시작 행의 여러 원본 셀에서 확인되는 첫 줄 컷은 끝 줄간격을 물리 조각에서 제외합니다. 셀 유닛 전체 합은 유지하고 블록 워크 두 경로의 예약 높이와 paint의 `cell_cut_visible_height`를 공유합니다. 편집/실제 재조판 캐시와 control·합성 줄은 제외합니다. 일반 최소25px는 유지하며 확인된 완결 source 첫 프레임만 짧은 조각을 수용합니다.
+- 이미 작성한 #5885 두 검사는 유지했습니다. 첫 조각 검사는 수정 전 실제 괘선1011.386667px로FAIL, 수정 후1001.786667px로PASS이며 예약 끝도 같은 값입니다. PDF1002.902667px와의−1.116px 차이는 남습니다. 기존2쪽 재정상태 행 원점·중첩표 포함·뒤 행 인접 검사도PASS이며 공차/baseline을 완화하지 않았습니다. 첫 후보의 두FAIL과 중단 실행은 완료 검증에 포함하지 않습니다.
+- 최종 전체 nextest는 `--locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 --no-fail-fast`로 **10,348PASS/38FAIL/50SKIP**,10,386개 실행,검사589.749s/전체921.304s,exit100입니다. 실행 전후3196개 source/test/generated/입력 해시가 같고 최종 lint 준비 뒤에도 불변입니다. 이전 전체는4ddd0ccfc+보정53 workingtree의 기록이며 그 뒤 검사 교정을 포함한ef09f1b19 최종head 전체로 재표시하지 않습니다. 이전41실패 중3함수가이번실패목록에서사라졌고새실패함수0입니다. 그중 #80250 corpus 메시지 제거는 검사 이관이고 #5885/#6126 같은 입력의 넘침 메시지 해소와 구분합니다.
+- Native Skia library는4112PASS/13ignored,그림 placeholder2PASS,직접PDF4PASS입니다. fmt·Native/WASM/workspace all-targets 세Clippy·workspace build·고정base manifest/unit-tier·fresh WASM wrapper·diff check 모두exit0입니다. fresh WASM은 Mac 로컬대체빌드이며 Docker최적화빌드 통과로보고하지않습니다. 루트pkg/Studio/frozen JS와WASM해시도각각같습니다.
+- 최종 Native/fresh WASM 각17쪽을새로캡처했습니다. #5885전체7쪽은두backend모두최저92.04292%,#6797/#1133두형식/#86712대조군도gatePASS입니다. 첫쪽review/standaloneoverlay와2쪽/마지막7쪽을직접판독했습니다. p2마지막행전체하단의기존약14px차이는남으며전문서완전일치를주장하지않습니다. 주문서HWP215+HWPX215=430tree는보정53과바이트동일합니다.
+- #6761기존원본/음성대조계약4검사는PASS지만PDF39·40쪽은Native/fresh WASM모두50.26618/71.40357%로gate보류입니다. 본문과표경계의실제위치차이를직접확인했으며원본계약PASS를독립PDF90%이상정상대조군으로승격하지않습니다. 기대값과입력은보존합니다. 주문서215/PDF217쪽과다른38실패도남아통합PR은보류입니다. [최종검증·명령·해시·전후결과](../assets/pr7382_20260926/stage55_zero_origin_cut_validation.json).
+
+![보정55 첫 조각의 독립 PDF 비교](../assets/pr7382_20260926/stage55_native_nested5885-full_review_001.png)
+![보정55 첫 조각의 standalone overlay](../assets/pr7382_20260926/stage55_wasm_nested5885-full_overlay_001.png)
+
+### 고정38개 실패의 순차 해결
+
+- 사용자의 최신 지시에 따라 현재38개실패함수를고정했습니다. 각함수를사전분석→원인수정→개별실행→결과보고→커밋순서로해결하고,모두해결한뒤그38함수를각각다시실행한후전체nextest를수행합니다. 이미작성한검사는유지하고이후새회귀검사는추가하지않습니다. [38개목록과진행상태](../assets/pr7382_20260926/remaining38_regression_plan.json).
+- 첫개별대상은 #1658하단고정틀입니다. 과거PDF90%이상증거가있으므로현재head에서재확인한뒤검사적절성을판정합니다. 빈줄의실제공간과표/본문소유를구분하며단순가시문자필터·clamp·공차완화로통과시키지않습니다. 다음단계구현전분석과전후실행을이기록에연결합니다.
