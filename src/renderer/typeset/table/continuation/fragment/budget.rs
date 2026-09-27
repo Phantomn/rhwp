@@ -101,25 +101,24 @@ impl TypesetEngine {
                 &start_cut,
                 st.current_height <= 0.5,
             );
-        // 첫 조각은 이미 host_spacing.before에서 이 여백을 받는다.
-        // 새 이어받기 조각도 실제 배치가 여는 원점과 같은 공간을 예약한다.
-        let host_before_overhead = host_before_overhead
-            + if fragment_opens_outer_top && is_continuation {
-                hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
-            } else {
-                0.0
-            };
-        // The terminal cut row restarts on a fresh page with its saved outer
-        // top margin. Reserve the same inset that partial-table paint opens;
-        // otherwise the following table is measured 141 HU too high (86712 p28).
-        let host_before_overhead = host_before_overhead
-            + if crate::renderer::float_placement::native_terminal_multirow_rowbreak_reopens_outer_top(
+        // 첫 조각은 이미 host_spacing.before에서 위여백을 받는다.
+        // 이어받기는 paint가 여는 같은 프레임 여백을 한 번만 예약한다.
+        // 단일 셀/후속 본문 엄격 예산은 partial_rowbreak_fragment_spacing_px에서
+        // 이미 예약하며, 종료 컷과 일반 프레임 술어가 동시에 참이어도 중복하지 않는다.
+        let terminal_fragment_opens_outer_top =
+            crate::renderer::float_placement::native_terminal_multirow_rowbreak_reopens_outer_top(
                 self.profile.get().hwp5_stored_pagination_layout(),
                 table,
                 is_continuation,
                 cursor_row,
                 start_cut,
-            ) {
+            );
+        let host_before_overhead = host_before_overhead
+            + if is_continuation
+                && (fragment_opens_outer_top || terminal_fragment_opens_outer_top)
+                && !strict_following_plain_text_fit
+                && !single_cell_page_fragment
+            {
                 hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
             } else {
                 0.0

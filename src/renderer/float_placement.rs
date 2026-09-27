@@ -190,19 +190,11 @@ pub(crate) fn column_rowbreak_fragment_opens_outer_top(
     start_cut: &[usize],
     starts_at_column_top: bool,
 ) -> bool {
-    // 저장 형식과 무관하게 실제 빈 앵커와 수직 캡션은 같은 바깥 프레임을 소유한다.
-    // 캡션 없는 일반 HWP 이어받기 표의 원점은 기존 계약을 유지한다.
-    let native_caption_frame = native_host.is_some_and(|para| {
-        object_only_saved_table_anchor(para, table)
-            && table.caption.as_ref().is_some_and(|caption| {
-                matches!(
-                    caption.direction,
-                    crate::model::shape::CaptionDirection::Top
-                        | crate::model::shape::CaptionDirection::Bottom
-                )
-            })
-    });
-    (hwpx_stored || native_caption_frame)
+    // 빈 저장 앵커가 가리키는 표 프레임은 캡션 유무와 무관하게 바깥 여백을 소유한다.
+    // 캡션 간격은 별도 소비 지점에서 계산하며 프레임 원점의 수용 조건으로 쓰지 않는다.
+    let native_object_frame =
+        native_host.is_some_and(|para| object_only_saved_table_anchor(para, table));
+    (hwpx_stored || native_object_frame)
         && !table.common.treat_as_char
         && is_para_topbottom_float(&table.common)
         && table.common.horz_rel_to == HorzRelTo::Column

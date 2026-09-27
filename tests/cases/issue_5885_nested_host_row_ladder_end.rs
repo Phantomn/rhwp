@@ -52,16 +52,24 @@ fn issue_5885_outer_row_closes_below_nested_table_bottom() {
     let mut cells = Vec::new();
     collect_cells(&page.root, 0, &mut cells);
 
-    // 바깥 표 `⑵재정상태건실도` 행: y≈344.6 에서 시작하는 depth1 셀들.
+    // 바깥 표 `⑵재정상태건실도`는 원본의 5번 행이다.
+    // 과거 출력 y344.6으로 소유를 찾으면 바깥 위여백 복원 뒤 해당 행을 놓친다.
+    // 독립 한컴2020 PDF2쪽의 괘선 시작은347.94px이다.
     let row_cells: Vec<_> = cells
         .iter()
-        .filter(|(d, _, y, _)| *d == 1 && (*y - 344.6).abs() < 3.0)
+        .filter(|(d, row, _, _)| *d == 1 && *row == 5)
         .collect();
     assert!(
         row_cells.len() >= 3,
         "p2 재정상태건실도 행 셀 3개를 찾아야 함; got {}",
         row_cells.len()
     );
+    for (_, _, top, _) in &row_cells {
+        assert!(
+            (*top - 347.94).abs() < 0.6,
+            "재정상태건실도 행의 실제 원점은 독립 PDF347.94px: {top}"
+        );
+    }
     let bottoms: Vec<f64> = row_cells.iter().map(|(_, _, _, b)| *b).collect();
     let min_b = bottoms.iter().cloned().fold(f64::MAX, f64::min);
     let max_b = bottoms.iter().cloned().fold(f64::MIN, f64::max);
