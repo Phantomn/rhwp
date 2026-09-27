@@ -7,9 +7,9 @@ last_verified: 2026-09-27
 
 # PR #7382 리뷰 — 분할 표와 저장 각주 경계
 
-## 현재 판정
+## 최종 판정
 
-**머지 보류.** 보정30–41로 주요 원본의 그림·표·캡션·각주 배치와 후속 내용 소유를 복원했다. 보정42의 실제 TABLE 셀 편집은 수정 전 HWPX 본문39px 초과에서 수정 후 전체 내용/물리 경계 검사와 확대247PASS로 개선됐다. 원본 HWP/HWPX215쪽 tree는 모두 유지했다. 실제 래퍼 분할·이월, #6782의76/78쪽, 원본 수동/실문서의 남은 시각 차이 및 정확한 최종 head의 전수 Native/fresh WASM·전체 nextest/lint/Skia는 남아 있다. 완료 전 통합 PR 생성·승인을 보류한다.
+**머지 보류.** 보정30–41로 주요 원본의 그림·표·캡션·각주 배치와 후속 내용 소유를 복원했다. 보정42의 실제 TABLE 셀 편집은 수정 전 HWPX 본문39px 초과에서 수정 후 전체 내용/물리 경계 검사와 확대247PASS로 개선됐다. 원본 HWP/HWPX215쪽 tree는 모두 유지했다. 실제 래퍼 분할·이월, #6782의76/78쪽, 원본 수동/실문서의 남은 시각 차이 및 정확한 검증 head `96c4e4777`의 전체 nextest는10,327PASS/43FAIL/50SKIP이며 기대값 적절성도 재검토 중이다. lint·Skia·fresh WASM 빌드는 통과했고 전수 Native/fresh WASM 시각 비교는 실행 중이다. 완료 전 통합 PR 생성·승인을 보류한다.
 
 ## 접수와 provenance
 
@@ -1060,3 +1060,28 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 
 ![실제120자 셀 편집의 표 시작](../assets/pr7382_20260926/stage42_hwpx_growth_page_106.png)
 ![실제 셀 편집의 이어받기와 캡션](../assets/pr7382_20260926/stage42_hwpx_growth_page_107.png)
+
+## 전체 검증과 기존 기대값 재검토 — 보정43 분석
+
+- 제품 runtime head `96c4e47771ecf7f46016bffa1e09c467b2878cbb`, base `eb9142dd7c73297d555383d7d8434a470bdef26e`다. 이 단계는 지침·증거 분석이며 Rust·기대값·래칫 허용치를 바꾸지 않았다. [검증 체크포인트](../assets/pr7382_20260926/stage43_validation_checkpoint.json)와 [43건 원시 실패 목록](../assets/pr7382_20260926/stage43_nextest_full_failures.json)을 보존한다.
+- 전체 integration은 `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 --no-fail-fast`:10,327PASS/43FAIL/50SKIP, exit100이다. 실패 목록의 반복 출력을 중복 집계하지 않았다. 43건은 개별21·본문넘침6·용지밖2·쪽수3·텍스트겹침11이며 아직43개 실제 출력 결함이라고 단정하지 않는다.
+- release lib4,055PASS, Skia lib4,112PASS, Skia placeholder2PASS/direct PDF4PASS, doc8PASS, Studio1,785PASS/2SKIP다. fmt·Native/WASM/workspace Clippy·workspace build·고정 base manifest/unit 정책·TypeScript도 exit0이다. fresh WASM은 root wrapper의 `--no-opt` 로컬 대체 빌드이며 root pkg/Studio/frozen pkg 해시가 일치한다. Docker 최적화 빌드 통과로 보고하지 않는다. [WASM provenance](../assets/pr7382_20260926/stage43_wasm_pkg_provenance.json).
+- 개별 실패 입력14개에 Native 수정 전·후27건, 래칫 증가 입력과 추가 대조군20묶음에40건의 Visual Sweep을 생성했다. 전체 자동 비교와 직접 읽은 대표 페이지를 구분한다. 한글 형식1.3 원본의 한컴 변환은 실패하여 그 PDF 대조는 미검증이다. 입력을 비정상으로 판정하지 않는다. [입력·PDF·페이지 매핑](../assets/pr7382_20260926/stage43_regression_baseline_visual_fixtures.json), [변환 출처](../assets/pr7382_20260926/stage43_regression_reference_conversions.json), [추가 출처](../assets/pr7382_20260926/stage43_regression_reference_extra_conversions.json). 새 기준 PDF는 `pdf/issue7382-regression-review/`에 보존했다.
+
+| 대상 | 독립 출력과 직접 판독 | 현재 판단 |
+| --- | --- | --- |
+| #3738 HWP23쪽 | 동일 원본은 한컴2024 저장본. 기준 PDF 그림21 y151.995px·캡션498.322px, 현재152.1/498.4px, review99.62374% | 기존148.3±3/495.2±3은 PDF 자체를 벗어난다. 독립 기대값 보정 대상이며 허용치는 유지한다 |
+| #6535 저슬랙/페이지 앵커, #6102 | 기준 PDF1쪽의 결재선·발신명·주소가 현재1쪽에서 사라지고 다음 쪽으로 이동 | 기존1쪽 기대는 유효한 실제 회귀. 보정27부터 높이 증가를 추적하며 코드를 보정해야 한다 |
+| #7336 | 기준6쪽의 동의서 대신 현재6쪽에는 앞 표의 꼬리와 동의서 제목만 표시 | 7쪽·동의서 소유 기대에 실제 배치 회귀 근거가 있다 |
+| #7390 KoPub | 대상 줄 폭414.2/574.1px는 전후 동일; 대상 줄은94/108→95/109쪽 이동 | 폭 회귀로 보고하지 않는다. 페이지 선택 실패와 실제 쪽 배치 회귀를 구분한다 |
+| #1133 | HWP/HWPX PDF 괘선 간격113.476px, 현재HWP111.6/HWPX113.4px. 두 형식2쪽 직접 판독 | HWPX를111.6으로 되돌리지 않는다. 상대 일치만으로 양쪽 오답을 잡지 못해 독립 원점·간격 보강과 HWP 잔여 차이 검토가 필요하다 |
+| #7203 | 뒤 표 PDF윗변436.961px, 전435.5/후437.4px. 11쪽 전후 직접 판독 | 저장 사다리32.43px와 실제 원점·여백의 계약을 추가 추적하며 기대 수정은 미검증 |
+| #5941 | PDF302쪽, 전304/후303. 같은 마지막 내용의 실제 꼬리 PNG는 쪽번호 외 동일하나 PDF의 마지막 두 행 소유는 다름 | 304는 한컴 정답이 아닌 잠정 핀. 현재303으로 갱신하지 않으며 분할·내용 보존 계약을 추가 검증한다 |
+
+[사례별 좌표·판정](../assets/pr7382_20260926/stage43_regression_reassessment.json). #6797 수동 변형은 원본 PDF로 기대값을 입증하지 않는다. 래칫 증가는 실제 보이는 글자·괘선과 raw 상자 진단을 대조하며, 점수 개선만으로 넘침/겹침 증가를 수용하지 않는다.
+
+![#3738 현재23쪽 직접 비교](../assets/pr7382_20260926/stage43_caption3738_review.png)
+![#6535 수정 전](../assets/pr7382_20260926/stage43_low6535_base_review.png)
+![#6535 현재: 하단 블록 이월](../assets/pr7382_20260926/stage43_low6535_head_review.png)
+
+전체 Native/fresh WASM 시각 실행과 미판독 경계가 남았다. 현재 통합 PR·승인·merge는 계속 보류한다. 모든 로그와 임시 자료는 `output/pr-review/planet6897-7382-20260926/full-96c4e4777/`에 두고 커밋하지 않는다.
