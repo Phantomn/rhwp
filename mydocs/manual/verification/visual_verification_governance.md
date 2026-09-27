@@ -27,6 +27,10 @@ last_verified: 2026-09-17
    판정하는 작업은 [버그 헌팅 playbook](../bug_hunting_playbook.md)이 상위 절차이며, visual sweep은
    그 안의 후보 검출·수정 전후 무회귀 도구다.
 
+렌더링 변경의 새 회귀 테스트 추가는 [회귀 추가 선행 조건](../pr_review/visual_fixture_evidence.md#렌더링-회귀-테스트-신규-추가의-시각-검증-선행-조건)에 따라 관련 모든 페이지·fixture·
+Native/fresh WASM 출력의 최저 일치율 90% 이상을 먼저 입증한다. 미달·측정 불가이면 회귀를 추가하지
+않고 실제 출력을 개선한다. 평균값·글꼴 예외·CI 성공으로 면제하지 않으며 기존 검사는 자동 삭제하지 않는다.
+
 ## bug-hunter와 visual sweep 라우팅
 
 두 절차는 전역 우선순위를 다투지 않는다. 시작 목적에 따라 지배 절차를 고른다.

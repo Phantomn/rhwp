@@ -701,6 +701,10 @@ sharding 전체 회귀를 실행했다. `CARGO_INCREMENTAL=0`은 지정하지 �
 - 전체 실행: 종료 코드 0, 실패 0건
 - warm `nextest list`: 0.19초
 
+렌더링 변경의 신규 회귀는 [시각 검증 선행 조건](visual_fixture_evidence.md#렌더링-회귀-테스트-신규-추가의-시각-검증-선행-조건)을 먼저 충족한다.
+관련 모든 페이지·fixture·Native/fresh WASM 출력의 최저 일치율이 90% 미만이거나 측정 불가이면
+추가하지 않는다. 쪽수 검사는 전체 페이지를 비교하며 실제 출력을 개선한 뒤 새 코드로 재검증한다.
+
 신규 회귀 test source는 `tests/cases/`에만 추가한다. PR review는
 `node scripts/rust-test-suite-manifest.mjs --prepare`로 기존 suite에 자동 배정한 뒤 검증하며,
 generated 파일은 커밋하지 않는다.

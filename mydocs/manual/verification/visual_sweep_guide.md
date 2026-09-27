@@ -30,6 +30,10 @@ last_verified: 2026-09-24
 
 ## PR review 실루엣 gate
 
+렌더링 변경의 새 회귀 테스트 추가에도 [회귀 추가 선행 조건](../pr_review/visual_fixture_evidence.md#렌더링-회귀-테스트-신규-추가의-시각-검증-선행-조건)을 적용한다. 관련 모든 페이지·fixture의
+Native/fresh WASM 최저 일치율이 90% 미만이거나 측정 불가이면 회귀를 추가하지 않고 출력을 먼저
+개선한다. 쪽수 검사는 전체 페이지를 비교하며 평균값·글꼴 예외로 이 조건을 면제하지 않는다.
+
 renderer·layout·paint 변경의 PR review에 Visual Sweep을 사용하면, 각 대표 review PNG의
 `tolerant_content_match_percent`(2px 이웃 관용 내용 실루엣 일치율 보조값)는 **90% 이상**이어야 한다.
 `scripts/visual_sweep.py`는 90% 미만 또는 측정 불가 페이지가 있으면 PNG와 manifest를 남긴 뒤 exit

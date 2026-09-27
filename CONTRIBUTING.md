@@ -655,6 +655,14 @@ checks는 기존과 같이 merge gate입니다. 추가 환경 검증에서 심�
 버그 수정 PR 에서 리뷰가 가장 먼저 확인하는 항목입니다. 아래 관례를 따르면 검토와 merge 가
 크게 빨라집니다.
 
+렌더링·조판·페이지 배치 변경에서는 **새 회귀 테스트 또는 fixture/golden을 추가하기 전에** 같은
+원본·독립 한컴 PDF의 Native/fresh WASM Visual Sweep을 완료하세요. 관련 모든 페이지·fixture·출력
+경로 중 최저 `tolerant_content_match_percent`가 90% 이상이어야 합니다. 쪽수 검사는 전체 페이지를
+비교합니다. 최저값 90% 미만 또는 측정 불가이면 새 회귀 테스트를 추가하지 않고 실제 출력을 먼저
+개선하세요. 평균값·글꼴 예외·CI 성공으로 대신하지 않으며 이미 존재하는 검사를 자동 삭제하지 않습니다.
+최저 페이지·backend·source SHA와 직접 판독 증거를
+[회귀 추가 선행 조건](mydocs/manual/pr_review/visual_fixture_evidence.md#렌더링-회귀-테스트-신규-추가의-시각-검증-선행-조건)에 따라 연결하세요.
+
 1. **red→green 회귀 테스트 동봉** — 수정 전 결함을 재현·고정하는 테스트를 함께 제출합니다.
    Rust 파일명 관례: `tests/cases/issue_{이슈번호}_{짧은_설명}.rs`. Studio 회귀는 변경에 맞는 단위 테스트나
    `rhwp-studio/e2e/`에 둡니다. 수정을 되돌리면 실패하고, 수정을 적용하면 통과해야 합니다.
