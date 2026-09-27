@@ -3428,6 +3428,7 @@ impl HeightMeasurer {
                         self.hwpx_stored_layout,
                         self.session_edited,
                         self.render_normalization.table_text_reflowed(table),
+                        relaxed_pad_mirror,
                     );
                 let required_height = if let Some(end) = stored_frame_end {
                     end
@@ -4060,6 +4061,7 @@ impl HeightMeasurer {
                         self.hwpx_stored_layout,
                         self.session_edited,
                         self.render_normalization.table_text_reflowed(table),
+                        relaxed_pad_mirror,
                     )
                     .unwrap_or(required_height);
                 let combined: f64 = (r..r + span).map(|i| row_heights[i]).sum();

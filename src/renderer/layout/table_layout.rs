@@ -4291,6 +4291,7 @@ impl LayoutEngine {
                             self.render_normalization
                                 .borrow()
                                 .table_text_reflowed(table),
+                            relaxed_pad,
                         );
                     let line_req = if let Some(end) = stored_frame_end {
                         end
@@ -4441,6 +4442,7 @@ impl LayoutEngine {
                         self.render_normalization
                             .borrow()
                             .table_text_reflowed(table),
+                        relaxed_pad,
                     );
                 let line_req = if let Some(end) = stored_frame_end {
                     end

@@ -25,7 +25,8 @@ pub(crate) fn topbottom_flow_vertical_offset_hu(common: &CommonObjAttr) -> i32 {
 }
 
 /// 원본 HWPX noAdjust 셀의 완전한 저장 줄 프레임이 점유하는 끝점.
-/// 줄 사이 공간은 저장 vpos에 포함되므로 안 여백을 다시 더해 행을 키우지 않는다.
+/// 여백을 이미 계상하는 중첩/TAC의 relaxed-pad 경로에서 줄 사이 저장 공간을
+/// 재사용한다. noAdjust 자체는 본문 표의 안 여백을 지울 근거가 아니다.
 /// 빈 줄도 포함하며, 편집·재조판·개체·되감김은 이 계약의 입력으로 받지 않는다.
 pub(crate) fn stored_hwpx_no_adjust_cell_content_end(
     cell: &crate::model::table::Cell,
@@ -34,8 +35,10 @@ pub(crate) fn stored_hwpx_no_adjust_cell_content_end(
     hwpx_stored: bool,
     session_edited: bool,
     text_reflowed: bool,
+    padding_in_stored_frame: bool,
 ) -> Option<f64> {
-    if !hwpx_stored
+    if !padding_in_stored_frame
+        || !hwpx_stored
         || session_edited
         || text_reflowed
         || table.raw_table_record_attr & 0x08 == 0
@@ -803,20 +806,42 @@ pub struct ParagraphHostLine {
     pub height: f64,
 }
 
-/// Recover an empty picture host's saved flow only when an empty successor
-/// spacer with positive spacing-before starts exactly at the picture frame end.
-/// That spacer proves the reserved before-gap belongs to the object boundary.
-/// A text successor, or a line without such a gap, does not prove exclusive
-/// ownership of paragraph flow merely by touching the picture geometrically.
-/// A zero-width host line belongs to the blocking object, not a second text line
-/// to append below it. Missing/stale lines, explicit breaks and edited sessions
-/// must keep measured flow (the caller supplies the stored-layout capability).
+/// 양수 앞 간격을 가진 빈 후속 줄의 기존 저장 프레임 계약.
+/// 다음 문단/실제 앞 커서를 받지 않는 호출은 0앞간격으로 흐름을 되감지 않는다.
 pub fn stored_picture_successor_placement(
     para: &Paragraph,
     successor: &Paragraph,
     spacing_before: f64,
     successor_spacing_before: f64,
     frame_vpos: i32,
+    dpi: f64,
+) -> Option<ParagraphFloatPlacement> {
+    stored_picture_successor_with_following_placement(
+        para,
+        successor,
+        None,
+        spacing_before,
+        successor_spacing_before,
+        frame_vpos,
+        f64::NAN,
+        dpi,
+    )
+}
+
+/// 빈 그림 호스트의 저장 프레임 끝과 빈 후속 줄이 같은 흐름을 소유하는지 확인한다.
+/// 양수 앞 간격이 없는 후속 줄은 다음 저장 줄까지의 전진과 실제 앞 커서도
+/// 일치해야 한다. 그림과 줄이 기하적으로 닿는다는 사실만으로 흐름을 되감지 않는다.
+/// 호스트의 0폭 줄은 그림이 소유하며, 후속 빈 줄은 자신의 음수 간격도 보존한다.
+/// 편집/합성·명시 경계는 호출자와 이 함수의 저장 계약에서 제외한다.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn stored_picture_successor_with_following_placement(
+    para: &Paragraph,
+    successor: &Paragraph,
+    following: Option<&Paragraph>,
+    spacing_before: f64,
+    successor_spacing_before: f64,
+    frame_vpos: i32,
+    actual_host_flow_y: f64,
     dpi: f64,
 ) -> Option<ParagraphFloatPlacement> {
     let [Control::Picture(picture)] = para.controls.as_slice() else {
@@ -846,7 +871,7 @@ pub fn stored_picture_successor_placement(
         || dpi <= 0.0
         || !spacing_before.is_finite()
         || !successor_spacing_before.is_finite()
-        || successor_spacing_before <= 0.0
+        || successor_spacing_before < 0.0
     {
         return None;
     }
@@ -857,7 +882,22 @@ pub fn stored_picture_successor_placement(
     let bottom =
         top + hwpunit_to_px(height, dpi) + hwpunit_to_px(i32::from(common.margin.bottom), dpi);
     let next_y = hwpunit_to_px(next.vertical_pos.checked_sub(frame_vpos)?, dpi);
-    // The allowance is one integer HWPUNIT of rounding, not pixel slack.
+    if successor_spacing_before == 0.0 {
+        let following = following?;
+        let after = following.line_segs.first()?;
+        let advance = next.line_height.checked_add(next.line_spacing)?;
+        if successor.line_segs.len() != 1
+            || following.column_type != crate::model::paragraph::ColumnBreakType::None
+            || after.tag & 0x8000_0000 != 0
+            || advance <= 0
+            || after.vertical_pos.checked_sub(next.vertical_pos)? != advance
+            || !actual_host_flow_y.is_finite()
+            || (actual_host_flow_y - anchor_y).abs() > dpi / 7200.0
+        {
+            return None;
+        }
+    }
+    // 정수 HWPUNIT의 반올림 1단위만 허용하며 픽셀 여유를 더하지 않는다.
     if anchor_y < 0.0 || height <= 0 || (bottom - next_y).abs() > dpi / 7200.0 {
         return None;
     }

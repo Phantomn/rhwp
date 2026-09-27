@@ -248,18 +248,18 @@ impl TypesetEngine {
                                 continue;
                             }
                         }
-                        if self.profile.get().hwp5_stored_pagination_layout()
+                        if (self.profile.get().hwp5_stored_pagination_layout()
+                                || self.profile.get().hwpx_stored_layout())
                                 && !self.profile.get().session_edited()
+                                && (st.pages.len(), st.current_column)
+                                    == (picture_host_origin.0, picture_host_origin.1)
                                 && st.current_items.iter().any(|item| {
                                     matches!(item, PageItem::FullParagraph { para_index } if *para_index == para_idx)
                                 })
                             {
                                 let saved = paragraphs.get(para_idx + 1).and_then(|next| {
-                                    // An earlier picture with measured flow leaves
-                                    // the column's painted origin outside this
-                                    // stored reservation contract. Do not resume
-                                    // absolute saved coordinates midway through
-                                    // that chain and paint over preceding text.
+                                    // 앞 그림의 측정 흐름이 저장 원점과 다르면 중간부터
+                                    // 절대 저장 좌표를 재개해 선행 본문을 덮지 않는다.
                                     let unresolved_picture_flow = st.current_items.iter().any(|item| {
                                         let PageItem::Shape { para_index: owner, control_index } = item else { return false; };
                                         if *owner == para_idx { return false; }
@@ -271,9 +271,8 @@ impl TypesetEngine {
                                     if unresolved_picture_flow { return None; }
                                     let host_style = styles.para_styles.get(para.para_shape_id as usize)?;
                                     let next_style = styles.para_styles.get(next.para_shape_id as usize)?;
-                                    // The first stored line may retain its paragraph's
-                                    // spacing-before at column top. That is an inset,
-                                    // not the origin of the source coordinate system.
+                                    // 단 상단 첫 저장 줄의 앞 간격은 inset이며
+                                    // 원본 저장 좌표계의 원점으로 빼지 않는다.
                                     let first_para = st.current_items.iter().find_map(|item| {
                                         match item {
                                             PageItem::FullParagraph { para_index } => paragraphs.get(*para_index),
@@ -284,9 +283,9 @@ impl TypesetEngine {
                                     let base = st.vpos_page_base.unwrap_or(0);
                                     let retained_before = first_before.max(0.0).min(hwpunit_to_px(base.max(0), self.dpi));
                                     let frame_vpos = base - crate::renderer::px_to_hwpunit(retained_before, self.dpi);
-                                    crate::renderer::float_placement::stored_picture_successor_placement(
-                                        para, next, host_style.spacing_before,
-                                        next_style.spacing_before, frame_vpos, self.dpi,
+                                    crate::renderer::float_placement::stored_picture_successor_with_following_placement(
+                                        para, next, paragraphs.get(para_idx + 2), host_style.spacing_before,
+                                        next_style.spacing_before, frame_vpos, picture_host_origin.2, self.dpi,
                                     )
                                 });
                                 if let Some(placement) = saved.filter(|p| {

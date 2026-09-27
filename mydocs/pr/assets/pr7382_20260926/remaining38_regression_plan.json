@@ -176,13 +176,26 @@
       "id": 12,
       "function": "issue_2006_1790387_prep_pagination_pin::prep_1790387_page_count_pin",
       "case": "issue_2006_1790387_prep_pagination_pin",
-      "status": "pending",
-      "individual_results": [],
+      "status": "resolved",
+      "individual_results": [
+        {
+          "before": "0PASS/1FAIL (141/140쪽),exit100",
+          "after": "1PASS,exit0",
+          "visual_min_native": 91.82221,
+          "visual_min_wasm": 91.82221,
+          "visual_page_count": 280,
+          "test_changed": "기준 PDF 설명/메시지만 갱신;140쪽 기대값 유지",
+          "new_test_functions": 0,
+          "candidate": 3,
+          "candidate_source_evidence": "stage59_prep2006_validation.json"
+        }
+      ],
       "resolved_plan": {
         "caseName": "issue_2006_1790387_prep_pagination_pin",
-        "target": "regression_suite_004",
+        "target": "regression_suite_007",
         "grouped": true
-      }
+      },
+      "evidence": "stage59_prep2006_validation.json"
     },
     {
       "id": 13,
@@ -509,6 +522,6 @@
       }
     }
   ],
-  "next_candidate": "issue_1733::issue_1733_hwpx_matches_hancom_pdf_page_count",
-  "next_candidate_reason": "243/PDF242쪽의 첫 차이 경계와 전체 시각 피델리티를 확인한 뒤 실제 원인을 보정한다."
+  "next_candidate": "issue_7390_prep_table_rowbreak::prep_page_105_merged_budget_table_keeps_saved_row_boundaries",
+  "next_candidate_reason": "보정59 코드·증적 커밋 뒤 동일 픽스쳐의 전체280쪽 근거를 재사용해 기존105쪽 함수의 기대값/원인과 개별 실행을 기록한다. 다른 보류 함수는 아직 해결로 세지 않는다."
 }

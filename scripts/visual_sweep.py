@@ -1707,7 +1707,9 @@ def subpixel_tolerant_content_match_percent(
         if (rhwp_content and not pdf_neighbor) or (pdf_content and not rhwp_neighbor):
             mismatched += 1
     if not content_union:
-        return None
+        # 양쪽에 내용 픽셀이 없는 빈 쪽은 같은 실루엣이다. 한쪽만 비면
+        # union이 양수이므로 아래 식에서 0%이며, 누락된 캡처와 구분한다.
+        return 100.0
     return round((1.0 - mismatched / content_union) * 100.0, 5)
 
 
