@@ -2412,7 +2412,30 @@ mod tests {
         );
     }
 
-    /// Task #634: aift.hwp 페이지 1 (cover disclaimer "※ 동 사업...") 은 PageNumberPos
+    /// 표시 여부는 자동 쪽번호 런의 최종 기준선에서 실제 SVG 글자를 확인한다.
+    /// 위치의 정확성은 독립 PDF를 쓰는 정식 기준선 검사에서 별도로 확인한다.
+    fn count_automatic_page_number_glyphs(
+        core: &crate::document_core::DocumentCore,
+        page: u32,
+        svg: &str,
+    ) -> usize {
+        let tree = core.build_page_render_tree(page).expect("쪽번호 배치");
+        tree.root
+            .children
+            .iter()
+            .filter(|node| matches!(node.node_type, RenderNodeType::Footer))
+            .flat_map(|footer| &footer.children)
+            .flat_map(|line| &line.children)
+            .filter_map(|node| match &node.node_type {
+                RenderNodeType::TextRun(run) if run.para_index.is_none() => {
+                    Some(count_text_at_y(svg, node.bbox.y + run.baseline))
+                }
+                _ => None,
+            })
+            .sum()
+    }
+
+    /// Task #634: aift.hwp 페이지 1 (표지 고지 "※ 동 사업...") 은 PageNumberPos
     /// 등록 페이지로 한컴이 "- 1 -" 표시. rhwp 도 표시되어야 함 (회귀 방지).
     #[test]
     fn test_634_aift_page1_shows_page_number() {
@@ -2420,10 +2443,10 @@ mod tests {
             return;
         };
         let svg = core.render_page_svg_native(0).unwrap_or_default();
-        let count = count_text_at_y(&svg, 1083.6);
+        let count = count_automatic_page_number_glyphs(&core, 0, &svg);
         assert_eq!(
             count, 3,
-            "aift.hwp 페이지 1 (cover disclaimer, PageNumberPos 등록 페이지) 은 \
+            "aift.hwp 페이지 1 (표지 고지, PageNumberPos 등록 페이지) 은 \
              \"- 1 -\" 3글자 표시되어야 함 (한컴 일치)."
         );
     }
@@ -2436,7 +2459,7 @@ mod tests {
             return;
         };
         let svg = core.render_page_svg_native(5).unwrap_or_default();
-        let count = count_text_at_y(&svg, 1083.6);
+        let count = count_automatic_page_number_glyphs(&core, 5, &svg);
         assert_eq!(
             count, 3,
             "aift.hwp 페이지 6 (본문 시작) 은 한컴이 \"- N -\" 표시. \
@@ -2451,7 +2474,7 @@ mod tests {
             return;
         };
         let svg = core.render_page_svg_native(6).unwrap_or_default();
-        let count = count_text_at_y(&svg, 1083.6);
+        let count = count_automatic_page_number_glyphs(&core, 6, &svg);
         assert_eq!(
             count, 3,
             "aift.hwp 페이지 7 (NewNumber 발화) 은 \"- 1 -\" 3글자 표시되어야 함."
@@ -2466,7 +2489,7 @@ mod tests {
             return;
         };
         let svg = core.render_page_svg_native(3).unwrap_or_default();
-        let count = count_text_at_y(&svg, 1083.6);
+        let count = count_automatic_page_number_glyphs(&core, 3, &svg);
         assert_eq!(
             count, 0,
             "aift.hwp 페이지 4 는 PageHide page_num=true (paragraph 2.34) 로 미표시."
@@ -2480,7 +2503,7 @@ mod tests {
             return;
         };
         let svg = core.render_page_svg_native(4).unwrap_or_default();
-        let count = count_text_at_y(&svg, 1083.6);
+        let count = count_automatic_page_number_glyphs(&core, 4, &svg);
         assert_eq!(
             count, 0,
             "aift.hwp 페이지 5 는 PageHide page_num=true (paragraph 2.54) 로 미표시."
@@ -2494,32 +2517,25 @@ mod tests {
             return;
         };
         let svg = core.render_page_svg_native(0).unwrap_or_default();
-        let count = count_text_at_y(&svg, 1069.7066666666665);
+        let count = count_automatic_page_number_glyphs(&core, 0, &svg);
         assert_eq!(
             count, 0,
             "국립국어원 페이지 1 은 PageHide (paragraph 0.19) 로 미표시."
         );
     }
 
-    /// Task #634/#705: 2022년 국립국어원 페이지 3 — 셀 안 PageHide 영역의 hide_page_num 적용.
-    ///
-    /// PR #711 (Task #705) 영역 의 셀 안 PageHide 본질 정정 + 작업지시자 시각 판정 권위 영역으로
-    /// page 3 영역의 쪽번호 미표시 영역이 한컴 정답지 정합으로 확정 (2026-05-09).
-    ///
-    /// 본 가드 영역 의 의도 변경:
-    /// - PR #634 시점 (rhwp 의 한컴 부정합 행위 보존): count == 3
-    /// - PR #711 시점 (한컴 권위 정합): count == 0 — 셀[0]/p[5] 영역의 hide_page_num 적용
+    /// 국립국어원 같은 입력의 한컴2020·2022 PDF3쪽은 "- 1 -"을 표시한다.
+    /// 과거 특정 y에서0글자라는 검사로 숨김을 추정한 기대값은 독립 출력과 다르다.
     #[test]
     fn test_634_gukrip_page3_shows_page_number() {
         let Some(core) = load_document("samples/2022년 국립국어원 업무계획.hwp") else {
             return;
         };
         let svg = core.render_page_svg_native(2).unwrap_or_default();
-        let count = count_text_at_y(&svg, 1069.7066666666665);
+        let count = count_automatic_page_number_glyphs(&core, 2, &svg);
         assert_eq!(
-            count, 0,
-            "국립국어원 페이지 3 은 셀 안 PageHide 영역의 hide_page_num 영역 적용 영역으로 \
-             쪽번호 미표시 (한컴 권위 정합, PR #711 시각 판정 통과)."
+            count, 3,
+            "국립국어원 같은 입력의 한컴 PDF3쪽 자동 번호는 표시되어야 함."
         );
     }
 
@@ -2530,9 +2546,7 @@ mod tests {
             return;
         };
         let svg = core.render_page_svg_native(0).unwrap_or_default();
-        // Issue #951: margin_bottom 원본값 보존 후 쪽번호 위치 보정 (1061.4→1050.8)
-        // [#3048] 쪽 번호를 10pt 로 교정하면서 줄 baseline 이 +4.44px 이동 (1050.8→1055.24).
-        let count = count_text_at_y(&svg, 1055.24);
+        let count = count_automatic_page_number_glyphs(&core, 0, &svg);
         assert_eq!(
             count, 3,
             "hwp3-sample.hwp 페이지 1 (NewNumber 0개) 은 쪽번호 표시되어야 함 (회귀 방지)."

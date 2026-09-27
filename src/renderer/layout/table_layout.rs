@@ -5260,7 +5260,7 @@ impl LayoutEngine {
             }
             // 문단 기준 자리차지 표는 선언한 가로 앵커를 셀 안쪽 영역에서 해석한다.
             // 좁은 단 기준 표의 가운데 배치로 바꾸면 안내문 표와 글줄이 함께 밀린다.
-            // 나란한 무리의 확정 원점은 위의 inline_x_override 경로가 소유한다.
+            // 나란한 무리도 이 결과로 원점을 확정해 실제 배치에 전달한다.
             if !table.common.treat_as_char
                 && matches!(table.common.text_wrap, TextWrap::TopAndBottom)
                 && matches!(table.common.horz_rel_to, HorzRelTo::Para)

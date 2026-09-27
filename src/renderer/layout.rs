@@ -5409,34 +5409,25 @@ impl LayoutEngine {
         tree.root.children.push(bg_node);
     }
 
-    /// 쪽 테두리선을 렌더링하여 tree에 추가한다.
-    /// 쪽 번호 배치 보정용 — 쪽 번호 baseline 의 y 좌표 (px).
-    ///
-    /// **body 기준 테두리일 때만** Some 을 반환한다. body 기준 테두리는
-    /// 본문을 감싸므로 한컴은 쪽 번호를 본문(테두리) 아래 꼬리말 영역에 둔다.
-    /// 한컴 정답지(sample16) 실측: 쪽 번호는 꼬리말 영역(footer_area)
-    /// *세로 중앙* 에 담겨 출력된다 (테두리 아래로 흘러나가지 않음).
-    /// paper 기준 테두리는 종이 전체를 감싸 쪽 번호가 테두리 *안쪽* 에 오며
-    /// (aift.hwp Task #634), 이 경우 보정하지 않고 None.
+    /// 자동 쪽번호의 최종 글자 기준선(96dpi 등의 레이아웃 좌표)이다.
+    /// 꼬리말 밴드의 아래끝은 종이 높이에서 아래쪽 여백을 뺀 선이다.
+    /// 밴드가 있는 경우 꼬리말 여백만 바꾼 한컴 대조군에서는 쪽번호가 이동하지 않는다.
     fn footer_page_number_y(
         &self,
         layout: &PageLayoutInfo,
         footer_area: &LayoutRect,
         font_size: f64,
     ) -> f64 {
-        // [Task #1728] 자동 쪽번호 세로 위치: HWP 실측상 glyph 은 body_bottom(footer_area.y) 에서
-        // margin_footer/2 + ~10px 아래에 온다(gc/ktx/aift 3문서 1~2px 정합). 종전 공식은
-        // footer_area.height(= margin_bottom)/2 를 써서, margin_footer ≠ margin_bottom 인 문서
-        // (margin_footer=0 인 giant cell, margin_footer≠margin_bottom 인 KTX)를 7~18px 낮게 놓았다.
-        // margin_footer = page_height - footer_area.bottom.
-        let center_y = if footer_area.height > 0.5 {
-            let margin_footer =
-                (layout.page_height - (footer_area.y + footer_area.height)).max(0.0);
-            footer_area.y + margin_footer / 2.0
+        let margin_footer = (layout.page_height - (footer_area.y + footer_area.height)).max(0.0);
+        let band_bottom = if margin_footer > 1e-6 {
+            footer_area.y + margin_footer
         } else {
-            (footer_area.y + layout.page_height) / 2.0
+            // 꼬리말 밴드가 없으면 자동 번호는 남은 아래쪽 여백의 중앙을 쓴다.
+            // 뺄셈으로 복구한0의 부동소수점 오차만 허용한다.
+            footer_area.y + footer_area.height / 2.0
         };
-        center_y + font_size / 3.0
+        // 글상자 상단과 기준선을 혼용하지 않고 아래끝에서 기준선 여유를 뺀다.
+        band_bottom - font_size / 3.0
     }
 
     fn page_number_baseline_y(
@@ -5450,7 +5441,7 @@ impl LayoutEngine {
         if paper_based {
             return None;
         }
-        // 꼬리말 영역 세로 중앙 baseline (기존 footer 중앙 공식과 동일).
+        // 쪽 테두리 경로도 같은 아래쪽 여백 기준선을 소비한다.
         Some(self.footer_page_number_y(layout, &layout.footer_area, font_size))
     }
 
@@ -6372,12 +6363,8 @@ impl LayoutEngine {
                 _ => target_area.x + (target_area.width - text_width) / 2.0,
             };
 
-            // 기본: target_area(머리말/꼬리말) 세로 중앙.
-            // 단 꼬리말 위치 + body 기준 쪽 테두리가 *이 페이지에 실제로
-            // 그려질 때* 한컴은 쪽 번호를 꼬리말 영역 하단(= 용지 하단에서
-            // margin_footer 만큼 위)에 배치한다 (Task #987 Stage 5).
-            // 쪽 테두리 없거나 paper 기준이거나 hide_border 인 페이지는
-            // 기존 중앙 로직 유지 → 회귀 격리.
+            // 자동 꼬리말 쪽번호는 아래쪽 여백 선을 기준으로 배치한다.
+            // 머리말 위치의 기존 실제 글자 배치는 이번 보정 범위 밖이다.
             let border_drawn = !page_content
                 .page_hide
                 .as_ref()
@@ -6389,9 +6376,8 @@ impl LayoutEngine {
             } else {
                 target_area.y + target_area.height / 2.0 + font_size / 3.0
             };
-            // body 기준 테두리 + 테두리 실제 그려질 때만 footer_area 중앙으로
-            // 보정 (target_area 가 footer_area 와 다를 수 있는 경우 정합).
-            // 그 외(paper 기준/테두리 없음/hide_border)는 기존 footer_center.
+            // 본문 기준 테두리 경로도 공통 쪽번호 기준선을 사용한다.
+            // 종이 기준 테두리·감추기 여부로 별도의 글자 원점을 만들지 않는다.
             let y = if is_footer {
                 self.page_number_baseline_y(layout, page_border_fill, font_size)
                     .filter(|_| border_drawn)
@@ -6399,22 +6385,9 @@ impl LayoutEngine {
             } else {
                 footer_center
             };
-            // #7336: 한컴 2020·2024 PDF 의 함초롬돋움 쪽번호는 동일한 footer
-            // 밴드에서 글꼴 크기의 절반만큼 아래에 놓인다. 문서의 `쪽 번호` 스타일을
-            // 적용해도 기존 바탕 기준 baseline 을 그대로 쓰면 6쪽 전부 glyph 이
-            // 6~7px 위로 뜬다. 굴림 쪽번호(aift)는 반대 방향으로 2~3px 차이이므로
-            // 모든 쪽번호에 일괄 이동을 적용하지 않는다.
-            // 각주가 꼬리말 영역까지 내려온 쪽에서는 이 보정이 마지막 각주
-            // 줄과 쪽번호를 새로 겹치게 한다(#1937). 그런 쪽은 기존 기준을 쓴다.
-            let y = if is_footer
-                && page_content.footnotes.is_empty()
-                && (page_num_style.font_family.contains("함초롬돋움")
-                    || page_num_style.font_family.contains("HCR Dotum"))
-            {
-                y + font_size / 2.0
-            } else {
-                y
-            };
+            // 꼬리말의 줄과 글자 상자는 같은 최종 기준선을 공유한다.
+            // 글꼴 이름이나 각주 유무에 따른 임시 이동은 적용하지 않는다.
+            let run_y = if is_footer { y - font_size } else { y };
 
             let line_id = tree.next_id();
             let mut line_node = RenderNode::new(
@@ -6446,7 +6419,7 @@ impl LayoutEngine {
                     layout_positions: None,
                     display_text: None,
                 }),
-                BoundingBox::new(x, y, text_width, font_size),
+                BoundingBox::new(x, run_y, text_width, font_size),
             );
             line_node.children.push(run_node);
 
