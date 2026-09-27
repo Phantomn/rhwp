@@ -85,6 +85,9 @@ fn maintainer_float_variant(
         panic!("pi=71 ci=0 표가 필요하다");
     };
     table.common.vertical_offset = vertical_offset;
+    // 원문 페이지 계획을 재사용하지 않고 변형 IR로 측정·배치 파생 상태를 재구성한다.
+    let document = core.document().clone();
+    core.set_document(document);
     page_column(&core, 6)
 }
 
