@@ -1085,3 +1085,15 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 ![#6535 현재: 하단 블록 이월](../assets/pr7382_20260926/stage43_low6535_head_review.png)
 
 전체 Native/fresh WASM 시각 실행과 미판독 경계가 남았다. 현재 통합 PR·승인·merge는 계속 보류한다. 모든 로그와 임시 자료는 `output/pr-review/planet6897-7382-20260926/full-96c4e4777/`에 두고 커밋하지 않는다.
+
+
+## 보정44 결과 — #3738 기존 기대값의 독립 좌표 교정
+
+- 사전 분석은 보정43의 동일 입력·한컴2024 정본 대조다. 그림21 본체151.99467px·캡션498.32166px를 독립 기대값으로 사용하고 기존±3px 허용치를 유지했다. 제품 코드·baseline·golden은 바꾸지 않았다. 현재152.1/498.4px는 정본에 대응하며 과거 회귀198.4/544.7px는 계속 거절한다.
+- 기존 검사는 runtime `96c4e47771ecf7f46016bffa1e09c467b2878cbb`에서 의도한 좌표 assertion으로 FAIL(exit100)이었다. 기대 교정 후 파생 `regression_suite_001`의 같은 검사1PASS/178SKIP(exit0,0.837s,threads8)다. base 출력148.3/494.7px는 새 독립 범위를 벗어나지만 새 검사를 base에서 실행한 것으로 보고하지 않는다.
+- 파생 준비를 누락한 최초 manifest 검사 실패도 보존했다. `--prepare`부터 fmt·focused nextest·Native/WASM/workspace Clippy·workspace build·고정 base manifest·diff를 순차 재실행해 모두exit0을 확인했다. 준비 후 suite가010에서001로 바뀌었으므로 새 파생 소속에서 검사를 다시 실행했다. generated 파일·로그는 커밋하지 않는다.
+- Native23쪽99.62374%, fresh WASM23쪽99.62947%의 review/standalone overlay를 직접 판독했다. 그림21/22·캡션·후속 본문 위치를 대조했으며 자동 점수를 직접 판독의 대용으로 쓰지 않았다. 제품 소스 불변이므로 runtime96의 고정 Native/WASM 증적을 연결한다. 테스트 변경 head의 전체 nextest 통과라고 보고하지 않는다.
+- [독립 좌표·정확한 테스트 해시·입력/PDF 해시·명령/exit·WASM provenance](../assets/pr7382_20260926/stage44_caption3738_validation.json). 이번 기대값 교정은 충족이며 다른 실제 페이지 밀림/배치 결함과 미검증 경계 때문에 통합 PR·승인·merge는 보류한다.
+
+![#3738 fresh WASM23쪽 직접 비교](../assets/pr7382_20260926/stage44_caption3738_wasm_review.png)
+![#3738 fresh WASM23쪽 standalone overlay](../assets/pr7382_20260926/stage44_caption3738_wasm_overlay.png)

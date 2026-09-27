@@ -4,7 +4,10 @@
 //! 개인정보를 제거한 실제 HWP의 23쪽 그림 21/22는 1×2 표의 Center 셀에
 //! Bottom caption(각 5줄)을 둔다. caption을 제외하고 그림만 중앙 정렬하면
 //! 그림과 caption이 약 50px 아래로 밀리고 caption이 다음 본문과 겹친다.
-//! 한컴오피스 2020 PDF의 그림 21 caption 첫 줄은 371.37pt = 495.16px(96DPI)다.
+//! 동일 원본은 한컴오피스2024 저장본이며 정본 `pdf/정책연구용역사업 …-hwp-2024.pdf`
+//! 23쪽 그림21 본체 윗변은113.996002pt = 151.99467px, 캡션 첫 줄은
+//! 373.741241pt = 498.32166px(96DPI)다. 종전 검사는2024 기준 x에 과거2020 설명의
+//! y=148.3/495.2를 섞어 정본 자체를±3px 범위 밖으로 판정했다. 독립 좌표를 사용하고 공차는 유지한다.
 
 use std::fs;
 use std::path::Path;
@@ -15,6 +18,8 @@ use rhwp::wasm_api::HwpDocument;
 const SAMPLE: &str =
     "samples/정책연구용역사업 중간진도보고서(살아있는 간장 기증자의 의학적 선별기준 연구).hwp";
 const PAGE_23: u32 = 22;
+const PDF_IMAGE_TOP_PX: f64 = 151.994_67;
+const PDF_CAPTION_TOP_PX: f64 = 498.321_66;
 
 fn find_picture_21_and_caption(
     node: &RenderNode,
@@ -60,11 +65,11 @@ fn hwp_page23_bottom_caption_is_centered_as_one_visual_block() {
     let caption_y = caption_y.expect("figure 21 caption text node");
 
     assert!(
-        (image_y - 148.3).abs() <= 3.0,
-        "그림 21 본체가 Bottom caption을 제외하고 다시 중앙 정렬됨: image_y={image_y:.1} (회귀 전 198.4, 한컴 PDF 정합값 약 148.3)"
+        (image_y - PDF_IMAGE_TOP_PX).abs() <= 3.0,
+        "그림21 본체가 캡션을 제외하고 다시 중앙 정렬됨: image_y={image_y:.1}, 한컴2024 PDF={PDF_IMAGE_TOP_PX:.5}px (회귀 전198.4)"
     );
     assert!(
-        (caption_y - 495.2).abs() <= 3.0,
-        "그림 21 caption 첫 줄이 한컴 PDF(371.37pt = 495.16px)와 어긋남: caption_y={caption_y:.1} (회귀 전 544.7)"
+        (caption_y - PDF_CAPTION_TOP_PX).abs() <= 3.0,
+        "그림21 캡션 첫 줄이 한컴2024 PDF와 어긋남: caption_y={caption_y:.1}, 정본={PDF_CAPTION_TOP_PX:.5}px (회귀 전544.7)"
     );
 }
