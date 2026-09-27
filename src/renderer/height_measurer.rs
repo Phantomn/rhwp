@@ -3420,7 +3420,18 @@ impl HeightMeasurer {
                         .paragraphs
                         .iter()
                         .all(|p| !crate::renderer::para_has_no_stored_line_segs(p));
-                let required_height = if crate::model::table::Cell::vertical_padding_is_abnormal(
+                let stored_frame_end =
+                    crate::renderer::float_placement::stored_hwpx_no_adjust_cell_content_end(
+                        cell,
+                        table,
+                        self.dpi,
+                        self.hwpx_stored_layout,
+                        self.session_edited,
+                        self.render_normalization.table_text_reflowed(table),
+                    );
+                let required_height = if let Some(end) = stored_frame_end {
+                    end
+                } else if crate::model::table::Cell::vertical_padding_is_abnormal(
                     cell_h_px, total_pad,
                 ) && content_height <= cell_h_px
                 {
@@ -4041,6 +4052,16 @@ impl HeightMeasurer {
                         .max(wrap_bottom);
                     content_height + pad_top + pad_bottom
                 };
+                let required_height =
+                    crate::renderer::float_placement::stored_hwpx_no_adjust_cell_content_end(
+                        cell,
+                        table,
+                        self.dpi,
+                        self.hwpx_stored_layout,
+                        self.session_edited,
+                        self.render_normalization.table_text_reflowed(table),
+                    )
+                    .unwrap_or(required_height);
                 let combined: f64 = (r..r + span).map(|i| row_heights[i]).sum();
                 if required_height > combined {
                     let deficit = required_height - combined;

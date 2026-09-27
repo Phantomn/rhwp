@@ -24,6 +24,52 @@ pub(crate) fn topbottom_flow_vertical_offset_hu(common: &CommonObjAttr) -> i32 {
     signed_hwpunit(common.vertical_offset).max(0)
 }
 
+/// 원본 HWPX noAdjust 셀의 완전한 저장 줄 프레임이 점유하는 끝점.
+/// 줄 사이 공간은 저장 vpos에 포함되므로 안 여백을 다시 더해 행을 키우지 않는다.
+/// 빈 줄도 포함하며, 편집·재조판·개체·되감김은 이 계약의 입력으로 받지 않는다.
+pub(crate) fn stored_hwpx_no_adjust_cell_content_end(
+    cell: &crate::model::table::Cell,
+    table: &Table,
+    dpi: f64,
+    hwpx_stored: bool,
+    session_edited: bool,
+    text_reflowed: bool,
+) -> Option<f64> {
+    if !hwpx_stored
+        || session_edited
+        || text_reflowed
+        || table.raw_table_record_attr & 0x08 == 0
+        || cell.text_direction != 0
+        || cell.paragraphs.is_empty()
+    {
+        return None;
+    }
+    let mut previous = None;
+    let mut end = 0i64;
+    for (pi, para) in cell.paragraphs.iter().enumerate() {
+        if !para.controls.is_empty() || para.line_segs.is_empty() {
+            return None;
+        }
+        for (li, seg) in para.line_segs.iter().enumerate() {
+            if seg.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
+                || seg.vertical_pos < 0
+                || seg.line_height <= 0
+                || (previous.is_none() && seg.vertical_pos != 0)
+                || (previous.is_some()
+                    && (seg.is_first_line_of_page() || seg.is_first_line_of_column()))
+                || previous.is_some_and(|pos| {
+                    seg.vertical_pos < pos || (pi > 0 && li == 0 && seg.vertical_pos == pos)
+                })
+            {
+                return None;
+            }
+            previous = Some(seg.vertical_pos);
+            end = end.max(i64::from(seg.vertical_pos) + i64::from(seg.line_height));
+        }
+    }
+    i32::try_from(end).ok().map(|hu| hwpunit_to_px(hu, dpi))
+}
+
 /// 그림 띠 뒤의 빈 마지막 줄을 담는 원본 셀 프레임.
 /// 그림들은 같은 띠의 원점에서 움직이며 각 그림 높이로 원점을 따로 역산하지 않는다.
 #[derive(Debug, Clone, Copy)]

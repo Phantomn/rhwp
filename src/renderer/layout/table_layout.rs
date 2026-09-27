@@ -4281,7 +4281,20 @@ impl LayoutEngine {
                     // 줄 흐름 + 상하 여백으로 재성장한다 (156678235 p5 내부 표 r0:
                     // cellSz 3.8px·lineseg 14.7px → 한글 PDF 실측 18.4px = 14.7+1.9×2).
                     // 선언이 줄 흐름을 수용하는 셀은 종전대로 pad 미가산 (#2211 유지).
-                    let line_req = if relaxed_pad && Self::cell_has_stored_line_segs(cell) {
+                    let stored_frame_end =
+                        crate::renderer::float_placement::stored_hwpx_no_adjust_cell_content_end(
+                            cell,
+                            table,
+                            self.dpi,
+                            self.profile.get().hwpx_stored_layout(),
+                            self.profile.get().session_edited(),
+                            self.render_normalization
+                                .borrow()
+                                .table_text_reflowed(table),
+                        );
+                    let line_req = if let Some(end) = stored_frame_end {
+                        end
+                    } else if relaxed_pad && Self::cell_has_stored_line_segs(cell) {
                         let decl_h = if cell.height < 0x8000_0000 {
                             hwpunit_to_px(cell.height as i32, self.dpi)
                         } else {
@@ -4418,7 +4431,20 @@ impl LayoutEngine {
                 let (line_based, object_based) =
                     self.calc_cell_paragraphs_content_parts(&cell.paragraphs, styles, inner_width);
                 // [#3386] 1-b 와 동일 — 모순 선언(span 합) 초과 성장 시 여백 가산.
-                let line_req = if relaxed_pad && Self::cell_has_stored_line_segs(cell) {
+                let stored_frame_end =
+                    crate::renderer::float_placement::stored_hwpx_no_adjust_cell_content_end(
+                        cell,
+                        table,
+                        self.dpi,
+                        self.profile.get().hwpx_stored_layout(),
+                        self.profile.get().session_edited(),
+                        self.render_normalization
+                            .borrow()
+                            .table_text_reflowed(table),
+                    );
+                let line_req = if let Some(end) = stored_frame_end {
+                    end
+                } else if relaxed_pad && Self::cell_has_stored_line_segs(cell) {
                     let decl_h = if cell.height < 0x8000_0000 {
                         hwpunit_to_px(cell.height as i32, self.dpi)
                     } else {
