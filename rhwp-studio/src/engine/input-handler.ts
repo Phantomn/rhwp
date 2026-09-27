@@ -3895,7 +3895,7 @@ export class InputHandler {
     try {
       const hit = this.wasm.hitTest(pageIdx, pageX, pageY);
       // 같은 표인지 확인
-      if (hit.parentParaIndex !== ctx.ppi || hit.controlIndex !== ctx.ci) return null;
+      if (hit.sectionIndex !== ctx.sec || hit.parentParaIndex !== ctx.ppi || hit.controlIndex !== ctx.ci) return null;
       if (hit.cellIndex === undefined) return null;
       if (ctx.cellPath && ctx.cellPath.length > 1) {
         // [#7442] 중첩 표 컨텍스트: hit 이 정확히 같은 안쪽 표를 가리킬 때만

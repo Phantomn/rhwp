@@ -26,9 +26,13 @@ fn load_fixture() -> HwpDocument {
 }
 
 fn hit_json(doc: &HwpDocument, x: f64, y: f64) -> Value {
+    hit_json_on_page(doc, PAGE, x, y)
+}
+
+fn hit_json_on_page(doc: &HwpDocument, page: u32, x: f64, y: f64) -> Value {
     let json = doc
-        .hit_test_native(PAGE, x, y)
-        .unwrap_or_else(|e| panic!("hit_test_native({PAGE},{x},{y}): {e}"));
+        .hit_test_native(page, x, y)
+        .unwrap_or_else(|e| panic!("hit_test_native({page},{x},{y}): {e}"));
     serde_json::from_str(&json).unwrap_or_else(|e| panic!("parse hit json `{json}`: {e}"))
 }
 
@@ -75,6 +79,7 @@ fn nested_cell_empty_area_returns_innermost_cell_path() {
             "nested cell empty area must return depth-2 cellPath at ({x},{y}), hit={hit}"
         );
         assert_eq!(path[0], (0, 10, 0), "outer entry at ({x},{y}), hit={hit}");
+        assert_eq!(path[1], (0, 0, 0), "inner entry at ({x},{y}), hit={hit}");
     }
 }
 
@@ -88,7 +93,7 @@ fn every_nested_cell_interior_returns_inner_path() {
         "nested 18x9 cell bboxes: {}",
         bboxes.len()
     );
-    let mut depth1 = Vec::new();
+    let mut checked = 0;
     for b in &bboxes {
         let (x, y, w, h) = (
             b["x"].as_f64().unwrap(),
@@ -99,22 +104,24 @@ fn every_nested_cell_interior_returns_inner_path() {
         let page = b["pageIndex"].as_u64().unwrap() as u32;
         for fy in [0.25, 0.5, 0.75] {
             for fx in [0.25, 0.5, 0.75] {
-                let hit = hit_json(&doc, x + w * fx, y + h * fy);
-                if hit["parentParaIndex"].as_u64() != Some(PARENT_PARA as u64) {
-                    continue;
-                }
+                let hit = hit_json_on_page(&doc, page, x + w * fx, y + h * fy);
+                assert_eq!(hit["sectionIndex"].as_u64(), Some(0), "bbox={b}, hit={hit}");
+                assert_eq!(
+                    hit["parentParaIndex"].as_u64(),
+                    Some(PARENT_PARA as u64),
+                    "bbox={b}, hit={hit}"
+                );
                 let path = path_tuples(&hit);
-                if path.len() == 1 && path[0].1 == 10 {
-                    // 바깥 칸(10)으로 수렴 = 결함
-                    depth1.push((page, x + w * fx, y + h * fy, hit["cellIndex"].as_u64()));
-                }
+                assert_eq!(path.len(), 2, "bbox={b}, hit={hit}");
+                assert_eq!(path[0], (0, 10, 0), "bbox={b}, hit={hit}");
+                assert_eq!(path[1].0, 0, "bbox={b}, hit={hit}");
+                // 같은 깊이의 텍스트 run은 셀 bbox보다 우선한다. 이 검사는
+                // leaf 칸의 기하학적 소유가 아니라 안쪽 표 경로 보존을 검증한다.
+                checked += 1;
             }
         }
     }
-    assert!(
-        depth1.is_empty(),
-        "nested interior points resolved to outer cell: {depth1:?}"
-    );
+    assert_eq!(checked, bboxes.len() * 9);
 }
 
 /// (b) 중첩 표 내부 괘선 좌표도 깊이 2 (수정 전후 모두 — 회귀 가드).

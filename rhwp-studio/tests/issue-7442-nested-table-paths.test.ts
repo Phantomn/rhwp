@@ -17,6 +17,7 @@ import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import {
   isSameNestedTablePath,
+  ensureTableCellBboxCache,
   type CellPathStep,
 } from '../src/engine/table-bbox-cache.ts';
 
@@ -254,6 +255,56 @@ test('hitTestCellRowCol: 중첩 ctx 의 형제 표 hit 은 null 이다', () => {
   const host = mockClickHost(ctx, hit);
   assert.equal(hitTestCellRowCol.call(host, fakeEvent), null);
   assert.deepEqual(host.calls, []);
+});
+
+test('hitTestCellRowCol: 다른 구역의 같은 번호 표는 조회하지 않는다', () => {
+  for (const cellPath of [OUTER, INNER_A]) {
+    const host = mockClickHost(
+      { sec: 0, ppi: 5, ci: 0, cellPath },
+      { sectionIndex: 1, parentParaIndex: 5, controlIndex: 0, cellIndex: 0, cellPath },
+    );
+    assert.equal(hitTestCellRowCol.call(host, fakeEvent), null);
+    assert.deepEqual(host.calls, []);
+  }
+});
+
+test('중첩 표 캐시는 마지막 셀·문단 이동에도 재조회하지 않는다', () => {
+  let queries = 0;
+  const host: any = {
+    wasm: {
+      getTableCellBboxes() { assert.fail('중첩 표의 평면 조회'); },
+      getTableCellBboxesByPath() { queries++; return [{ pageIndex: 0 }]; },
+    },
+    cachedTableRef: null, cachedCellBboxes: null, tableBboxFetchFailures: new Set(),
+  };
+  const otherParagraph = [INNER_A[0], { ...INNER_B_SAME_TABLE[1], cellParaIndex: 3 }];
+  for (const path of [INNER_A, otherParagraph, INNER_A]) {
+    ensureTableCellBboxCache(host, { sec: 0, ppi: 5, ci: 0, path }, 0);
+  }
+  assert.equal(queries, 1);
+  // 같은 바깥 셀의 다른 문단에 놓인 표와 형제 control은 별개다.
+  for (const path of [
+    [{ ...INNER_A[0], cellParaIndex: 1 }, INNER_A[1]],
+    SIBLING_TABLE,
+  ]) {
+    ensureTableCellBboxCache(host, { sec: 0, ppi: 5, ci: 0, path }, 0);
+  }
+  assert.equal(queries, 3);
+});
+
+test('중첩 표 조회 실패도 같은 표의 셀 이동에서 반복하지 않는다', () => {
+  let queries = 0;
+  const host: any = {
+    wasm: {
+      getTableCellBboxes() { assert.fail('중첩 표의 평면 조회'); },
+      getTableCellBboxesByPath() { queries++; return []; },
+    },
+    cachedTableRef: null, cachedCellBboxes: null, tableBboxFetchFailures: new Set(),
+  };
+  for (const path of [INNER_A, INNER_B_SAME_TABLE, INNER_A]) {
+    assert.equal(ensureTableCellBboxCache(host, { sec: 0, ppi: 5, ci: 0, path }, 0), null);
+  }
+  assert.equal(queries, 1);
 });
 
 test('hitTestCellRowCol: 깊이 1 ctx 는 평면 getCellInfo 를 유지한다', () => {
