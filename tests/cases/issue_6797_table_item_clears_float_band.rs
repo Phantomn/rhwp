@@ -214,6 +214,12 @@ fn table_item_clears_the_previous_float_band() {
         follower.bbox.y,
         follower.bbox.y + follower.bbox.height
     );
+    // 같은 입력의 한컴2020 PDF7쪽 가로 괘선(96dpi)으로 절대 원점도 확인한다.
+    assert!(
+        (follower.bbox.y - 298.393_310_546_875).abs() <= 0.5,
+        "후속 표는 독립 PDF의 괘선 원점을 유지해야 한다: y={}",
+        follower.bbox.y
+    );
 }
 
 /// 반대 방향 — **host 에 글이 있는 문단은 옮기지 않는다**.

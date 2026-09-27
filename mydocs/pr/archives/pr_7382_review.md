@@ -9,7 +9,7 @@ last_verified: 2026-09-27
 
 ## 최종 판정
 
-**머지 보류.** 보정47의 HWPX 배경 표 흐름 계상 교정으로 하단3원본의1쪽 내용 소유를 회복했습니다. 정확한 제품/검사 head `c4ce9ff96436d94468557f09794ee0fa84b35ce6`의 전체 nextest는 **10,335PASS/38FAIL/50SKIP(exit100)**입니다. 이전43FAIL 중6개가 실제 재실행에서 PASS이며 새 실패1개는 빈 TextLine을 보이는 내용으로 취급한 검사 의미와 물리 점유를 추가 검토해야 합니다. 기존 기대 교정·내용 소유 통과를 전체 시각 일치로 보고하지 않습니다. 필수 lint/build/policy/fresh WASM은 보정47 소스 해시로 통과했습니다. 이전 고정 runtime96의 전수860쪽 자동 비교는 네 조합 각각20쪽90% 미만이며, 새 영향 시각에서도 page6535의89.96%와 #6787의83.51%가 보류입니다. 실제 회귀·잔여 배치 차이·미검증 경계가 남아 통합 PR 생성·승인을 보류합니다.
+**머지 보류.** 보정50의 빈 호스트 저장 프레임 좌표계 교정과 보정49 검사 캐시 재구성 뒤 전체 nextest는 **10,337PASS/36FAIL/50SKIP(exit100)**입니다. 검증한 제품·검사 해시는 [보정50 증거](../assets/pr7382_20260926/stage50_float6797_validation.json)에 고정했습니다. 이전 고정c4의38FAIL 중 #6797 두 검사가 실제 PASS로 바뀌었고 새 실패는 없습니다. #6797 원본 표 경계는 독립 PDF와 대응하지만 쪽번호·차트 payload 정합까지 해결한 것은 아닙니다. 사용자가 지적한 #1133 2쪽의 회색 중첩 표24.723px 가로 이동과 자동 쪽 번호9.825px 세로 이동도 Native/fresh WASM에서 확인해 보류했습니다. 필수 lint/build/policy/fresh WASM은 통과했고 주 문서430쪽 Native tree는 기존과 동일합니다. 기존 전수860쪽 시각 보류, #6535 페이지앵커89.96%, #6787의83.51%와 실제 회귀·미검증 경계가 남아 통합 PR 생성·승인을 보류합니다.
 
 ## 접수와 provenance
 
@@ -1192,3 +1192,33 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 - 정식 nextest(threads8)는3PASS/10420SKIP(exit0,0.148s), release-test 빌드3m05s입니다. 준비·fmt·Native/WASM/workspace Clippy·workspace build·고정 base manifest·diff를 순차 실행해 모두exit0입니다. 새 설명 주석은 한국어입니다. [진단 출력·정확한 검사 해시·명령·exit](../assets/pr7382_20260926/stage49_float6797_cache_validation.json). 로그와 진단 실행 파일/소스는 output에만 둡니다.
 - 원본 #6797의 표 순서 역전은 제품 코드 불변으로 그대로 남습니다. 수동 변형의 PASS를 원본 PDF 정합으로 보고하지 않습니다. helper 수정 후 전체 nextest를 다시 실행한 것으로 보고하지 않으며 전체38FAIL은 수정 전 고정c4ce9ff96 실행 결과입니다. [기존43개 각각의 현재 전체 결과/기대 적절성 매핑](../assets/pr7382_20260926/stage48_regression_test_appropriateness.json)을 함께 갱신했습니다.
 - **판정: 검사 생성 경로 보정은 충족, 원본 배치 회귀·전체 통합 PR 준비는 보류입니다.** 다음 제품 보정은 원본 #6797의 저장 앵커→배제 밴드→확정 표 원점의 소비 경로를 추적해 독립 괘선으로 해결합니다. 기존 기대 자체와 실제 제품 결함을 구분하는 검토를 계속 적용합니다.
+
+
+## 보정50 사전 분석 — 빈 호스트 전체 저장 프레임의 좌표계
+
+- 원본 #6797의7쪽 표71은 빈 호스트, vpos16306HU, 높이12430HU, 사방 여백141HU이며 후속 vpos29018HU가 높이+양쪽 여백12712HU를 정확히 닫습니다. 기존 `stored_float_anchor`의 물리 쪽 기준 원점은 body79.36+(16306+141)/75=298.65333px이며 독립 PDF 괘선298.39331px와 대응합니다. 현재291.98667px는 같은 값에서 첫 문단vpos500HU(6.66667px)를 뺀 값입니다.
+- `stored_empty_control_table_frame` 생산→`query_original_control_table_frame`→whole-fit/예약→`paragraph_float_placements`→`layout_column_table_item`/`layout_table_control_block`→`resolved_table_origin`을 추적했습니다. 빈 호스트 전체 프레임은 기존 `stored_single_topbottom_top_px`와 달리 page base를 빼서 저장되고, 최종 resolved 원점은 #6797밴드가 옮긴 y_offset296.8px보다 우선합니다. 실행 진단도 cursor296.8/실제Table291.9867을 확인했습니다.
+- 내부 글줄 호스트의 상대 프레임은 유지하고, 빈 호스트의 전체 물리 개체 프레임은 쪽 기준 저장 좌표를 사용하도록 맞춥니다. 단 영역 변환은 한 번만 수행합니다. 원본 순서 assertion과 기존공차는 유지하고 독립 PDF 표71상단298.39331±0.5px도 검사합니다. offset/합성/범위밖 저장 좌표 및 글자가 있는 호스트를 대조하며 정상 #7203/3738/6950/6312도 확인합니다. 첫 단계는 원본5검사와 Native7쪽 직접 판독이며 전체 gate가 완료되기 전 제출하지 않습니다.
+
+### 사용자 지정 #1133 2쪽의 추가 보류
+
+사용자가 지정한 `stage50-float6797/visual/native-unresolved/nested1133-hwp/review/review_002.png`와 같은 입력의 fresh WASM review를 직접 대조했습니다. 자동 일치율94.52%는 아래 실제 배치 차이를 해소하지 않습니다. 글꼴 예외로 처리하지 않습니다.
+
+- 안내문 회색 표는 Native SVG x215.180px, 독립 한컴 PDF 채움 상자 x190.457px로 **24.723px 오른쪽**입니다. 제목은221.980/197.333px, 이어지는 `합격 또는 채용이 취소됨`은258.940/234.273px입니다. 전체 중첩 표의 가로 원점이 다르므로 내어쓰기만 바꾸지 않습니다. 현재 `compute_table_x_position`의 depth>0 좁은 비TAC 표 가운데 배치가 저장 `horzRelTo=PARA, LEFT, offset=0`보다 우선합니다. 기존 #3308 정상 직인 표는 `horzRelTo=COLUMN, offset=6226`이므로 두 입력의 앵커 기준과 독립 출력 계약을 대조합니다. 아직 수정하지 않았습니다.
+- 자동 쪽 번호의 실제 SVG 기준선은1090.244px, 독립 PDF 기준선은1080.419px로 **9.825px 아래**입니다. `build_page_number`는 줄 상자를y-font_size에, TextRun 상자를y에 만들고 run.baseline에도font_size를 싣습니다. 최종 기준선 소비와 글꼴별 추가 보정을 함께 검토합니다. 상자y만 검사하는 기존 #7336 검사를 최종 glyph 기준선의 증거로 대신하지 않습니다. 아직 수정하지 않았습니다.
+- 바깥 분할 표의 첫/이어받기 조각도 HWP에서 각각439.1/75.6px, 독립 PDF 괘선440.477/77.356px로 위여백141HU와 대응하는 차이가 남습니다. HWPX와 같게 만드는 상대 검사만으로 원본 PDF와의 일치를 입증하지 않습니다. 각 조각의 예약·소유·최종 배치를 추적한 뒤 별도 보정합니다.
+
+좌표·입력/PDF 해시·실제 SVG 기준선은 `output/pr-review/planet6897-7382-20260926/stage50-float6797/nested1133-user-residual.json`에 보존했습니다. 실행 중인 전체 nextest의 소스·정식 검사·파생 suite는 고정합니다. 현재 관측은 해결 완료가 아닌 **추가 보류의 실행 증거**입니다.
+
+
+### 보정50 결과 — #6797 원본 표 경계 회복, 전체 재검사와 추가 보류
+
+- 빈 호스트의 닫힌 물리 프레임에서 page base를 다시 빼지 않도록 수정했습니다. 글자가 있는 호스트의 상대 프레임과 단 좌표 변환은 유지했습니다. 원본 Table71 상단은291.98667→298.65333px이며 독립 한컴 PDF298.39331px와0.26002px 차이입니다. 앞 표 하단을 넘지 못하던 순서 assertion을 유지하고 독립 절대 괘선 assertion을 추가했습니다. 수정 전 전체 정식 FAIL과 수정 후 집중5PASS/전체5PASS를 연결했습니다.
+- fmt·Native/WASM/workspace/all-target Clippy·workspace build·고정base manifest·fresh WASM(no-opt,Mac 로컬 대체) 모두exit0입니다. WASM 루트pkg/Studio/frozen 패키지 해시를 대조했습니다. 전체 nextest는threads8/no-fail-fast로 **10,337PASS/36FAIL/50SKIP**,9slow, 검사777.990s/컴파일 포함1254.495s,exit100입니다. 소스·정식 검사·파생 suite는 실행 동안 고정했습니다. 이전c4 전체 실패에서 offset 수동 검사와 원본 순서 검사2개가 PASS이며 새 실패는 없습니다. offset 검사 생성 경로의 교정은 보정49에 속합니다. [전체 실행 및 실패 대응](../assets/pr7382_20260926/stage50_full_nextest.json), [기존43개 검사 재판정 갱신](../assets/pr7382_20260926/stage50_regression_test_appropriateness.json).
+- Native/fresh WASM7쪽 review·standalone overlay를 직접 읽었습니다. 일치율89.15174→93.53093%이고 두 표 외곽·후속 제목/본문의 위치가 개선됐습니다. PDF의 해당 차트 셀은 비어 있어 차트 payload 충실도의 정답지로 사용하지 않습니다. 하단 쪽 번호의 실제 차이도 남습니다. #6950/#6312/#3738/#7203의 새 Native/fresh WASM 비교를 실행하고 대표 review를 직접 읽었습니다. #7203의 앞 설명 클리핑 차이는 통과 점수와 별개로 남습니다.
+- 주 문서HWP/HWPX215쪽씩 **430개 Native tree가 보정47과 동일**합니다. 이 비교는 새430쪽 raster 판독이나860쪽 시각 승인 증거가 아닙니다. 사용자 지정 #1133의2쪽 Native/fresh WASM을 직접 읽고 표 원점/실제 쪽번호 기준선 차이를 [독립 좌표·해시 증거](../assets/pr7382_20260926/stage50_nested1133_user_residual.json)로 보존했습니다. 자동gate94.52% 통과를 실제 배치 해결로 보고하지 않습니다.
+- **판정: #6797 원본 표 경계 보정은 충족, 전체36FAIL·#1133 및 기존 시각 보류는 유지합니다.** 이번 제품/검사·결과·증적을 커밋한 뒤 #1133 안내문 가로 앵커를 다음 개별 단계로 보정합니다. `.log`와 실행 파일·파생 suite·output은 커밋하지 않습니다.
+
+![#6797 Native7쪽 경계 보정](../assets/pr7382_20260926/stage50_native_float6797_review_007.png)
+![#6797 fresh WASM7쪽 경계 보정](../assets/pr7382_20260926/stage50_wasm_float6797_overlay_007.png)
+![사용자 지정 #1133 2쪽의 미해결 배치](../assets/pr7382_20260926/stage50_nested1133_user_review_002.png)

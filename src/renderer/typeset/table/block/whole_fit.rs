@@ -169,7 +169,9 @@ impl TypesetEngine {
                 next,
                 table,
                 effective_height,
-                st.vpos_page_base.unwrap_or(0),
+                // 빈 호스트의 닫힌 개체 프레임은 물리 쪽 기준 저장 좌표다.
+                // 글줄 호스트의 상대 원점처럼 page base를 다시 빼지 않는다.
+                0,
                 self.dpi,
             )
         })?;
