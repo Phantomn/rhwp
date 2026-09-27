@@ -48,6 +48,7 @@ pub(in crate::renderer::typeset) fn place(
         &fmt,
         measured_tables,
         engine.dpi,
+        paragraphs_all,
     ) {
         return;
     }
@@ -66,6 +67,20 @@ pub(in crate::renderer::typeset) fn place(
     );
 
     st.ensure_page();
+
+    // pre-fit가 단을 넘겼으면 그 단의 원점·예산으로 확정 줄 배치를 다시 계산한다.
+    // 앞 단에서 거절된 후보를 이유로 새 단에서도 legacy 높이 상한을 쓰지 않는다.
+    if controls::try_place_stored_tac_paragraph(
+        st,
+        para_idx,
+        para,
+        &fmt,
+        measured_tables,
+        engine.dpi,
+        paragraphs_all,
+    ) {
+        return;
+    }
 
     let (height_before, page_count_before) = st.table_paragraph_flow_position();
     let para_start_height = height_before;

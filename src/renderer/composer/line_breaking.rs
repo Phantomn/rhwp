@@ -3705,11 +3705,9 @@ pub(crate) fn reflow_line_segs_after_cell_text_edit(
 
 /// 저장 `LINE_SEG` 사다리가 배치 권위를 갖는 구역의 합성 문단을 재조판한다.
 ///
-/// [#2243] 익명화·부분 편집으로 저장 seg 가 빠진 문단이 저장 문단들 사이에 끼어 있는
-/// 문서다. 개체만 있는 줄의 줄간격 기준을 글자모양 크기로 올리면(한컴 규칙) 그 구역의
-/// 절대 vpos 스냅과 맞물려 쪽 경계 여유를 넘긴다 — 한컴 쪽수 핀이 어긋난다. 이런 구역은
-/// 양수 간격은 종전 기준(12px)을 유지한다. 음수 Percent 간격은 겹침 해제용 여백이
-/// 아니라 글자 크기에 따른 전진 감소량이므로 실제 글자 크기를 쓴다.
+/// 익명화·부분 편집으로 저장 줄이 빠졌어도 새 개체 줄의 간격 기준은
+/// 호스트 글자모양이다. 저장 좌표와의 혼합은 소비 경로에서 구분하며,
+/// 쪽수 핀을 맞추기 위해 글자 크기를 고정 기본값으로 낮추지 않는다.
 /// 전면 합성 문서는 `reflow_line_segs` 를 쓴다.
 pub(crate) fn reflow_line_segs_in_stored_section(
     para: &mut Paragraph,
@@ -3717,7 +3715,7 @@ pub(crate) fn reflow_line_segs_in_stored_section(
     styles: &ResolvedStyleSet,
     dpi: f64,
 ) {
-    let _ = reflow_line_segs_impl(para, paragraph_box, styles, dpi, None, false, false);
+    let _ = reflow_line_segs_impl(para, paragraph_box, styles, dpi, None, false, true);
 }
 
 fn reflow_line_segs_impl(
@@ -4160,9 +4158,17 @@ fn reflow_line_segs_impl(
     }
 
     if forced_inline_line.is_none() && inline_controls.is_empty() {
-        if let Some(height_hwp) = inline_control_line_height_hwp(para) {
-            // 기존 인라인 TAC 개체는 해당 문단의 최초 line box에 남긴다.
-            if let Some(seg) = new_line_segs.first_mut() {
+        for (control, position) in para.controls.iter().zip(para.control_text_positions()) {
+            let Some((_, height_hwp)) = inline_control_size_hwp(control) else {
+                continue;
+            };
+            // 명시적 개행으로 정해진 개체 줄에 높이를 싣는다. 최초 줄에 일괄
+            // 적용하면 표 앞 제목이 표 줄로 오인되어 표 뒤로 재배치된다.
+            let line_index = line_breaks
+                .iter()
+                .rposition(|line| line.start_idx <= position)
+                .unwrap_or(0);
+            if let Some(seg) = new_line_segs.get_mut(preserved_prefix_len + line_index) {
                 apply_inline_control_line_height(seg, height_hwp);
             }
         }

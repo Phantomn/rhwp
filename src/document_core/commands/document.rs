@@ -716,7 +716,16 @@ impl DocumentCore {
                         ))
                     })
                     .collect();
+                // 원본 줄 사이의 빈 물리 공간도 저장 조판의 일부다. 합성 줄을
+                // 끼워 넣더라도 뒤의 원본 앵커가 확보한 공간을 삭제하지 않는다.
+                // 합성 내용이 자랐으면 이미 소비한 끝점을 유지하여 되감지 않는다.
+                let mut source_anchor_end: Option<(i32, i32)> = None;
                 for (pi, para) in section.paragraphs.iter_mut().enumerate() {
+                    // 개체 문단은 별도 배치가 물리 공간을 소비하므로 텍스트
+                    // 사다리의 연결점으로 쓰지 않는다. 그 공간을 재가산하면 안 된다.
+                    if !para.controls.is_empty() {
+                        source_anchor_end = None;
+                    }
                     let was_reflowed = reflowed_paras.contains(&pi);
                     let hosts_bottom_fixed_frame = para.controls.iter().any(|c| {
                         matches!(c, Control::Table(t)
@@ -795,6 +804,17 @@ impl DocumentCore {
                             // 기존 #1920 규칙은 쪽 하단 고정 틀 host 문단만 봐서
                             // 일반 본문 문단인 이 형상을 잡지 못한다.
                             running_vpos = 0;
+                        }
+                    }
+                    if let (Some((original_first, _)), Some((source_end, rebuilt_end))) =
+                        (orig_span[pi], source_anchor_end)
+                    {
+                        // 저장 쪽·단 리셋은 위 경계 처리의 소유다. 같은 축의
+                        // 후속 앵커만 변환하며 원본 높이로 합성 내용의 성장을 덮지 않는다.
+                        if original_first >= source_end {
+                            let anchored = rebuilt_end
+                                .saturating_add(original_first.saturating_sub(source_end));
+                            running_vpos = running_vpos.max(anchored);
                         }
                     }
                     let original_last_vpos = if was_reflowed {
@@ -914,6 +934,11 @@ impl DocumentCore {
                         }
                     }
                     running_vpos = inner_vpos;
+                    if let Some((_, original_end)) =
+                        orig_span[pi].filter(|_| para.controls.is_empty())
+                    {
+                        source_anchor_end = Some((original_end, running_vpos));
+                    }
                     if let Some(v) = original_last_vpos {
                         prev_stored_last_vpos = v;
                     }

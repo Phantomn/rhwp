@@ -99,7 +99,20 @@ impl TypesetEngine {
                                 .unwrap_or(0)
                                 >= max_tbl_h
                         };
-                    if !host_line_covers_object {
+                    // 확정 인라인 끝점은 이미 간격을 소비한 현재 흐름과 연결돼 있다.
+                    // 후처리에서 그 기준을 지우면 다음 lazy 역산이 같은 간격을 재가산한다.
+                    let resolved_inline_end = match last {
+                        Some(PageItem::Table {
+                            para_index,
+                            control_index,
+                        }) => st
+                            .inline_placements
+                            .get(&(*para_index, *control_index))
+                            .and_then(|placement| placement.advance_end)
+                            .is_some_and(|end| (end - st.current_height).abs() < 0.01),
+                        _ => false,
+                    };
+                    if !host_line_covers_object && !resolved_inline_end {
                         // Para-float TopAndBottom 표 예외(렌더러 2513)는 Stage E.
                         st.record_vpos_page_origin(None);
                         st.record_vpos_lazy_origin(None);

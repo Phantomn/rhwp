@@ -534,6 +534,10 @@ pub(crate) fn stored_empty_control_table_frame(
     };
     let next = successor.line_segs.first()?;
     let offset = signed_hwpunit(table.common.vertical_offset);
+    // 구역 재계산이 만든 누적 vpos와 원본 쪽 상대 프레임을 섞지 않는다.
+    // 실제 저장본 스냅샷이 있으면 호스트와 후속 닫힘을 같은 원본 축으로 읽는다.
+    let anchor_vpos = ladder_vpos(host, 0, anchor.vertical_pos);
+    let next_vpos = ladder_vpos(successor, 0, next.vertical_pos);
     if !host.text.trim().is_empty()
         || !matches!(host.controls.as_slice(), [Control::Table(_)])
         || host.stored_text_partition_is_dirty()
@@ -547,7 +551,7 @@ pub(crate) fn stored_empty_control_table_frame(
         || anchor.segment_width != 0
         || anchor.line_height <= 0
         || next.line_height <= 0
-        || anchor.vertical_pos < frame_vpos
+        || anchor_vpos < frame_vpos
         || !table.common.flow_with_text
         || !is_para_topbottom_float(&table.common)
         || !matches!(
@@ -598,16 +602,15 @@ pub(crate) fn stored_empty_control_table_frame(
     if measured_extent != (f64::from(table.common.height) + caption_extent).round() {
         return None;
     }
-    let top =
-        i64::from(anchor.vertical_pos) + i64::from(offset) + i64::from(table.outer_margin_top);
+    let top = i64::from(anchor_vpos) + i64::from(offset) + i64::from(table.outer_margin_top);
     let bottom = top + measured_extent as i64 + i64::from(table.outer_margin_bottom);
-    if bottom != i64::from(next.vertical_pos) {
+    if bottom != i64::from(next_vpos) {
         return None;
     }
     let px = |value: i64| (value - i64::from(frame_vpos)) as f64 * dpi / 7200.0;
     Some(ParagraphFloatPlacement {
         flow: ParagraphFloatFlow::NextLine,
-        anchor_y: px(i64::from(anchor.vertical_pos)),
+        anchor_y: px(i64::from(anchor_vpos)),
         stored_host_origin: None,
         stored_successor_line_origin: Some(px(bottom)),
         table_left: None,

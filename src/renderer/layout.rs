@@ -11034,11 +11034,32 @@ impl LayoutEngine {
                 seg.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
                     && seg.tag & crate::model::paragraph::LineSeg::TAG_INDENTATION == 0
             });
-            let effective_margin = if indent > 0.0 && !stored_first_seg_denies_indent {
-                margin_left + indent
-            } else {
-                margin_left
-            };
+            let table_owner_line = composed.get(para_index).and_then(|comp| {
+                para.control_text_positions()
+                    .get(control_index)
+                    .and_then(|position| {
+                        comp.lines
+                            .iter()
+                            .rposition(|line| line.char_start <= *position)
+                    })
+                    .map(|index| (index, comp.lines.len()))
+            });
+            let effective_margin =
+                if let Some((index, count)) = table_owner_line.filter(|_| t.common.treat_as_char) {
+                    // 표도 자신이 속한 글줄의 들여쓰기·내어쓰기와 저장 플래그를 소비한다.
+                    margin_left
+                        + crate::renderer::equation_tac_flow::paragraph_line_indent_for_source(
+                            indent,
+                            index,
+                            Some(para),
+                            count,
+                            true,
+                        )
+                } else if indent > 0.0 && !stored_first_seg_denies_indent {
+                    margin_left + indent
+                } else {
+                    margin_left
+                };
             let margin_right = para_style.map(|s| s.margin_right).unwrap_or(0.0);
             let table_y_before = y_offset;
             let tbl_is_square = matches!(t.common.text_wrap, crate::model::shape::TextWrap::Square);
@@ -11156,7 +11177,28 @@ impl LayoutEngine {
                 let stored_own_line = paragraphs
                     .get(para_index)
                     .is_some_and(|p| stored_ladder_gives_tac_table_its_own_line(p, control_index));
-                let leading = if line0_has_real_text || stored_own_line {
+                // 합성 줄도 개행으로 결정된 자기 줄의 머리 공백을 소유한다.
+                // 앞 제목 줄의 유무로 그 공백을 버리거나 셀 padding으로 대신하지 않는다.
+                let computed_own_line = crate::renderer::para_has_no_stored_line_segs(para)
+                    && composed.get(para_index).is_some_and(|comp| {
+                        let position = para.control_text_positions().get(control_index).copied();
+                        position.is_some_and(|position| {
+                            comp.lines
+                                .iter()
+                                .rposition(|line| line.char_start <= position)
+                                .is_some_and(|index| {
+                                    index > 0
+                                        && comp.lines[index - 1].has_line_break
+                                        && para
+                                            .text
+                                            .chars()
+                                            .take(comp.lines[index].char_start)
+                                            .last()
+                                            == Some('\n')
+                                })
+                        })
+                    });
+                let leading = if (line0_has_real_text && !computed_own_line) || stored_own_line {
                     0.0
                 } else {
                     composed
@@ -11212,7 +11254,7 @@ impl LayoutEngine {
                 // 이중 가산이 된다 (복학원서 접수증 오라클 실측: 한컴 ※ 81.7 vs
                 // rhwp leading 포함 86.9 — leading 축 자체의 잔차가 미해결이므로
                 // 그 케이스는 종전 위치를 유지한다).
-                let (om_l, om_r) = if leading > 0.0 {
+                let (om_l, om_r) = if leading > 0.0 && !computed_own_line {
                     (0.0, 0.0)
                 } else {
                     (
@@ -11224,7 +11266,11 @@ impl LayoutEngine {
                     + effective_margin
                     + leading
                     + om_l
-                    + viewtext_first_rowbreak_table_left_inset(para, control_index, t, self.dpi);
+                    + if computed_own_line {
+                        0.0
+                    } else {
+                        viewtext_first_rowbreak_table_left_inset(para, control_index, t, self.dpi)
+                    };
                 // [Issue #291] ParaShape align 반영:
                 // TAC 표가 inline_shape_position 미설정 상태에서 단/문단 좌측에
                 // 붙어버리는 회귀를 막는다. ParaShape align=Right 인 경우 표를
@@ -16039,7 +16085,21 @@ fn compute_tac_leading_width(
     // leading 으로 세게 하는 정지점이다.
     block_tac_char_pos: Option<usize>,
 ) -> f64 {
-    let Some(first_line) = composed.lines.first() else {
+    let target_position = composed
+        .tac_controls
+        .iter()
+        .find(|(_, _, ci)| *ci == target_control_index)
+        .map(|(position, _, _)| *position)
+        .or(block_tac_char_pos);
+    let owner_line = target_position
+        .and_then(|position| {
+            composed
+                .lines
+                .iter()
+                .rfind(|line| line.char_start <= position)
+        })
+        .or_else(|| composed.lines.first());
+    let Some(first_line) = owner_line else {
         return 0.0;
     };
 

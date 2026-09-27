@@ -1060,7 +1060,9 @@ fn compose_lines(para: &Paragraph) -> Vec<ComposedLine> {
         );
 
         // 강제 줄넘김(\n) + TAC 표 문단 처리 (Task #19/Task #20)
-        let newline_pos = line_text.find('\n');
+        // 아래 범위와 take/skip은 문자 인덱스다. UTF-8 바이트 위치를 쓰면
+        // 한글 제목 뒤 개행이 줄 끝을 넘어 표 줄까지 제목에 합쳐진다.
+        let newline_pos = line_text.chars().position(|ch| ch == '\n');
         if let (true, Some(nl_pos)) = (has_tac, newline_pos) {
             let pre_text: String = line_text.chars().take(nl_pos).collect();
             let pre_end = text_start + nl_pos;
@@ -1646,12 +1648,20 @@ fn is_render_inline_control(ctrl: &Control) -> bool {
     }
 }
 
-/// [#6300] `pos` 에 treat_as_char 인라인 개체가 시작하는지.
+/// [#6300] 다음 줄의 머리 공백 뒤에 treat_as_char 인라인 개체가 있는지.
 fn tac_inline_object_starts_at(para: &Paragraph, pos: usize) -> bool {
+    let chars: Vec<_> = para.text.chars().collect();
     para.controls
         .iter()
         .zip(para.control_text_positions())
-        .any(|(ctrl, ctrl_pos)| is_render_inline_control(ctrl) && ctrl_pos == pos)
+        .any(|(ctrl, ctrl_pos)| {
+            is_render_inline_control(ctrl)
+                && pos <= ctrl_pos
+                && ctrl_pos <= chars.len()
+                && chars[pos..ctrl_pos]
+                    .iter()
+                    .all(|ch| ch.is_whitespace() && !matches!(ch, '\n' | '\r'))
+        })
 }
 
 pub(crate) fn find_render_inline_control_positions(para: &Paragraph) -> Vec<usize> {
