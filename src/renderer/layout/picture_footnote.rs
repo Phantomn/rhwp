@@ -14,7 +14,7 @@ use super::text_measurement::{estimate_text_width, resolved_to_text_style};
 use super::utils::{
     extract_shape_transform, find_bin_data_bytes, picture_data_is_unusable, picture_display_size_hu,
 };
-use super::{footnote_separator_length_px, LayoutEngine};
+use super::{footnote_separator_length_px, LayoutEngine, ParagraphVerticalSpacing};
 use crate::model::bin_data::BinDataContent;
 use crate::model::control::Control;
 use crate::model::footnote::{FootnoteShape, NumberFormat};
@@ -23,6 +23,18 @@ use crate::model::shape::{
     Caption, CaptionDirection, CommonObjAttr, HorzAlign, TextWrap, VertAlign, VertRelTo,
 };
 use crate::model::style::{Alignment, LineSpacingType};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FootnoteParagraphRoute {
+    Numbered,
+    Plain,
+    StoredEmpty,
+}
+
+struct FootnoteParagraphPlacement {
+    route: FootnoteParagraphRoute,
+    spacing: ParagraphVerticalSpacing,
+}
 
 fn fragment_line_bounds(fragment: Option<FootnoteFragment>, total_lines: usize) -> (usize, usize) {
     match fragment {
@@ -76,7 +88,66 @@ fn compose_footnote_paragraph(
             return crate::renderer::composer::compose_paragraph_in_context(&owned, styles);
         }
     }
-    crate::renderer::composer::compose_paragraph_in_context(para, styles)
+    let mut composed = crate::renderer::composer::compose_paragraph_in_context(para, styles);
+    // 각주 영역에 실제 등록된 원본 빈 줄도 저장 높이로 측정한다.
+    if composed.lines.is_empty()
+        && para.text.is_empty()
+        && para.controls.is_empty()
+        && !para.stored_text_partition_is_dirty()
+    {
+        if let [line] = para.line_segs.as_slice() {
+            if line.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
+                && line.line_height > 0
+            {
+                composed.lines.push(ComposedLine {
+                    runs: Vec::new(),
+                    line_height: line.line_height,
+                    baseline_distance: line.baseline_distance,
+                    segment_width: line.segment_width as i32,
+                    column_start: line.column_start,
+                    line_spacing: line.line_spacing,
+                    has_line_break: false,
+                    char_start: 0,
+                });
+            }
+        }
+    }
+    composed
+}
+
+/// 원본 각주 본문의 선두 자동 번호 슬롯과 형식을 보존한다.
+fn stored_footnote_number_prefix(para: &Paragraph, number: u16) -> Option<(String, usize)> {
+    if para.stored_text_partition_is_dirty()
+        || para.line_segs.is_empty()
+        || para.line_segs.iter().any(|line| {
+            line.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
+        })
+    {
+        return None;
+    }
+    let positions = para.control_text_positions();
+    let mut prefix = String::new();
+    for (index, control) in para.controls.iter().enumerate() {
+        let Control::AutoNumber(auto) = control else {
+            return None;
+        };
+        if auto.number_type != crate::model::control::AutoNumberType::Footnote
+            || auto.superscript
+            || auto.format > 8
+            || positions.get(index) != Some(&index)
+            || para.text.chars().nth(index) != Some(' ')
+        {
+            return None;
+        }
+        if auto.prefix_char != '\0' {
+            prefix.push(auto.prefix_char);
+        }
+        prefix.push_str(&format_number(number, NumFmt::from_hwp_format(auto.format)));
+        if auto.suffix_char != '\0' {
+            prefix.push(auto.suffix_char);
+        }
+    }
+    Some((prefix, para.controls.len()))
 }
 
 fn footnote_composed_line_count(
@@ -1063,6 +1134,49 @@ impl LayoutEngine {
         crate::renderer::corrected_line_metrics(raw_lh, raw_ls, max_fs, ls_type, ls_val)
     }
 
+    /// 선택된 각주 문단의 실제 경로와 앞뒤 간격을 함께 확정한다.
+    /// 번호 전용 첫 문단과 저장 빈 줄은 기존 간격 계약을 유지한다.
+    fn footnote_paragraph_placement(
+        &self,
+        para: &Paragraph,
+        composed: &ComposedParagraph,
+        styles: &ResolvedStyleSet,
+        fragment: Option<FootnoteFragment>,
+        number_drawn: bool,
+        selected: std::ops::Range<usize>,
+        relative_y: f64,
+    ) -> FootnoteParagraphPlacement {
+        let route = if para.text.is_empty()
+            && para.controls.is_empty()
+            && !fragment_draws_number(fragment)
+            && composed.lines.len() == 1
+        {
+            FootnoteParagraphRoute::StoredEmpty
+        } else if fragment_draws_number(fragment) && !number_drawn {
+            FootnoteParagraphRoute::Numbered
+        } else {
+            FootnoteParagraphRoute::Plain
+        };
+        let mut spacing = ParagraphVerticalSpacing {
+            before: 0.0,
+            after: 0.0,
+        };
+        if route == FootnoteParagraphRoute::Plain {
+            let style = styles.para_styles.get(composed.para_style_id as usize);
+            if selected.start == 0 && relative_y.abs() >= 1.0 {
+                spacing.before = crate::renderer::hwp3_variant_flow_spacing_before(
+                    style.map_or(0.0, |style| style.spacing_before),
+                    self.use_hwp3_origin_flow_spacing_before.get(),
+                )
+                .max(0.0);
+            }
+            if selected.end == composed.lines.len().max(1) {
+                spacing.after = style.map_or(0.0, |style| style.spacing_after).max(0.0);
+            }
+        }
+        FootnoteParagraphPlacement { route, spacing }
+    }
+
     pub(crate) fn estimate_footnote_area_height(
         &self,
         footnotes: &[FootnoteRef],
@@ -1116,29 +1230,47 @@ impl LayoutEngine {
                 footnote_composed_line_count(fn_paras, area_width, styles, self.dpi),
             );
             let mut flat_line = 0usize;
+            let mut number_drawn = false;
             for para in fn_paras {
                 let composed = compose_footnote_paragraph(para, area_width, styles, self.dpi);
-                if composed.lines.is_empty() {
-                    if (start_line..end_line).contains(&flat_line) {
-                        total += hwpunit_to_px(400, self.dpi);
-                    }
-                    flat_line += 1;
+                let line_count = composed.lines.len().max(1);
+                let para_start = flat_line;
+                let selected_start = start_line.saturating_sub(para_start).min(line_count);
+                let selected_end = end_line.saturating_sub(para_start).min(line_count);
+                flat_line += line_count;
+                if selected_start >= selected_end {
+                    continue;
+                }
+                let placement = self.footnote_paragraph_placement(
+                    para,
+                    &composed,
+                    styles,
+                    fn_ref.fragment,
+                    number_drawn,
+                    selected_start..selected_end,
+                    total,
+                );
+                total += placement.spacing.before;
+                if placement.route == FootnoteParagraphRoute::StoredEmpty {
+                    // 실제 빈 줄 경로는 저장 높이만 소비하고 후행 줄간격을 붙이지 않는다.
+                    total += hwpunit_to_px(composed.lines[0].line_height, self.dpi);
+                } else if composed.lines.is_empty() {
+                    total += hwpunit_to_px(400, self.dpi);
                 } else {
-                    for line in &composed.lines {
-                        let is_selected = (start_line..end_line).contains(&flat_line);
-                        if is_selected {
-                            // [#5708] layout 경로와 같은 보정 산식을 쓴다.
-                            let (line_height, line_spacing_px) =
-                                self.footnote_line_metrics(line, composed.para_style_id, styles);
-                            total += line_height;
-                            let is_last_selected_line = flat_line + 1 == end_line;
-                            if !is_last_selected_line {
-                                total += line_spacing_px;
-                            }
+                    for (index, line) in composed.lines[selected_start..selected_end]
+                        .iter()
+                        .enumerate()
+                    {
+                        let (line_height, line_spacing_px) =
+                            self.footnote_line_metrics(line, composed.para_style_id, styles);
+                        total += line_height;
+                        if para_start + selected_start + index + 1 < end_line {
+                            total += line_spacing_px;
                         }
-                        flat_line += 1;
                     }
                 }
+                total += placement.spacing.after;
+                number_drawn |= placement.route == FootnoteParagraphRoute::Numbered;
             }
             // 각주 간 간격
             if i + 1 < footnotes.len() {
@@ -1235,8 +1367,21 @@ impl LayoutEngine {
                     continue;
                 }
                 let is_last_selected_line = para_start + selected_end == fragment_end;
+                let placement = self.footnote_paragraph_placement(
+                    para,
+                    &composed,
+                    styles,
+                    fn_ref.fragment,
+                    number_drawn,
+                    selected_start..selected_end,
+                    y - fn_area.y,
+                );
+                if placement.route == FootnoteParagraphRoute::StoredEmpty {
+                    y += hwpunit_to_px(composed.lines[0].line_height, self.dpi);
+                    continue;
+                }
 
-                if fragment_draws_number(fn_ref.fragment) && !number_drawn {
+                if placement.route == FootnoteParagraphRoute::Numbered {
                     // 첫 fragment의 첫 선택 줄에만 각주 번호를 삽입한다.
                     y = self.layout_footnote_paragraph_with_number(
                         tree,
@@ -1247,6 +1392,7 @@ impl LayoutEngine {
                         fn_area,
                         y,
                         &number_text,
+                        fn_ref.number,
                         marker_section,
                         marker_para,
                         base_cs_id,
@@ -1256,7 +1402,7 @@ impl LayoutEngine {
                     );
                     number_drawn = true;
                 } else {
-                    let returned_y = self.layout_composed_paragraph(
+                    let returned_y = self.layout_composed_paragraph_in_frame(
                         tree,
                         fn_node,
                         &composed,
@@ -1275,6 +1421,8 @@ impl LayoutEngine {
                         None,
                         None,
                         None, // 각주 컨텍스트 — wrap zone 무관
+                        false,
+                        Some(placement.spacing),
                     );
                     if is_last_selected_line {
                         // fragment의 마지막 줄은 trailing line-spacing을 쓰지 않는다.
@@ -1310,6 +1458,7 @@ impl LayoutEngine {
         area: &LayoutRect,
         y_start: f64,
         number_text: &str,
+        note_number: u16,
         marker_section: usize,
         marker_para: usize,
         base_cs_id: u32,
@@ -1319,6 +1468,13 @@ impl LayoutEngine {
         is_last_selected_line: bool,
     ) -> f64 {
         let mut y = y_start;
+        let stored_prefix = (self.profile.get().hwpx_stored_layout()
+            || self.profile.get().hwp5_stored_pagination_layout())
+        .then(|| stored_footnote_number_prefix(paragraph, note_number))
+        .flatten();
+        let number_text = stored_prefix
+            .as_ref()
+            .map_or(number_text, |(text, _)| text.as_str());
         // 분할 큐는 빈 각주 문단도 한 줄의 virtual fragment로 센다. 실제 composed
         // 줄은 0개이므로 그 범위를 그대로 slice하면 panic 난다. 기존 비분할 경로처럼
         // 빈 문단 fallback까지 흘려보내 번호/높이 계약을 보존한다.
@@ -1373,7 +1529,9 @@ impl LayoutEngine {
                 // 빈/비빈 문단 모두 동일한 base_cs_id 사용 → 리렌더링 시 폰트·폭 변동 방지
                 let base_style = {
                     let mut ts = resolved_to_text_style(styles, base_cs_id, 0);
-                    ts.font_size = (ts.font_size * 0.9).max(8.0);
+                    if stored_prefix.is_none() {
+                        ts.font_size = (ts.font_size * 0.9).max(8.0);
+                    }
                     ts
                 };
 
@@ -1409,15 +1567,38 @@ impl LayoutEngine {
 
             // 원본 TextRun들
             let mut char_offset = comp_line.char_start;
+            let mut tab_index = composed
+                .lines
+                .iter()
+                .take(line_start + offset)
+                .flat_map(|line| line.runs.iter())
+                .flat_map(|run| run.text.chars())
+                .filter(|&ch| ch == '\t')
+                .count();
             for run in &comp_line.runs {
-                let text_style = run.text_style(styles);
-                let width = estimate_text_width(&run.text, &text_style);
+                let mut text_style = run.text_style(styles);
+                let skipped = stored_prefix.as_ref().map_or(0, |(_, count)| {
+                    count
+                        .saturating_sub(char_offset)
+                        .min(run.text.chars().count())
+                });
+                let text = run.text.chars().skip(skipped).collect::<String>();
+                if stored_prefix.is_some() {
+                    text_style.inline_tabs = composed
+                        .tab_extended
+                        .iter()
+                        .skip(tab_index)
+                        .copied()
+                        .collect();
+                }
+                let width = estimate_text_width(&text, &text_style);
+                tab_index += run.text.chars().filter(|&ch| ch == '\t').count();
 
                 let run_id = tree.next_id();
                 let run_node = RenderNode::new(
                     run_id,
                     RenderNodeType::TextRun(TextRunNode {
-                        text: run.text.clone(),
+                        text,
                         style: text_style,
                         char_shape_id: None,
                         para_shape_id: None,

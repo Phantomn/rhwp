@@ -63,6 +63,8 @@ impl TypesetState {
                 deferred_table_controls: Vec::new(),
                 deferred_next_page_square_pictures: Vec::new(),
                 page_start_square_pictures: Vec::new(),
+                deferred_next_page_stored_frames: Vec::new(),
+                page_start_stored_frames: Vec::new(),
                 fragment_queued_table_footnotes: std::collections::HashSet::new(),
                 reset_vpos_after_queued_table_footnote_page: false,
                 prefilled_paras: std::collections::HashSet::new(),
@@ -324,6 +326,7 @@ impl TypesetState {
         if self.data.current_items.is_empty()
             && self.data.current_column_wrap_around_paras.is_empty()
             && self.data.page_start_square_pictures.is_empty()
+            && self.data.page_start_stored_frames.is_empty()
         {
             return;
         }
@@ -381,6 +384,20 @@ impl TypesetState {
                 control_index: deferred.control_index,
             })
             .collect::<Vec<_>>();
+        items.extend(
+            std::mem::take(&mut self.data.page_start_stored_frames)
+                .into_iter()
+                .map(|deferred| match deferred.kind {
+                    crate::renderer::typeset::DeferredStoredFrameKind::Picture => PageItem::Shape {
+                        para_index: deferred.para_index,
+                        control_index: deferred.control_index,
+                    },
+                    crate::renderer::typeset::DeferredStoredFrameKind::Table => PageItem::Table {
+                        para_index: deferred.para_index,
+                        control_index: deferred.control_index,
+                    },
+                }),
+        );
         items.append(&mut self.data.current_items);
         items
     }
@@ -544,6 +561,22 @@ impl TypesetState {
                     .insert(*wrap_target_para_index, deferred.wrap_anchor.clone());
             }
             self.data.page_start_square_pictures.push(deferred);
+        }
+        // 저장 그림과 첫 본문이 같은 상단 프레임을 소비한다. 실제 출력도 이 계획을 쓴다.
+        for deferred in std::mem::take(&mut self.data.deferred_next_page_stored_frames) {
+            let next_flow_y = match deferred.placement.flow {
+                crate::renderer::float_placement::ParagraphFloatFlow::StoredPicture {
+                    next_flow_y,
+                } => next_flow_y,
+                _ => deferred.placement.occupied_bottom,
+            };
+            self.data.current_height = self.data.current_height.max(next_flow_y);
+            self.data.vpos_page_base = Some(0);
+            self.data.paragraph_float_placements.insert(
+                (deferred.para_index, deferred.control_index),
+                deferred.placement,
+            );
+            self.data.page_start_stored_frames.push(deferred);
         }
         // Task #321: 새 페이지에서는 body-wide top reserve 초기화
         self.data.pending_body_wide_top_reserve = 0.0;

@@ -4071,6 +4071,18 @@ fn parse_rendering_info(
 
 /// `<hp:lineShape>` 요소에서 ShapeBorderLine을 파싱한다.
 fn parse_line_shape_attr(e: &quick_xml::events::BytesStart) -> ShapeBorderLine {
+    // HWP5 테두리 속성과 직렬화의 같은 모양 비트를 사용한다.
+    fn arrow_shape(value: &str) -> u32 {
+        match value {
+            "ARROW" => 1,
+            "SPEAR" => 2,
+            "CONCAVE_ARROW" => 3,
+            "FILLED_DIAMOND" | "EMPTY_DIAMOND" => 4,
+            "FILLED_CIRCLE" | "EMPTY_CIRCLE" => 5,
+            "FILLED_BOX" | "EMPTY_BOX" => 6,
+            _ => 0,
+        }
+    }
     fn arrow_size(value: &str) -> Option<u32> {
         match value {
             "SMALL_SMALL" => Some(0),
@@ -4120,6 +4132,12 @@ fn parse_line_shape_attr(e: &quick_xml::events::BytesStart) -> ShapeBorderLine {
                     _ => 0,
                 };
                 bl.attr = (bl.attr & !(0x0F << 6)) | ((end_cap & 0x0F) << 6);
+            }
+            b"headStyle" => {
+                bl.attr = (bl.attr & !(0x3F << 10)) | (arrow_shape(&attr_str(&attr)) << 10);
+            }
+            b"tailStyle" => {
+                bl.attr = (bl.attr & !(0x3F << 16)) | (arrow_shape(&attr_str(&attr)) << 16);
             }
             b"headfill" => {
                 if parse_bool(&attr) {

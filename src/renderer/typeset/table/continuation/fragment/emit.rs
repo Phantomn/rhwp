@@ -46,11 +46,11 @@ impl TypesetEngine {
         let FragmentBudget {
             caption_extra,
             host_before_overhead,
-            terminal_outer_bottom_overhead,
+            mut terminal_outer_bottom_overhead,
             fragment_outer_bottom_overhead,
             vert_offset_overhead,
             page_avail,
-            fragment_placement,
+            mut fragment_placement,
             header_overhead,
             avail_for_rows,
             single_cell_fragment_shape,
@@ -99,6 +99,47 @@ impl TypesetEngine {
                 + mt.cell_spacing * end_row.saturating_sub(2) as f64;
             end_row_height_override = Some((frame_height - before_last).max(0.0));
             partial_height = frame_height;
+        }
+        // 종료 조각의 실제 프레임과 뒤 저장 줄이 아래 여백을 닫으면 동일한
+        // 배치 계획으로 예약과 paint 흐름을 함께 전진시킨다.
+        if is_continuation
+            && end_row >= row_count
+            && split_end_limit == 0.0
+            && fragment_placement.is_none()
+            && terminal_outer_bottom_overhead == 0.0
+            && (st.profile.hwpx_stored_layout() || st.profile.hwp5_stored_pagination_layout())
+            && !st.profile.session_edited()
+            && st.col_count == 1
+            && !self.render_normalization.table_text_reflowed(table)
+        {
+            let top = st.current_height + host_before_overhead + vert_offset_overhead;
+            if let Some(margin) = input
+                .source
+                .paragraphs_all
+                .get(para_idx + 1)
+                .and_then(|next| {
+                    crate::renderer::float_placement::stored_terminal_rowbreak_outer_margin_px(
+                        input.source.paragraph,
+                        next,
+                        table,
+                        top + partial_height,
+                        self.dpi,
+                    )
+                })
+                .filter(|margin| top + partial_height + margin <= st.base_available_height())
+            {
+                terminal_outer_bottom_overhead = margin;
+                fragment_placement =
+                    Some(crate::renderer::float_placement::ParagraphFloatPlacement {
+                        flow: crate::renderer::float_placement::ParagraphFloatFlow::NextLine,
+                        anchor_y: st.current_height,
+                        stored_host_origin: None,
+                        stored_successor_line_origin: None,
+                        table_left: None,
+                        table_top: top,
+                        occupied_bottom: top + partial_height + margin,
+                    });
+            }
         }
         let captioned_object_frame = self
             .query_captioned_column_rowbreak_placement(

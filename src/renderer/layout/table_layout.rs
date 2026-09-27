@@ -14895,6 +14895,72 @@ impl LayoutEngine {
             .collect()
     }
 
+    /// 한 셀의 마지막 줄만 새 원점에서 이어지고 나머지 셀은 첫 줄로 끝나는
+    /// 저장 행의 공통 내용 컷이다. 같은 열의 서로 다른 텍스트 줄만 인정하며,
+    /// 합성 줄·다문단·개체·rowspan·모든 셀의 0 좌표는 근거로 사용하지 않는다.
+    pub(crate) fn row_stored_terminal_zero_origin_cut(
+        &self,
+        table: &crate::model::table::Table,
+        row: usize,
+        styles: &ResolvedStyleSet,
+    ) -> Option<Vec<usize>> {
+        use crate::model::paragraph::LineSeg;
+
+        let mut cells: Vec<_> = table
+            .cells
+            .iter()
+            .filter(|cell| cell.row as usize == row)
+            .collect();
+        cells.sort_by_key(|cell| cell.col);
+        let mut cut = Vec::new();
+        let mut resumed = false;
+        let mut completed = false;
+        for cell in cells {
+            if cell.row_span != 1 {
+                return None;
+            }
+            let [para] = cell.paragraphs.as_slice() else {
+                return None;
+            };
+            if !para.controls.is_empty()
+                || para.text.trim().is_empty()
+                || para
+                    .line_segs
+                    .iter()
+                    .any(|seg| seg.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0)
+            {
+                return None;
+            }
+            let units = self.cell_units(cell, table, styles);
+            match para.line_segs.as_slice() {
+                [line] if line.vertical_pos == 0 && line.line_height > 0 && units.len() == 1 => {
+                    cut.push(1);
+                    completed = true;
+                }
+                [first, tail]
+                    if first.vertical_pos == 0
+                        && tail.vertical_pos == 0
+                        && first.line_height > 0
+                        && tail.line_height > 0
+                        && tail.text_start > first.text_start
+                        && first.column_start == tail.column_start
+                        && first.segment_width > 0
+                        && first.segment_width == tail.segment_width
+                        && units.len() == 2
+                        && units[0].vis_start == 0
+                        && units[0].vis_end == 1
+                        && units[1].vis_start == 1
+                        && units[1].vis_end == 2 =>
+                {
+                    cut.push(1);
+                    resumed = true;
+                }
+                _ => return None,
+            }
+        }
+        (resumed && completed).then_some(cut)
+    }
+
     /// Return whether a row records an in-paragraph return from a positive
     /// stored vertical position to the top of a new physical frame.  This is
     /// source pagination data, not a measured-height heuristic.

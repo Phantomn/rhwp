@@ -112,7 +112,24 @@ impl TypesetEngine {
                             .is_some_and(|end| (end - st.current_height).abs() < 0.01),
                         _ => false,
                     };
-                    if !host_line_covers_object && !resolved_inline_end {
+                    // 저장 컷으로 본문을 나눈 어울림 표는 마지막 글줄의 실제
+                    // 흐름을 보존한다. 표 기하로 기준을 지워 후속 줄을 다시
+                    // 역산하면 표 옆의 줄까지 표 하단으로 밀린다.
+                    let resolved_stored_wrap_fragment = st.current_items.iter().any(|item| {
+                        matches!(item, PageItem::PartialParagraph { para_index, start_line, .. }
+                            if *para_index == para_idx && *start_line > 0)
+                    }) && st.paragraph_float_placements.iter().any(|(&(owner, _), placement)| {
+                        owner == para_idx
+                            && placement.flow == crate::renderer::float_placement::ParagraphFloatFlow::Exclusion
+                            && para.line_segs.last().is_some_and(|line| {
+                                (crate::renderer::hwpunit_to_px(line.vertical_pos, self.dpi)
+                                    - placement.anchor_y).abs() <= self.dpi / 7200.0
+                            })
+                    });
+                    if !host_line_covers_object
+                        && !resolved_inline_end
+                        && !resolved_stored_wrap_fragment
+                    {
                         // Para-float TopAndBottom 표 예외(렌더러 2513)는 Stage E.
                         st.record_vpos_page_origin(None);
                         st.record_vpos_lazy_origin(None);

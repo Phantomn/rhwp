@@ -43,6 +43,61 @@ use crate::model::style::{
 };
 use crate::model::table::{TablePageBreak, VerticalAlign};
 
+/// 실제 부분 문단 컷이 원본 어울림 호스트의 물리 재시작을 소유한다.
+/// 통째 호스트나 일반 표 앞 텍스트는 어울림 렌더 경로가 계속 소유한다.
+fn explicitly_split_stored_square_host(
+    para: &Paragraph,
+    start_line: usize,
+    end_line: usize,
+) -> bool {
+    matches!(para.controls.as_slice(), [Control::Table(table)]
+        if !table.common.treat_as_char && table.common.allow_overlap
+            && matches!(table.common.text_wrap, TextWrap::Square))
+        && !para.stored_text_partition_is_dirty()
+        && para.line_segs.windows(2).enumerate().any(|(index, lines)| {
+            (start_line == index + 1 || end_line == index + 1)
+                && lines.iter().all(|line| {
+                    line.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
+                })
+                && lines[1].vertical_pos > 0
+                && lines[1].vertical_pos < lines[0].vertical_pos
+        })
+}
+
+/// 부분 본문과 표가 같은 저장 재시작 원점을 공유하는 확정 계획인지 확인한다.
+fn resolved_stored_square_fragment_in_column(
+    para: &Paragraph,
+    para_index: usize,
+    column: &ColumnContent,
+    dpi: f64,
+) -> bool {
+    column.items.iter().any(|item| {
+        let PageItem::PartialParagraph {
+            para_index: owner,
+            start_line,
+            end_line,
+        } = item
+        else {
+            return false;
+        };
+        *owner == para_index
+            && *start_line > 0
+            && explicitly_split_stored_square_host(para, *start_line, *end_line)
+            && para.line_segs.get(*start_line).is_some_and(|line| {
+                column
+                    .paragraph_float_placements
+                    .iter()
+                    .any(|(&(owner, _), placement)| {
+                        owner == para_index
+                            && placement.flow
+                                == super::float_placement::ParagraphFloatFlow::Exclusion
+                            && (hwpunit_to_px(line.vertical_pos, dpi) - placement.anchor_y).abs()
+                                <= dpi / 7200.0
+                    })
+            })
+    })
+}
+
 /// layout_column_item의 읽기 전용 컨텍스트 (파라미터 묶음)
 struct ColumnItemCtx<'a> {
     page_content: &'a PageContent,
@@ -3246,6 +3301,14 @@ pub(crate) fn para_is_floating_overlay_anchor(para: &Paragraph) -> bool {
         }
         _ => false,
     })
+}
+
+/// 문단 앞뒤에서 소비할 확정된 흐름 간격이다.
+/// 각주처럼 별도 영역에서 선택한 문단은 측정과 배치에 같은 결과를 전달한다.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ParagraphVerticalSpacing {
+    pub before: f64,
+    pub after: f64,
 }
 
 pub struct LayoutEngine {
@@ -8385,7 +8448,14 @@ impl LayoutEngine {
                 // 패스가 발산했다). 순차-y 원칙(위 주석)은 유지된다 — 첫 항목의
                 // 배치 y 와 저장 vpos 를 같은 자리에 놓는 base 라 partial 직후
                 // 항목의 보정이 순차 y 와 일치한다.
-                if item_ordinal == 0 {
+                if item_ordinal == 0
+                    || resolved_stored_square_fragment_in_column(
+                        &paragraphs[item_para],
+                        item_para,
+                        col_content,
+                        self.dpi,
+                    )
+                {
                     if let PageItem::PartialParagraph {
                         para_index,
                         start_line,
@@ -9061,6 +9131,18 @@ impl LayoutEngine {
                 &col_content.inline_flow_plans,
                 &col_content.paragraph_float_placements,
             );
+            // 명시적 부분 본문이 이미 줄 흐름을 소비한 확정 Exclusion 표는
+            // 기하만 출력한다. 표의 시각 하단을 본문 전진으로 다시 더하지 않는다.
+            if matches!(item, PageItem::Table { .. })
+                && resolved_stored_square_fragment_in_column(
+                    &paragraphs[item_para],
+                    item_para,
+                    col_content,
+                    self.dpi,
+                )
+            {
+                new_y = _y_in;
+            }
             if let Some(flow_end) = saved_picture_empty_flow_end {
                 new_y = flow_end;
             }
@@ -9471,7 +9553,18 @@ impl LayoutEngine {
             let heading_shape_keeps_page_base = saved_inline_heading_page
                 && matches!(item, PageItem::Shape { para_index, control_index: 0 }
                     if matches!(col_content.items.first(), Some(PageItem::FullParagraph { para_index: first }) if first == para_index));
+            // 저장 컷이 본문을 소유하고 확정 표 원점이 그 재시작과 같으면
+            // 표 뒤에도 본문 사다리의 기준을 유지한다. 후처리에서 이를 지우면
+            // typeset과 다른 원점으로 뒤 문단을 다시 배치하게 된다.
+            let resolved_stored_wrap_fragment = matches!(item, PageItem::Table { .. })
+                && resolved_stored_square_fragment_in_column(
+                    &paragraphs[item_para],
+                    item_para,
+                    col_content,
+                    self.dpi,
+                );
             if !heading_shape_keeps_page_base
+                && !resolved_stored_wrap_fragment
                 && (was_tac || (is_table_or_shape && !is_para_float_table && !is_inline_tac_object))
             {
                 hcursor.vpos_page_base = None;
@@ -10616,7 +10709,9 @@ impl LayoutEngine {
                             false
                         }
                     });
-                    if is_wrap_host {
+                    let explicit_stored_fragment =
+                        explicitly_split_stored_square_host(para, *start_line, *end_line);
+                    if is_wrap_host && !explicit_stored_fragment {
                         return (y_offset, false);
                     }
 
@@ -12440,6 +12535,13 @@ impl LayoutEngine {
             // ── 어울림 문단 렌더링 ──
             // 후속 wrap 문단이 없어도 호스트 본문이 표 옆에 wrap되어야 하므로
             // wrap_around_paras 비어 있어도 호출 (Task #295: pi=27 자가 wrap 누락 수정)
+            let split_host_text_owned_by_fragments = page_content.column_contents.iter().any(|column| {
+                column.items.iter().any(|item| {
+                    matches!(item, PageItem::PartialParagraph { para_index: owner, start_line, end_line }
+                        if *owner == para_index
+                            && explicitly_split_stored_square_host(para, *start_line, *end_line))
+                })
+            });
             let table_is_square =
                 matches!(t.common.text_wrap, crate::model::shape::TextWrap::Square);
             if !is_tac && table_is_square {
@@ -12487,7 +12589,7 @@ impl LayoutEngine {
                     wrap_text_width,
                     strip_x,
                     strip_width,
-                    true,
+                    !split_host_text_owned_by_fragments,
                     0.0,
                     bin_data_content,
                     Some(tbl_x_right),
@@ -12496,7 +12598,10 @@ impl LayoutEngine {
                 // 전진시킨다. 그렇지 않으면 다음 단락이 표 하단(=현재 y_offset)에서 시작해
                 // 표보다 아래로 내려온 본문 줄과 겹친다(3-09월_교육_통합_2023 4쪽 문26).
                 // 본문 ≤ 표 인 기존 다수 케이스는 host_text_bottom ≤ y_offset 이라 불변.
-                if let Some(comp) = composed.get(para_index) {
+                if let Some(comp) = composed
+                    .get(para_index)
+                    .filter(|_| !split_host_text_owned_by_fragments)
+                {
                     let mut text_h = 0.0;
                     let mut last_ls = 0.0;
                     for line in &comp.lines {
@@ -14014,6 +14119,10 @@ impl LayoutEngine {
                 if crate::renderer::float_placement::column_rowbreak_caption_outer_spacing_px(
                     opens, para, table, self.dpi,
                 ) > 0.0
+                    || (!para_has_visible_text(para)
+                        && is_continuation
+                        && end_cut.is_empty()
+                        && end_row >= table.row_count as usize)
                 {
                     if let Some(placement) = ctx
                         .paragraph_float_placements
@@ -14842,6 +14951,15 @@ impl LayoutEngine {
                             } else {
                                 (vpos_accounts_for_height, pic_y)
                             };
+                            // 조판이 확정한 저장 그림 프레임은 실제 배치에서도 같은 앵커를 쓴다.
+                            // 뒤 호스트 줄의 원점이나 그림 높이로 이 앵커를 다시 추정하지 않는다.
+                            let stored_picture = ctx.paragraph_float_placements
+                                .get(&(para_index, control_index))
+                                .filter(|placement| matches!(placement.flow,
+                                    super::float_placement::ParagraphFloatFlow::StoredPicture { .. }));
+                            let (vpos_accounts_for_height, pic_y) = stored_picture
+                                .map(|placement| (false, col_area.y + placement.anchor_y))
+                                .unwrap_or((vpos_accounts_for_height, pic_y));
                             // typeset의 ObjectPlacementFrame과 같은 문단 좌우 여백을
                             // Para 기준 그림에도 준다. paint만 단 전체를 기준으로
                             // 두면 TIFF 그림과 캡션이 저장 1000HU만큼 왼쪽으로 간다
@@ -14877,6 +14995,10 @@ impl LayoutEngine {
                                 control_index,
                                 vpos_accounts_for_height,
                             );
+                            if let Some(placement) = stored_picture {
+                                result_y = col_area.y
+                                    + placement.paragraph_end(saved_y_offset - col_area.y, 0.0);
+                            }
                             // layout_body_picture needs the host paragraph y for Para-relative
                             // positioning, but InFront pictures must not rewind the
                             // already-advanced text flow cursor back to that paragraph y.
@@ -14949,6 +15071,10 @@ impl LayoutEngine {
                                 pic.common.vert_rel_to,
                                 crate::model::shape::VertRelTo::Para
                             ) && pic.caption.is_none()
+                                // 확정된 뒤 줄 원점은 호스트 점유를 이미 포함한다.
+                                && stored_picture
+                                    .and_then(|placement| placement.stored_successor_line_origin)
+                                    .is_none()
                             {
                                 let has_visible_text =
                                     para.text.chars().any(|c| c > '\u{001F}' && c != '\u{FFFC}');

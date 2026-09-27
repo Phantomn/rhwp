@@ -742,10 +742,22 @@ impl TypesetEngine {
                                 .is_some_and(|(_, confirmed)| confirmed.contains(&cut))
                         })
                 };
+            // 한 셀의 마지막 저장 줄만 다음 쪽으로 이어지는 컷도 한 줄을 남긴다.
+            // 완결된 다른 셀까지 동일한 컷인지 확인하고 실제 높이 예산은 아래에서 검사한다.
+            let stored_terminal_zero_origin_keep = (st.profile.hwp5_stored_pagination_layout()
+                || st.profile.hwpx_stored_layout())
+                && mt.allows_row_break_split()
+                && !table.common.treat_as_char
+                && row_start_cut.is_empty()
+                && !self.render_normalization.table_text_reflowed(table)
+                && layout_engine
+                    .row_stored_terminal_zero_origin_cut(table, r, styles)
+                    .is_some_and(|cut| cut == res.end_cut);
             if r > cursor_row
                 && !cellbreak_complete_unit_keep
                 && !landscape_boundary_band_keep
                 && !stored_zero_origin_rewind_keep
+                && !stored_terminal_zero_origin_keep
                 && !row_split_meets_min_top_keep(
                     res.consumed_height,
                     split_total,

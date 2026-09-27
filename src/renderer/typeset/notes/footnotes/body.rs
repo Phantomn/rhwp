@@ -25,6 +25,41 @@ impl TypesetEngine {
         has_table: bool,
         native_hwp5_footnote_break: Option<super::boundary::NativeHwp5FootnoteBreak>,
     ) {
+        // 본문 내 참조는 그대로 배치하며, 원본에 없는 각주 번호/구분선을 만들지 않는다.
+        if (st.profile.hwpx_stored_layout() || st.profile.hwp5_stored_pagination_layout())
+            && !st.profile.session_edited()
+            && crate::renderer::stored_footnote_is_bodyless(fn_ctrl)
+        {
+            // 같은 호스트의 실제 각주 영역 뒤 빈 줄은 참조 번호와 별개로
+            // 물리 공간을 소유한다. 단독 빈 참조는 새 영역을 만들지 않는다.
+            let follows_same_host_note = st
+                .pages
+                .last()
+                .and_then(|page| page.footnotes.last())
+                .is_some_and(|note| {
+                    matches!(note.source,
+                    FootnoteSource::Body { para_index, control_index }
+                        if para_index == para_idx && control_index < ctrl_idx)
+                });
+            if follows_same_host_note {
+                let line = &fn_ctrl.paragraphs[0].line_segs[0];
+                st.record_current_footnote(FootnoteRef {
+                    number: fn_ctrl.number,
+                    source: FootnoteSource::Body {
+                        para_index: para_idx,
+                        control_index: ctrl_idx,
+                    },
+                    fragment: Some(crate::renderer::pagination::FootnoteFragment {
+                        start_line: 0,
+                        end_line: 1,
+                        draw_separator: false,
+                        draw_number: false,
+                    }),
+                });
+                st.add_footnote_fragment_height(hwpunit_to_px(line.line_height, self.dpi), false);
+            }
+            return;
+        }
         let source = FootnoteSource::Body {
             para_index: para_idx,
             control_index: ctrl_idx,

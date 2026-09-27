@@ -174,6 +174,16 @@ impl TypesetEngine {
                 0,
                 self.dpi,
             )
+        })
+        .or_else(|| {
+            crate::renderer::float_placement::stored_adjacent_line_table_frame(
+                paragraphs.get(para_idx.checked_sub(1)?)?,
+                para,
+                next,
+                table,
+                effective_height,
+                self.dpi,
+            )
         })?;
         // 저장한 본문 좌표를 현재 단 영역 좌표로 한 번 변환한다.
         placement.anchor_y -= st.current_zone_y_offset;

@@ -67,6 +67,51 @@ pub(in crate::renderer::typeset) fn native_hwp5_footnote_reset_fragments(
     let mut flat_lines = Vec::new();
     let mut split_line = None;
     let mut force_next_page = false;
+    // 여러 문단이 하나의 각주 좌표 사다리를 이어갈 때는 문단 사이의 원점
+    // 재시작도 같은 물리 컷이다. 문단마다 0을 적는 writer-local 입력과 구분해
+    // 전체 사다리의 정확한 줄 높이/간격 전진과 한 번의 재시작을 먼저 확인한다.
+    let source_lines: Vec<_> = footnote
+        .paragraphs
+        .iter()
+        .flat_map(|para| &para.line_segs)
+        .collect();
+    let cross_paragraph_reset = (|| {
+        if source_lines.first()?.vertical_pos != 0
+            || source_lines
+                .iter()
+                .any(|line| is_synthetic_line_seg(line) || line.line_height <= 0)
+        {
+            return None;
+        }
+        let mut restart = None;
+        let mut paragraph_boundary = 0;
+        let boundaries: Vec<_> = footnote
+            .paragraphs
+            .iter()
+            .map(|para| {
+                paragraph_boundary += para.line_segs.len();
+                paragraph_boundary
+            })
+            .collect();
+        for (index, pair) in source_lines.windows(2).enumerate() {
+            let expected = i64::from(pair[0].vertical_pos)
+                + i64::from(pair[0].line_height)
+                + i64::from(pair[0].line_spacing.max(0));
+            if i64::from(pair[1].vertical_pos) == expected {
+                continue;
+            }
+            if pair[0].vertical_pos > 0
+                && pair[1].vertical_pos == 0
+                && boundaries.contains(&(index + 1))
+                && restart.is_none()
+            {
+                restart = Some(index + 1);
+            } else {
+                return None;
+            }
+        }
+        restart
+    })();
     for paragraph in &footnote.paragraphs {
         let composed = crate::renderer::composer::compose_paragraph(paragraph);
         // source LINE_SEG가 composer line과 일대일로 남아 있는 경우만 reset을
@@ -81,6 +126,12 @@ pub(in crate::renderer::typeset) fn native_hwp5_footnote_reset_fragments(
                 hwpunit_to_px(line.line_height, dpi),
                 hwpunit_to_px(line.line_spacing, dpi),
             ));
+            if index == 0 && cross_paragraph_reset == Some(base) {
+                if split_line.replace(base).is_some() {
+                    return None;
+                }
+                force_next_page = true;
+            }
             if index == 0 {
                 continue;
             }
@@ -413,15 +464,15 @@ pub(in crate::renderer::typeset) fn native_hwp5_final_marker_footnote_uses_next_
 /// 일반 pagination의 `current_footnote_height`는 빠른 stored-LineSeg 추정이다. 긴 URL이나
 /// 여러 각주가 있는 HWP5 page에서는 실제 FootnoteArea보다 작을 수 있다. 그 차이를 전역 예약값으로
 /// 바꾸면 과페이지화 회귀가 생기므로, reset tail의 physical collision 판정에만 이 exact metric을 쓴다.
-/// table/text-box source 또는 이미 fragment된 각주는 각자 별도 owner 계약이 있으므로 이 좁은 경로에서
-/// 재측정하지 않는다.
+/// 본문 각주의 저장 분할 계획과 일치하는 조각은 예약 때 확정한 같은 높이를 사용한다.
+/// 셀·글상자 출처와 알 수 없는 조각은 별도 소유 계약이므로 이 경로에서 재측정하지 않는다.
 pub(in crate::renderer::typeset) fn native_hwp5_existing_body_footnote_area_height(
     st: &TypesetState,
     paragraphs: &[Paragraph],
     dpi: f64,
 ) -> Option<f64> {
     let footnotes = &st.pages.last()?.footnotes;
-    if footnotes.is_empty() || footnotes.iter().any(|footnote| footnote.fragment.is_some()) {
+    if footnotes.is_empty() {
         return None;
     }
 
@@ -441,7 +492,27 @@ pub(in crate::renderer::typeset) fn native_hwp5_existing_body_footnote_area_heig
             return None;
         };
 
-        total += composed_footnote_content_height(footnote, dpi);
+        total += if let Some(fragment) = footnote_ref.fragment {
+            // 저장 reset으로 확정한 조각의 줄 범위·번호·구분선까지 일치해야
+            // 예약과 충돌 판정이 같은 각주 공간을 소비한다.
+            if let Some(split) = native_hwp5_footnote_reset_fragments(footnote, dpi) {
+                if fragment == split.prefix {
+                    split.prefix_height
+                } else if fragment == split.suffix {
+                    split.suffix_height
+                } else {
+                    return None;
+                }
+            } else if native_hwp5_two_line_footnote_fragments(footnote)
+                .is_some_and(|(prefix, suffix)| fragment == prefix || fragment == suffix)
+            {
+                native_hwp5_footnote_fragment_height(footnote, fragment, dpi)
+            } else {
+                return None;
+            }
+        } else {
+            composed_footnote_content_height(footnote, dpi)
+        };
         if footnote_idx + 1 < footnotes.len() {
             total += st.footnote_between_notes_margin;
         }

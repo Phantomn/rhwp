@@ -34,6 +34,101 @@ impl TypesetEngine {
             paragraphs_all,
             ..
         } = input;
+        // 원본 개체의 다음 쪽 상자와 본문 재시작은 같은 계획을 소비한다.
+        // 현재 호스트를 flush하지 않아 앞쪽에 속한 뒤 글줄을 보존한다.
+        if st.col_count == 1
+            && (st.profile.hwpx_stored_layout() || st.profile.hwp5_stored_pagination_layout())
+            && !st.profile.session_edited()
+            && ft.table_footnotes.is_empty()
+            && !self.render_normalization.table_text_reflowed(table)
+        {
+            if let Some(placement) =
+                crate::renderer::float_placement::stored_table_next_page_placement(
+                    para,
+                    &paragraphs_all[para_idx + 1..],
+                    table,
+                    ft.effective_height,
+                    st.vpos_page_base.unwrap_or(0),
+                    para_start_height,
+                    st.available_height(),
+                    self.dpi,
+                )
+            {
+                st.defer_stored_frame(crate::renderer::typeset::DeferredStoredFrameControl {
+                    kind: crate::renderer::typeset::DeferredStoredFrameKind::Table,
+                    para_index: para_idx,
+                    control_index: ctrl_idx,
+                    placement,
+                });
+                return None;
+            }
+        }
+        // 떠 있는 표의 호스트가 검증된 이월 상자 뒤에서 재개하면, 표의
+        // 통째 fit으로 앞쪽 글줄까지 이월하지 않는다. 일반 글줄 분할과
+        // 실제 표 출력이 같은 저장 원점을 소비하고 어울림 띠만 예약한다.
+        if para.controls.len() == 1
+            && !table.common.treat_as_char
+            && table.common.allow_overlap
+            && matches!(
+                table.common.text_wrap,
+                crate::model::shape::TextWrap::Square
+            )
+            && matches!(
+                table.common.vert_rel_to,
+                crate::model::shape::VertRelTo::Para
+            )
+            && matches!(table.common.vert_align, crate::model::shape::VertAlign::Top)
+            && table.caption.is_none()
+            && ft.table_footnotes.is_empty()
+            && !self.render_normalization.table_text_reflowed(table)
+        {
+            let boundary = crate::renderer::typeset::paragraph::prepare_forced_page_boundary(
+                st,
+                para_idx,
+                para,
+                fmt,
+                paragraphs_all,
+                st.available_height(),
+                self.dpi,
+            );
+            if let Some(break_line) = boundary.forced_page_break_line.filter(|&line| {
+                para.line_segs[line].vertical_pos > 0
+                    && crate::renderer::typeset::stored_body_reset_fragment_matches_current_flow(
+                        st,
+                        para,
+                        0,
+                        line,
+                        boundary.current_page_vpos_base.unwrap_or(0),
+                        self.dpi,
+                    )
+            }) {
+                let origin = hwpunit_to_px(para.line_segs[break_line].vertical_pos, self.dpi);
+                self.typeset_paragraph(st, para_idx, para, fmt, paragraphs_all, styles, false);
+                let top = origin
+                    + hwpunit_to_px(signed_hwpunit(table.common.vertical_offset), self.dpi)
+                    + hwpunit_to_px(table.outer_margin_top as i32, self.dpi);
+                let bottom = top
+                    + ft.effective_height
+                    + hwpunit_to_px(table.outer_margin_bottom as i32, self.dpi);
+                st.record_paragraph_float_placement(
+                    (para_idx, ctrl_idx),
+                    crate::renderer::float_placement::ParagraphFloatPlacement {
+                        flow: crate::renderer::float_placement::ParagraphFloatFlow::Exclusion,
+                        anchor_y: origin,
+                        stored_host_origin: None,
+                        stored_successor_line_origin: None,
+                        table_left: None,
+                        table_top: top,
+                        occupied_bottom: bottom,
+                    },
+                );
+                st.append_item(PageItem::Table {
+                    para_index: para_idx,
+                    control_index: ctrl_idx,
+                });
+                return None;
+            }
+        }
         // [#6764] 다른 문단이 남긴 자리차지 밴드를 표 높이로 먼저 짚는다 — 예산은
         // 밴드 아래에서 시작한다. HWPX 는 문단 프로브가 이미 같은 일을 하므로 제외.
         if !st.profile.hwpx_stored_layout() {

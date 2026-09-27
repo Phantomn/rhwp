@@ -148,13 +148,27 @@
       "id": 11,
       "function": "issue_1733::issue_1733_hwpx_matches_hancom_pdf_page_count",
       "case": "issue_1733",
-      "status": "pending",
-      "individual_results": [],
+      "status": "resolved",
+      "individual_results": [
+        {
+          "before": "0PASS/2FAIL (기존 HWP 거짓 양성 포함)",
+          "after": "2PASS (기존 두 함수)",
+          "visual_min_native": 91.19751,
+          "visual_min_wasm": 91.19751,
+          "visual_page_count": 968,
+          "test_changed": true,
+          "new_test_functions": 0,
+          "candidate": 28,
+          "before_head": "80f7e778a6a0b2979c9cccbcd003a267ce3932e7",
+          "candidate_source_evidence": "stage58_tail1733_validation.json"
+        }
+      ],
       "resolved_plan": {
         "caseName": "issue_1733",
-        "target": "regression_suite_022",
+        "target": "regression_suite_016",
         "grouped": true
-      }
+      },
+      "evidence": "stage58_tail1733_validation.json"
     },
     {
       "id": 12,

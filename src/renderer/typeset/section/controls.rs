@@ -128,6 +128,40 @@ impl TypesetEngine {
                         continue;
                     }
                     if !has_table {
+                        // 다음 본문이 그림 전체 높이에서 시작하는 저장 이월은 호스트와
+                        // 개체의 쪽 소유를 분리한다. 현재 쪽 하단을 clamp해 그림을 끼우지 않는다.
+                        if st.col_count == 1
+                            && (self.profile.get().hwp5_stored_pagination_layout()
+                                || self.profile.get().hwpx_stored_layout())
+                            && !self.profile.get().session_edited()
+                            && (st.pages.len(), st.current_column)
+                                == (picture_host_origin.0, picture_host_origin.1)
+                        {
+                            if let Some(placement) =
+                                crate::renderer::float_placement::stored_picture_next_page_placement(
+                                    para,
+                                    &paragraphs[para_idx + 1..],
+                                    st.vpos_page_base.unwrap_or(0),
+                                    picture_host_origin.2,
+                                    st.available_height(),
+                                    self.dpi,
+                                )
+                                .or_else(|| crate::renderer::float_placement::stored_background_picture_next_page_placement(
+                                    para, &paragraphs[para_idx + 1..],
+                                    st.vpos_page_base.unwrap_or(0), picture_host_origin.2,
+                                    st.available_height(), self.dpi))
+                            {
+                                st.defer_stored_frame(
+                                    crate::renderer::typeset::DeferredStoredFrameControl {
+                                        kind: crate::renderer::typeset::DeferredStoredFrameKind::Picture,
+                                        para_index: para_idx,
+                                        control_index: ctrl_idx,
+                                        placement,
+                                    },
+                                );
+                                continue;
+                            }
+                        }
                         // [#3738 Stage 22] page-tail Square picture는 anchor 본문을
                         // 현재 쪽에 남기되 그림만 다음 physical page의 narrow wrap
                         // band에 배치한다. p155 그림 64처럼 현재 PageItem에 넣으면
@@ -180,6 +214,40 @@ impl TypesetEngine {
                                 == (picture_host_origin.0, picture_host_origin.1))
                             .then_some(picture_host_origin.2);
                         st.register_side_wrap_picture(para_idx, ctrl_idx, para, host_top, styles);
+                        // 저장된 그림 앞 공간과 뒤 호스트 줄을 하나의 프레임으로 예약한다.
+                        // 저장 줄이 있는 원본의 현재 단에서만 확정하고 편집 흐름에는 적용하지 않는다.
+                        if (self.profile.get().hwp5_stored_pagination_layout()
+                            || self.profile.get().hwpx_stored_layout())
+                            && !self.profile.get().session_edited()
+                            && (st.pages.len(), st.current_column)
+                                == (picture_host_origin.0, picture_host_origin.1)
+                            && st.current_items.iter().any(|item| {
+                                matches!(item, PageItem::FullParagraph { para_index } if *para_index == para_idx)
+                            })
+                        {
+                            let saved = para_idx.checked_sub(1).and_then(|previous| {
+                                let previous = paragraphs.get(previous)?;
+                                let next = paragraphs.get(para_idx + 1)?;
+                                let host_style = styles.para_styles.get(para.para_shape_id as usize)?;
+                                let next_style = styles.para_styles.get(next.para_shape_id as usize)?;
+                                crate::renderer::float_placement::stored_picture_before_host_placement(
+                                    previous, para, next, host_style.spacing_after,
+                                    next_style.spacing_before, st.vpos_page_base.unwrap_or(0),
+                                    picture_host_origin.2, self.dpi,
+                                ).or_else(|| crate::renderer::float_placement::stored_picture_empty_host_placement(
+                                    previous, para, next, next_style.spacing_before,
+                                    st.vpos_page_base.unwrap_or(0), picture_host_origin.2, self.dpi,
+                                ))
+                            });
+                            if let Some(placement) = saved.filter(|p| {
+                                p.paragraph_end(st.current_height, 0.0) <= st.available_height()
+                                    && p.paragraph_end(st.current_height, 0.0) >= st.current_height
+                            }) {
+                                st.record_paragraph_float_placement((para_idx, ctrl_idx), placement);
+                                st.align_flow_to(placement.paragraph_end(st.current_height, 0.0));
+                                continue;
+                            }
+                        }
                         if self.profile.get().hwp5_stored_pagination_layout()
                                 && !self.profile.get().session_edited()
                                 && st.current_items.iter().any(|item| {

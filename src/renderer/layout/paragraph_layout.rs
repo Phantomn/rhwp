@@ -24,7 +24,7 @@ use super::utils::{
     expand_numbering_format, extract_shape_transform, find_bin_data_bytes,
     numbering_format_to_number_format, picture_display_size_hu, resolve_numbering_id,
 };
-use super::{CellContext, LayoutEngine};
+use super::{CellContext, LayoutEngine, ParagraphVerticalSpacing};
 use crate::model::bin_data::BinDataContent;
 use crate::model::control::Control;
 use crate::model::paragraph::{LineSeg, Paragraph};
@@ -89,6 +89,24 @@ fn terminal_tracking_after_inline_picture(
     let tracked = estimate_text_width_unrounded(last, &style);
     style.letter_spacing = 0.0;
     (tracked - estimate_text_width_unrounded(last, &style)).max(0.0)
+}
+
+/// 저장 탭 확장 배열의 문단 전체 순번을 현재 줄 시작에서 복원한다.
+fn stored_tab_index_before_line(
+    composed: &ComposedParagraph,
+    line: &crate::renderer::composer::ComposedLine,
+) -> usize {
+    if composed.tab_extended.is_empty() {
+        return 0;
+    }
+    composed
+        .lines
+        .iter()
+        .filter(|previous| previous.char_start < line.char_start)
+        .flat_map(|previous| previous.runs.iter())
+        .flat_map(|run| run.text.chars())
+        .filter(|&ch| ch == '\t')
+        .count()
 }
 
 /// 최종 emitted text run에서만 exact pair positions를 게시한다.
@@ -2403,6 +2421,7 @@ impl LayoutEngine {
                 Some(bin_data_content),
                 None,
                 true,
+                None,
             );
             return;
         }
@@ -4009,15 +4028,21 @@ impl LayoutEngine {
                     } else {
                         layout_box.height
                     };
+                    let eq_baseline = layout_box.baseline
+                        * crate::renderer::equation::stored_vertical_scale(
+                            eq_h,
+                            layout_box.height,
+                            font_size_px,
+                        );
                     let tac_row = tac_row_for(tac_k).min(row_inline_x.len() - 1);
                     let row_y = (y + tac_row as f64 * (line_height + line_spacing_px)
                         - zero_endnote_boundary_result_shift)
                         .max(col_area_y);
                     let inline_x = row_inline_x[tac_row];
                     let eq_y = if cell_ctx.is_some() {
-                        (row_y + baseline - layout_box.baseline).max(row_y)
+                        (row_y + baseline - eq_baseline).max(row_y)
                     } else {
-                        row_y + baseline - layout_box.baseline
+                        row_y + baseline - eq_baseline
                     };
                     let (eq_cell_idx, eq_cell_para_idx) = if let Some(ref ctx) = cell_ctx {
                         (
@@ -4159,6 +4184,7 @@ impl LayoutEngine {
             bin_data_content,
             wrap_anchor,
             false,
+            None,
         )
     }
 
@@ -4183,6 +4209,7 @@ impl LayoutEngine {
         bin_data_content: Option<&[BinDataContent]>,
         wrap_anchor: Option<&crate::renderer::pagination::WrapAnchorRef>,
         physical_frame_rows: bool,
+        vertical_spacing: Option<ParagraphVerticalSpacing>,
     ) -> f64 {
         let mut y = y_start;
         let end = end_line.min(composed.lines.len());
@@ -4328,7 +4355,10 @@ impl LayoutEngine {
         // [#5601] 셀 저장-앵커 스냅 문단 — 호출자가 para_y 에서 spacing_before 를
         // 미리 뺐으므로 column-top 트림과 무관하게 전량 재가산해야 vpos 와 맞는다.
         let reapply_snap_spacing_before = self.reapply_snap_anchored_spacing_before.replace(false);
-        if start_line == 0 && spacing_before > 0.0 {
+        if let Some(spacing) = vertical_spacing {
+            // 같은 선택 문단에서 확정한 앞 간격을 한 번만 소비한다.
+            y += spacing.before;
+        } else if start_line == 0 && spacing_before > 0.0 {
             if !is_column_top || keep_continuation_spacing_before || reapply_snap_spacing_before {
                 y += spacing_before;
             } else if para_index == 0 && !suppress_column_top_vpos_fallback {
@@ -4765,6 +4795,7 @@ impl LayoutEngine {
             let mut max_fs = comp_line
                 .runs
                 .iter()
+                .filter(|run| crate::renderer::composed_run_reserves_font_height(run))
                 .map(|r| {
                     let ts = r.text_style(styles);
                     if ts.font_size > 0.0 {
@@ -6057,7 +6088,7 @@ impl LayoutEngine {
             // 이미 삽입한 도형 마커 추적
             let mut shape_marker_inserted = vec![false; shape_markers.len()];
             // cross-run 탭 감지용 inline_tabs(composed.tab_extended) 커서 — Task #290
-            let mut inline_tab_cursor_render: usize = 0;
+            let mut inline_tab_cursor_render = stored_tab_index_before_line(composed, comp_line);
             let emit_state = self.emit_line_runs(
                 tree,
                 &mut line_node,
@@ -6726,7 +6757,9 @@ impl LayoutEngine {
 
         // 문단 뒤 간격 (spacing_after). 빈 composed 문단도 실제 한 줄 advance 뒤에
         // 적용해야 일반 composed 문단과 동일한 순서를 따른다.
-        if spacing_after > 0.0 && end == composed.lines.len() {
+        if let Some(spacing) = vertical_spacing {
+            y += spacing.after;
+        } else if spacing_after > 0.0 && end == composed.lines.len() {
             y += spacing_after;
         }
 
@@ -6903,7 +6936,13 @@ impl LayoutEngine {
             text_style.auto_tab_right = auto_tab_right;
             text_style.available_width = available_width;
             text_style.text_start_offset = effective_margin_left;
-            text_style.inline_tabs = composed.tab_extended.clone();
+            // 저장 탭의 순번은 런과 글자 모양 경계를 넘어 이어진다.
+            text_style.inline_tabs = composed
+                .tab_extended
+                .iter()
+                .skip(inline_tab_cursor_render)
+                .copied()
+                .collect();
             if pending_right_leader_digit_render {
                 if run.text.trim().is_empty() {
                     pending_right_leader_digit_render = true;
@@ -7903,11 +7942,17 @@ impl LayoutEngine {
                             // 상자의 (왼쪽, 위) 여백 안쪽에 둔다 — TAC 그림(#6603)과 같은 계약.
                             let (margin_left, _, margin_top, margin_bottom) =
                                 tac_object_outer_margins_px(common, self.dpi);
+                            // 측정과 캡션 출력이 예약한 전체 상자로 기준선에 맞춘다.
+                            let box_h = tac_object_box_height_px(
+                                shape_h,
+                                &super::shape_layout::shape_caption_for_layout(shape),
+                                self.dpi,
+                            ) + margin_top
+                                + margin_bottom;
                             let shape_y = if label_extra > 0.0 {
                                 y + label_extra + margin_top
                             } else {
-                                (y + baseline - shape_h - margin_top - margin_bottom).max(y)
-                                    + margin_top
+                                (y + baseline - box_h).max(y) + margin_top
                             };
                             // 인라인 좌표 등록 → shape_layout.rs에서 이 Shape를 스킵
                             tree.set_inline_shape_position(
@@ -7946,16 +7991,22 @@ impl LayoutEngine {
                             } else {
                                 layout_box.height
                             };
+                            let eq_baseline = layout_box.baseline
+                                * crate::renderer::equation::stored_vertical_scale(
+                                    eq_h,
+                                    layout_box.height,
+                                    font_size_px,
+                                );
                             // 텍스트와 섞인 인라인 수식뿐 아니라 공백 run 안의 TAC 수식도
-                            // baseline을 맞춘다. 수식 renderer는 bbox 높이로 세로 스케일하지
-                            // 않으므로 y에 직접 붙이면 큰 루트/분수 수식이 아래 줄을 덮는다.
+                            // baseline을 맞춘다. 일반 수식은 intrinsic 기준선을 유지하고
+                            // 압축 프레임은 backend와 같은 비율을 적용한 기준선을 쓴다.
                             let eq_y = if cell_ctx.is_none()
                                 && comp_line.runs.iter().all(|r| {
                                     !r.text.chars().any(|c| c > '\u{001F}' && c != '\u{FFFC}')
                                 }) {
-                                y + baseline - layout_box.baseline
+                                y + baseline - eq_baseline
                             } else {
-                                (y + baseline - layout_box.baseline).max(y)
+                                (y + baseline - eq_baseline).max(y)
                             };
                             let (eq_cell_idx, eq_cell_para_idx) = if let Some(ref ctx) = cell_ctx {
                                 (
@@ -8824,7 +8875,7 @@ impl LayoutEngine {
         let mut run_char_pos_est = comp_line.char_start;
         let mut included_tac_width_in_est = 0.0f64;
         // cross-run 탭 감지용 inline_tabs(composed.tab_extended) 커서 — Task #290
-        let mut inline_tab_cursor_est: usize = 0;
+        let mut inline_tab_cursor_est = stored_tab_index_before_line(composed, comp_line);
         for (run_idx_est, run) in comp_line.runs.iter().enumerate() {
             let run_char_count_est = if run.char_overlap.is_some() {
                 let chars: Vec<char> = run.text.chars().collect();
@@ -8839,7 +8890,12 @@ impl LayoutEngine {
             ts.auto_tab_right = auto_tab_right;
             ts.available_width = available_width;
             ts.text_start_offset = effective_margin_left;
-            ts.inline_tabs = composed.tab_extended.clone();
+            ts.inline_tabs = composed
+                .tab_extended
+                .iter()
+                .skip(inline_tab_cursor_est)
+                .copied()
+                .collect();
             if pending_right_leader_digit_est {
                 if run.text.trim().is_empty() {
                     pending_right_leader_digit_est = true;
@@ -9168,7 +9224,13 @@ impl LayoutEngine {
                             // 상자의 (왼쪽, 위) 여백 안쪽에 둔다 — TAC 그림(#6603)과 같은 계약.
                             let (margin_left, _, margin_top, margin_bottom) =
                                 tac_object_outer_margins_px(common, self.dpi);
-                            let box_h = shape_h + margin_top + margin_bottom;
+                            // 빈 개체 줄도 캡션을 포함한 같은 상자를 소비한다.
+                            let box_h = tac_object_box_height_px(
+                                shape_h,
+                                &super::shape_layout::shape_caption_for_layout(shape),
+                                self.dpi,
+                            ) + margin_top
+                                + margin_bottom;
                             let shape_y = (vars.y + baseline - box_h).max(vars.y) + margin_top;
                             tree.set_inline_shape_position(
                                 vars.section_index,

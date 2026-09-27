@@ -2309,7 +2309,7 @@ impl DocumentCore {
             .data
             .load_limited_shared(crate::model::bin_data::MAX_BIN_DATA_BYTES)?;
         let (mime, bytes) =
-            crate::renderer::image_resolver::emitted_image_bytes(&data, variant.bakes_watermark());
+            crate::renderer::image_resolver::emitted_source_image_bytes(&data, variant);
         Some((mime, bytes.into_owned()))
     }
 
@@ -2500,19 +2500,21 @@ impl DocumentCore {
                 if let Some((width, height)) = image.original_size_hu {
                     let _ = write!(buf, ",\"originalSizeHu\":[{},{}]", width, height);
                 }
+                let (effect, brightness, contrast) =
+                    crate::renderer::image_resolver::resolved_image_effects(image, resolved);
                 // 효과는 값으로 넘긴다 — CSS filter 조립은 studio 의 `composeImageFilter` 가
                 // `web_canvas.rs::compose_image_filter` 와 맞춰 두었으므로 여기서 되풀이하지 않는다.
                 let _ = write!(
                     buf,
                     ",\"effect\":\"{}\",\"brightness\":{},\"contrast\":{}",
-                    match image.effect {
+                    match effect {
                         crate::model::image::ImageEffect::RealPic => "realPic",
                         crate::model::image::ImageEffect::GrayScale => "grayScale",
                         crate::model::image::ImageEffect::BlackWhite => "blackWhite",
                         crate::model::image::ImageEffect::Pattern8x8 => "pattern8x8",
                     },
-                    image.brightness,
-                    image.contrast
+                    brightness,
+                    contrast
                 );
                 if matches!(
                     resolved.map(|payload| payload.kind),

@@ -1410,7 +1410,7 @@ fn native_hwp5_final_marker_footnote_uses_the_next_reset_page() {
         "p26 must not own footnote 26 after its final marker: {p26}"
     );
     assert!(
-        p27.contains("26)   11번 참고문헌 내 Adam et al 논문"),
+        p27.contains("26) 11번 참고문헌 내 Adam et al 논문"),
         "p27 must own the complete footnote 26 before its following body: {p27}"
     );
     assert!(
@@ -1453,7 +1453,9 @@ fn native_hwp5_split_body_footnotes_stay_with_their_marker_page() {
     let p53 = page_text(&doc, PAGE_53);
     let p54 = page_text(&doc, PAGE_54);
     assert!(
-        p52.contains("60)   http://www.who.int/transplantation/publications/ConsensusStatementShort.pdf?ua=1"),
+        p52.contains(
+            "60) http://www.who.int/transplantation/publications/ConsensusStatementShort.pdf?ua=1"
+        ),
         "p52 must retain footnote 60 with its split-body marker: {p52}"
     );
     assert!(
@@ -1461,7 +1463,7 @@ fn native_hwp5_split_body_footnotes_stay_with_their_marker_page() {
         "p53 must not inherit p52 footnote 60: {p53}"
     );
     assert!(
-        p53.contains("62)   Lentine, Krista L., et al. \"KDIGO clinical practice guideline"),
+        p53.contains("62) Lentine, Krista L., et al. \"KDIGO clinical practice guideline"),
         "p53 must retain footnote 62 with its split-body marker: {p53}"
     );
     assert!(

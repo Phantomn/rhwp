@@ -28,12 +28,11 @@ pub(super) mod stored_lines;
 pub(super) mod whole_fit;
 
 use super::{
-    hwpx_saved_reset_fragment_matches_current_flow, missing_lineseg_trailing_line_break,
-    native_hwp5_existing_footnote_reset_overlap_break_line,
+    missing_lineseg_trailing_line_break, native_hwp5_existing_footnote_reset_overlap_break_line,
     native_hwp5_first_footnote_overlap_break_line,
     native_hwp5_text_reset_before_large_tac_topbottom_picture_break_line, page_item_vpos_base,
     para_has_visible_text, para_is_treat_as_char_picture_only, preceding_stored_vpos,
-    stored_vpos_rewinds, TypesetState,
+    stored_body_reset_fragment_matches_current_flow, stored_vpos_rewinds, TypesetState,
 };
 use crate::model::paragraph::Paragraph;
 use crate::renderer::hwpunit_to_px;
@@ -733,14 +732,16 @@ pub(super) fn prepare_forced_page_boundary(
     // 쪽 소유가 저장 앵커와 현재 흐름으로 입증된 일반 본문은 시작 높이의
     // 비율로 다시 거절하지 않는다. 기존 세션 편집 플래그와 구성 줄 수,
     // 유효 저장 앵커를 확인하고 실제 재조판으로 사라진 reset은 재사용하지 않는다.
-    let anchored_hwpx_body_reset_line = (st.profile.hwpx_stored_layout()
+    // 같은 원본 줄 사다리와 실제 흐름은 컨테이너 형식과 무관하게 같은 쪽을 소유한다.
+    let anchored_stored_body_reset_line = ((st.profile.hwpx_stored_layout()
+        || st.profile.hwp5_stored_pagination_layout())
         && !st.profile.session_edited()
         && para_has_visible_text(para)
         && fmt.line_heights.len() == para.line_segs.len())
     .then(|| {
         (1..para.line_segs.len()).find(|&break_line| {
-            para.line_segs[break_line].vertical_pos == 0
-                && hwpx_saved_reset_fragment_matches_current_flow(
+            para.line_segs[break_line].vertical_pos < para.line_segs[break_line - 1].vertical_pos
+                && stored_body_reset_fragment_matches_current_flow(
                     st,
                     para,
                     0,
@@ -768,7 +769,7 @@ pub(super) fn prepare_forced_page_boundary(
         // anchor가 맞지 않는 reset은 physical page 경계로 승격하지 않는다.
         !st.profile.hwpx_stored_layout()
             || st.current_items.is_empty()
-            || hwpx_saved_reset_fragment_matches_current_flow(
+            || stored_body_reset_fragment_matches_current_flow(
                 st,
                 para,
                 0,
@@ -777,7 +778,7 @@ pub(super) fn prepare_forced_page_boundary(
                 dpi,
             )
     });
-    let forced_page_break_line = anchored_hwpx_body_reset_line
+    let forced_page_break_line = anchored_stored_body_reset_line
         .or(internal_forced_page_break_line)
         .or_else(|| {
             st.profile.hwpx_stored_layout().then(|| {

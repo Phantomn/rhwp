@@ -18,6 +18,17 @@ pub mod svg_render;
 pub mod symbols;
 pub mod tokenizer;
 
+/// 기본 글자보다 낮은 저장 수식 상자는 압축된 표시 프레임이다.
+/// 일반 수식 높이에는 줄 여백이 포함될 수 있으므로 기존 글꼴 비율을 유지한다.
+/// 압축 프레임에서는 배치 기준선과 모든 출력 backend가 같은 세로 비율을 쓴다.
+pub(crate) fn stored_vertical_scale(height: f64, intrinsic_height: f64, font_size: f64) -> f64 {
+    if height > 0.0 && height < font_size && intrinsic_height > 0.0 {
+        height / intrinsic_height
+    } else {
+        1.0
+    }
+}
+
 /// 수식 스크립트와 BaseUnit에서 레이아웃이 소비할 intrinsic HWPUNIT 크기를 계산한다.
 pub fn intrinsic_size_hwp(script: &str, font_size: u32) -> (u32, u32) {
     let font_size_px = super::hwpunit_to_px(font_size.max(1) as i32, super::DEFAULT_DPI);

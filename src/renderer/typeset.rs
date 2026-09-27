@@ -289,6 +289,21 @@ struct DeferredSquarePictureControl {
     wrap_anchor: crate::renderer::pagination::WrapAnchorRef,
 }
 
+/// 완전한 저장 프레임으로 다음 쪽 상단 소유가 확인된 개체.
+#[derive(Debug, Clone)]
+enum DeferredStoredFrameKind {
+    Picture,
+    Table,
+}
+
+#[derive(Debug, Clone)]
+struct DeferredStoredFrameControl {
+    kind: DeferredStoredFrameKind,
+    para_index: usize,
+    control_index: usize,
+    placement: crate::renderer::float_placement::ParagraphFloatPlacement,
+}
+
 /// 호스트 문단의 spacing (표 전/후)
 #[derive(Debug, Clone, Copy)]
 struct HostSpacing {
@@ -3156,7 +3171,7 @@ fn saved_line_range_fits_body_tail(
 /// 시작할 때에만 다음 물리 쪽의 시작을 뜻한다. 이 경우 reset 전 줄들은 저장된
 /// 현재 쪽 fragment의 owner이므로, 일반 줄 높이 예산만으로 중간 쪽으로 분리하지
 /// 않는다. 표·개체·다단·local cursor rewind는 이 계약 밖에 둔다.
-fn hwpx_saved_reset_fragment_matches_current_flow(
+fn stored_body_reset_fragment_matches_current_flow(
     st: &TypesetState,
     para: &Paragraph,
     start_line: usize,
@@ -3164,7 +3179,7 @@ fn hwpx_saved_reset_fragment_matches_current_flow(
     current_page_vpos_base: i32,
     dpi: f64,
 ) -> bool {
-    paragraph::scan::hwpx_saved_reset_fragment_matches_current_flow(
+    paragraph::scan::stored_body_reset_fragment_matches_current_flow(
         &st.paragraph_line_scan_page(),
         para,
         start_line,

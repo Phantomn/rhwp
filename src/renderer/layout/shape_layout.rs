@@ -42,7 +42,7 @@ fn textbox_contains_non_tac_picture(text_box: &TextBox) -> bool {
     })
 }
 
-fn shape_caption_for_layout(shape: &ShapeObject) -> Option<Caption> {
+pub(super) fn shape_caption_for_layout(shape: &ShapeObject) -> Option<Caption> {
     match shape {
         ShapeObject::Line(s) => s.drawing.caption.clone(),
         ShapeObject::Rectangle(s) => s.drawing.caption.clone(),

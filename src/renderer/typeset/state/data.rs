@@ -140,6 +140,12 @@ pub(in crate::renderer::typeset) struct StateView {
     /// 단일 컬럼·caption 보유 picture 형상으로 한정한다.
     pub(in crate::renderer::typeset) deferred_next_page_square_pictures:
         Vec<DeferredSquarePictureControl>,
+    /// 현재 호스트를 남기고 다음 쪽의 저장 상단 프레임만 이월한다.
+    pub(in crate::renderer::typeset) deferred_next_page_stored_frames:
+        Vec<crate::renderer::typeset::DeferredStoredFrameControl>,
+    /// 저장 그림 상단 예약은 흐름에 반영하고 그림 항목은 단 확정 시 앞에 붙인다.
+    pub(in crate::renderer::typeset) page_start_stored_frames:
+        Vec<crate::renderer::typeset::DeferredStoredFrameControl>,
     /// 다음 physical page의 flush 시점에만 앞에 붙일 Square picture.
     /// `current_items`에 즉시 넣으면 out-of-flow 그림이 문단 fit/vpos 상태를 바꾸어
     /// p1356 뒤 본문을 한 쪽 더 분할한다. layout 순서에는 앞에 있어야 하지만,

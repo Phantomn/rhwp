@@ -59,6 +59,13 @@ impl TypesetState {
     ) {
         self.data.deferred_next_page_square_pictures.push(picture);
     }
+    /// 저장 프레임의 다음 쪽 소유를 현재 호스트 흐름과 분리해 보관한다.
+    pub(in crate::renderer::typeset) fn defer_stored_frame(
+        &mut self,
+        picture: crate::renderer::typeset::DeferredStoredFrameControl,
+    ) {
+        self.data.deferred_next_page_stored_frames.push(picture);
+    }
     pub(in crate::renderer::typeset) fn mark_pre_emitted_host(&mut self, index: usize) {
         self.data.pre_emitted_host_paras.insert(index);
     }

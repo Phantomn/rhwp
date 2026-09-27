@@ -797,6 +797,13 @@ impl TypesetState {
             footnote_safety_margin: self.data.footnote_safety_margin,
             current_zone_y_offset: self.data.current_zone_y_offset,
             current_bottom_fixed_exclusion: self.data.current_bottom_fixed_exclusion,
+            next_page_stored_body_origin: self
+                .data
+                .deferred_next_page_stored_frames
+                .iter()
+                .filter(|frame| matches!(frame.kind, super::DeferredStoredFrameKind::Table))
+                .map(|frame| frame.placement.occupied_bottom)
+                .reduce(f64::max),
         }
     }
 

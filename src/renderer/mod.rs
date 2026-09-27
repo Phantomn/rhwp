@@ -1055,6 +1055,7 @@ pub(crate) fn composed_line_max_font_size(
     let run_max = line
         .runs
         .iter()
+        .filter(|run| composed_run_reserves_font_height(run))
         .filter_map(|run| {
             styles
                 .char_styles
@@ -1067,11 +1068,44 @@ pub(crate) fn composed_line_max_font_size(
         return run_max;
     }
 
+    // 개체 마커만 있는 줄은 개체/저장 줄 상자가 높이를 소유한다.
+    // 빈 문단의 글꼴 폴백과 달리 U+FFFC 자체의 글자 크기를 예약하지 않는다.
+    if !line.runs.is_empty()
+        && line
+            .runs
+            .iter()
+            .all(|run| !composed_run_reserves_font_height(run))
+    {
+        return 0.0;
+    }
+
     para.char_shape_id_at(line.char_start)
         .or_else(|| para.char_shapes.first().map(|shape| shape.char_shape_id))
         .and_then(|shape_id| styles.char_styles.get(shape_id as usize))
         .map(|style| style.font_size)
         .unwrap_or(0.0)
+}
+
+/// 공백도 글꼴 줄 상자를 가지지만 개체 대체 문자와 제어 문자에는 가시 글꼴이 없다.
+pub(crate) fn composed_run_reserves_font_height(run: &composer::ComposedTextRun) -> bool {
+    run.text.chars().any(|c| c != '\u{FFFC}' && !c.is_control())
+}
+
+/// 유효 저장 빈 문단 하나만 가진 각주는 본문 없는 인라인 참조다.
+/// 공백·개체·명시 번호와 무효/합성 줄은 기존 각주 본문 계약으로 남긴다.
+pub(crate) fn stored_footnote_is_bodyless(footnote: &crate::model::footnote::Footnote) -> bool {
+    let [paragraph] = footnote.paragraphs.as_slice() else {
+        return false;
+    };
+    let [line] = paragraph.line_segs.as_slice() else {
+        return false;
+    };
+    paragraph.text.is_empty()
+        && paragraph.controls.is_empty()
+        && line.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
+        && line.vertical_pos == 0
+        && line.line_height > 0
+        && line.segment_width > 0
 }
 
 /// 순수 텍스트 줄의 저장 metrics가 글자와 문단 스타일로부터 가능한 줄 advance보다
