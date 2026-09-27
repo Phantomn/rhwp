@@ -5258,6 +5258,21 @@ impl LayoutEngine {
                     HorzAlign::Right | HorzAlign::Outside => area_x + area_w - table_width - offset,
                 };
             }
+            // 문단 기준 자리차지 표는 선언한 가로 앵커를 셀 안쪽 영역에서 해석한다.
+            // 좁은 단 기준 표의 가운데 배치로 바꾸면 안내문 표와 글줄이 함께 밀린다.
+            // 나란한 무리의 확정 원점은 위의 inline_x_override 경로가 소유한다.
+            if !table.common.treat_as_char
+                && matches!(table.common.text_wrap, TextWrap::TopAndBottom)
+                && matches!(table.common.horz_rel_to, HorzRelTo::Para)
+            {
+                let offset =
+                    hwpunit_to_px(signed_hwpunit(table.common.horizontal_offset), self.dpi);
+                return match table.common.horz_align {
+                    HorzAlign::Left | HorzAlign::Inside => area_x + offset,
+                    HorzAlign::Center => area_x + (area_w - table_width) / 2.0 + offset,
+                    HorzAlign::Right | HorzAlign::Outside => area_x + area_w - table_width - offset,
+                };
+            }
             // [#5787] 칸 안 **어울림(SQUARE)** 중첩 표가 양의 horzOffset 을 선언하고
             // 그 자리로 표가 셀 안에 온전히 들어가면 한글은 저장 오프셋을 그대로
             // 쓴다 (2025571 당직근무 일지: 칸 왼끝+안여백+7975HU = 576.19 ↔ 한글
@@ -7458,8 +7473,25 @@ impl LayoutEngine {
                         let cell_float_lane_x = (cell_float_group_side_by_side
                             && crate::renderer::float_placement::
                                 para_float_group_member_is_eligible(nested_table))
-                        .then(|| signed_hwpunit(nested_table.common.horizontal_offset))
-                        .map(|off| inner_area.x + hwpunit_to_px(off, self.dpi));
+                        .then(|| {
+                            // 무리의 lane과 최종 표는 같은 문단 앵커를 소비한다.
+                            // 바깥여백을 빠뜨린 부모 원점을 자식 표가 따르지 않게 한다.
+                            self.compute_table_x_position(
+                                nested_table,
+                                hwpunit_to_px(
+                                    nested_table.common.width.min(i32::MAX as u32) as i32,
+                                    self.dpi,
+                                ),
+                                &inner_area,
+                                depth + 1,
+                                para_alignment,
+                                0.0,
+                                0.0,
+                                None,
+                                false,
+                                None,
+                            )
+                        });
                         // 앞 표가 쓴 x 끝보다 오른쪽에서 시작하면 같은 줄을 나눠 갖는다.
                         let nested_y = match (cell_float_lane_x, cell_float_lane) {
                             (Some(x), Some((lane_top, lane_x_end))) if x >= lane_x_end - 0.5 => {
@@ -7811,19 +7843,16 @@ impl LayoutEngine {
                                 nested_ctx,
                                 0.0,
                                 0.0,
-                                // ⚠ `compute_table_x_position` 이 이 override 에 non-TAC
-                                // `horzOffset` 을 **스스로 더한다**. 여기서 오프셋까지
-                                // 실으면 두 번 실린다(카드 A 119.2 → 139.8).
-                                hwpx_nested_behind_text_overlay
-                                    .then_some(inner_area.x)
-                                    .or(float_x.map(|_| inner_area.x)),
+                                // 배경은 문단 원점에 오프셋을 적용하고, 나란한 무리는
+                                // 아래의 확정 원점으로 가로 오프셋·바깥여백 재가산을 막는다.
+                                hwpx_nested_behind_text_overlay.then_some(inner_area.x),
                                 nested_split,
                                 None,
                                 None,
                                 false,
                                 clamp_header_negative_para_offset,
                                 false,
-                                None,
+                                float_x.map(|x| (Some(x), nested_y)),
                                 Self::standalone_table_char_border_fill(
                                     Some(para),
                                     nested_table,

@@ -9,7 +9,7 @@ last_verified: 2026-09-27
 
 ## 최종 판정
 
-**머지 보류.** 보정50의 빈 호스트 저장 프레임 좌표계 교정과 보정49 검사 캐시 재구성 뒤 전체 nextest는 **10,337PASS/36FAIL/50SKIP(exit100)**입니다. 검증한 제품·검사 해시는 [보정50 증거](../assets/pr7382_20260926/stage50_float6797_validation.json)에 고정했습니다. 이전 고정c4의38FAIL 중 #6797 두 검사가 실제 PASS로 바뀌었고 새 실패는 없습니다. #6797 원본 표 경계는 독립 PDF와 대응하지만 쪽번호·차트 payload 정합까지 해결한 것은 아닙니다. 사용자가 지적한 #1133 2쪽의 회색 중첩 표24.723px 가로 이동과 자동 쪽 번호9.825px 세로 이동도 Native/fresh WASM에서 확인해 보류했습니다. 필수 lint/build/policy/fresh WASM은 통과했고 주 문서430쪽 Native tree는 기존과 동일합니다. 기존 전수860쪽 시각 보류, #6535 페이지앵커89.96%, #6787의83.51%와 실제 회귀·미검증 경계가 남아 통합 PR 생성·승인을 보류합니다.
+**머지 보류.** 보정51의 #1133 회색 중첩 표와 #6787 나란한 무리 가로 원점은 집중 **14PASS** 및 같은 입력의 Native/fresh WASM 직접 비교로 검증했습니다. #1133 2쪽은99.22385%, #6787 1쪽은83.51487→91.02058%입니다. [제품·검사 해시/실행·증거](../assets/pr7382_20260926/stage51_nested1133_validation.json)를 고정했으며, 자동 쪽번호의9.825px 세로 차이와 HWP 분할 표 위여백은 남습니다. 마지막 전체 nextest는 **보정50 제품 해시**의10,337PASS/36FAIL/50SKIP(exit100)이며, 현재 보정51 head의 전체 검증으로 보고하지 않습니다. 필수 lint/build/policy/fresh WASM은 통과했고 주 문서430개 Native tree는 보정50과 동일합니다. 기존 전수860쪽 시각 보류, #6535 페이지앵커89.96%, 수정 전후 동일한 #3308/#5787의 전체 페이지 보류와 실제 회귀·미검증 경계가 남아 통합 PR 생성·승인을 보류합니다.
 
 ## 접수와 provenance
 
@@ -1222,3 +1222,28 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 ![#6797 Native7쪽 경계 보정](../assets/pr7382_20260926/stage50_native_float6797_review_007.png)
 ![#6797 fresh WASM7쪽 경계 보정](../assets/pr7382_20260926/stage50_wasm_float6797_overlay_007.png)
 ![사용자 지정 #1133 2쪽의 미해결 배치](../assets/pr7382_20260926/stage50_nested1133_user_review_002.png)
+
+## 보정51 사전 분석 — 안내문 중첩 표의 문단 기준 가로 앵커
+
+- 기준은 보정50 커밋 `5a6bef2bfd2173fa8f45fbb4a08527a24da7d786`입니다. #1133의 두 저장 형식은 중첩 표에 `horzRelTo=PARA, horzAlign=LEFT, horzOffset=0`, 자리차지/비TAC를 저장합니다. 독립 한컴 PDF2쪽의 회색 표 x190.457px/폭469.508px와 이어지는 글줄 x234.273px를 기대값으로 사용합니다. 현재 x215.180/258.940px는 표 전체가 가운데 배치되며 생긴 차이입니다. 글자 폭·내어쓰기·표 선언 폭은 바꾸지 않습니다.
+- 중첩 표 선언 폭→셀 안쪽 영역→`layout_table`→`compute_table_x_position(depth>0)`→Table/Cell/TextRun 절대x를 추적했습니다. 측정은 선언 폭을 유지하며 가로 원점은 공통 배치 helper에서 결정됩니다. 같은 helper 이후 독립 가로 덮어쓰기가 있는 나란한 float 무리는 `inline_x_override` 경로이므로 기존 원점을 보존합니다. #3308 직인 표는 COLUMN 기준이고 독립 PDF598.7px가 가운데 배치를 뒷받침하므로 그대로 대조합니다. #5787 어울림/SQUARE 표도 이번 자리차지/PARA 계약 밖입니다.
+- 정식 원본HWP/HWPX 검사에서 수정 전FAIL을 먼저 확인합니다. 수정 뒤 표 원점·선언 폭·이어지는 글줄의 실제x를 독립 PDF로 확인하고 COLUMN 직인/SQUARE 오프셋/나란한 float 대조군을 실행합니다. 첫·이어받기 세로 위여백과 자동 쪽번호의9.825px 차이는 이번 가로 보정으로 해결했다고 보고하지 않습니다. 새 영향 Native/fresh WASM review·overlay와 필수 lint/policy를 완료한 뒤 결과·커밋을 남깁니다.
+
+### 보정51 대조군 반례와 경로 재검토
+
+- 첫 후보에서 #3308/#5787의 Native tree·SVG·raster는 수정 전과 동일합니다. #6787은 사진 칸 x199.6→196.0px로 바뀌었고 독립 PDF199.573px에 비해 새 차이가 생겼습니다. 일치율83.51487→83.16366%를 기존 차이로 덮지 않습니다. 버튼은300.4→312.7px로 독립 PDF312.472px에 가까워졌으므로 문단 기준 선언 앵커 자체를 제거하지 않습니다.
+- 부모 카드의 나란한 무리 경로가 `inner_area.x + horzOffset`을 lane 원점으로 만들고, 배치에는 `inline_x_override=inner_area.x`를 전달합니다. 이 경로는 저장 바깥여백283HU를 빠뜨립니다. 카드 최종x119.2/415.1px와 독립 PDF122.813/418.655px를 확인했습니다. 사진만 선언 앵커로 되돌리면 이 잘못된 부모 원점을 따릅니다. 무리의 가로 원점도 `compute_table_x_position`의 같은 문단 앵커 결과를 소비하고, 확정 원점과 lane 끝을 실제 배치에 넘겨 오프셋·여백을 재가산하지 않도록 보정합니다. 세로 예약/같은 줄 소유와 선언 폭은 유지합니다.
+- 기존 #6787 same-line 검사는 두 카드의 y 차와 x 차만 확인해 절대 가로 원점의 누락을 검출하지 못합니다. 같은 원본의 독립 PDF 카드·사진 칸·버튼 왼쪽 괘선을 새 정식 검사로 확인합니다. 첫 후보에서 FAIL을 재현하고 재보정 후 PASS 및 기존6개 무리 대조군을 연결합니다. 새 코드 뒤 이전 lint/WASM 결과를 최종 결과로 재사용하지 않습니다.
+
+### 보정51 결과 — 문단 가로 앵커와 나란한 무리의 원점 공유
+
+- #1133의 비TAC/자리차지/PARA 표는 선언한 가로 정렬·signed offset·바깥여백을 공통 가로 helper에서 해석합니다. 회색 표 x215.180→190.65333px로 독립 PDF190.45734px와0.196px 차이입니다. 선언 폭469.69333px는 유지됐고 독립 PDF469.508px 및 이어지는 글줄의 독립x도 정식 검사로 확인했습니다. 원본HWP/HWPX 새2검사는 수정 전2FAIL/수정 후2PASS입니다. 기존 COLUMN 직인/SQUARE 오프셋 경로는 유지했습니다.
+- 첫 후보의 #6787 사진 칸 이동을 보존하고 원인을 다시 추적했습니다. 무리 lane 원점과 최종 배치는 같은 `compute_table_x_position` 결과를 소비하며, `resolved_table_origin`으로 최종x/y를 전달해 가로 오프셋·바깥여백을 다시 더하지 않습니다. 독립 PDF 카드122.813/418.655px·사진199.573/497.492px·버튼312.472px를 새 정식 검사로 확인했습니다. 첫 후보에서 카드119.18px로 FAIL, 재보정 후PASS입니다. 처음 잘못 선택된 suite의0tests/exit4는 결함 검출로 계산하지 않습니다.
+- 최종 집중 **14PASS/1055SKIP**, 검사1.048s,exit0입니다. 신규3개와 #6787 기존6개, #7066 정렬3개, #3308/#5787 각1개를 포함합니다. fmt·세 Clippy·workspace build·고정base manifest·diff check·fresh WASM(no-opt,Mac 로컬 대체) 모두exit0입니다. 새 검사 포맷 후 source weight가 변해 최초 manifest 검사가 실패한 결과를 보존했고, 재prepare 후 전체 lint/policy를 통과했습니다. generator·공차·baseline은 바꾸지 않았습니다. fresh WASM의 루트pkg/Studio/고정 패키지 해시를 대조했습니다.
+- 원본HWP/HWPX 각3쪽과 대조군3쪽을 **Native9쪽/fresh WASM9쪽** 실행했습니다. 두 형식의2쪽 review·standalone overlay, #6787의1쪽 review·overlay를 두 backend에서 직접 판독했습니다. #1133 HWP2쪽99.22385%/HWPX2쪽98.84583%, #6787 1쪽91.02058%이며 backend 간 값이 같습니다. #3308 p7=77.10310%/#5787 p1=59.04745%는 수정 전후 tree·SVG·raster가 동일한 기존 보류입니다. 기존 정식 검사의 통과를 전체 페이지 시각 승인으로 승격하지 않습니다. #6787의 작은 세로 위치·글자 형태 차이도 남습니다.
+- 주 문서HWP/HWPX215쪽씩 **430개 Native tree가 보정50과 동일**합니다. 이는 새860쪽 전체 시각 승인이나 현재 head 전체 nextest의 증거가 아닙니다. Center/Right의 모든 조합과 무리 구성원별 바깥여백 차이 경계는 미검증입니다. 자동gate 통과와 별개로 #1133의 실제 쪽번호 세로 차이 및 HWP 분할 조각의 위여백을 다음 단계로 보정합니다.
+- **판정: 검증한 가로 원점·선언 폭·후속 글줄·대조군 범위는 충족, PR 머지 보류 유지.** 결과·증적을 이 단계 커밋에 포함하고 `.log`·실행 파일·WASM package·파생 suite·output은 커밋하지 않습니다.
+
+![#1133 Native2쪽 가로 보정](../assets/pr7382_20260926/stage51_native_nested1133-hwp_review_002.png)
+![#1133 fresh WASM2쪽 가로 보정](../assets/pr7382_20260926/stage51_wasm_nested1133-hwp_overlay_002.png)
+![#6787 원점 누락 재보정](../assets/pr7382_20260926/stage51_wasm_group6787_review_001.png)
