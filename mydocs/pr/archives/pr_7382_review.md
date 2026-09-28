@@ -2,17 +2,20 @@
 kind: snapshot
 status: active
 canonical: mydocs/manual/pr_review_workflow.md
-last_verified: 2026-09-28
+last_verified: 2026-09-29
 ---
 
 # PR #7382 리뷰 — 분할 표와 저장 각주 경계
 
 ## 최종 판정
 
-**통합 PR 준비 보류.** 현재 브랜치에서 보정68 #6101의 표 높이·재조판 흐름·소실 본문과 글꼴 공급을 보완했고, 보정69는 #7336의 약0.35px 경계 차이로 마지막 행 전체를 이월하던 회귀를 해결했습니다. #6101은 소방교육11쪽·결재문서2쪽 전체 Native/fresh WASM이90% 이상이며 [보정68 검증](../assets/pr7382_20260926/stage68_validation.json)에 상세히 기록했습니다. #7336 기존17번은 수정 전FAIL/수정 후PASS, 기존 집중57 PASS, 필수Rust 검사는 모두 통과했습니다. 대상7쪽 최저95.81586%,HWP대조군6쪽 최저92.83181%로 양 backend 전체 gate를 통과했습니다. [보정69 검증과 잔여 차이](../assets/pr7382_20260926/stage69_validation.json).
+**머지 보류.** 대상 PR은 사용자께서 확인하신 #7382이며, 현재 검토 브랜치는 `review/planet6897-7382-20260926`입니다. 통합 PR은 아직 생성하지 않았습니다. #6101·#7336의 생산 보정과 긍정 시각 증거는 [보정68](../assets/pr7382_20260926/stage68_validation.json)·[보정69](../assets/pr7382_20260926/stage69_validation.json)에 기록했습니다. 이는 현재 전체 회귀 통과나 원 PR의 최종 승인 근거를 대체하지 않습니다.
 
-고정된 이전 실패38개 중17개를 개별 검증 완료했고,1개 함수는 사용자 지시로 #7445에 이관했으며20개는 대기 중입니다. 17개 중4개 corpus 검사는90%미만 원문을 승인된 범위로 이관한 뒤 남은 문서에서 통과한 결과입니다. 이관 원문의 피델리티 개선이나 재배정된 다른 실패 문서의 해결로 세지 않습니다. 보정72~74의 자산관리규정·개인정보 분석 편람·HWP5 변환본을 [#7445 원문·실패 증거](../assets/issue7445/README.md)에 보존했고 렌더링/쪽수 검사에서 제외했습니다. 마지막 확대 검사는45PASS/별도 HWPX1FAIL이며 source-side 유지2검사와 필수 lint/정책 검사는 통과했습니다. 별도 HWPX는 보정75에서 미달 증거를 등록하고 승인된 제외를 완료했습니다(유지 집중7PASS, 필수 lint/정책 exit0). 보도자료·rowbreak HWP·시장구조조사의 추가 미해결 항목도 [현재 계획](../assets/pr7382_20260926/remaining38_regression_plan.json)에 남겼습니다. 유지37의 개별 재실행 뒤 전체 nextest·Native Skia3·최종 통합 head 검증을 진행합니다. 이전968쪽 비교와 과거 전체 nextest는 현재 head 전체 통과의 근거가 아닙니다. 시험 문서 쪽번호2/1 등 직접 확인한 잔여 차이도 유지합니다.
+이전 실패38개는 과거 후보별로37개 처리/1개 사용자 승인 이관 기록이 있습니다. 유지37개를 최종 후보에서 각각 다시 실행해야 합니다. 사용자 범위 정정 후 정상 함수·corpus·renderer manifest·samples 입력을 복원했습니다. 복원 개별검사에서16개가 실제 실패했습니다. 각주 검사1개는 앞 단계에서 독립 근거로 교정했고, 나머지15개 중 영어 #6030·PII #5846 두 개를 실제 차단 범위로 보류해13개가 남았습니다. PII 혼합 검사에서 새로 확인한 쪽수 항목 한 개도 좁게 보류했으며 다른 다섯 입력은 유지·재실행했습니다.
 
+보정110의 corpus/matrix 결과는63PASS/23FAIL의 진단 snapshot입니다. rowbreak HWPX의 실제 실패만 보정111에서 처리했고, 현재 전체 실패 함수 수는 전수 재실행 전 추정하지 않습니다. 낮은 점수라는 이유로 같은 문서의 정상 검사를 #7445에 일괄 이관하지 않습니다. [현재 계획](../assets/pr7382_20260926/remaining38_regression_plan.json)과 [입력별 보류 근거](../assets/issue7445/README.md)를 따릅니다.
+
+남은 개별 실패를 분석한 뒤 최종 유지37개별 실행, 전체 `cargo nextest`(threads=8), Native Skia3 및 현재 생산 코드의 원 PR 전체 Native/fresh WASM 시각 검증을 완료해야 합니다. 과거968쪽 비교와 이전 전체 nextest는 현재 head 통과의 근거가 아닙니다. 직접 확인한 시험 문서 쪽번호 차이도 최종 판정에서 빠뜨리지 않습니다. 최신 원 PR head는 `81a402179dc556cce781d844d4b9252be36ba8af`로 재확인했습니다.
 
 ## 접수와 provenance
 
@@ -2262,3 +2265,9 @@ HWP 대응본과 구분해 동일 HWPX/기존 정상 한컴 PDF18쪽의 해시�
 복원13번 #6030 함수를 현재경로에서 단독1FAIL(셀높이15.9px,기존기대18.5px이상)로재현했습니다. 동일원문/PDF/생산Native binary 및 보정69대비빈src diff로 부정시각증거를재사용했습니다. 전체8쪽최저48.54225%,영향6쪽51.55944%이며6쪽review/standalone overlay에서지시문·상자·본문·선택지위치차이를직접재확인했습니다. 기존19.07px가한컴정답이라는독립근거나 clipping 개선은단정하지않습니다.
 
 [#7445범위정정](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870452250)뒤유일실패함수/전용helper만보류했습니다. 다른정상함수와source-unit/왕복·원문/PDF·renderer/text/oracle/matrix/공차유지,새함수/생산변경없음. 코드 `0d1ca6970444f0b05ea95cd68ce74b0bf398dace`, [검사범위·해시·명령·결과](../assets/issue7445/exam_eng_6030_blocking_scope_validation.json). 유지8PASS/1296SKIP,source-unit2PASS/4066SKIP,필수lint/정책exit0. upstream은Studio변경만으로 `0e8fd49fb868da0d47ac1294dcbbda81f0211233`로전진해이번정책은gates에기록한새base를사용했습니다. 실제15미해결중1보류/14대기이며다른corpus/최종전체검증/PR준비미완료입니다.
+
+## 보정114 사전 분석·결과 — PII 실제 실패 함수와 혼합 항목만 보류
+
+현재 후보의 #5846 단독 실행은1FAIL(70/66쪽)입니다. 정상 한컴 PDF는66쪽이며, 기존 주석의 cairo 기준은 정답지로 쓰지 않습니다. 정상59쪽은 자동화평가 안내서식으로 기존 신용도판단정보 표 전제와 달라 첫 쪽수 계약과 뒤 내용 소유 계약의 근거를 구분했습니다. 동일 원문/PDF/생산 Native binary 및 보정69 대비 빈 src diff를 확인해 영향4쪽 부정 증거를 재사용했습니다. 최저60쪽30.63875%,59쪽 review/60쪽 standalone overlay에서 법령과 안내서식의 페이지 소유 차이를 직접 재확인했습니다. 전수 Native/fresh WASM 미완료입니다.
+
+유지 검사에서 #3595 두 함수는PASS였고, 혼합 #2097 함수는 같은 PII 항목70/66에서FAIL했습니다. [#7445 범위 갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868672890) 후 #5846 한 함수/전용helper와 #2097의 PII 쪽수 항목 한 개만 보류했습니다. #2097 함수·다른5개 입력 및 #3595 두 함수·원문/정상PDF·다른 corpus 축·공차는 유지했습니다. 코드 `71610682efde6fa4c0681228caf1f981f78e5d9b`, [독립 근거·실패·좁은 변경·재검증](../assets/issue7445/pii5846_blocking_scope_validation.json). 재실행3PASS/407SKIP 및 필수8단계exit0입니다. 실제 복원15실패 중 두 개를 좁게 보류해13개 대기이며 최종 개별/전체 검증과PR준비는 미완료입니다.

@@ -2013,6 +2013,14 @@
       "evidence": "../issue7445/exam_eng_6030_blocking_scope_validation.json",
       "kept": "다른정상함수/source-unit/왕복/원문PDF/corpus 유지",
       "remaining_restored_dedicated": 14
+    },
+    "pii5846": {
+      "stage": 114,
+      "code_commit": "71610682efde6fa4c0681228caf1f981f78e5d9b",
+      "evidence": "../issue7445/pii5846_blocking_scope_validation.json",
+      "scope": "5846 실제 한 함수 +2097 혼합함수의 PII 한 pin 보류; 함수 및 다른5pin/#3595 두 함수 유지",
+      "focused": "3PASS",
+      "remaining_restored_dedicated": 13
     }
   }
 }

@@ -286,3 +286,7 @@ venv/bin/python scripts/visual_sweep.py \
 ![영어시험6쪽review](exam_eng_native_review_006.png)
 
 ![영어시험6쪽overlay](exam_eng_native_overlay_006.png)
+
+## 추가: PII의 실제 차단 한 함수와 혼합 쪽수 항목
+
+[범위 정정 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868672890), [독립 PDF·실패·제외 범위·명령](pii5846_blocking_scope_validation.json). #5846 한 함수와 #2097의 PII 쪽수 항목만 보류했습니다. 다른 정상 #3595 두 함수와 #2097의 다섯 입력은 유지했고3PASS입니다. 필수8단계exit0입니다. 동일 후보의 선택4쪽 최저30.63875%이며 원문/PDF를 유지합니다. cairo PDF를 독립 정답지로 사용하지 않고, 원문 개선이나 전체 회귀 통과로 보고하지 않습니다.
