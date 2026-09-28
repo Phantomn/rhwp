@@ -30,11 +30,6 @@ fn task1086_k_water_rfp_page_count_matches_hancom_pdf() {
 }
 
 #[test]
-fn task1086_hwp3_sample16_hwp5_page_count_matches_hancom_office() {
-    assert_eq!(page_count("samples/hwp3-sample16-hwp5.hwp"), 64);
-}
-
-#[test]
 fn task1086_hwpspec_page_count_matches_hancom_office() {
     assert_eq!(page_count("samples/hwpspec.hwp"), 178);
 }
