@@ -637,10 +637,21 @@ impl TypesetEngine {
                     two_line_terminal_response_source_frame.is_some_and(|source_frame_height| {
                         row_total <= budget + source_frame_height + 0.5
                     });
+                // 전체 내용이 들어간 행을 저장·측정 경계의 반올림 차이만으로 다음 쪽에
+                // 다시 시작하지 않는다. 기존 0.5px 경계 안에서도 내용과 안 여백은
+                // 실제 예산에 들어가야 하며, 선언 높이는 줄이지 않고 그대로 예약한다.
+                let whole_row_rounding_fits = row_start_cut.is_empty()
+                    && consumed + cs_before + row_total <= avail_for_rows + 0.5
+                    && res.consumed_height + padding <= avail_for_rows - consumed - cs_before;
                 // 단일 유닛 행 — 분할 불가, 페이지 시작이면 강제, 아니면 다음으로.
                 if r == cursor_row {
                     consumed += cs_before + row_total;
                     end_row = r + 1;
+                } else if whole_row_rounding_fits {
+                    consumed += cs_before + row_total;
+                    r += 1;
+                    end_row = r;
+                    return true;
                 } else if stored_terminal_response_tail_fits
                     || two_line_terminal_response_source_frame_fits
                 {
