@@ -611,5 +611,33 @@
     "tests/cases/issue_6569_cell_center_lead_in_stack.rs": "ac1f14fe10927541b465b7f8dbdafd0e7a301fadb27383a921a6a2239068a730",
     "tests/cases/issue_7061_stored_line_escape.rs": "7dee2d63eb51635fdad93e0c5ce085c28cea012118212dd78f5d3944063b0b7c",
     "tests/hwpx_roundtrip_integration.rs": "8afa1ed25a0cc3fc9fd4e6199d5a014e592321d8114e4dc6f6215a1a1fde7537"
+  },
+  "manifest_followup_correction": {
+    "reason": "CanvasKit native/browser 비교 manifest의 같은 문서 등록을 앞선 작업에서 놓쳐 별도 수정. 원문 제외 범위의 자체 오류를 정정.",
+    "removed_samples": [
+      {
+        "id": "exam-eng",
+        "file": "exam_eng.hwp",
+        "category": "exam",
+        "page": 0,
+        "notes": "English exam real-document sample for mixed text and layout parity.",
+        "browserParityThresholds": {
+          "maxDiffRatio": null,
+          "inkMaskNeighborhoodRadius": 3,
+          "inkMaskMaxDiffRatio": 0.002,
+          "nonInkMaxDiffPixels": 0,
+          "solidInkMaxDiffRatio": 0.02
+        },
+        "diagnosticAxes": [
+          "exam"
+        ],
+        "baselineTier": "extended"
+      }
+    ],
+    "remaining_samples": 121,
+    "remaining_files_exist": true,
+    "native_browser_manifest_load": "PASS",
+    "independent_hancom_acceptance": "이 검사는 manifest 유효성만 검증하며 피델리티 개선을 입증하지 않음",
+    "code_commit": "ee9b3ce3cbc49439cef0b7b830254befc40e5903"
   }
 }

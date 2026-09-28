@@ -154,3 +154,5 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native4쪽 문항 표와 문단 배치 차이](exam_eng_native_review_004.png)
 
 ![Native7쪽 지문·선택지와 쪽번호 차이](exam_eng_native_overlay_007.png)
+
+영어시험 추가 정정: CanvasKit native/browser manifest의 같은 원문1항목도 제외했습니다. 나머지121개 입력 존재와 실제 manifest 로딩 PASS입니다. 정확한 항목·커밋은 위 JSON의 `manifest_followup_correction`에 기록했습니다.
