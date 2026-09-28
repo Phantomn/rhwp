@@ -2053,6 +2053,14 @@
       "scope": "#6706 쪽수 assertion 하나만/#2158 쪽수 한함수만. #6706 위치/소유 및 정상 온새미로·수식/따옴표/IR·모든 다른 축·원문 유지",
       "focused": "10PASS; 필수8단계exit0",
       "remaining_restored_dedicated": 1
+    },
+    "savedbounds1749": {
+      "stage": 119,
+      "code_commit": "f1083037faac517f7dde23bba4a1f97e5eb8ed64",
+      "evidence": "../issue7445/savedbounds1749_blocking_scope_validation.json",
+      "scope": "실패 HWPX 컷 assertion 하나만. 정상쪽수/순서·HWP/IR 및모든다른축·원문 유지",
+      "focused": "3PASS; 필수8단계exit0",
+      "remaining_restored_dedicated": 0
     }
   },
   "latest_axis_snapshot": {

@@ -306,3 +306,7 @@ venv/bin/python scripts/visual_sweep.py \
 ## 추가: HWPX의 실제 실패 쪽수만 보류
 
 [범위 갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869485533), [단독 실패·뒤 좌표 진단·동일입력 PDF·유지검사](sample16_hwpx_blocking_scope_validation.json). #6706 함수/좌표·소유 검사는 유지하고 실패 쪽수 assertion 하나만 보류했습니다. #2158 쪽수 전용 한함수만 보류했고 온새미로 및 정상 수식/따옴표/IR·다른 corpus·원문/PDF 유지. 10PASS, 필수8단계exit0입니다. 전체 피델리티 승인/전체회귀 완료는 아닙니다.
+
+## 추가: 저장 bounds의 실제 실패 컷만 보류
+
+[범위 갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870886007), [개별실패·정상대조·유지검사](savedbounds1749_blocking_scope_validation.json). HWPX 컷 assertion 하나만 보류하고 함수 자체/정상5쪽/host순서·HWP컷/IR52·다른2함수 및 다른축·원문/PDF는 유지했습니다. 기존3함수PASS, 필수8단계exit0입니다. 전체Native 최저30.44845%의 부정증거이며 전체피델리티 승인/전체회귀 완료는 아닙니다.
