@@ -277,7 +277,7 @@
       "id": 16,
       "function": "issue_6101_block_tac_table_text_order::issue_6101_table_after_control_text_renders_and_table_stays_left",
       "case": "issue_6101_block_tac_table_text_order",
-      "status": "pending",
+      "status": "resolved",
       "individual_results": [
         {
           "stage": 67,
@@ -285,13 +285,32 @@
           "font_result": "3·7쪽 두부문자 보정. 전체 피델리티 해결 아님.",
           "evidence": "stage67_validation.json",
           "status": "pending"
+        },
+        {
+          "stage": 68,
+          "before": "기존 보강2함수 0PASS/2FAIL:3쪽 표 하단877px/결재문서 좌단81.2px",
+          "after": "기존2함수2PASS 및 대조39PASS/단위161PASS",
+          "code_head": "1005da62eecb20b7bfd7972f0797d01f1b0aa0fe",
+          "visual_min_native": 92.26525,
+          "visual_min_wasm": 92.26525,
+          "approval_min_native_wasm": 95.7966,
+          "full_fixture_pages": {
+            "firefighter": 11,
+            "approval": 2
+          },
+          "test_changed": true,
+          "existing_function_count": 2,
+          "new_test_functions": 0,
+          "evidence": "stage68_validation.json"
         }
       ],
       "resolved_plan": {
         "caseName": "issue_6101_block_tac_table_text_order",
-        "target": "regression_suite_009",
+        "target": "regression_suite_012",
         "grouped": true
-      }
+      },
+      "correction_commit": "1005da62eecb20b7bfd7972f0797d01f1b0aa0fe",
+      "evidence": "stage68_validation.json"
     },
     {
       "id": 17,
@@ -623,6 +642,11 @@
       }
     }
   ],
-  "next_candidate": "issue_6101_block_tac_table_text_order::issue_6101_table_after_control_text_renders_and_table_stays_left",
-  "next_candidate_reason": "#6101 두부문자 보정 완료 후 표 높이·줄바꿈·12/11쪽 불일치를 계속 분석한다. 전체 최저90% 전 기존 기대값을 갱신하지 않는다."
+  "next_candidate": "issue_7336_table_fragment_cut::hwpx_stored_inline_table_does_not_double_charge_last_line_spacing",
+  "next_candidate_reason": "현재 브랜치 #6101 보정68을 개별 완료했다. 다음은 #7336의17번 기존 함수 원인 분석·독립 증거 대조다. 전체37개 및 전체회귀 완료 전 PR 보류.",
+  "current_status_counts": {
+    "pending": 26,
+    "resolved": 11,
+    "deferred_to_issue": 1
+  }
 }
