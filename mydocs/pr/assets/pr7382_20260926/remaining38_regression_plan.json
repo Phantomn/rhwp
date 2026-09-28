@@ -1335,7 +1335,19 @@
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_14",
       "case": "text_overlap_baseline",
       "status": "pending",
-      "individual_results": [],
+      "individual_results": [
+        {
+          "stage": 100,
+          "test_snapshot_commit": "2cd02b417d5830858aadb74e9546a99d8cb90967",
+          "validation": "stage100_individual_validation.json",
+          "exit_code": 100,
+          "summary": [
+            "     Summary [   0.957s] 1 test run: 0 passed, 1 failed, 223 skipped"
+          ],
+          "status": "pending",
+          "reason": "pr4093/outline_navigation_table_cell_number.hwpx 신규2건"
+        }
+      ],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
         "target": "regression_suite_016",
@@ -1392,7 +1404,7 @@
     }
   ],
   "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_14",
-  "next_candidate_reason": "다음대기 함수를 개별실행. 첫실패에서 같은입력 원인/독립시각검증부터 수행",
+  "next_candidate_reason": "기존34번 최소개요fixture 신규2건.독립PDF 시각검증부터 진행",
   "current_status_counts": {
     "resolved": 32,
     "deferred_to_issue": 1,
@@ -1565,6 +1577,13 @@
       "stage": 99,
       "evidence": "../issue7445/decree6776_test_removal_validation.json",
       "note": "선택Native8쪽90%미달.원문보존/렌더링2함수/body1행제외;음성대조유지.피델리티개선아님."
+    },
+    {
+      "document": "samples/pr4093/outline_navigation_table_cell_number.hwpx",
+      "observed_stage": 100,
+      "status": "pending",
+      "failure": "text-overlap 신규2건",
+      "note": "보정97에서유지한 다른입력.독립시각승인주장 없음.같은원문PDF로검증 필요."
     }
   ]
 }

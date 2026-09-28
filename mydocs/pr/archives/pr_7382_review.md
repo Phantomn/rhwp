@@ -2184,3 +2184,7 @@ head `14058e212abdb9cb25396924aafb2f8b3686e7c2`에서 기존31·32번은 각1PAS
 기존33번의 신규겹침1건은63쪽 참고 상자가 기준PDF보다 약40px 아래로 밀려 하단쪽번호와 충돌한 것입니다. 기존 등록 manifest의 원문/PDF 해시·독립 변환 출처를 확인했습니다. 확장자는HWPX이나 실제HWP5이며 현재74/기준74쪽입니다. 기존 그림 경계18~20쪽과 신규겹침62~64쪽/첫·마지막쪽을 같은head/provenance로 선택8쪽 비교했습니다. 최저74쪽51.68936%,19쪽59.24283/63쪽72.34041%입니다.19·63쪽 review 직접 확인, 전체Native/freshWASM 미실행입니다.
 
 [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5871489510) 뒤 원문바이트보존/전용렌더링2함수/body1행 제외와manifest 경로·역할 갱신을 수행했습니다. 다른비TAC입력의 음성대조/기대값/helper/공차 유지. 코드 `7336af268e721bf57934be0800c98bbda338fc29`, [근거](../assets/issue7445/decree6776_test_removal_validation.json). 집중 ['     Summary [   2.611s] 2 tests run: 2 passed, 444 skipped'], 필수fmt·Clippy3종·workspace build·고정base정책 exit0입니다. 새검사/생산변경/허용치완화 없음. 기존33번완료, 고정38은32완료/1이관/5대기이며 이관원문 피델리티 해결이나 최종전체회귀 완료로 세지 않습니다.
+
+## 보정100 결과 — 기존34번 개별 실행
+
+head `2cd02b417d5830858aadb74e9546a99d8cb90967`에서 기존34번은1FAIL(exit100,0.957초)입니다. 보정97에서 유지한 다른입력인 `pr4093/outline_navigation_table_cell_number.hwpx`의 신규겹침2건으로 첫 실패에서 멈췄습니다. 생산·검사·기대값 변경 없음. [명령·summary](../assets/pr7382_20260926/stage100_individual_validation.json). 이 입력의 독립시각승인을 주장한 적은 없으며 같은입력 PDF검증부터 진행합니다. 고정38은32완료/1이관/5대기입니다.
