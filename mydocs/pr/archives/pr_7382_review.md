@@ -2232,3 +2232,9 @@ head `a643e0e6b8bdb40172dbc55386d747b2ea49fd3f`에서 기존36·37번 각1PASS,3
 ## 보정108 사전 분석·결과 — 소스 내부 정상 회귀 동반제외 복원
 
 이전제외를 source의테스트영역까지대조해영어시험의표바깥여백·총쪽수2개기존함수와sample16의문서스타일·쪽테두리기존혼합assertion/helper를복원했습니다.같은원문보존해시경로로연결했고새함수/생산변경/기대값·공차완화없음.집중4PASS/필수8단계exit0.코드 `3e965ae01ce3c1e323b80342d93d76bb96063bd2`, [소스·입력해시·각명령·결과](../assets/issue7445/source_unit_scope_restore_validation.json). 원문전체피델리티승인아님.15개실제FAIL 및공통원장/manifest동반제외·기존38번/최종37개/전체회귀는계속미완료입니다.
+
+## 보정109 사전 분석·결과 — API·영어 정상 corpus 범위 복원
+
+사용자께서 확인하신 대상은 PR#7382입니다. API/영어 원문의 실제 본문 넘침 증가(API0→1, 영어3→5)와 다른 정상 검사 축을 구분했습니다. 보존 원문과 같은 바이트의 samples 입력, renderer manifest2항목, 쪽수 oracle/matrix4행과 API text 원장1행을 복원했습니다. 본문 넘침만 명시적 목록으로 보류하며 다른 corpus의 자동 수집과 정상 개별 함수를 유지합니다. 기존 수치·공차·생산코드·함수 수를 바꾸지 않았습니다.
+
+코드 `65a5e2d31e703be24e5b8a14a3c53c399dd7a2e3`, [입력·실행·범위 근거](../assets/issue7445/corpus_api_eng_scope_restore_validation.json). 두 입력이 실제 포함된 off-canvas/cell/text/oracle 분할과 matrix 계약을 실행해11PASS/917SKIP, 필수8단계exit0입니다. renderer manifest122항목의 실제 로드/digest 확인은 통과했지만 backend 재캡처로 보고하지 않습니다. 문서 피델리티 미달은 미해결이며 나머지 corpus의 과잉제외 대조와15개 실제 실패 함수 개별 처리가 남았습니다. 최종 전체회귀/PR 준비는 미완료입니다.

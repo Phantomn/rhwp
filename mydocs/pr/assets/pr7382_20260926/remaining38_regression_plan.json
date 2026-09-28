@@ -1773,6 +1773,13 @@
       "restored_mixed_contracts": 2,
       "focused_pass": 4,
       "evidence": "../issue7445/source_unit_scope_restore_validation.json"
+    },
+    "corpus_api_eng_restore": {
+      "stage": 109,
+      "code_commit": "65a5e2d31e703be24e5b8a14a3c53c399dd7a2e3",
+      "evidence": "../issue7445/corpus_api_eng_scope_restore_validation.json",
+      "result": "11PASS, 필수8단계exit0",
+      "remaining": "그 외 원문의 정상 corpus 제외 범위 대조와15실패함수 개별처리"
     }
   }
 }

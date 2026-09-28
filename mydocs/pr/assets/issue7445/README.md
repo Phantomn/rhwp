@@ -257,3 +257,7 @@ venv/bin/python scripts/visual_sweep.py \
 ### 소스 내부 정상 회귀 복원(보정108)
 
 영어시험의기존표여백·총쪽수2함수와sample16기존혼합함수의문서스타일·쪽테두리assertion을복원했습니다.집중4PASS/필수8단계exit0.기대값·공차·생산코드유지/새함수없음.코드 `3e965ae01ce3c1e323b80342d93d76bb96063bd2`, [복원·명령·소스·입력해시](source_unit_scope_restore_validation.json). PASS를원문전체피델리티승인으로세지않습니다.
+
+## 보정109: API·영어의 정상 원장 및 렌더러 범위 복원
+
+[범위·실행 근거](corpus_api_eng_scope_restore_validation.json)에 따라 원본 samples 입력과 renderer2항목, 정상 text/oracle/matrix 행을 복원했습니다. 집중11PASS/필수8단계exit0이며 본문 넘침만 명시적으로 보류합니다. 이전 문서 전체 검사 제외 서술은 이 범위로 정정합니다. backend 캡처와 문서 전체 피델리티/최종 회귀 완료는 별도 미완료입니다.
