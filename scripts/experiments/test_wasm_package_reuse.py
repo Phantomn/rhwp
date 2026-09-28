@@ -52,6 +52,11 @@ class PackageReuse(unittest.TestCase):
             with self.subTest(field=field):
                 changed=copy.deepcopy(self.manifest);changed['build'][field]=value;self.write(changed);self.rejected_without_install()
 
+    def test_non_object_build_manifest_rejects(self):
+        for invalid in (None, [], "bad"):
+            with self.subTest(value=invalid):
+                changed=copy.deepcopy(self.manifest);changed["build"]=invalid;self.write(changed);self.rejected_without_install()
+
     def test_changed_optimizer_options_reject(self):
         changed=copy.deepcopy(self.manifest);changed['build']['tool_commands']['wasm-opt'][-1]='-Oz';self.write(changed);self.rejected_without_install()
 

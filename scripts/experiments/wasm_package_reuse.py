@@ -54,7 +54,7 @@ def contract():
 
 
 def validate_build(build, identity):
-    if (build.get('success') is not True or build.get('source_dirty') is not False
+    if (not isinstance(build, dict) or build.get('success') is not True or build.get('source_dirty') is not False
         or build.get('source_sha') != identity['source_sha'] or build.get('profile') != 'release'
         or build.get('command') != identity['command'] or build.get('tools') != TOOLS
         or build.get('cargo_lock_sha256') != identity['lock_sha256']
