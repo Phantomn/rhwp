@@ -188,6 +188,13 @@
           "code_commit": "ced1d9ef299af17850c9f43ec3c4d91f914baa6c",
           "evidence": "../issue7445/sample16_2022_test_removal_validation.json",
           "scope": "사용자 승인2022입력만이관; 다른3문서는미해결"
+        },
+        {
+          "stage": 80,
+          "after": "유지5PASS/다른입력2FAIL/849SKIP",
+          "code_commit": "521cee34a1d62ae144e2db28ab015f95bb39fd99",
+          "evidence": "../issue7445/press3637_test_removal_validation.json",
+          "scope": "미달보도자료 전용4검사 제외; 관제교육/rowbreak 및 별도규제영향HWPX 미해결"
         }
       ],
       "resolved_plan": {
@@ -802,7 +809,7 @@
     }
   ],
   "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_2",
-  "next_candidate_reason": "고정5번의남은3원문을개별검증. 보도자료HWPX부터 처리.",
+  "next_candidate_reason": "고정5번의남은원문을개별검증. rowbreak HWP부터 처리.",
   "current_status_counts": {
     "resolved": 17,
     "deferred_to_issue": 1,
@@ -819,8 +826,10 @@
       "document": "samples/issue3637/press_release_split_cell_nested_table.hwpx",
       "observed_stage": 74,
       "failure": "body bottom2→3건",
-      "status": "pending",
-      "note": "corpus재배정후functionPASS를이원문해결로간주하지않음;동일입력Visual Sweep미실행"
+      "status": "deferred_to_issue",
+      "note": "90%미달의실제Native출력을 #7445에등록하고원문보존/전용4검사제외. 피델리티해결아님.",
+      "stage": 80,
+      "evidence": "../issue7445/press3637_test_removal_validation.json"
     },
     {
       "document": "samples/rowbreak-problem-pages.hwp",
@@ -853,6 +862,13 @@
       "status": "pending",
       "failure": "body bottom39→40건",
       "note": "독립 Visual Sweep 미실행. 다른문서이관후재배정을해결로세지않음."
+    },
+    {
+      "document": "samples/issue3637/regulatory_impact_nested_table_escape.hwpx",
+      "observed_stage": 80,
+      "status": "pending",
+      "failure": "nested_table_starts_inside_its_parent_cell 기존 함수FAIL",
+      "note": "다른보도자료이관과별도입력. 독립Visual Sweep미실행."
     }
   ]
 }

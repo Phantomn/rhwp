@@ -2068,3 +2068,11 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 [#7445 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869647971)에 먼저 등록한 뒤 사용자 승인 범위에서 전용6함수와 corpus2행을 제거했습니다. 원문은 바이트 동일하게 보존했고, 다른 버전·입력 및 저장 제품 info/IR 검사는 유지합니다. 코드 `ced1d9ef299af17850c9f43ec3c4d91f914baa6c`, [원문 보존과 검증 근거](../assets/issue7445/sample16_2022_test_removal_validation.json). 새 함수·생산 변경·skip/ignore·공차 완화는 없습니다.
 
 유지8PASS/다른3원문에 대한 body partition2 1FAIL/853SKIP(exit100)이며 필수 fmt·Clippy3종·workspace build·고정 base 정책은exit0입니다. 해당3원문은 보도자료2→3건·관제교육39→40건·rowbreak HWP신규1건입니다. 고정38은17검증 완료/1이관/20대기를 유지하고 다음 보도자료부터 개별 시각 검증합니다. 전체검증과 PR 준비는 미완료입니다.
+
+## 보정80 사전 분석·결과 — 보도자료의 미달 회귀 제외
+
+고정5번의 보도자료HWPX는 본문초과2→3건과 실제13/독립 한컴PDF12쪽으로 실패했습니다. 기존cairo PDF를 독립 기준으로 쓰지 않고 같은 원문의 한컴 출력으로 선택4·5·7·8·12쪽을 비교했습니다. 점수97.23437/95.89646/91.68111/83.85004/36.41033%; 8쪽 중첩 상자/글줄·배경,12쪽 향후계획 표와 마지막 내용의 소유 차이를 직접 확인했습니다. 전체/fresh WASM 미실행이며 시각 승인으로 세지 않습니다.
+
+사용자 지시에 따라 [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869729786) 후 전용4함수와 corpus3행을 제거했습니다. 원문은 바이트 동일하게 이관하고 PDF를 유지했습니다. 다른 issue3637 입력과 합성 중첩 행 계약·함수·공차를 유지하며 생산 변경/새 함수/skip/ignore가 없습니다. 코드 `521cee34a1d62ae144e2db28ab015f95bb39fd99`, [검증·보존 근거](../assets/issue7445/press3637_test_removal_validation.json).
+
+유지5PASS/다른입력2FAIL/849SKIP(exit100), 필수 lint·workspace build·고정 base 정책은exit0입니다. 실패는 별도 규제영향HWPX 셀 위치 검사와 관제교육/rowbreak HWP의 본문 넘침입니다. 원래 고정38은17검증 완료/1이관/20대기이며 다른 원문도 한 개씩 판정합니다. PR 준비는 전체검증 완료 전까지 미완료입니다.

@@ -94,3 +94,13 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native3쪽 문단·도형 차이](sample16_2022_native_review_003.png)
 
 ![Native24쪽 내용 소유 차이](sample16_2022_native_overlay_024.png)
+
+## 추가: 보도자료의 분할 셀·중첩 표 HWPX
+
+- [이관 등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869729786), [보존 원문](press_release_split_cell_nested_table.hwpx), [독립 한컴PDF12쪽](../../../../pdf/issue3637/press_release_split_cell_nested_table-hwpx-2020.pdf), [검사 제거와 유지 검증](press3637_test_removal_validation.json). 기존 cairo 출력은 독립 기준으로 쓰지 않고 보존합니다.
+- 현재13/기준12쪽, 선택4·5·7·8·12쪽은97.23437/95.89646/91.68111/83.85004/36.41033%. 8쪽 중첩 상자/글줄·배경 차이와12쪽 향후계획 표 및 마지막 내용의 이월을 직접 확인했습니다. 전체/fresh WASM은 미실행입니다.
+- 해당 입력의 전용4함수와 corpus3행을 제거했고 원문/PDF를 유지했습니다. 다른 입력·합성 계약·공차는 유지합니다. 유지5PASS/별도 입력2FAIL, 필수 lint/정책 exit0입니다. 제외를 원문 피델리티 개선이나 다른 실패의 해결로 세지 않습니다.
+
+![Native8쪽 중첩 상자와 배경 차이](press3637_native_review_008.png)
+
+![Native12쪽 향후계획 표의 페이지 소유 차이](press3637_native_overlay_012.png)
