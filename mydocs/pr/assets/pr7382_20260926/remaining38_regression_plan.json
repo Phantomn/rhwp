@@ -1510,8 +1510,8 @@
       }
     }
   ],
-  "next_candidate": "2025 행정업무운영 편람 HWP oracle384→383",
-  "next_candidate_reason": "실제차단oracle와기존관련함수의실패지점을개별분석하고정상범위보존",
+  "next_candidate": "편람 HWPX 실제쪽수/구조와포맷비대칭3실패",
+  "next_candidate_reason": "HWP판정만으로HWPX를동반제외하지않음. 독립PDF/freshNative로실제차단범위판단",
   "current_status_counts": {
     "resolved": 37,
     "deferred": 1,
@@ -2190,6 +2190,25 @@
       ],
       "passed": 17,
       "failed": 2
+    },
+    "handbook_hwp": {
+      "stage": 134,
+      "code_commit": "4a5e66b91101909d120349a0da1345493d549561",
+      "evidence": "../issue7445/handbook_hwp_blocking_scope_validation.json",
+      "scope": [
+        "oracle HWP 이입력384/384행",
+        "#3931 HWP 쪽수전용한함수",
+        "#7009 HWP 실제총쪽수/간지·본문소속assertion3곳만"
+      ],
+      "preserved": [
+        "#7009 HWP 기존함수/부록구간71쪽(독립기준74쪽대비-3)/랜드마크존재",
+        "#3931 다른HWP저장줄/분할계약",
+        "HWPX 및포맷비대칭검사3실패는별도검증대기",
+        "#6389 기존두정상함수",
+        "모든다른입력/축/원문/PDF"
+      ],
+      "passed": 21,
+      "failed": 4
     }
   },
   "latest_axis_snapshot": {

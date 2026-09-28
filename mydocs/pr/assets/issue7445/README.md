@@ -413,3 +413,18 @@ oracle행·#2097 입력항목·#7028/HWP #7032 선행쪽수 assertion만 보류�
 ![파라미터 명세74쪽 review](parameter_control_native_review_074.png)
 ![파라미터 명세73쪽 overlay](parameter_control_native_overlay_073.png)
 ![파라미터 명세 추가75쪽](parameter_control_native_extra_075.png)
+
+
+## 행정업무운영 편람 HWP: 실제 차단 범위만 보류
+
+[원문](../../../../samples/2025%20행정업무운영%20편람%28최종%29.hwp), [독립 한컴 PDF384쪽](../../../../pdf/2025%20행정업무운영%20편람%28최종%29-hwp-2024.pdf),
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5875738025), [보정134 검증](handbook_hwp_blocking_scope_validation.json).
+고정 devel의 원래 #7009·#3931 검사8개는 PASS입니다. 후보 HWP는384→383쪽, 간지313→312쪽, 본문 끝311→310쪽의 실제 assertion 실패입니다.
+선택7쪽 최저6.48027%이며 부록 간지와 말미 서식/판권의 페이지 소속 차이를 직접 확인했습니다.
+HWP oracle행·쪽수 전용 한 함수·실패 assertion3곳만 보류했습니다. #7009 기존 함수/정상 부록 구간, 저장 줄·분할 및 다른 입력/축·원문/PDF를 유지했습니다.
+HWPX와 포맷비교3실패는 별도 판정 대상으로 남겼습니다. HWP유지6PASS+oracle15PASS/다른1FAIL을 포함한 집중21PASS/4FAIL, 필수lint/정책7exit0입니다.
+전384쪽/freshWASM·전체회귀/피델리티 승인·PR준비는 미완료입니다.
+
+![편람 HWP 부록312쪽 review](handbook_hwp_native_review_312.png)
+![편람 HWP 말미383쪽 overlay](handbook_hwp_native_overlay_383.png)
+![독립 PDF 마지막384쪽](handbook_hwp_reference_last_384.png)

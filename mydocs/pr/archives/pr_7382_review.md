@@ -2498,3 +2498,16 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![파라미터 명세74쪽 review](../assets/issue7445/parameter_control_native_review_074.png)
 ![파라미터 명세73쪽 overlay](../assets/issue7445/parameter_control_native_overlay_073.png)
+
+
+## 보정134 사전 분석·결과 — 편람 HWP의 실제 쪽수·본문 소속만 보류
+
+- 사전 head `2f76234555ef3e31ed6239cc22f810b2194a492b`, 코드 `4a5e66b91101909d120349a0da1345493d549561`. [단독 실패·독립 PDF·devel 대조·유지검사와 명령](../assets/issue7445/handbook_hwp_blocking_scope_validation.json). 원문/기준은한컴2024이며384쪽 정상PDF를 사용했습니다. cairo383쪽 PDF는 독립기준으로 삼지 않았습니다.
+- 고정devel `0e8fd49fb868da0d47ac1294dcbbda81f0211233`의 원래 #7009·#3931 8개는 모두 PASS입니다. 후보 HWP의384→383쪽 및 선행쪽수 뒤 간지313→312/본문끝311→310 assertion도 각각 기존 Rust 함수에서 실제 FAIL로 재현했습니다.
+- Native선택158/159/310–313/383쪽 최저6.48027%입니다. PDF310 간지가Native312,PDF384판권이Native383으로 옮겨져 있으며 선택contact sheet/312review/383overlay/기준384PNG를 직접 확인했습니다. 양쪽 빈311쪽100%를 피델리티 승인으로 해석하지 않습니다.
+- [#7445](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5875738025)에 HWP oracle행·#3931 쪽수전용한함수·#7009실패assertion3곳만 후속이관했습니다. 기존HWP함수/정상부록71쪽/랜드마크 존재·저장줄/분할·다른입력/축/원문PDF 유지. 현재HWPX/포맷비교3실패는 별도검증 전까지 함께 제외하지 않았습니다. 새함수/생산변경/공차완화없음.
+- 집중21PASS/4FAIL/855SKIP이며 HWP유지6PASS와oracle15PASS/다른1FAIL입니다. 필수fmt/Clippy3단계/workspacebuild/manifest·unitfixedbase정책 모두exit0. 소유한clean devel대조워크트리4.4GB는 Cargo종료를확인한뒤제거했고 공유target·로그·결과는 유지했습니다.
+- 전384쪽/freshWASM/최종전체회귀·PR준비는 미완료입니다. 다음은 HWPX 별도 비교와 실패 범위 판정입니다.
+
+![편람 HWP 부록312쪽 review](../assets/issue7445/handbook_hwp_native_review_312.png)
+![편람 HWP 말미383쪽 overlay](../assets/issue7445/handbook_hwp_native_overlay_383.png)
