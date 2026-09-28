@@ -822,6 +822,79 @@ def export_wasm_target(root: Path, hwp: Path, package: Path, rhwp_bin: str, base
     write_json_atomic(base / "wasm-export-complete.json", manifest)
 
 
+def export_native_target(
+    root: Path, hwp: Path, rhwp_bin: str, base: Path,
+    selected_pages: list[int] | None, font_args: list[str], environment_args: list[str],
+) -> None:
+    """선택 쪽만 내보내고, 전체 문서 쪽수와 실제 산출물 개수를 구분한다."""
+    svg_dir = base / "svg"
+    tree_dir = base / "render_tree"
+    metadata_path = base / "native-export.json"
+    metadata = load_json_object(metadata_path, "Native export") if metadata_path.exists() else {}
+    page_count = metadata.get("pageCount")
+    svg_paths = list(svg_dir.glob("*.svg"))
+    svg_pages = {page_num(path) for path in svg_paths}
+    # 단일 쪽 문서는 쪽 번호 없이 원문 파일명으로 저장된다. 일부 쪽만 있는 다쪽
+    # 문서를 단일 쪽으로 오인하지 않도록 CLI의 단일 쪽 파일명 계약만 허용한다.
+    if (svg_dir / f"{hwp.stem}.svg").is_file():
+        svg_pages = {1}
+    tree_pages = {page_num(path) for path in tree_dir.glob("*.json")}
+    if selected_pages and isinstance(page_count, int) and max(selected_pages) > page_count:
+        raise SystemExit(f"요청 쪽이 Native 전체 {page_count}쪽 범위를 벗어납니다.")
+
+    if selected_pages:
+        missing_svg = [page for page in selected_pages if page not in svg_pages]
+        missing_tree = [page for page in selected_pages if page not in tree_pages]
+    else:
+        # 부분 export를 resume하면서 전체 쪽을 요청하면 전체를 다시 내보낸다.
+        partial = bool(metadata) and not metadata.get("all_pages_exported", False)
+        expected_pages = set(range(1, page_count + 1)) if isinstance(page_count, int) else None
+        missing_svg = [None] if (
+            not svg_paths or partial or (expected_pages is not None and svg_pages != expected_pages)
+        ) else []
+        missing_tree = [None] if (
+            not tree_pages or partial or (expected_pages is not None and tree_pages != expected_pages)
+        ) else []
+    for page in missing_svg:
+        page_args = ["-p", str(page - 1)] if page is not None else []
+        log_name = f"export_{page:03}.log" if page is not None else "export.log"
+        proc = run(
+            [rhwp_bin, "export-svg", str(hwp), *font_args, "-o", str(svg_dir),
+             *page_args, *environment_args, "--json"],
+            cwd=root, log_path=base / log_name,
+        )
+        try:
+            envelope = json.loads(proc.stdout)
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise SystemExit("Native export stdout JSON을 읽을 수 없습니다.") from exc
+        count = envelope.get("pageCount") if isinstance(envelope, dict) else None
+        pages = envelope.get("pages") if isinstance(envelope, dict) else None
+        if not isinstance(count, int) or count < 1 or not isinstance(pages, list):
+            raise SystemExit("Native export 전체 쪽수 또는 산출물 목록이 올바르지 않습니다.")
+        expected = {page - 1} if page is not None else set(range(count))
+        actual = {item.get("page") for item in pages if isinstance(item, dict)}
+        if actual != expected or envelope.get("renderedCount") != len(expected):
+            raise SystemExit("Native export 요청 쪽의 산출물이 누락됐습니다.")
+        if page_count is not None and count != page_count:
+            raise SystemExit("동일 입력의 Native 전체 쪽수가 export 사이에 달라졌습니다.")
+        page_count = count
+        metadata = {"pageCount": count, "all_pages_exported": False}
+        write_json_atomic(metadata_path, metadata)
+    for page in missing_tree:
+        page_args = ["-p", str(page - 1)] if page is not None else []
+        log_name = f"render_tree_{page:03}.log" if page is not None else "render_tree.log"
+        run(
+            [rhwp_bin, "export-render-tree", str(hwp), "-o", str(tree_dir),
+             *page_args, *environment_args],
+            cwd=root, log_path=base / log_name,
+        )
+    if selected_pages and isinstance(page_count, int) and max(selected_pages) > page_count:
+        raise SystemExit(f"요청 쪽이 Native 전체 {page_count}쪽 범위를 벗어납니다.")
+    if selected_pages is None and metadata:
+        metadata["all_pages_exported"] = True
+        write_json_atomic(metadata_path, metadata)
+
+
 def run_manifest_path(base: Path) -> Path:
     return base / "run_manifest.json"
 
@@ -1366,6 +1439,11 @@ def write_target_status(
         "visual_metrics": visual_summary,
         "flagged_pages": flagged_pages,
     }
+    native_metadata_path = base / "native-export.json"
+    if native_metadata_path.exists():
+        native_metadata = load_json_object(native_metadata_path, "Native export")
+        manifest["native_document_pages"] = native_metadata["pageCount"]
+        manifest["native_export_metadata"] = safe_rel_str(root, native_metadata_path)
     write_json_atomic(base / "manifest.json", manifest)
     update_root_summary(out_root, manifest)
     return manifest
@@ -1460,29 +1538,11 @@ def render_target(
     else:
         note_shape = load_note_shape(root, hwp, rhwp_bin, note_shape_path)
     compact_shapes = compact_note_shape(note_shape)
-    export_log = base / "export.log"
-    tree_log = base / "render_tree.log"
     if wasm_pkg is not None:
         if not (base / "wasm-export-complete.json").is_file():
             export_wasm_target(root, hwp, wasm_pkg, rhwp_bin, base, font_environment, font_args)
-    elif not any(svg_dir.glob("*.svg")):
-        # 증적 SVG는 원 문서의 legacy face를 그대로 쓰되, `--font-style`이
-        # `한양중고딕 → HY중고딕/HYGothic-Medium` 같은 설치명 alias를 @font-face
-        # local()로 명시한다. 렌더 위치는 rhwp가 이미 확정한 SVG 좌표를 유지하므로
-        # PDF 비교의 layout oracle을 바꾸지 않으며, 검증 host에서 한글이 두부(□)로
-        # rasterize되는 것을 막는다. 실제 폰트 데이터는 저작권 폰트를 증적에 복제하지
-        # 않도록 넣지 않고, portable 판정본은 아래 PNG review/compare로 보관한다.
-        run(
-            [rhwp_bin, "export-svg", str(hwp), *font_args, "-o", str(svg_dir), *environment_args],
-            cwd=root,
-            log_path=export_log,
-        )
-    if wasm_pkg is None and not any(tree_dir.glob("*.json")):
-        run(
-            [rhwp_bin, "export-render-tree", str(hwp), "-o", str(tree_dir), *environment_args],
-            cwd=root,
-            log_path=tree_log,
-        )
+    else:
+        export_native_target(root, hwp, rhwp_bin, base, selected_pages, font_args, environment_args)
 
     all_svg_paths = sorted(svg_dir.glob("*.svg"), key=page_num)
     all_tree_paths = sorted(tree_dir.glob("*.json"), key=page_num)
