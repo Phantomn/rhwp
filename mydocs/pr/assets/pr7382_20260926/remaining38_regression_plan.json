@@ -1403,11 +1403,22 @@
       "id": 36,
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_3",
       "case": "text_overlap_baseline",
-      "status": "pending",
-      "individual_results": [],
+      "status": "resolved",
+      "individual_results": [
+        {
+          "stage": 104,
+          "test_snapshot_commit": "a643e0e6b8bdb40172dbc55386d747b2ea49fd3f",
+          "validation": "stage104_individual_validation.json",
+          "exit_code": 0,
+          "summary": [
+            "     Summary [   0.935s] 1 test run: 1 passed, 223 skipped"
+          ],
+          "status": "resolved"
+        }
+      ],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_016",
+        "target": "regression_suite_025",
         "grouped": true
       }
     },
@@ -1415,11 +1426,22 @@
       "id": 37,
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_8",
       "case": "text_overlap_baseline",
-      "status": "pending",
-      "individual_results": [],
+      "status": "resolved",
+      "individual_results": [
+        {
+          "stage": 104,
+          "test_snapshot_commit": "a643e0e6b8bdb40172dbc55386d747b2ea49fd3f",
+          "validation": "stage104_individual_validation.json",
+          "exit_code": 0,
+          "summary": [
+            "     Summary [   0.654s] 1 test run: 1 passed, 223 skipped"
+          ],
+          "status": "resolved"
+        }
+      ],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_016",
+        "target": "regression_suite_025",
         "grouped": true
       }
     },
@@ -1428,26 +1450,38 @@
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_9",
       "case": "text_overlap_baseline",
       "status": "pending",
-      "individual_results": [],
+      "individual_results": [
+        {
+          "stage": 104,
+          "test_snapshot_commit": "a643e0e6b8bdb40172dbc55386d747b2ea49fd3f",
+          "validation": "stage104_individual_validation.json",
+          "exit_code": 100,
+          "summary": [
+            "     Summary [   0.868s] 1 test run: 0 passed, 1 failed, 223 skipped"
+          ],
+          "status": "pending"
+        }
+      ],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_016",
+        "target": "regression_suite_025",
         "grouped": true
       }
     }
   ],
-  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_3",
-  "next_candidate_reason": "기존36~38번을 각각 실행. 첫 실패에서 동일입력의 독립 비교부터 수행.",
+  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_9",
+  "next_candidate_reason": "rowbreak-problem-pages.hwpx 신규1건. 먼저 기존 정상 검사까지 제외했는지 범위 보정 후 실제 PR 차단 실패만 처리.",
   "current_status_counts": {
-    "resolved": 34,
+    "resolved": 36,
     "deferred_to_issue": 1,
-    "pending": 3
+    "pending": 1
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
     "source_date": "2026-09-28",
     "preserve": "원본 HWP/HWPX와 독립 PDF 및 실패 증거를 보존. 다른 문서/검사/공차 유지.",
-    "not_resolution": "원본 피델리티 개선 또는90%승인으로 세지 않는다."
+    "not_resolution": "원본 피델리티 개선 또는90%승인으로 세지 않는다.",
+    "scope": "현재 PR 검증을 실제로 막는 실패 함수/assertion/corpus 입력만 판단한다. 문서90%미만을 이유로 같은 문서의 정상 검사까지 일괄 제거하지 않는다. 이미 제외한 정상 검사는 로그 대조 후 복원·재검증한다."
   },
   "additional_unresolved_findings": [
     {

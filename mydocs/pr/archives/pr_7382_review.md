@@ -2204,3 +2204,9 @@ head `f9a154de16df07f957368d29416e081ea335c158`에서 기존35번은1FAIL(exit10
 기존35번 신규겹침2건의 전체 원문은 보정93 축소본과 다른 해시/6,521,856byte입니다. 기존 manifest 원문해시와 동일하며 독립PDF의 실제Creator2022를 확인했습니다. 현재103/기준103쪽, Native선택8쪽 최저78쪽49.36129%,39쪽50.07638/76쪽61.10728%입니다.39쪽 표 내용/이어받기,76쪽 캡션/본문겹침,78쪽 행위치/그림누락을 직접 확인했습니다. 전체103쪽/freshWASM 미실행입니다.
 
 [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5871748601) 후 전체 원문 보존/렌더링19함수·8파일/body1행 제외. 다른입력/공차/기대값/IR역사목록 유지, 새검사/skip/ignore/생산변경 없음. 전체 원문 및 이전 축소본 manifest의 보존경로/보류역할도 수정했습니다. 코드 `85bea0d563a3e53fa20eb0f18b25d6227bcee05b`, [명령·해시·제외근거](../assets/issue7445/chemical_full6782_test_removal_validation.json). 집중 ['     Summary [   2.687s] 1 test run: 1 passed, 223 skipped'], 필수8단계exit0. 기존35번 현재 corpus통과이며 원문 피델리티 개선/최종 전체회귀 완료 아님.
+
+## 보정104 결과·사용자 범위 정정
+
+head `a643e0e6b8bdb40172dbc55386d747b2ea49fd3f`에서 기존36·37번 각1PASS,38번1FAIL입니다.38번은 rowbreak-problem-pages.hwpx text-overlap1→2건입니다. [개별 명령·summary](../assets/pr7382_20260926/stage104_individual_validation.json). 고정38의 현재36완료/1이관/1대기이며 최종재실행/전체회귀 미완료입니다.
+
+사용자 정정에 따라 #7445 처리는 PR을 실제 막는 실패 함수/assertion/corpus 입력으로 제한합니다. 동일 문서90%미달을 이유로 정상 검사까지 일괄 제외하지 않습니다. 보정103에서 제외한 전체원문19함수에는 이전PASS 기록이 있어 복원 후 현재head에서 다시 검사합니다. 앞선 제외 역시 실패 로그와 대조해 정상 검사의 동반 제외를 보정합니다. #7832는 API에서 존재하지 않으며 현재 검토 PR#7382로 우선 진행합니다.
