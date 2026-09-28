@@ -661,7 +661,26 @@ def apply_svg_font_policy(svg: str, policy_rules: list[str]) -> str:
 
     faces = re.compile(r"@font-face\s*\{[^{}]*\}", re.IGNORECASE)
     declared = {family(rule) for rule in faces.findall(svg)}
-    rules = list(dict.fromkeys(rule for rule in policy_rules if family(rule) not in declared))
+    # 선언된 글꼴 목록과 실제 페이지의 참조를 구분한다. 다른 쪽의 글꼴은 넣지 않는다.
+    content = faces.sub("", svg)
+    references = [value for _, value in re.findall(
+        r"\bfont-family\s*=\s*([\"'])(.*?)\1", content, re.IGNORECASE | re.DOTALL
+    )]
+    styles = re.findall(r"<style\b[^>]*>(.*?)</style>", content, re.IGNORECASE | re.DOTALL)
+    styles += [html_lib.unescape(value) for _, value in re.findall(
+        r"\bstyle\s*=\s*([\"'])(.*?)\1", content, re.IGNORECASE | re.DOTALL
+    )]
+    references += [value for style in styles for value in re.findall(
+        r"\bfont-family\s*:\s*([^;}]+)", style, re.IGNORECASE
+    )]
+    used = {
+        name.strip().strip("\"'").casefold()
+        for value in references
+        for name in re.findall(r'"[^\"]*"|\'[^\']*\'|[^,]+', html_lib.unescape(value))
+    }
+    rules = list(dict.fromkeys(
+        rule for rule in policy_rules if family(rule) in used and family(rule) not in declared
+    ))
     if not rules:
         return svg
     opening = re.search(r"<svg\b[^>]*>", svg)
@@ -791,8 +810,7 @@ def export_wasm_target(root: Path, hwp: Path, package: Path, rhwp_bin: str, base
     if not expected or set(raw) != expected or set(trees) != expected or not policies:
         raise SystemExit("WASM SVG/render tree 페이지가 누락됐거나 글꼴 정책이 없습니다.")
     # 별칭은 문서의 폰트 공급 계약이다. Native의 페이지 소속을 WASM에 강제하지 않는다.
-    # A full-font policy SVG also contains the whole page. Joining all pages and
-    # scanning that string once per WASM page grows quadratically for long docs.
+    # 전체 글꼴 SVG에는 본문도 있다. CSS만 읽어 긴 문서의 반복 스캔을 피한다.
     policy_rules = list(dict.fromkeys(
         rule for path in policies.values() for rule in svg_font_face_rules(path)
     ))

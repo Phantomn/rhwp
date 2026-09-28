@@ -2355,7 +2355,9 @@ impl LayoutEngine {
     ) -> bool {
         let om_top_hu = i64::from(tbl.outer_margin_top);
         let om_bottom_hu = i64::from(tbl.outer_margin_bottom);
-        if om_top_hu <= 0 || om_bottom_hu <= 0 {
+        // 저장 밴드의 등식은 한쪽 여백이 0이어도 유효하다.
+        // KTX 13쪽 후행 표는 위 566HU·아래 0HU를 포함한 13058HU 밴드다.
+        if om_top_hu < 0 || om_bottom_hu < 0 || om_top_hu + om_bottom_hu == 0 {
             return false;
         }
         let declared = i64::from(tbl.common.height.min(i32::MAX as u32));

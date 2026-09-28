@@ -4663,6 +4663,45 @@ impl TypesetEngine {
                 }
             }
         }
+        // 저장 줄이 없는 단일 TAC 표와 뒤 본문은 같은 확정 줄 구성을 소비한다.
+        // 표 본체만 전진한 뒤 표 전용 상한으로 본문 줄을 지우지 않도록,
+        // 개체 줄의 여백·뒤 간격까지 포함한 끝점을 paint에도 전달한다.
+        let computed_table_body_height = hwpunit_to_px(table.common.height as i32, self.dpi);
+        let computed_table_outer_height = hwpunit_to_px(
+            i32::from(table.outer_margin_top) + i32::from(table.outer_margin_bottom),
+            self.dpi,
+        );
+        let computed_table_row_end = if crate::renderer::para_has_no_stored_line_segs(para)
+            && is_first_table
+            && is_last_placed
+            && table.common.treat_as_char
+            && matches!(
+                table.common.text_wrap,
+                crate::model::shape::TextWrap::TopAndBottom
+            )
+            && self.tac_table_line_index(para, table, fmt) == Some(0)
+            && fmt.line_count() > 1
+            && fmt.line_spacings[0] >= 0.0
+            && (fmt.line_heights[0] - computed_table_body_height).abs() < 1.0
+            && (table_total_height - computed_table_body_height).abs() < 1.0
+        {
+            let origin = st.current_height;
+            // 재구성한 개체 줄은 본체 높이만 담고, 문단 포맷의 별도 여백 예약을
+            // 개체 줄 끝에 한 번 소비한다. 저장 줄의 외곽 높이에는 적용하지 않는다.
+            let end = origin + fmt.line_advance(0) + computed_table_outer_height;
+            st.record_inline_placement(
+                (para_idx, ctrl_idx),
+                super::float_placement::InlineBoxPlacement {
+                    x: 0.0,
+                    y: origin,
+                    clearance: 0.0,
+                    advance_end: Some(end),
+                },
+            );
+            Some(end)
+        } else {
+            None
+        };
         st.append_item(PageItem::Table {
             para_index: para_idx,
             control_index: ctrl_idx,
@@ -4799,6 +4838,8 @@ impl TypesetEngine {
             // 빈 저장 호스트도 닫힌 원본 프레임을 소유할 수 있다.
             // 수용한 물리 하단을 소비하며 호스트·안내 줄을 다시 전진시키지 않는다.
             st.align_flow_to(placement.occupied_bottom);
+        } else if let Some(end) = computed_table_row_end {
+            st.align_flow_to(end);
         } else if tac_wrap_split {
             st.advance_flow_by(table_total_height);
         } else if let Some(host_spacing_px) = if st.profile.hwpx_stored_layout()
@@ -4940,7 +4981,7 @@ impl TypesetEngine {
         // [#2243 진단] TAC 표 라인 회계 분해 — 동작 불변.
         if std::env::var("RHWP_DIAG_TAC").is_ok() {
             eprintln!(
-                "DIAG_TAC pi={} tac={} pre_h={:.1} table_total={:.1} fmt_total={:.1} fmt_fit={:.1} stored_ls={} cur_h_after={:.1} page={}",
+                "DIAG_TAC pi={} tac={} pre_h={:.1} table_total={:.1} fmt_total={:.1} fmt_fit={:.1} stored_ls={} cur_h_after={:.1} page={} computed_end={:?} line_heights={:?} line_spacings={:?}",
                 para_idx,
                 table.common.treat_as_char,
                 pre_height,
@@ -4950,6 +4991,9 @@ impl TypesetEngine {
                 !para.line_segs.is_empty(),
                 st.current_height,
                 st.pages.len(),
+                computed_table_row_end,
+                fmt.line_heights,
+                fmt.line_spacings,
             );
         }
 
@@ -5084,6 +5128,11 @@ impl TypesetEngine {
                 end_line: total_lines,
             });
             st.advance_flow_by(post_height);
+            if computed_table_row_end.is_some() {
+                // 개체 줄과 실제로 방출한 본문 줄의 합은 후행 표의 흐름 하한이다.
+                // 같은 단에서만 갱신하며, 본문이 이월되면 이전 단 끝을 유출하지 않는다.
+                st.record_inline_flow_bottom(st.current_height);
+            }
         } else if is_visible_para_float && is_last_table {
             // [#6312] host 글줄을 post-text 로 방출하지 못한 자리차지 표.
             // 저장 사다리가 lh+ls 만 증언하면 그 줄 상자를 표 밴드 아래에 계상한다.

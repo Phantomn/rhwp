@@ -1143,7 +1143,7 @@ fn para_has_visible_text(para: &Paragraph) -> bool {
     para.text.chars().any(|c| c > '\u{001F}' && c != '\u{FFFC}')
 }
 
-/// 저장 LINE_SEG가 없는 ViewText 문단에서 선행 공백 뒤 첫 RowBreak TAC 표는 한/글이
+/// 저장 LINE_SEG가 없는 공백 전용 ViewText 문단에서 첫 RowBreak TAC 표는 한/글이
 /// 좌우 대칭 기본 padding을 표 시작 inset으로 보존한다. PageItem TAC fallback의
 /// 좌표에만 적용해, 저장 줄·후행 표·비대칭 padding의 기존 배치를 유지한다.
 fn viewtext_first_rowbreak_table_left_inset(
@@ -1153,7 +1153,8 @@ fn viewtext_first_rowbreak_table_left_inset(
     dpi: f64,
 ) -> f64 {
     if crate::renderer::para_has_no_stored_line_segs(para)
-        && para.text.chars().next().is_some_and(char::is_whitespace)
+        && !para.text.is_empty()
+        && para.text.chars().all(char::is_whitespace)
         && control_index == 0
         && table.common.treat_as_char
         && matches!(
@@ -10080,6 +10081,7 @@ impl LayoutEngine {
             inline_placements,
             paragraph_float_placements,
         };
+        let mut applied_tac_segment = false;
         match item {
             PageItem::FullParagraph { para_index } => {
                 if let Some(plan) = inline_flow_plans.get(para_index) {
@@ -10541,6 +10543,9 @@ impl LayoutEngine {
                                 }
                             }
                         }
+                        // 이 경로도 표를 품은 줄의 간격까지 이미 소비했다.
+                        // 다음 문단에서 PageItem 종류만 보고 그 간격을 다시 붙이지 않는다.
+                        applied_tac_segment = true;
                     } else {
                         let comp = composed.get(*para_index);
                         let numbered_comp = self.apply_paragraph_numbering(
@@ -10829,6 +10834,11 @@ impl LayoutEngine {
                     } else {
                         y_offset
                     };
+                    // 문단 첫 부분을 먼저 그린 경우 뒤 개체의 문단 기준점은
+                    // 그 글줄의 원점이다. 소비한 줄 끝으로 앵커를 새로 만들지 않는다.
+                    if *start_line == 0 {
+                        para_start_y.entry(*para_index).or_insert(pp_y_in);
+                    }
                     let pp_y_out = self.layout_partial_paragraph(
                         tree,
                         col_node,
@@ -10962,7 +10972,7 @@ impl LayoutEngine {
                 );
             }
         }
-        (y_offset, false)
+        (y_offset, applied_tac_segment)
     }
 
     #[allow(clippy::too_many_arguments)]

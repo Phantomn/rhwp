@@ -1242,7 +1242,7 @@ pub fn fit_measured_table_declared_tail_to_declared_height(
             .map(|seg| i64::from(seg.vertical_pos) + i64::from(seg.line_height))
             .max()
             .unwrap_or(0);
-        let pad = hwpunit_to_px(cell.stored_vertical_padding_hu(), dpi);
+        let pad = hwpunit_to_px(cell.effective_vertical_padding_hu(&table.padding), dpi);
         let floor = hwpunit_to_px(content_hu as i32, dpi) + pad;
         if floor > content_floor {
             content_floor = floor;
@@ -2158,53 +2158,13 @@ impl HeightMeasurer {
         best
     }
 
-    /// [#6660] 선언 높이에 딱 맞는 저장 한 줄은 fallback 하단 여백으로 늘리지 않는다.
-    ///
-    /// 표 기본 여백이 없고 개별 여백도 비활성인 병합 제목 셀은 저장 줄+상단
-    /// 여백만으로 선언 높이를 채울 수 있다. 이때 하단의 저장값까지 필수 높이에
-    /// 더하면 뒤 본문을 밀어낸다. 행별 HU 반올림 이내의 차이만 인정하며,
-    /// 실제 내용 넘침이나 명시적으로 활성화된 여백에는 이 예외를 적용하지 않는다.
+    /// 병합 셀도 실제 배치가 선택한 유효 여백으로 내용의 물리 하한을 구한다.
     fn merged_cell_restore_floor_hu(
         table: &Table,
         cell: &crate::model::table::Cell,
         content_hu: i64,
     ) -> i64 {
-        let padded = content_hu + i64::from(cell.stored_vertical_padding_hu());
-        if !table.common.treat_as_char
-            || cell.apply_inner_margin
-            || !crate::model::table::Cell::table_padding_unspecified(&table.padding)
-            || cell.vertical_align != crate::model::table::VerticalAlign::Top
-            || cell.text_direction != 0
-            || cell.row_span <= 1
-            || cell.paragraphs.len() != 1
-            || !(1..2500).contains(&cell.padding.top)
-            || !(1..2500).contains(&cell.padding.bottom)
-        {
-            return padded;
-        }
-        let paragraph = &cell.paragraphs[0];
-        if paragraph.stored_text_partition_dirty
-            || paragraph.layout_only_fill_lines != 0
-            || paragraph.text.trim().is_empty()
-            || !paragraph.controls.is_empty()
-            || paragraph.line_segs.len() != 1
-        {
-            return padded;
-        }
-        let line = &paragraph.line_segs[0];
-        let declared = i64::from(cell.height);
-        let content_with_top = content_hu + i64::from(cell.padding.top);
-        if line.vertical_pos == 0
-            && line.line_height > 0
-            && line.line_height == line.text_height
-            && declared >= content_hu
-            && content_with_top >= declared
-            && content_with_top - declared <= i64::from(cell.row_span)
-        {
-            content_with_top
-        } else {
-            padded
-        }
+        content_hu + i64::from(cell.effective_vertical_padding_hu(&table.padding))
     }
 
     /// [#6124] 비례 축소로 내용 아래까지 눌린 세로 병합 묶음을 되돌린다.
@@ -2951,49 +2911,15 @@ impl HeightMeasurer {
                                                         && is_cell_last_line),
                                             )
                                         };
-                                        // 완전 셀의 마지막 줄에는 뒤따르는 글줄이 없으므로
-                                        // 실제 배치와 MeasuredCell처럼 마지막 줄간격을 제외한다.
-                                        // TAC라는 이유만으로 더하면 행을 키우거나 다른 행의
-                                        // 여유를 빼앗는다(정책 지표 19·20·37쪽 독립 PDF).
-                                        // RowBreak TAC의 기존 분할 회계는 아래 조건으로 보존한다.
-                                        // [#5923] 셀 마지막 줄 trailing 줄간격은 비-TAC
-                                        // 표에서 문단 수와 무관하게 제외한다 — 렌더 행높이
-                                        // 회계와 정본이 같다. 다문단 셀만 포함하던 구규칙은
-                                        // hwpctl_API_v2.4 75쪽 유령 쪽(행마다 +2.7px 과대
-                                        // 측정)을 낳았다. TAC(글자처럼) 표의 다문단 셀은
-                                        // [Task #874/#1086] 보존 핀(KTX TOC 등)을 위해
-                                        // 기존 포함 회계를 유지한다.
-                                        //
-                                        // [#6681] 그 예외에서 **글자 없이 개체만 담은
-                                        // 줄**은 뺀다. 그런 줄의 높이는 개체가 차지한
-                                        // 자리이고 뒤에 붙일 줄이 없다 — exam_science
-                                        // 4쪽 `자료` 칸의 마지막 문단이 그렇다
-                                        // (`text_len=0`, `lh=3037` = 안쪽 표 두 행
-                                        // 1424+1613, `ls=460`). 그 6.1px 이 칸 높이에
-                                        // 들어가 아래 흐름이 통째로 6px 밀렸다.
-                                        // 보존 핀의 마지막 문단은 글자가 있어 종전대로다.
-                                        // [#7097] 글자가 아예 없는 빈 마지막 줄도 같다.
-                                        // 그 줄 뒤에 붙일 줄이 없으므로 trailing 줄간격을
-                                        // 칸 높이에 넣을 근거가 없다 — 36382471_masked 1쪽
-                                        // 2행이 8.05px 부풀어(350.10, 한/글 342.05) 3행이
-                                        // 통째로, 2행 안쪽 글자(vertAlign=CENTER)가 절반
-                                        // 내려갔다. 보존 핀(Task #874/#1086)의 마지막 문단은
-                                        // 글자가 있어 종전 회계 그대로다.
-                                        let last_line_is_object_only =
-                                            p.text.trim().is_empty() && !p.controls.is_empty();
-                                        // 글자도 개체도 없는 **완전한 빈 문단**. 공백 한 칸은
-                                        // 글리프라 제외한다 — KTX.hwp 2쪽 27문단 칸의 마지막
-                                        // 문단이 `" "`(lh=1400 ls=1120)이고, 그 trailing 을
-                                        // 빼면 valign=Center 인 칸 안 글자가 절반(7.47px)
-                                        // 올라가 한컴 정본(pdf/KTX-2022.pdf)에서 멀어진다.
-                                        let last_line_is_empty =
-                                            p.text.is_empty() && p.controls.is_empty();
+                                        // 마지막 가시 줄 뒤에는 다음 줄이 없으므로 줄간격을
+                                        // 붙이지 않는다. 명시적 공백 문단의 빈 줄 점유는 유지한다.
                                         let include_trailing_ls = !is_cell_last_line
                                             || (cell_para_count > 1
                                                 && table.common.treat_as_char
                                                 && matches!(table.page_break, TablePageBreak::RowBreak)
-                                                && !last_line_is_object_only
-                                                && !last_line_is_empty);
+                                                && !p.text.is_empty()
+                                                && p.controls.is_empty()
+                                                && p.text.trim().is_empty());
                                         if include_trailing_ls {
                                             let trailing =
                                                 hwpunit_to_px(line.line_spacing, self.dpi);
@@ -3946,49 +3872,15 @@ impl HeightMeasurer {
                                                         && is_cell_last_line),
                                             )
                                         };
-                                        // 완전 셀의 마지막 줄에는 뒤따르는 글줄이 없으므로
-                                        // 실제 배치와 MeasuredCell처럼 마지막 줄간격을 제외한다.
-                                        // TAC라는 이유만으로 더하면 행을 키우거나 다른 행의
-                                        // 여유를 빼앗는다(정책 지표 19·20·37쪽 독립 PDF).
-                                        // RowBreak TAC의 기존 분할 회계는 아래 조건으로 보존한다.
-                                        // [#5923] 셀 마지막 줄 trailing 줄간격은 비-TAC
-                                        // 표에서 문단 수와 무관하게 제외한다 — 렌더 행높이
-                                        // 회계와 정본이 같다. 다문단 셀만 포함하던 구규칙은
-                                        // hwpctl_API_v2.4 75쪽 유령 쪽(행마다 +2.7px 과대
-                                        // 측정)을 낳았다. TAC(글자처럼) 표의 다문단 셀은
-                                        // [Task #874/#1086] 보존 핀(KTX TOC 등)을 위해
-                                        // 기존 포함 회계를 유지한다.
-                                        //
-                                        // [#6681] 그 예외에서 **글자 없이 개체만 담은
-                                        // 줄**은 뺀다. 그런 줄의 높이는 개체가 차지한
-                                        // 자리이고 뒤에 붙일 줄이 없다 — exam_science
-                                        // 4쪽 `자료` 칸의 마지막 문단이 그렇다
-                                        // (`text_len=0`, `lh=3037` = 안쪽 표 두 행
-                                        // 1424+1613, `ls=460`). 그 6.1px 이 칸 높이에
-                                        // 들어가 아래 흐름이 통째로 6px 밀렸다.
-                                        // 보존 핀의 마지막 문단은 글자가 있어 종전대로다.
-                                        // [#7097] 글자가 아예 없는 빈 마지막 줄도 같다.
-                                        // 그 줄 뒤에 붙일 줄이 없으므로 trailing 줄간격을
-                                        // 칸 높이에 넣을 근거가 없다 — 36382471_masked 1쪽
-                                        // 2행이 8.05px 부풀어(350.10, 한/글 342.05) 3행이
-                                        // 통째로, 2행 안쪽 글자(vertAlign=CENTER)가 절반
-                                        // 내려갔다. 보존 핀(Task #874/#1086)의 마지막 문단은
-                                        // 글자가 있어 종전 회계 그대로다.
-                                        let last_line_is_object_only =
-                                            p.text.trim().is_empty() && !p.controls.is_empty();
-                                        // 글자도 개체도 없는 **완전한 빈 문단**. 공백 한 칸은
-                                        // 글리프라 제외한다 — KTX.hwp 2쪽 27문단 칸의 마지막
-                                        // 문단이 `" "`(lh=1400 ls=1120)이고, 그 trailing 을
-                                        // 빼면 valign=Center 인 칸 안 글자가 절반(7.47px)
-                                        // 올라가 한컴 정본(pdf/KTX-2022.pdf)에서 멀어진다.
-                                        let last_line_is_empty =
-                                            p.text.is_empty() && p.controls.is_empty();
+                                        // 마지막 가시 줄 뒤에는 다음 줄이 없으므로 줄간격을
+                                        // 붙이지 않는다. 명시적 공백 문단의 빈 줄 점유는 유지한다.
                                         let include_trailing_ls = !is_cell_last_line
                                             || (cell_para_count > 1
                                                 && table.common.treat_as_char
                                                 && matches!(table.page_break, TablePageBreak::RowBreak)
-                                                && !last_line_is_object_only
-                                                && !last_line_is_empty);
+                                                && !p.text.is_empty()
+                                                && p.controls.is_empty()
+                                                && p.text.trim().is_empty());
                                         if include_trailing_ls {
                                             let trailing =
                                                 hwpunit_to_px(line.line_spacing, self.dpi);
@@ -4048,39 +3940,6 @@ impl HeightMeasurer {
                         .max(nested_bottom)
                         .max(wrap_bottom);
                     content_height + pad_top + pad_bottom
-                };
-                // 병합 제목의 비활성 하단 여백은 TAC 축소 여부와 무관하다.
-                // 복원 단계와 같은 저장 물리 하한을 원래 행 측정에서도 소비한다.
-                // 합성된 실제 요구량이 저장 내용+여백과 같을 때만 적용하므로
-                // 편집·재조판·개체로 생긴 추가 공간을 저장 프레임으로 대체하지 않는다.
-                let required_height = if self.is_native_hwp5
-                    && !self.session_edited
-                    && !self.render_normalization.table_text_reflowed(table)
-                    && cell.text_direction == 0
-                    && !cell.paragraphs.is_empty()
-                    && cell
-                        .paragraphs
-                        .iter()
-                        .all(|p| !crate::renderer::para_has_no_stored_line_segs(p))
-                {
-                    let stored_end = cell
-                        .paragraphs
-                        .iter()
-                        .flat_map(|p| &p.line_segs)
-                        .map(|seg| i64::from(seg.vertical_pos) + i64::from(seg.line_height))
-                        .max()
-                        .unwrap_or(0);
-                    let padded = stored_end + i64::from(cell.stored_vertical_padding_hu());
-                    let physical = Self::merged_cell_restore_floor_hu(table, cell, stored_end);
-                    if physical < padded
-                        && (required_height - hwpunit_to_px(padded as i32, self.dpi)).abs() <= 0.01
-                    {
-                        hwpunit_to_px(physical as i32, self.dpi)
-                    } else {
-                        required_height
-                    }
-                } else {
-                    required_height
                 };
                 let required_height =
                     crate::renderer::float_placement::stored_hwpx_no_adjust_cell_content_end(
@@ -4204,7 +4063,8 @@ impl HeightMeasurer {
                     .map(|seg| i64::from(seg.vertical_pos) + i64::from(seg.line_height))
                     .max()
                     .unwrap_or(0);
-                let pad = hwpunit_to_px(cell.stored_vertical_padding_hu(), self.dpi);
+                let pad =
+                    hwpunit_to_px(cell.effective_vertical_padding_hu(&table.padding), self.dpi);
                 // 저장 위치가 줄들을 구분하지 못하면 이미 측정한 내용 높이를 지킨다.
                 // 한 줄짜리 extent를 쓰면 여러 줄이 꽉 찬 행까지 여유 공간으로 줄인다.
                 let floor = if crate::renderer::cell_vpos_ladder_is_intact(&cell.paragraphs) {

@@ -2286,6 +2286,26 @@ pub(crate) fn is_para_topbottom_float(common: &CommonObjAttr) -> bool {
         && matches!(common.vert_rel_to, VertRelTo::Para)
 }
 
+/// 쪽·종이 기준 표의 외곽 여백을 포함한 가시 원점과 흐름 하단.
+/// 예약과 paint가 같은 가장자리 정렬 결과를 소비한다.
+pub(crate) fn absolute_table_vertical_geometry(
+    table: &Table,
+    ref_y: f64,
+    ref_h: f64,
+    height: f64,
+    dpi: f64,
+) -> (f64, f64) {
+    let offset = hwpunit_to_px(signed_hwpunit(table.common.vertical_offset), dpi);
+    let top_margin = hwpunit_to_px(i32::from(table.outer_margin_top), dpi);
+    let bottom_margin = hwpunit_to_px(i32::from(table.outer_margin_bottom), dpi);
+    let top = match table.common.vert_align {
+        VertAlign::Top | VertAlign::Inside => ref_y + offset + top_margin,
+        VertAlign::Center => ref_y + (ref_h - height) / 2.0 + offset,
+        VertAlign::Bottom | VertAlign::Outside => ref_y + ref_h - height - offset - bottom_margin,
+    };
+    (top, top + height + bottom_margin)
+}
+
 /// A positive-offset empty host float whose next, generated body paragraph has
 /// no stored line-segment anchor. Hancom consumes the empty host's physical row,
 /// lays that body paragraph in the remaining gap above the float, then resumes

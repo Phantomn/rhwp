@@ -4302,7 +4302,10 @@ impl LayoutEngine {
                             f64::MAX
                         };
                         let raw_pad_v = if suppress_unused_padding {
-                            hwpunit_to_px(cell.stored_vertical_padding_hu(), self.dpi)
+                            hwpunit_to_px(
+                                cell.effective_vertical_padding_hu(&table.padding),
+                                self.dpi,
+                            )
                         } else {
                             hwpunit_to_px(cell.padding.top as i32, self.dpi)
                                 + hwpunit_to_px(cell.padding.bottom as i32, self.dpi)
@@ -4452,7 +4455,8 @@ impl LayoutEngine {
                     } else {
                         f64::MAX
                     };
-                    let raw_pad_v = hwpunit_to_px(cell.stored_vertical_padding_hu(), self.dpi);
+                    let raw_pad_v =
+                        hwpunit_to_px(cell.effective_vertical_padding_hu(&table.padding), self.dpi);
                     let pad_v = (pad_top + pad_bottom).max(raw_pad_v);
                     if Self::cell_row_grows_with_padding(line_based, decl_h, pad_v)
                         && (line_based > decl_h + 1.5 || row_count <= 20)
@@ -4970,61 +4974,13 @@ impl LayoutEngine {
         table: &crate::model::table::Table,
         physical_height: Option<f64>,
     ) -> (f64, f64, f64, f64) {
-        // HWP 스펙: aim(apply_inner_margin)=true → cell.padding,
-        //           aim=false → table.padding 우선.
-        // 한컴은 aim=false일 때 cell.padding 원값을 파일에 보존하더라도 렌더에는 쓰지 않는다.
-        // aim=true에서는 0mm도 사용자가 지정한 셀 고유 안 여백으로 존중한다.
-        // [#2195 stage50] 표 기본 전축 0 = 미지정 → 셀 pad — **수직 축 전용**.
-        // 수평은 전축 0 도 진짜 0: 근거 실측은 `Cell::table_padding_unspecified` 주석과
-        // `mydocs/plans/cell_width_authority.md`. 규칙은 `Cell::effective_padding` 과
-        // 축 단위로 동일해야 한다 (#1785 — 갈리면 예약 높이와 렌더가 어긋난다).
-        let table_pad_unspec = !cell.apply_inner_margin
-            && crate::model::table::Cell::table_padding_unspecified(&table.padding);
-        let use_cell_left = Self::should_use_cell_padding_axis_for_context(
-            cell,
-            cell.padding.left,
-            table.padding.left,
-        );
-        let use_cell_right = Self::should_use_cell_padding_axis_for_context(
-            cell,
-            cell.padding.right,
-            table.padding.right,
-        );
-        // [#6358] 음수 pad 는 `c < 2500` 위생 한도를 통과하므로 0 하한을 같이 둔다.
-        let use_cell_top = (table_pad_unspec && cell.padding.top >= 0 && cell.padding.top < 2500)
-            || Self::should_use_cell_padding_axis_for_context(
-                cell,
-                cell.padding.top,
-                table.padding.top,
-            );
-        let use_cell_bottom =
-            (table_pad_unspec && cell.padding.bottom >= 0 && cell.padding.bottom < 2500)
-                || Self::should_use_cell_padding_axis_for_context(
-                    cell,
-                    cell.padding.bottom,
-                    table.padding.bottom,
-                );
-
-        let pad_left = if use_cell_left {
-            hwpunit_to_px(cell.padding.left as i32, self.dpi)
-        } else {
-            hwpunit_to_px(table.padding.left as i32, self.dpi)
-        };
-        let pad_right = if use_cell_right {
-            hwpunit_to_px(cell.padding.right as i32, self.dpi)
-        } else {
-            hwpunit_to_px(table.padding.right as i32, self.dpi)
-        };
-        let pad_top = if use_cell_top {
-            hwpunit_to_px(cell.padding.top as i32, self.dpi)
-        } else {
-            hwpunit_to_px(table.padding.top as i32, self.dpi)
-        };
-        let pad_bottom = if use_cell_bottom {
-            hwpunit_to_px(cell.padding.bottom as i32, self.dpi)
-        } else {
-            hwpunit_to_px(table.padding.bottom as i32, self.dpi)
-        };
+        // 문단 프레임·높이 측정과 같은 유효 여백을 소비한다.
+        // hasMargin=false이면 셀 보존값으로 표 기본 0을 덮어쓰지 않는다.
+        let padding = cell.effective_padding(&table.padding);
+        let pad_left = hwpunit_to_px(padding.left as i32, self.dpi);
+        let pad_right = hwpunit_to_px(padding.right as i32, self.dpi);
+        let pad_top = hwpunit_to_px(padding.top as i32, self.dpi);
+        let pad_bottom = hwpunit_to_px(padding.bottom as i32, self.dpi);
         // [Task #501] 한컴 방어 로직 모방 — cell.padding.top + bottom 합산이
         // cell.height 자체를 초과하면 (mel-001 p2 셀[21]: pad=1700 HU 두 축, h=1280 HU)
         // 한컴은 자체 가드로 cell 안에 콘텐츠가 들어가도록 처리. cell.height 의 절반까지
@@ -5050,16 +5006,6 @@ impl LayoutEngine {
             (pad_top, pad_bottom)
         };
         (pad_left, pad_right, pad_top, pad_bottom)
-    }
-
-    fn should_use_cell_padding_axis_for_context(
-        cell: &crate::model::table::Cell,
-        cell_padding: i16,
-        table_padding: i16,
-    ) -> bool {
-        // [Task #1785] 규칙 본체는 Cell::use_cell_padding_axis 로 이동 — height_measurer
-        // 와 단일 출처 공유 (규칙이 갈리면 예약 높이와 실제 렌더가 어긋난다).
-        cell.use_cell_padding_axis(cell_padding, table_padding)
     }
 
     /// 셀 텍스트가 오버플로우할 때 좌우 패딩을 축소하여 공간을 확보한다.
@@ -5502,16 +5448,31 @@ impl LayoutEngine {
             } else {
                 0.0
             };
-            let raw_y = match vert_align {
-                crate::model::shape::VertAlign::Top | crate::model::shape::VertAlign::Inside => {
-                    ref_y + v_offset + caption_top_offset + om_top_px
-                }
-                crate::model::shape::VertAlign::Center => {
-                    ref_y + (ref_h - table_height) / 2.0 + v_offset + caption_top_offset
-                }
-                crate::model::shape::VertAlign::Bottom
-                | crate::model::shape::VertAlign::Outside => {
-                    ref_y + ref_h - table_height - v_offset + caption_top_offset - om_bottom_px
+            let raw_y = if matches!(
+                vert_rel_to,
+                crate::model::shape::VertRelTo::Page | crate::model::shape::VertRelTo::Paper
+            ) {
+                crate::renderer::float_placement::absolute_table_vertical_geometry(
+                    table,
+                    ref_y,
+                    ref_h,
+                    table_height,
+                    self.dpi,
+                )
+                .0 + caption_top_offset
+            } else {
+                match vert_align {
+                    crate::model::shape::VertAlign::Top
+                    | crate::model::shape::VertAlign::Inside => {
+                        ref_y + v_offset + caption_top_offset + om_top_px
+                    }
+                    crate::model::shape::VertAlign::Center => {
+                        ref_y + (ref_h - table_height) / 2.0 + v_offset + caption_top_offset
+                    }
+                    crate::model::shape::VertAlign::Bottom
+                    | crate::model::shape::VertAlign::Outside => {
+                        ref_y + ref_h - table_height - v_offset + caption_top_offset - om_bottom_px
+                    }
                 }
             };
             // Para 기준 + bit 13: 본문 영역으로 제한

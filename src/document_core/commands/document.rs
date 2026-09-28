@@ -657,12 +657,7 @@ impl DocumentCore {
                                 }
                             }
                             if include_empty && is_rowbreak_table {
-                                Self::fit_hwpx_rowbreak_synthetic_cell_lines(
-                                    cell,
-                                    styles,
-                                    dpi,
-                                    table.common.treat_as_char,
-                                );
+                                Self::fit_hwpx_rowbreak_synthetic_cell_lines(cell, styles, dpi);
                             }
                         }
                     }
@@ -1229,7 +1224,6 @@ impl DocumentCore {
         cell: &mut crate::model::table::Cell,
         styles: &ResolvedStyleSet,
         dpi: f64,
-        allow_without_anchor: bool,
     ) {
         if cell.height == 0 || cell.paragraphs.len() < 2 {
             return;
@@ -1249,7 +1243,9 @@ impl DocumentCore {
                 && para.line_segs[0].vertical_pos > 0
                 && para.line_segs[0].segment_width > 0
         });
-        if !has_stored_anchor && !allow_without_anchor {
+        // 선언 셀 높이의 빈 공간은 추가 글줄의 증거가 아니다. 실제 저장
+        // anchor가 없는 셀은 재조판한 줄 경계를 그대로 사용한다.
+        if !has_stored_anchor {
             return;
         }
         if !cell.paragraphs.iter().any(para_is_synthetic) {

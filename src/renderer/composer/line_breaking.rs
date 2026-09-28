@@ -317,6 +317,21 @@ impl SpaceMetric {
 
 /// `space_metric` 은 공백 advance 규칙이다. 일반 HWP/HWPX tokenization 은 저장
 /// `LINE_SEG` 호환성을 위해 [`SpaceMetric::Stored`] 를 쓴다.
+/// 상대 크기는 글리프 폭과 표시 크기이며 기본 줄 상자를 줄이지 않는다.
+/// 원본 LineSeg도 상대 크기95%에서 기준 크기의 textheight를 보존한다.
+fn token_line_font_size(
+    styles: &ResolvedStyleSet,
+    style_id: u32,
+    style: &crate::renderer::TextStyle,
+) -> f64 {
+    let base = styles
+        .char_styles
+        .get(style_id as usize)
+        .map(|s| s.font_size)
+        .unwrap_or(12.0);
+    base.max(style.font_size).max(0.0)
+}
+
 fn tokenize_paragraph_with_regenerated_space_metric(
     text_chars: &[char],
     char_offsets: &[u32],
@@ -356,11 +371,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
             };
             let style_id = find_active_char_shape(char_shapes, utf16_pos);
             let ts = metric_scope.style(styles, style_id, current_lang, i);
-            let font_size = if ts.font_size > 0.0 {
-                ts.font_size
-            } else {
-                12.0
-            };
+            let font_size = token_line_font_size(styles, style_id, &ts);
             tokens.push(BreakToken::Tab {
                 idx: i,
                 max_font_size: font_size,
@@ -378,11 +389,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
             };
             let style_id = find_active_char_shape(char_shapes, utf16_pos);
             let ts = metric_scope.style(styles, style_id, current_lang, i);
-            let font_size = if ts.font_size > 0.0 {
-                ts.font_size
-            } else {
-                12.0
-            };
+            let font_size = token_line_font_size(styles, style_id, &ts);
             let inline_width = inline_width_px_at(inline_controls, i);
             tokens.push(BreakToken::Space {
                 idx: i,
@@ -436,11 +443,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
                         detected
                     };
                     let ts = metric_scope.style(styles, style_id, lang, i);
-                    let fs = if ts.font_size > 0.0 {
-                        ts.font_size
-                    } else {
-                        12.0
-                    };
+                    let fs = token_line_font_size(styles, style_id, &ts);
                     if fs > max_fs {
                         max_fs = fs;
                     }
@@ -469,11 +472,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
                         detected
                     };
                     let ts = metric_scope.style(styles, style_id, lang, i);
-                    let fs = if ts.font_size > 0.0 {
-                        ts.font_size
-                    } else {
-                        12.0
-                    };
+                    let fs = token_line_font_size(styles, style_id, &ts);
                     if fs > max_fs {
                         max_fs = fs;
                     }
@@ -531,11 +530,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
                 let style_id = find_active_char_shape(char_shapes, utf16_pos);
                 current_lang = detect_lang_category(ch);
                 let ts = metric_scope.style(styles, style_id, current_lang, i);
-                let fs = if ts.font_size > 0.0 {
-                    ts.font_size
-                } else {
-                    12.0
-                };
+                let fs = token_line_font_size(styles, style_id, &ts);
                 let mut w = estimate_text_width_unrounded(&ch.to_string(), &ts)
                     + inline_width_px_at(inline_controls, i);
                 // 글자 모드에서도 **줄 머리 금칙**을 지킨다.
@@ -610,11 +605,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
                         let style_id = find_active_char_shape(char_shapes, utf16_pos);
                         let lang = 1usize; // English
                         let ts = metric_scope.style(styles, style_id, lang, i);
-                        let fs = if ts.font_size > 0.0 {
-                            ts.font_size
-                        } else {
-                            12.0
-                        };
+                        let fs = token_line_font_size(styles, style_id, &ts);
                         if fs > max_fs {
                             max_fs = fs;
                         }
@@ -636,11 +627,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
                         1
                     };
                     let ts = metric_scope.style(styles, style_id, lang, i);
-                    let fs = if ts.font_size > 0.0 {
-                        ts.font_size
-                    } else {
-                        12.0
-                    };
+                    let fs = token_line_font_size(styles, style_id, &ts);
                     if fs > max_fs {
                         max_fs = fs;
                     }
@@ -696,11 +683,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
                 let style_id = find_active_char_shape(char_shapes, utf16_pos);
                 current_lang = 1;
                 let ts = metric_scope.style(styles, style_id, current_lang, i);
-                let fs = if ts.font_size > 0.0 {
-                    ts.font_size
-                } else {
-                    12.0
-                };
+                let fs = token_line_font_size(styles, style_id, &ts);
                 let w = estimate_text_width_unrounded(&ch.to_string(), &ts)
                     + inline_width_px_at(inline_controls, i);
                 tokens.push(BreakToken::Text {
@@ -727,11 +710,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
             let style_id = find_active_char_shape(char_shapes, utf16_pos);
             current_lang = detect_lang_category(ch);
             let ts = metric_scope.style(styles, style_id, current_lang, i);
-            let fs = if ts.font_size > 0.0 {
-                ts.font_size
-            } else {
-                12.0
-            };
+            let fs = token_line_font_size(styles, style_id, &ts);
             let w = estimate_text_width_unrounded(&ch.to_string(), &ts)
                 + inline_width_px_at(inline_controls, i);
             tokens.push(BreakToken::Text {
@@ -763,11 +742,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
                 detected
             };
             let ts = metric_scope.style(styles, style_id, lang, i);
-            let fs = if ts.font_size > 0.0 {
-                ts.font_size
-            } else {
-                12.0
-            };
+            let fs = token_line_font_size(styles, style_id, &ts);
             let w = estimate_text_width_unrounded(&ch.to_string(), &ts)
                 + inline_width_px_at(inline_controls, i);
             tokens.push(BreakToken::Text {

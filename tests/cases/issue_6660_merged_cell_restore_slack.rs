@@ -45,8 +45,9 @@ fn measure_with(para_index: usize, edit: impl FnOnce(&mut Table)) -> MeasuredTab
 
 #[test]
 fn issue_6660_reclaims_slack_without_shrinking_merged_or_body_content() {
-    // 제목 글자와 상단 여백은 보존한다. 비활성 하단 여백은 선언을 늘리지 않는다.
-    let merged_floor = (1150.0 + 141.0) / 75.0;
+    // 제목 글줄1150HU는 원문 두 행의 물리 높이646HU씩 안에 들어간다.
+    // hasMargin=false인 셀의 보존 여백은 상하 모두 선언을 늘리지 않는다.
+    let merged_floor = 2.0 * 646.0 / 75.0;
     for (para_index, body_end, declared) in
         [(23, 4298.0 + 2580.0, 9870.0), (30, 3894.0 + 1148.0, 8032.0)]
     {
@@ -102,11 +103,25 @@ fn issue_6660_preserves_explicit_padding_and_real_content_overflow() {
                 _ => unreachable!(),
             }
         });
+        // 정상 원문 전체4쪽 Native/fresh WASM의 최저91.87033% 확인 뒤
+        // 잘못된 비활성 여백 핀을 수정한다. 이 변형들은 수동 합성 계약이다.
+        let required_hu = match variant {
+            // 실제 활성 셀 여백 또는 명시적 표 여백:1150+141+141HU.
+            0 | 1 => 1432.0,
+            // 높이·정렬·textheight만 바꿔도 비활성 여백은 활성화되지 않는다.
+            // 나머지 단일 행 셀의 원문 높이646HU씩을 보존한다.
+            2..=4 => 2.0 * 646.0,
+            // 추가한 둘째 줄의 실제 끝은1150+1150HU다. 기존1432HU 검사는
+            // 이 내용이 잘려도 통과할 수 있었으므로 실제 점유량을 요구한다.
+            5 => 2.0 * 1150.0,
+            _ => unreachable!(),
+        };
         assert!(
-            measured.row_heights[0] + measured.row_heights[1] >= 1432.0 / 75.0 - 0.5,
+            measured.row_heights[0] + measured.row_heights[1] >= required_hu / 75.0 - 0.5,
             "변형 {variant}: 명시적 여백/실제 내용 하한을 축소했다: {:?}",
             measured.row_heights
         );
+        assert!(measured.row_heights[2] >= (6878.0 + 1700.0) / 75.0 - 0.01);
     }
 }
 

@@ -476,9 +476,21 @@ class WasmSweepTests(unittest.TestCase):
     def test_font_policy_preserves_geometry_and_uses_only_font_faces(self) -> None:
         source = '<svg width="100"><text x="12" y="34" font-family="휴먼명조">조문</text></svg>'
         face = '@font-face { font-family: "휴먼명조"; src: local("HCR Batang"); }'
-        policy = f'<svg><style>{face} text {{display:none}}</style><text x="99">다른 본문</text></svg>'
+        unused = '@font-face { font-family: "다른 쪽"; src: local("Other"); }'
+        policy = f'<svg><style>{face}{unused} text {{display:none}}</style><text x="99">다른 본문</text></svg>'
         result = SWEEP.apply_svg_font_policy(source, re.findall(r"@font-face\s*\{[^{}]*\}", policy + policy))
         self.assertEqual(result, source.replace('width="100">', f'width="100"><style>{face}</style>'))
+        for reference in (
+            'font-family="&quot;휴먼명조&quot;, serif"',
+            'style="font-family:&quot;휴먼명조&quot;, serif"',
+        ):
+            with self.subTest(reference=reference):
+                styled = source.replace('font-family="휴먼명조"', reference)
+                self.assertEqual(SWEEP.apply_svg_font_policy(styled, [face, unused]),
+                                 styled.replace('width="100">', f'width="100"><style>{face}</style>'))
+        stylesheet = '<svg><style>.body {font-family:"휴먼명조", serif}</style><text class="body">조문</text></svg>'
+        self.assertEqual(SWEEP.apply_svg_font_policy(stylesheet, [face, unused]),
+                         stylesheet.replace('<svg>', f'<svg><style>{face}</style>', 1))
 
     def test_explicit_font_change_invalidates_resume(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -497,7 +509,7 @@ class WasmSweepTests(unittest.TestCase):
                 SWEEP.run_manifest_for_target(root / 'out', target, {'font_supply': after}, 96, 32, resume=True)
 
     def test_embedded_font_policy_does_not_replace_wasm_text_or_coordinates(self) -> None:
-        source = '<svg><text x="12" y="34">original</text></svg>'
+        source = '<svg><text x="12" y="34" style="font-family:Source">original</text></svg>'
         face = '@font-face {font-family:"Source";src:url("data:font/ttf;base64,AAAA");}'
         result = SWEEP.apply_svg_font_policy(source, [face])
         self.assertEqual(result, source.replace('<svg>', '<svg><style>' + face + '</style>'))

@@ -63,6 +63,8 @@ pub struct ResolvedCharStyle {
     pub font_space_em: Option<f64>,
     /// 글꼴 크기 (px)
     pub font_size: f64,
+    /// 언어별 상대 크기를 적용한 글리프 크기(px). 기본 줄 크기와 구분한다.
+    pub font_sizes: Vec<f64>,
     /// 진하게
     pub bold: bool,
     /// 기울임
@@ -127,6 +129,7 @@ impl Default for ResolvedCharStyle {
             font_families_metric_face: Vec::new(),
             font_space_em: None,
             font_size: 12.0,
+            font_sizes: Vec::new(),
             bold: false,
             italic: false,
             text_color: 0,
@@ -214,6 +217,14 @@ impl ResolvedCharStyle {
         self.font_families_metric_face
             .get(slot)
             .and_then(Option::as_deref)
+    }
+
+    /// 문서의 언어별 상대 크기를 측정과 실제 출력에 함께 적용한다.
+    pub fn font_size_for_lang(&self, lang_index: usize) -> f64 {
+        self.font_sizes
+            .get(lang_index)
+            .copied()
+            .unwrap_or(self.font_size)
     }
 
     /// 지정 언어 카테고리의 자간(px)을 반환한다.
@@ -551,6 +562,7 @@ fn resolve_single_char_style(cs: &CharShape, doc_info: &DocInfo, dpi: f64) -> Re
     let mut font_families_metric_face: Vec<Option<String>> = Vec::with_capacity(LANG_COUNT);
     let mut letter_spacings = Vec::with_capacity(LANG_COUNT);
     let mut ratios = Vec::with_capacity(LANG_COUNT);
+    let mut font_sizes = Vec::with_capacity(LANG_COUNT);
 
     for lang in 0..LANG_COUNT {
         let font_id = cs.font_ids[lang];
@@ -587,6 +599,7 @@ fn resolve_single_char_style(cs: &CharShape, doc_info: &DocInfo, dpi: f64) -> Re
         letter_spacings.push(font_size * spacing_percent / 100.0);
 
         ratios.push(cs.ratios[lang] as f64 / 100.0);
+        font_sizes.push(font_size * f64::from(cs.relative_sizes[lang]) / 100.0);
     }
 
     // [#7387] 공백은 영문 슬롯(1) 글꼴이 정한다. 속성이 꺼졌거나 그 글꼴의 공백폭을
@@ -613,6 +626,7 @@ fn resolve_single_char_style(cs: &CharShape, doc_info: &DocInfo, dpi: f64) -> Re
         font_families_metric_face,
         font_space_em,
         font_size,
+        font_sizes,
         bold: cs.bold,
         italic: cs.italic,
         text_color: cs.text_color,

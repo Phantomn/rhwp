@@ -193,7 +193,8 @@ impl TypesetEngine {
                 st.vpos_col_anchor,
             );
         }
-        // lazy_base 는 지연 산출 시 갱신될 수 있으므로 회수.
+        // 재조판 뒤 저장 줄의 원점 연결과 지연 기준 산출을 모두 회수한다.
+        st.record_vpos_page_origin(hc.vpos_page_base);
         st.record_vpos_lazy_origin(hc.vpos_lazy_base);
         st.align_flow_to(y);
     }

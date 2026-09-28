@@ -234,6 +234,40 @@ impl HeightCursor {
         let Some(prev_para) = paragraphs.get(prev_pi) else {
             return y_offset;
         };
+        // 재조판한 일반 본문은 이미 소비한 실제 줄 끝에서 이어진다.
+        // 합성 vpos에는 문단 앞 간격이나 이전 재조판의 높이가 반영되지 않을 수
+        // 있으므로 저장 절대 원점처럼 다시 적용하지 않는다. 그 뒤의 저장 빈 줄도
+        // 자체 줄 높이·간격만 소비하며, 옛 절대 위치를 빈 공간으로 추가하지 않는다.
+        if let Some(para) = paragraphs
+            .get(item_para)
+            .filter(|para| para.controls.is_empty())
+        {
+            if crate::renderer::para_has_no_stored_line_segs(para) {
+                return y_offset;
+            }
+            if para.text.is_empty()
+                && prev_para.controls.is_empty()
+                && crate::renderer::para_has_no_stored_line_segs(prev_para)
+            {
+                if let Some(seg) = para.line_segs.first() {
+                    // 앞 본문은 새 줄 수를 소비했다. 이 빈 줄의 저장 좌표를 현재
+                    // 흐름에 연결해 뒤 저장 줄도 같은 상대 원점에서 이어지게 한다.
+                    let anchor = if self.vpos_page_base.is_some() {
+                        self.col_anchor_y
+                    } else {
+                        self.col_area_y
+                    };
+                    let base =
+                        seg.vertical_pos - ((y_offset - anchor) / self.dpi * 7200.0).round() as i32;
+                    if self.vpos_page_base.is_some() {
+                        self.vpos_page_base = Some(base);
+                    } else {
+                        self.vpos_lazy_base = Some(base);
+                    }
+                }
+                return y_offset;
+            }
+        }
         // Task #332 Stage 5: width 검증을 가드 조건으로 약화, 마지막 유효 segment 사용.
         let prev_seg = prev_para
             .line_segs
@@ -556,7 +590,13 @@ impl HeightCursor {
             curr_sb,
             y_offset,
             curr_has_topbottom_para_table,
-            self.skip_spacing_before_prededuct,
+            // 재구성한 두 줄 사이의 vpos는 저장된 문단 앞 간격의 증거가 아니다.
+            // 앞 줄의 실제 끝에서 현재 문단을 시작하고, 앞 간격은 배치가 한 번 더한다.
+            self.skip_spacing_before_prededuct
+                || (synthetic_prev_seg
+                    && paragraphs
+                        .get(item_para)
+                        .is_some_and(|para| crate::renderer::para_has_no_stored_line_segs(para))),
             allow_large_backward,
             self.dpi,
         );
@@ -1779,7 +1819,9 @@ mod tests {
         assert_eq!(c.vpos_lazy_base, Some(800));
         assert!((got - 124.0).abs() < 1e-6);
 
-        // 소비·연속성·유효성 근거가 없으면 기존 누락 간격 bridge를 유지한다.
+        // 실제 저장 줄에서 소비·연속성 근거가 없으면 누락 간격 bridge를 유지한다.
+        // 합성 줄은 절대 저장 좌표가 아니다. #6101의 전체 시각 대조로 확인한
+        // 재조판→저장 빈 줄 및 재조판 본문의 순차 흐름을 따로 검증한다.
         for case in 0..8 {
             let mut c = cursor(None);
             c.suppress_hwpx_stale_forward = true;
@@ -1798,8 +1840,19 @@ mod tests {
                 7 => c.stored_column_origin = Some((500, COL_Y)),
                 _ => unreachable!(),
             }
-            c.vpos_adjust(124.0, 1, &ps, &styles(0.0));
-            assert_eq!(c.vpos_lazy_base, Some(200), "소비 근거가 없는 경로{case}");
+            let got = c.vpos_adjust(124.0, 1, &ps, &styles(0.0));
+            let expected = match case {
+                // 저장 빈 줄 2600HU를 현재 124px에 연결한다:
+                // 2600-(124-100)*75=800HU. 합성 이전 줄의 간격은 더하지 않는다.
+                3 => Some(800),
+                // 현재 줄도 재조판이면 저장 기준을 만들지 않고 실제 흐름을 유지한다.
+                4 => None,
+                _ => Some(200),
+            };
+            assert_eq!(c.vpos_lazy_base, expected, "저장/재조판 경로{case}");
+            if matches!(case, 3 | 4) {
+                assert!((got - 124.0).abs() < 1e-6, "순차 흐름 경로{case}: {got}");
+            }
         }
     }
 

@@ -4296,8 +4296,24 @@ impl LayoutEngine {
                     None
                 };
                 let effective_ref = effective_common.as_ref().unwrap_or(common);
-                let (bottom_y, shape_y) =
-                    self.calc_shape_bottom_y(effective_ref, col_area, body_area);
+                let (bottom_y, shape_y) = if let Control::Table(table) = ctrl {
+                    let (ref_y, ref_h) = match common.vert_rel_to {
+                        VertRelTo::Page => (body_area.y, body_area.height),
+                        VertRelTo::Paper => (0.0, self.current_page_height.get()),
+                        VertRelTo::Para => unreachable!("문단 기준 표는 위에서 제외됨"),
+                    };
+                    let (top, bottom) =
+                        crate::renderer::float_placement::absolute_table_vertical_geometry(
+                            table,
+                            ref_y,
+                            ref_h,
+                            hwpunit_to_px(effective_ref.height as i32, self.dpi),
+                            self.dpi,
+                        );
+                    (bottom, top)
+                } else {
+                    self.calc_shape_bottom_y(effective_ref, col_area, body_area)
+                };
 
                 // 본문 시작 근처만 고려 (페이지 하단 개체는 제외)
                 let threshold_y = col_area.y + col_area.height / 3.0;
@@ -4447,7 +4463,28 @@ impl LayoutEngine {
                 if shape_w < body_area.width * 0.8 {
                     continue;
                 }
-                let (bottom_y, shape_y) = self.calc_shape_bottom_y(common, body_area, body_area);
+                let (bottom_y, shape_y) = if let Control::Table(table) = ctrl {
+                    if matches!(common.vert_rel_to, VertRelTo::Page | VertRelTo::Paper) {
+                        let (ref_y, ref_h) = if common.vert_rel_to == VertRelTo::Page {
+                            (body_area.y, body_area.height)
+                        } else {
+                            (0.0, self.current_page_height.get())
+                        };
+                        let (top, bottom) =
+                            crate::renderer::float_placement::absolute_table_vertical_geometry(
+                                table,
+                                ref_y,
+                                ref_h,
+                                hwpunit_to_px(common.height as i32, self.dpi),
+                                self.dpi,
+                            );
+                        (bottom, top)
+                    } else {
+                        self.calc_shape_bottom_y(common, body_area, body_area)
+                    }
+                } else {
+                    self.calc_shape_bottom_y(common, body_area, body_area)
+                };
                 let threshold_y = body_area.y + body_area.height / 3.0;
                 if shape_y > threshold_y {
                     continue;
