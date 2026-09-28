@@ -64,3 +64,13 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native23쪽 본문과 꼬리말 겹침](sample16_native_review_023.png)
 
 ![Native24쪽의 내용 소유 차이](sample16_native_overlay_024.png)
+
+## 추가: HWP3 변환 HWPX sample16
+
+- [이관 등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869485533), [보존 원문 HWPX](hwp3-sample16-hwp5.hwpx), [독립 한컴2024 PDF64쪽](../../../../pdf/hwp3-sample16-hwp5-hwpx-2024.pdf), [이동·제거·검증 근거](sample16hwpx_test_removal_validation.json). 기존 HWP5와 별도 입력입니다.
+- 현재65/기준64쪽이며 선택7쪽 모두90% 미만입니다. 최저64쪽11.02735%; 6쪽22.67417%에서 본문·표·수식의 세로 위치 차이,64쪽에서 합의각서의 쪽 소유 차이를 직접 확인했습니다. 전체/fresh WASM 통과를 주장하지 않습니다.
+- 전용 렌더링/쪽수4함수와 corpus3행만 제거했습니다. 다른 입력의 온새미로 쪽수·HWP3 수식 검사 및 gradient IR 파싱 검사는 유지합니다. 유지 집중7PASS, 필수 lint/정책 exit0이며 생산 코드는 바꾸지 않았습니다. 제외를 피델리티 개선으로 세지 않습니다.
+
+![Native6쪽 표·본문의 세로 위치 차이](sample16hwpx_native_review_006.png)
+
+![Native64쪽의 내용 소유 차이](sample16hwpx_native_overlay_064.png)

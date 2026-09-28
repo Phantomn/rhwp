@@ -712,8 +712,8 @@
       }
     }
   ],
-  "next_candidate": "issue_2158_hwpx_vpos_reset_preserve::hwp3_sample16_hwpx_matches_hwp5_and_hangul",
-  "next_candidate_reason": "새로확인한별도HWPX의65/64쪽실패를동일입력의독립PDF/Visual Sweep으로먼저판정한다. 고정38의다음기존3번은아직대기하며,추가미해결문서도전체검증전에처리한다.",
+  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_10",
+  "next_candidate_reason": "보정75에서 별도 HWPX의 미달 증거 등록·승인 제외를 완료. 고정38의 다음 대기3번을 개별 실행.",
   "current_status_counts": {
     "resolved": 15,
     "pending": 22,
@@ -745,8 +745,10 @@
       "observed_stage": 74,
       "function": "issue_2158_hwpx_vpos_reset_preserve::hwp3_sample16_hwpx_matches_hwp5_and_hangul",
       "failure": "실제65/기대64쪽",
-      "status": "pending",
-      "note": "다른입력HWP이관을HWPX판정으로대체하지않음;동일입력Visual Sweep미실행"
+      "status": "deferred_to_issue",
+      "note": "선택7쪽 모두90%미만. 원문 보존 및 사용자 승인 전용4검사 제외. 피델리티 해결 아님.",
+      "stage": 75,
+      "evidence": "../issue7445/sample16hwpx_test_removal_validation.json"
     },
     {
       "document": "samples/task2070/1130000-201900011_D0150004-1-002_2017년기준 시장구조조사.hwp",

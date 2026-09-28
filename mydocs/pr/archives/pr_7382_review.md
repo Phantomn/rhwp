@@ -11,7 +11,7 @@ last_verified: 2026-09-28
 
 **통합 PR 준비 보류.** 현재 브랜치에서 보정68 #6101의 표 높이·재조판 흐름·소실 본문과 글꼴 공급을 보완했고, 보정69는 #7336의 약0.35px 경계 차이로 마지막 행 전체를 이월하던 회귀를 해결했습니다. #6101은 소방교육11쪽·결재문서2쪽 전체 Native/fresh WASM이90% 이상이며 [보정68 검증](../assets/pr7382_20260926/stage68_validation.json)에 상세히 기록했습니다. #7336 기존17번은 수정 전FAIL/수정 후PASS, 기존 집중57 PASS, 필수Rust 검사는 모두 통과했습니다. 대상7쪽 최저95.81586%,HWP대조군6쪽 최저92.83181%로 양 backend 전체 gate를 통과했습니다. [보정69 검증과 잔여 차이](../assets/pr7382_20260926/stage69_validation.json).
 
-고정된 이전 실패38개 중15개를 개별 검증 완료했고,1개 함수는 사용자 지시로 #7445에 이관했으며22개는 대기 중입니다. 15개 중2개 corpus 검사는90%미만 원문을 승인된 범위로 이관한 뒤 남은 문서에서 통과한 결과입니다. 이관 원문의 피델리티 개선이나 재배정된 다른 실패 문서의 해결로 세지 않습니다. 보정72~74의 자산관리규정·개인정보 분석 편람·HWP5 변환본을 [#7445 원문·실패 증거](../assets/issue7445/README.md)에 보존했고 렌더링/쪽수 검사에서 제외했습니다. 마지막 확대 검사는45PASS/별도 HWPX1FAIL이며 source-side 유지2검사와 필수 lint/정책 검사는 통과했습니다. HWPX·보도자료·rowbreak HWP·시장구조조사의 추가 미해결 항목도 [현재 계획](../assets/pr7382_20260926/remaining38_regression_plan.json)에 남겼습니다. 유지37의 개별 재실행 뒤 전체 nextest·Native Skia3·최종 통합 head 검증을 진행합니다. 이전968쪽 비교와 과거 전체 nextest는 현재 head 전체 통과의 근거가 아닙니다. 시험 문서 쪽번호2/1 등 직접 확인한 잔여 차이도 유지합니다.
+고정된 이전 실패38개 중15개를 개별 검증 완료했고,1개 함수는 사용자 지시로 #7445에 이관했으며22개는 대기 중입니다. 15개 중2개 corpus 검사는90%미만 원문을 승인된 범위로 이관한 뒤 남은 문서에서 통과한 결과입니다. 이관 원문의 피델리티 개선이나 재배정된 다른 실패 문서의 해결로 세지 않습니다. 보정72~74의 자산관리규정·개인정보 분석 편람·HWP5 변환본을 [#7445 원문·실패 증거](../assets/issue7445/README.md)에 보존했고 렌더링/쪽수 검사에서 제외했습니다. 마지막 확대 검사는45PASS/별도 HWPX1FAIL이며 source-side 유지2검사와 필수 lint/정책 검사는 통과했습니다. 별도 HWPX는 보정75에서 미달 증거를 등록하고 승인된 제외를 완료했습니다(유지 집중7PASS, 필수 lint/정책 exit0). 보도자료·rowbreak HWP·시장구조조사의 추가 미해결 항목도 [현재 계획](../assets/pr7382_20260926/remaining38_regression_plan.json)에 남겼습니다. 유지37의 개별 재실행 뒤 전체 nextest·Native Skia3·최종 통합 head 검증을 진행합니다. 이전968쪽 비교와 과거 전체 nextest는 현재 head 전체 통과의 근거가 아닙니다. 시험 문서 쪽번호2/1 등 직접 확인한 잔여 차이도 유지합니다.
 
 
 ## 접수와 provenance
@@ -2035,3 +2035,14 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 - 최종fmt/check·Native/WASM/workspace Clippy·workspace build·고정base manifest와unit-tier는모두exit0입니다. source-side유지2검사는2PASS/4066SKIP입니다. 확대기존검사는45PASS/1FAIL/1492SKIP이며body partition1과#4680/구조/음영/fixture계약은PASS입니다. 실패는이관HWP와다른입력인`hwp3-sample16-hwp5.hwpx`의65/64쪽입니다. 같은내용의다른형식을현재HWP의시각판정으로같이제거하지않습니다.
 - 원래38은15개별완료/1함수이관/22대기입니다. 개별1/2의PASS는사용자승인미달원문이관뒤현재corpus에대한결과이고,재배정된다른실패문서나이관원문의피델리티해결로바꾸어보고하지않습니다. #3637보도자료·rowbreak HWP·시장구조조사#7147의기존2함수와새HWPX실패를계획의추가미해결목록에보존했습니다.
 - 다음은새HWPX실패의독립PDF/실제Visual Sweep판정입니다. 원래3번partition10이후의개별검증·유지37함수재실행·전체nextest/NativeSkia3·최종head검증을완료해야합니다. 현재PR준비보류이며로그/임시SVG/파생suite는커밋하지않습니다.
+
+## 보정75 사전 분석 — 별도 sample16 HWPX의 쪽수 실패
+
+기준 head `31222d1da`의 #2158 HWPX 검사는 실제65/기대64쪽으로 실패했습니다. HWP5 이관의 판정을 다른 입력으로 옮기지 않고, 저장 한컴2024 HWPX와 기존 독립 한컴2024 PDF64쪽을 대조했습니다. 생산 코드가 보정69 이후 바뀌지 않은 고정 CLI로 Native 음성 증거를 먼저 수집했습니다.
+
+## 보정75 결과 — HWPX 미달 원문 보존과 승인된 검사 제외
+
+- 선택3·5·6·18·23·24·64쪽은44.78343/58.63140/22.67417/67.86130/22.32296/41.72462/11.02735%로 모두90% 미만입니다. 6쪽 본문·표·수식의 세로 위치와64쪽 합의각서 소유 차이를 직접 확인했습니다. 전체/fresh WASM 미실행이며 시각 승인으로 세지 않습니다.
+- [#7445 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869485533)에 별도 원문을 등록한 뒤 전용4함수와 corpus3행만 제거했습니다. 원문은 바이트 동일하게 이관했고 PDF는 기존 경로에 유지했습니다. 다른 입력의 온새미로·HWP3 수식 및 gradient IR 파싱 검사를 유지합니다. 코드 commit `aa8b4c00385f6e28d3b68ae4f1d95f4038cac900`에 새 검사·skip/ignore·공차 완화·생산 코드 변경은 없습니다.
+- 유지 집중7PASS/0FAIL/659SKIP, fmt·Native/WASM/전체 target Clippy·workspace build·고정 base manifest/unit-tier는 모두exit0입니다. [검사 제거 근거와 증적](../assets/issue7445/sample16hwpx_test_removal_validation.json), 로컬 `output/pr-review/planet6897-7382-20260926/stage75-sample16hwpx/`에 명령·로그를 기록했습니다.
+- 고정38의15검증 완료/1이관/22대기는 유지합니다. 다음3번 개별 검사, 재배정된 별도 실패 문서의 검증, 유지37 재실행 및 전체 nextest·Native Skia·최종 head 시각 검증이 남아 통합 PR 준비는 보류합니다.
