@@ -52,6 +52,14 @@ non-zero로 끝내며, manifest의 `pr_review_gate.status`를 `re_review_require
 증거가 아니다. 누락·추가된 쪽의 시작 경계와 앞뒤 내용을 확인하고 새 head에서 다시 비교한다.
 글꼴 예외도 페이지 수 차이를 면제하지 않는다.
 
+Native의 `--page`/`--pages`는 SVG와 render tree도 선택 쪽만 내보낸다. sweep의 쪽 번호는
+1부터이며 CLI의 0부터 시작하는 `-p`로 내부 변환한다. `--resume`에 새 선택 쪽을 추가하면 빠진
+쪽만 생성하고, 선택 없이 전체를 요청하면 전체 내보내기를 수행한다. `native-export.json`의
+`pageCount`와 최종 manifest의 `native_document_pages`는 CLI가 보고한 **전체 문서 쪽수**다.
+`exported_svg_pages`/`exported_render_tree_pages`는 실제 저장한 파일 수이며 전체 쪽수로 쓰지 않는다.
+선택 비교 통과는 전체 페이지 일치나 fresh WASM 검증을 대신하지 않는다. WASM은 기존 전체
+내보내기 경로를 사용한다. 로그와 중간 산출물은 `--out output/...` 아래에 보관한다.
+
 예외는 한컴 PDF와 rhwp raster에 실제로 적용된 글꼴이 완전히 다르다는 사실을 확인한 경우뿐이다. 이때도
 `--font-mismatch-evidence <UTF-8 파일>`을 지정해 각 쪽의 원래/대체 font family, 확인 방법과
 representative PNG를 기록한 증거 파일의 경로·SHA-256을 manifest에 남긴다. 단순 anti-aliasing, 작은
