@@ -74,3 +74,13 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native6쪽 표·본문의 세로 위치 차이](sample16hwpx_native_review_006.png)
 
 ![Native64쪽의 내용 소유 차이](sample16hwpx_native_overlay_064.png)
+
+## 추가: sample16의 2010 이름 HWP 저장본
+
+- [이관 등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869562651), [보존 원문](hwp3-sample16-hwp5-2010.hwp), [독립 한컴2024 PDF64쪽](../../../../pdf/hwp3-sample16-hwp5-2010-hwp-2024.pdf), [개별 근거와 검증](sample16_2010_test_removal_validation.json). 실제 저장 metadata는 한컴2024이며 다른 버전 입력과 구분합니다.
+- 현재65/기준64쪽, 선택7·22·23·24·64쪽 모두90% 미만(최저24쪽7.09794%). 본문 넘침과 페이지 내용 소유 차이를 직접 확인했습니다. 기존2020 이름 PDF는 cairo 출력으로 이번 독립 기준에서 제외하고 보존합니다. 전체/fresh WASM 통과는 주장하지 않습니다.
+- #1105 전용2함수와 corpus2행만 제거했습니다. 다른 입력의 함수·공차·기대값과 IR 진단은 유지합니다. 집중8PASS, 필수 lint/정책 exit0. 재배정된 body partition15 통과를 보도자료·rowbreak 문서의 해결로 세지 않습니다.
+
+![Native24쪽 페이지 내용 소유 차이](sample16_2010_native_review_024.png)
+
+![Native23쪽 본문 넘침과 세로 차이](sample16_2010_native_overlay_023.png)

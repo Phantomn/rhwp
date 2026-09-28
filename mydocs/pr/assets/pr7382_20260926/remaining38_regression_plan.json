@@ -121,7 +121,7 @@
       "id": 4,
       "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_15",
       "case": "body_overflow_baseline",
-      "status": "pending",
+      "status": "resolved",
       "individual_results": [
         {
           "stage": 76,
@@ -155,6 +155,13 @@
             "     Summary [   0.532s] 1 test run: 0 passed, 1 failed, 233 skipped"
           ],
           "head": "24d83f3a487a200c821b85c713c32fa93006d9d3"
+        },
+        {
+          "stage": 77,
+          "after": "body partition15 개별PASS; 유지 집중8PASS/0FAIL/865SKIP",
+          "code_commit": "123e7260c107e4f45f04521b395b1906d8d40256",
+          "evidence": "../issue7445/sample16_2010_test_removal_validation.json",
+          "scope": "승인된 문서 이관 뒤 남은 corpus 검사의 통과. 재배정된 보도자료/rowbreak 해결 아님."
         }
       ],
       "resolved_plan": {
@@ -780,12 +787,12 @@
       }
     }
   ],
-  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_15",
-  "next_candidate_reason": "3번 개별PASS;4번 FAIL에서 중단. 2010 HWP, 보도자료 HWPX, rowbreak HWP를 각각 독립 출력으로 판정.",
+  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_2",
+  "next_candidate_reason": "고정5번부터 한 개씩 실행하고 첫 실패에서 중단하여 분석.",
   "current_status_counts": {
-    "resolved": 16,
+    "resolved": 17,
     "deferred_to_issue": 1,
-    "pending": 21
+    "pending": 20
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
