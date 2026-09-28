@@ -84,3 +84,13 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native24쪽 페이지 내용 소유 차이](sample16_2010_native_review_024.png)
 
 ![Native23쪽 본문 넘침과 세로 차이](sample16_2010_native_overlay_023.png)
+
+## 추가: sample16의2022 HWP 저장본
+
+- [이관 등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869647971), [보존 원문](hwp3-sample16-hwp5-2022.hwp), [독립 한컴2022 PDF64쪽](../../../../pdf/hwp3-sample16-hwp5-2022-hwp-2020.pdf), [근거·검증](sample16_2022_test_removal_validation.json).
+- 현재65/기준64쪽, 선택3·6·23·24·64쪽 모두90% 미만(최저24쪽7.09794%). 3쪽 문단·도형 간격과24쪽 내용 소유 차이를 직접 확인했습니다. 전체/fresh WASM 통과를 주장하지 않습니다.
+- 전용6함수와 corpus2행만 제거하고 다른 입력·기대값·공차와 저장 제품/IR 검사는 유지했습니다. 유지8PASS, body partition2의다른3원문은1FAIL이며 필수 lint/정책 exit0입니다. 다른 실패나 원문 피델리티 해결로 세지 않습니다.
+
+![Native3쪽 문단·도형 차이](sample16_2022_native_review_003.png)
+
+![Native24쪽 내용 소유 차이](sample16_2022_native_overlay_024.png)

@@ -175,7 +175,21 @@
       "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_2",
       "case": "body_overflow_baseline",
       "status": "pending",
-      "individual_results": [],
+      "individual_results": [
+        {
+          "stage": 78,
+          "before": "개별1FAIL,2022입력2→4 및 관제교육39→40",
+          "head": "d75eb265538cea0c26b39c9faf1a6170eee491a2",
+          "log": "stage78-individual-pending/individual5.log"
+        },
+        {
+          "stage": 79,
+          "after": "body partition2 FAIL. 유지8PASS/다른3문서1FAIL/853SKIP",
+          "code_commit": "ced1d9ef299af17850c9f43ec3c4d91f914baa6c",
+          "evidence": "../issue7445/sample16_2022_test_removal_validation.json",
+          "scope": "사용자 승인2022입력만이관; 다른3문서는미해결"
+        }
+      ],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
         "target": "regression_suite_015",
@@ -788,7 +802,7 @@
     }
   ],
   "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_2",
-  "next_candidate_reason": "고정5번부터 한 개씩 실행하고 첫 실패에서 중단하여 분석.",
+  "next_candidate_reason": "고정5번의남은3원문을개별검증. 보도자료HWPX부터 처리.",
   "current_status_counts": {
     "resolved": 17,
     "deferred_to_issue": 1,
@@ -832,6 +846,13 @@
       "failure": "기존2함수FAIL,pi934표의쪽위치",
       "status": "pending",
       "note": "다른생물독문서의함수제거로해결되지않음"
+    },
+    {
+      "document": "samples/issue6764/1613000-202200037-air-traffic-controller-cbta.hwp",
+      "observed_stage": 78,
+      "status": "pending",
+      "failure": "body bottom39→40건",
+      "note": "독립 Visual Sweep 미실행. 다른문서이관후재배정을해결로세지않음."
     }
   ]
 }
