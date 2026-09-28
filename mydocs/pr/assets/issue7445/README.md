@@ -232,3 +232,13 @@ venv/bin/python scripts/visual_sweep.py \
 - 기존최소입력함수의SVG번호 assertion만제외하고3개번호·제목·수준getter계약/데모15항목getter계약·기존함수이름유지. 생성기최소출력도보존경로로변경/재생성원문SHA동일확인. 새검사/생산변경/skip/ignore/공차완화 없음. 집중 ['     Summary [   0.838s] 3 tests run: 3 passed, 424 skipped'],필수lint·정책exit0. 이관을피델리티개선이나질의통과를렌더링승인으로세지않습니다.
 
 ![Native1쪽표셀번호와뒤개요겹침](outline_minimal4093_native_review_001.png)
+
+## 추가: #6782 화학제품 표시기준 연구 전체 원문
+
+- [등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5871748601), [보존 원문](1480000-201900042-chemical-product-labeling-study.hwp), [독립 PDF103쪽](../../../../pdf/1480000-201900042-chemical-product-labeling-study-2020.pdf), [해시·시각·제외·검증 근거](chemical_full6782_test_removal_validation.json). 축소본과 다른6,521,856byte 원문입니다.
+- 현재103/기준103쪽, 선택8쪽 Native 최저78쪽49.36129%.39쪽50.07638/76쪽61.10728%.76쪽 표·캡션/본문 겹침,78쪽 인증마크 그림 누락을 직접 확인했습니다. 전체103쪽/freshWASM 미실행입니다.
+- 렌더링19함수/8파일 및 body1행 제외, 원문/PDF 보존. 기존 축소본 manifest의 남아 있던 이전 경로·역할도 수정했습니다. 다른 입력·IR 역사 목록·공차 유지. 새 검사/생산 변경/skip/ignore/허용치 완화 없음. 집중 ['     Summary [   2.687s] 1 test run: 1 passed, 223 skipped'], 필수8단계 exit0. 이관을 피델리티 개선으로 세지 않습니다.
+
+![Native76쪽 표·캡션과본문 겹침](chemical_full6782_native_review_076.png)
+
+![Native78쪽 인증마크 그림 누락](chemical_full6782_native_review_078.png)

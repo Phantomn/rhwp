@@ -1368,7 +1368,7 @@
       "id": 35,
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_15",
       "case": "text_overlap_baseline",
-      "status": "pending",
+      "status": "resolved",
       "individual_results": [
         {
           "stage": 102,
@@ -1380,6 +1380,17 @@
           ],
           "status": "pending",
           "reason": "issue6782/1480000-201900042-chemical-product-labeling-study.hwp 신규2건;보정93축소본과다른해시"
+        },
+        {
+          "stage": 103,
+          "test_snapshot_commit": "85bea0d563a3e53fa20eb0f18b25d6227bcee05b",
+          "fixture_deferred": "issue6782/1480000-201900042-chemical-product-labeling-study.hwp",
+          "fixture_removal_evidence": "../issue7445/chemical_full6782_test_removal_validation.json",
+          "after": [
+            "     Summary [   2.687s] 1 test run: 1 passed, 223 skipped"
+          ],
+          "status": "resolved",
+          "scope": "사용자 승인 미달원문 제외 후 현재partition15통과. 원문 피델리티 개선 아님."
         }
       ],
       "resolved_plan": {
@@ -1425,12 +1436,12 @@
       }
     }
   ],
-  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_15",
-  "next_candidate_reason": "기존35번은보정93축소본과다른전체원문.전체원문자체의독립PDF 비교부터 수행",
+  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_3",
+  "next_candidate_reason": "기존36~38번을 각각 실행. 첫 실패에서 동일입력의 독립 비교부터 수행.",
   "current_status_counts": {
-    "resolved": 33,
+    "resolved": 34,
     "deferred_to_issue": 1,
-    "pending": 4
+    "pending": 3
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
@@ -1612,9 +1623,11 @@
     {
       "document": "samples/issue6782/1480000-201900042-chemical-product-labeling-study.hwp",
       "observed_stage": 102,
-      "status": "pending",
+      "status": "deferred_to_issue",
       "failure": "text-overlap 신규2건",
-      "note": "6,521,856byte전체원문 SHA398d03a5...은보정93축소본과다름.별도기준PDF로검증."
+      "note": "별도 전체원문 선택Native90%미달.원문보존/19함수제외.피델리티개선아님.",
+      "stage": 103,
+      "evidence": "../issue7445/chemical_full6782_test_removal_validation.json"
     }
   ]
 }
