@@ -2214,3 +2214,7 @@ head `a643e0e6b8bdb40172dbc55386d747b2ea49fd3f`에서 기존36·37번 각1PASS,3
 ## 보정105 결과 — PR 차단 범위만 보류·정상19함수 복원
 
 사용자 정정을 반영해 보정10319함수와 원문 samples/body원장1행을 복원했습니다. 실제 실패가 확인된 text-overlap 신규2건 원문입력만명시적으로제외하며 정상함수/다른원장 계속검사합니다. 집중 ['     Summary [   3.632s] 20 tests run: 20 passed, 1920 skipped'],필수8단계exit0. 코드 `9efd1823c57b9e9417ef15cf7492269c27f2c8cb`, [근거](../assets/issue7445/chemical_full6782_scope_correction_validation.json). 부정시각증거/보존 원문·PDF 유지, 피델리티승인 아님. 사용자 확인PR#7382입니다. 나머지 이전동반제외를 원래검사/현재실패 증거로 대조합니다.
+
+## 보정106 사전 분석·결과 — 기존 정상 회귀 동반제외 복원
+
+사용자 정정에 따라 원래 검사102함수와혼합assertion/기대값을 복원하고 보존 입력의 동일해시 경로로 연결했습니다.110개 기존함수 각각실행, 초기경로오류6개 수정/단독재실행후94PASS/16실제FAIL입니다. 통과 검사 유지/실패16개는원문별개별보정 대기입니다. 새검사/생산변경/공차완화 없음. 집중19PASS,필수8단계exit0,코드 `37ec7fa3722ab2c9ae42daa63c8803c628666df5`. [명령·전후경로·결과·미해결](../assets/issue7445/scope_restore_validation.json), [#7445범위정정](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5872059905). 기존부분제외서술은역사기록이며최신범위를따릅니다. 공통원장/renderer manifest 동반제외도재대조합니다. 전체회귀/최종head시각검증/PR준비 미완료입니다.

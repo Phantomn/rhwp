@@ -1,5 +1,8 @@
 # #7445 전체 피델리티 개선용 재현 자료
 
+> **현재 제외 범위 정정(보정105·106)**: PR#7382를 실제 막는 실패만 처리합니다. 같은문서의 정상검사를 동반 제외했던 처리를 철회했습니다. 전체원문19함수 및 추가 기존102함수/혼합assertion을 복원했고 현재110단독검사94PASS/16FAIL입니다.16개 실패 및 공통원장/manifest 동반제외 범위는 추가 처리 중입니다. 아래 기존 제거 서술은 당시 기록이며 [최신 복원·미해결 근거](scope_restore_validation.json)와 [등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5872059905)을 함께 읽습니다. 원문90%미달 증거는 유지하지만 정상검사 일괄제외 근거로 쓰지 않습니다.
+
+
 [이슈 #7445](https://github.com/edwardkim/rhwp/issues/7445)는 80250 규제영향분석서 전체의 한컴 출력 피델리티를 추적합니다. 사용자는 현재 문서 검사 항목을 제거하고, 원본은 이슈 재현 자산으로 이동해 보존하는 방식을 승인했습니다.
 
 - [원본 HWP](80250_regulatory_analysis.hwp): 과거 `samples/80250_regulatory_analysis.hwp`의 한컴2024 저장본입니다.

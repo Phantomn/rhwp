@@ -1673,5 +1673,96 @@
       "stage": 103,
       "evidence": "../issue7445/chemical_full6782_test_removal_validation.json"
     }
-  ]
+  ],
+  "scope_correction": {
+    "stage": 106,
+    "evidence": "../issue7445/scope_restore_validation.json",
+    "restored_test_functions": 102,
+    "effective_individual_pass": 94,
+    "effective_individual_fail": 16,
+    "pending_actual_failures": [
+      {
+        "file": "tests/cases/issue_1133_page_number_bottom_margin.rs",
+        "case": "issue_1133_page_number_bottom_margin",
+        "function": "footnote_page_number_keeps_the_same_bottom_margin_anchor"
+      },
+      {
+        "file": "tests/cases/issue_5846_mixed_nested_partial_row_duplicate.rs",
+        "case": "issue_5846_mixed_nested_partial_row_duplicate",
+        "function": "issue_5846_cut_fragment_defers_partial_nested_tail_row"
+      },
+      {
+        "file": "tests/cases/issue_6030_subline_row_grow_lastline.rs",
+        "case": "issue_6030_subline_row_grow_lastline",
+        "function": "issue_6030_exam_eng_choice_last_line_not_clipped"
+      },
+      {
+        "file": "tests/cases/issue_6031_ladder_sb_omitted_tail_overrun.rs",
+        "case": "issue_6031_ladder_sb_omitted_tail_overrun",
+        "function": "issue_6031_page_tail_lines_stay_inside_body_bottom"
+      },
+      {
+        "file": "tests/cases/issue_6409_table_page_top_vpos.rs",
+        "case": "issue_6409_table_page_top_vpos",
+        "function": "issue_6409_form_table_starts_on_next_page_not_leftover"
+      },
+      {
+        "file": "tests/cases/issue_6706_stored_inline_control_rows.rs",
+        "case": "issue_6706_stored_inline_control_rows",
+        "function": "stored_table_picture_table_rows_keep_hancom_positions_and_unique_ownership"
+      },
+      {
+        "file": "tests/issue_1086.rs",
+        "case": "issue_1086",
+        "function": "task1086_hwp3_sample16_hwp5_page_count_matches_hancom_office"
+      },
+      {
+        "file": "tests/issue_1105.rs",
+        "case": "issue_1105",
+        "function": "task1105_sample16_hwp5_page_break_before_section_4_matches_hancom"
+      },
+      {
+        "file": "tests/issue_1105.rs",
+        "case": "issue_1105",
+        "function": "task1105_sample16_hwp5_2010_business_selection_break_matches_hancom"
+      },
+      {
+        "file": "tests/issue_1105.rs",
+        "case": "issue_1105",
+        "function": "task1105_sample16_hwp5_2010_server_requirements_page_matches_hancom"
+      },
+      {
+        "file": "tests/issue_1105.rs",
+        "case": "issue_1105",
+        "function": "task1105_sample16_hwp5_2022_business_selection_break_matches_hancom"
+      },
+      {
+        "file": "tests/issue_1105.rs",
+        "case": "issue_1105",
+        "function": "task1105_sample16_hwp5_2022_server_requirements_page_matches_hancom"
+      },
+      {
+        "file": "tests/issue_1749_saved_bounds_page_break.rs",
+        "case": "issue_1749_saved_bounds_page_break",
+        "function": "issue_1811_hwpx_pi52_rowbreak_cut_matches_hwp_reference"
+      },
+      {
+        "file": "tests/issue_2158_hwpx_vpos_reset_preserve.rs",
+        "case": "issue_2158_hwpx_vpos_reset_preserve",
+        "function": "hwp3_sample16_hwpx_matches_hwp5_and_hangul"
+      },
+      {
+        "file": "tests/suites/issue_regression_pilot/issue_1035_alignment.rs",
+        "case": "issue_1035_alignment",
+        "function": "hwp3_sample16_hwp5_page_count_64"
+      },
+      {
+        "file": "tests/suites/issue_regression_pilot/issue_1035_alignment.rs",
+        "case": "issue_1035_alignment",
+        "function": "hwp3_sample16_hwp5_2022_page_count_64"
+      }
+    ],
+    "corpus_manifest_scope": "정상입력 동반제외 대조/복원 대기",
+    "not_new_tests": true
+  }
 }
