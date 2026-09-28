@@ -2093,6 +2093,14 @@
       "evidence": "../issue7445/jinan2319_text_blocking_scope_validation.json",
       "result": "text16 PASS +정상2 PASS; 필수lint/정책7 PASS",
       "remaining": "다른축·시장6761/7147·최종37개별/전체회귀/원PR Native freshWASM 대기"
+    },
+    "recycling6892_off": {
+      "stage": 126,
+      "code_commit": "ab0fe1cb4e68b09258615147632beaaef3293dd5",
+      "scope": "재활용 off 입력 하나만 보류. 앵커2함수/다른축/원문PDF 유지",
+      "evidence": "../issue7445/recycling6892_off_blocking_scope_validation.json",
+      "result": "off14PASS/2FAIL, 기존앵커1PASS/다른입력대조1FAIL =>15PASS/3FAIL; lint정책7 exit0",
+      "remaining": "다른실패2입력 및pic-in-table-01·다른축·최종개별/전체회귀 미완료"
     }
   },
   "latest_axis_snapshot": {
@@ -2115,5 +2123,15 @@
     "failed_inputs": 0,
     "evidence": "../issue7445/jinan2319_text_blocking_scope_validation.json",
     "meaning": "text16분할만 현재통과. 다른off/body/cell/oracle축·시장6761·최종37개별/전체회귀를 대체하지 않음."
+  },
+  "latest_off_axis_snapshot": {
+    "stage": 126,
+    "code_commit": "ab0fe1cb4e68b09258615147632beaaef3293dd5",
+    "axis_tests": 16,
+    "passed": 14,
+    "failed": 2,
+    "failed_inputs": 2,
+    "evidence": "../issue7445/recycling6892_off_blocking_scope_validation.json",
+    "meaning": "off16분할만. HWP5-nopassword/basic issue2007 실제실패대기; 별도 pic-in-table-01 대조함수 실패도 유지. 다른축/최종회귀를 대체하지 않음."
   }
 }

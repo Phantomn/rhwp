@@ -2367,3 +2367,19 @@ Native 부정증거를 승인으로 쓰지 않습니다.
 코드 `45edbe87fcde65296760f7d79e4907dfcc73e97d`, [개별 재현·독립 PDF·전체 Native·유지/분할 검증](../assets/issue7445/jinan2319_text_blocking_scope_validation.json).
 text16분할16PASS와 정상2PASS, 합계18PASS/399SKIP입니다. 필수lint/정책7단계exit0, 신규 회귀/생산 변경 없음.
 다른 축·시장#6761/#7147·최종37개별/전체회귀·원PR Native/freshWASM 검증은 남아 있으며 PR 준비 미완료입니다.
+
+
+## 보정126 사전 분석·결과 — 재활용 보도자료의 실제 off-canvas 입력만 보류
+
+신규1건의 off 분할을 단독1FAIL로 재현했습니다. 7쪽Table5 경계가 용지 오른쪽으로444.9067px 나갑니다.
+#6917의 같은원문/기여자 한컴PDF 대응을 확인했고 현재8/PDF8쪽입니다. 현재 Native6–8쪽은99.74887%/
+83.9489%/99.94084%입니다. 7쪽review/standalone overlay에서 하단 배박활용·감귤박활용 제목과 두 그림이
+Native에는 없는 것을 직접 확인했습니다. 탐지 경계 하나를 모든 누락의 확정 원인으로 보고하지 않습니다.
+전체8쪽/freshWASM은 미실행입니다.
+
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5874555016) 후 이입력의 off축만 보류했습니다.
+baseline 신규1건은 추가하지 않았습니다. 기존앵커2함수/다른모든축·문서·원문PDF를 유지했습니다.
+코드 `ab0fe1cb4e68b09258615147632beaaef3293dd5`, [개별실패·직접판독·좁은범위·분할/대조 결과](../assets/issue7445/recycling6892_off_blocking_scope_validation.json).
+off16분할14PASS/2FAIL와앵커1PASS/다른입력대조1FAIL로합계15PASS/3FAIL/409SKIP입니다. 다른두 off실패
+(HWP5-nopassword 신규1, basic issue2007 신규2) 및 pic-in-table-01 그림y38.3067/기대39.7 대조실패는 제외하지
+않았습니다. 필수lint/정책7단계exit0이며 다른축·최종검증/PR준비는 미완료입니다.

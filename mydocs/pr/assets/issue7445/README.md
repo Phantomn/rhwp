@@ -337,3 +337,15 @@ text16분할과 정상2함수 합계18PASS이며 전체 회귀/피델리티 승�
 
 ![진안 신청서1쪽 review](jinan2319_native_review_001.png)
 ![진안 신청서2쪽 overlay](jinan2319_native_overlay_002.png)
+
+
+## 재활용 보도자료: 실제 차단된 off-canvas 축만 보류
+
+[원문](../../../../samples/issue6892/156726122-recycling-press-release.hwpx), [기존 한컴 PDF](../../../../samples/issue6892/pdf/156726122-recycling-press-release-2020.pdf),
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5874555016), [보정126 검증](recycling6892_off_blocking_scope_validation.json).
+신규off1건 입력만 보류했습니다. Native6/7/8쪽은99.74887/83.9489/99.94084%이며7쪽 하단그림이 누락됩니다.
+앵커2함수·다른축/원문PDF는 유지했습니다. off14PASS/2FAIL +앵커1PASS/다른입력대조1FAIL이며 남은3실패를
+함께 제외하지 않았습니다. 전수8쪽/freshWASM/전체회귀 승인은 미완료입니다.
+
+![재활용7쪽 review](recycling6892_native_review_007.png)
+![재활용7쪽 overlay](recycling6892_native_overlay_007.png)
