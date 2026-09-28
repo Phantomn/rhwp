@@ -120,6 +120,8 @@ class WasmBuildMeasurementTests(unittest.TestCase):
             (34, "[INFO]: Done in 34s"),
         ]:
             self.measurement.observe(line, elapsed, events, commands)
+        self.measurement.observe('[INFO wasm_pack::child] Running "/cache/wasm-opt" "--version"',
+                                 35, events, commands)
         self.assertEqual(commands["wasm-opt"][-1], "-O")
         self.assertEqual(self.measurement.intervals(events, 35), {
             "preparation": 1, "cargo": 10, "bindgen_setup_and_run": 3,
@@ -130,7 +132,9 @@ class WasmBuildMeasurementTests(unittest.TestCase):
 
     def test_release_workflow_preserves_development_and_deployment_routes(self):
         workflow = WORKFLOW_PATH.read_text()
-        self.assertIn("python3 scripts/measure_render_diff_wasm.py --profile release", workflow)
+        self.assertIn('python3 scripts/measure_render_diff_wasm.py --profile "$RHWP_WASM_PROFILE"', workflow)
+        self.assertIn("github.event_name == 'workflow_dispatch' && inputs['wasm-profile'] || 'release'", workflow)
+        self.assertIn("default: 'release'\n        type: choice", workflow)
         self.assertIn("RHWP_WASM_BUILD_MANIFEST:", workflow)
         self.assertIn("output/render-diff-build/", workflow)
         self.assertIn("'scripts/measure_render_diff_wasm.py'", workflow)

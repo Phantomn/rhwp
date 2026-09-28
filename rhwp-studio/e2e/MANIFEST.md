@@ -122,6 +122,7 @@ e2e 스크립트의 **단일 권위 목록**이다. 파일 추가/변경/폐기 
 | `run-with-vite.mjs` | 유틸 | active | Vite dev server 기동 + 임의 명령 실행 공용 러너 (VITE_URL 주입, 종료 코드 전파) | — | npm e2e:undo-depth |  |
 | `save-as-format.test.mjs` | 상시 | active | 저장 출력 포맷 선택 (file:save-as-hwp / file:save-as-hwpx) E2E — #1613 | biz_plan.hwp, hwpx/footnote-01.hwpx | 수동 |  |
 | `scenario-runner.mjs` | 유틸 | active | 시나리오 실행기 + 렌더 트리 측정기 + 규칙 검증기 | — | 수동 |  |
+| `wasm-artifact-check.mjs` | 유틸 | active | #7473 앱 초기화 중 실제 수신 WASM과 빌드 manifest SHA-256 대조 | — | 수동 | `helpers.mjs`에서 opt-in, `tests/wasm-artifact-check.test.ts`로 실패 경계 검사 |
 | `vite-server.mjs` | 유틸 | active | Vite dev server 기동·종료 공용 헬퍼 — vite Node API(createServer) in-process 기동, 로그는 customLogger 로 target/ 에 유지 | — | 수동 | `run-render-diff.mjs`·`run-with-vite.mjs`에서 import |
 | `shape-inline.test.mjs` | 상시 | active | 도형 인라인 컨트롤 — 커서 이동 및 텍스트 삽입 | — | 수동 |  |
 | `shift-end.test.mjs` | 상시 | active | shift-return.hwp Shift+End 블록 선택 | shift-return.hwp | 수동 |  |
