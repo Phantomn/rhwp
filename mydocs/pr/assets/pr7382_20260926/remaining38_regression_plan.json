@@ -2085,6 +2085,14 @@
       "code_commit": "5117536ee0e1cee0b9ac23547fd3ce0bebeb9e02",
       "evidence": "../issue7445/curriculum2287_text_blocking_scope_validation.json",
       "scope": "실제증가 text축 입력/37건행만. 모든기존함수/다른축·문서·원문유지; 시장6761의다른입력실패도보존"
+    },
+    "jinan2319_text": {
+      "stage": 125,
+      "code_commit": "45edbe87fcde65296760f7d79e4907dfcc73e97d",
+      "scope": "진안 신규5건 text 입력 하나만 #7445에 보류. 정상2함수/모든다른축/원문/새PDF 유지",
+      "evidence": "../issue7445/jinan2319_text_blocking_scope_validation.json",
+      "result": "text16 PASS +정상2 PASS; 필수lint/정책7 PASS",
+      "remaining": "다른축·시장6761/7147·최종37개별/전체회귀/원PR Native freshWASM 대기"
     }
   },
   "latest_axis_snapshot": {
@@ -2099,13 +2107,13 @@
   "current_status_counts_scope": "고정38의과거처리snapshot만.최종37개별은다시실행해야하며전체head통과아님.",
   "final_validation_status": "pending",
   "latest_text_axis_snapshot": {
-    "stage": 123,
-    "code_commit": "5117536ee0e1cee0b9ac23547fd3ce0bebeb9e02",
+    "stage": 125,
+    "code_commit": "45edbe87fcde65296760f7d79e4907dfcc73e97d",
     "axis_tests": 16,
-    "passed": 15,
-    "failed": 1,
-    "failed_inputs": 1,
-    "evidence": "../issue7445/curriculum2287_text_blocking_scope_validation.json",
-    "meaning": "text전체16분할만. 진안신규5입력대기. 추가시장6761 317/315실패는같이진단했지만이범위제외대상아님. off/다른축및최종회귀대체안함"
+    "passed": 16,
+    "failed": 0,
+    "failed_inputs": 0,
+    "evidence": "../issue7445/jinan2319_text_blocking_scope_validation.json",
+    "meaning": "text16분할만 현재통과. 다른off/body/cell/oracle축·시장6761·최종37개별/전체회귀를 대체하지 않음."
   }
 }

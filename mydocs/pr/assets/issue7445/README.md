@@ -326,3 +326,14 @@ venv/bin/python scripts/visual_sweep.py \
 ## 추가: 교육과정 원문의 실제 text-overlap 축
 
 [추가등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5874264216), [기존원문](../../../../samples/task2287/1342000_edu_curriculum_map.hwp), [동일입력 정상한컴PDF415쪽](../../../../pdf/task2287/1342000_edu_curriculum_map-hwp-2020.pdf), [단독실패·새선택Native·유지검사/전수분할](curriculum2287_text_blocking_scope_validation.json). 실제37→90증가의text입력/37건행만보류하고기존실물/IR 및다른축·원문/PDF 유지. 선택6쪽최저68.47008%,413/415쪽,전수Native/freshWASM미완료입니다. 기존18PASS/시장별도1FAIL 및text15PASS/진안1FAIL,lint/정책7단계exit0. 전체피델리티/전체회귀 완료아닙니다.
+
+
+## 진안군 신청서: 실제 차단된 text-overlap 축만 보류
+
+[원문](../../../../samples/task2319/20544835_jinan_apt_form.hwp), [새 한컴 PDF2쪽](../../../../pdf/task2319/20544835_jinan_apt_form-hwp-2020.pdf),
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5874475817), [보정125 검증](jinan2319_text_blocking_scope_validation.json).
+신규 겹침5건의 입력만 보류했고 정상2함수·다른축/원문은 유지했습니다. Native 전체2쪽 최저51.96856%, freshWASM미실행입니다.
+text16분할과 정상2함수 합계18PASS이며 전체 회귀/피델리티 승인과 구분합니다.
+
+![진안 신청서1쪽 review](jinan2319_native_review_001.png)
+![진안 신청서2쪽 overlay](jinan2319_native_overlay_002.png)
