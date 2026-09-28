@@ -169,9 +169,7 @@ fn newly_created_header_and_footer_save_without_stored_lines() {
             0x80000001
         );
     }
-    assert!(
-        !records
-            .iter()
-            .any(|r| r.level == 3 && r.tag_id == tags::HWPTAG_PARA_LINE_SEG)
-    );
+    assert!(!records
+        .iter()
+        .any(|r| r.level == 3 && r.tag_id == tags::HWPTAG_PARA_LINE_SEG));
 }
