@@ -2174,3 +2174,7 @@ head `f90b2d3592dbd239f00e4bb5ce5777756da05e48`에서 기존30번 text-overlap p
 기존30번재배정의pr4093데모신규겹침2건을동일입력/해시가고정된독립한컴PDF전체3쪽으로검증했습니다.한컴빈문서에서Python이본문합성한입력이며생성정보를정상저장본증거로쓰지않습니다.Native100/100/51.51148%,3쪽표셀번호와뒤개요겹침/뒤문단·부칙위치차이직접확인.freshWASM 미실행.
 
 [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5871352884)후원문바이트보존/생성기출력경로이관및기존혼합함수의페이지·SVG assertion만제외.번호·제목·수준15항목getter와다른최소입력SVG계약유지,생성원문SHA동일.코드 `93f62ee4fd4b9b626ba59ae03e782e866d8e9604`, [근거](../assets/issue7445/outline4093_test_removal_validation.json).집중 ['     Summary [   2.402s] 3 tests run: 3 passed, 447 skipped'],필수fmt·Clippy3종·workspace build·고정base정책exit0.기존30번resolved로갱신,고정38은29완료/1이관/8대기.생산변경/새검사/공차완화없으며이관을피델리티개선으로세지않습니다.
+
+## 보정98 결과 — 기존31~33번 개별 실행
+
+head `14058e212abdb9cb25396924aafb2f8b3686e7c2`에서 기존31·32번은 각1PASS,33번은1FAIL로 첫 실패에서 멈췄습니다. 생산·검사·기대값 변경 없음. [명령·summary](../assets/pr7382_20260926/stage98_individual_validation.json). 고정38은31완료/1이관/6대기입니다. 다음 입력의 독립 PDF 시각 검증부터 진행하며 최종37함수/전체 회귀는 별도입니다.

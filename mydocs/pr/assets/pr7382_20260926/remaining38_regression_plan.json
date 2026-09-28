@@ -1253,32 +1253,67 @@
       "id": 31,
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_11",
       "case": "text_overlap_baseline",
-      "status": "pending",
-      "individual_results": [],
+      "status": "resolved",
+      "individual_results": [
+        {
+          "stage": 98,
+          "test_snapshot_commit": "14058e212abdb9cb25396924aafb2f8b3686e7c2",
+          "validation": "stage98_individual_validation.json",
+          "exit_code": 0,
+          "summary": [
+            "     Summary [   0.766s] 1 test run: 1 passed, 237 skipped"
+          ],
+          "status": "resolved"
+        }
+      ],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_016",
+        "target": "regression_suite_020",
         "grouped": true
-      }
+      },
+      "resolution_scope": "현재 corpus 개별 검사 통과. 최종37함수/전체 회귀는 미완료."
     },
     {
       "id": 32,
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_12",
       "case": "text_overlap_baseline",
-      "status": "pending",
-      "individual_results": [],
+      "status": "resolved",
+      "individual_results": [
+        {
+          "stage": 98,
+          "test_snapshot_commit": "14058e212abdb9cb25396924aafb2f8b3686e7c2",
+          "validation": "stage98_individual_validation.json",
+          "exit_code": 0,
+          "summary": [
+            "     Summary [   2.587s] 1 test run: 1 passed, 237 skipped"
+          ],
+          "status": "resolved"
+        }
+      ],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_016",
+        "target": "regression_suite_020",
         "grouped": true
-      }
+      },
+      "resolution_scope": "현재 corpus 개별 검사 통과. 최종37함수/전체 회귀는 미완료."
     },
     {
       "id": 33,
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_13",
       "case": "text_overlap_baseline",
       "status": "pending",
-      "individual_results": [],
+      "individual_results": [
+        {
+          "stage": 98,
+          "test_snapshot_commit": "14058e212abdb9cb25396924aafb2f8b3686e7c2",
+          "validation": "stage98_individual_validation.json",
+          "exit_code": 100,
+          "summary": [
+            "     Summary [   2.633s] 1 test run: 0 passed, 1 failed, 237 skipped"
+          ],
+          "status": "pending"
+        }
+      ],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
         "target": "regression_suite_016",
@@ -1346,12 +1381,12 @@
       }
     }
   ],
-  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_11",
-  "next_candidate_reason": "다음대기함수를개별실행.첫실패에서동일입력원인/독립시각검증부터진행",
+  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_13",
+  "next_candidate_reason": "기존33번 실패 입력의 같은원문 독립 시각 비교부터 수행",
   "current_status_counts": {
-    "resolved": 29,
+    "resolved": 31,
     "deferred_to_issue": 1,
-    "pending": 8
+    "pending": 6
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
