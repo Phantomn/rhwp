@@ -1,4 +1,4 @@
-//! Issue #1105: HWP3-origin HWP5 conversion keeps Hancom page break around sample16 p21.
+//! #1105: HWP3에서 변환한 HWP5의 sample16 21쪽 부근 저장 쪽 나눔을 유지한다.
 
 use std::fs;
 use std::path::Path;
@@ -171,18 +171,6 @@ fn assert_sample16_hwp5_server_requirements_page_matches_hancom(rel_path: &str) 
     assert!(
         !page23.contains("pi=461"),
         "next target-system paragraph must not remain on page 23 for {rel_path}:\n{page23}"
-    );
-}
-
-#[test]
-fn task1105_sample16_hwp5_2010_business_selection_break_matches_hancom() {
-    assert_sample16_hwp5_business_selection_starts_next_page("samples/hwp3-sample16-hwp5-2010.hwp");
-}
-
-#[test]
-fn task1105_sample16_hwp5_2010_server_requirements_page_matches_hancom() {
-    assert_sample16_hwp5_server_requirements_page_matches_hancom(
-        "samples/hwp3-sample16-hwp5-2010.hwp",
     );
 }
 

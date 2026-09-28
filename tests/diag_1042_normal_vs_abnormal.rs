@@ -2,7 +2,8 @@
 
 #[test]
 fn diag_2010_vs_2018_paragraph_diff() {
-    let bytes_a = std::fs::read("samples/hwp3-sample16-hwp5-2010.hwp").expect("read 2010");
+    let bytes_a =
+        std::fs::read("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2010.hwp").expect("read 2010");
     let doc_a = rhwp::parser::parse_hwp(&bytes_a).expect("parse 2010");
     let bytes_b = std::fs::read("samples/hwp3-sample16-hwp5-2018.hwp").expect("read 2018");
     let doc_b = rhwp::parser::parse_hwp(&bytes_b).expect("parse 2018");

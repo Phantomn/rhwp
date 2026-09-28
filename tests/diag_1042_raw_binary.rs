@@ -114,7 +114,10 @@ fn diag_5files_raw_record_distribution() {
             "변환기",
             "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp",
         ),
-        ("2010", "samples/hwp3-sample16-hwp5-2010.hwp"),
+        (
+            "2010",
+            "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2010.hwp",
+        ),
         ("2018", "samples/hwp3-sample16-hwp5-2018.hwp"),
         ("2022", "samples/hwp3-sample16-hwp5-2022.hwp"),
         ("2024", "samples/hwp3-sample16-hwp5-2024.hwp"),

@@ -4,7 +4,7 @@
 #[test]
 fn paragraph_vpos_distribution() {
     for f in [
-        "samples/hwp3-sample16-hwp5-2010.hwp",
+        "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2010.hwp",
         "samples/hwp3-sample16-hwp5-2018.hwp",
         "samples/hwp3-sample16-hwp5-2022.hwp",
         "samples/hwp3-sample16-hwp5-2024.hwp",
