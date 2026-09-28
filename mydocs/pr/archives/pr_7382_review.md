@@ -2463,3 +2463,15 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 이후에도후보에서실패한함수·assertion·입력/축의원인과devel대조부터확인합니다.
 낮은점수만으로다른정상검사를동반제외하지않습니다. 보정129의oracle5실패와기존다른실패는남아있으며
 최종개별/전체nextest·Native/freshWASM·PR준비완료로판정하지않습니다.
+
+
+## 보정131 사전 분석·결과 — 전직시험면제 표의 실제 쪽수만 보류
+
+- 사전 head `17140921c2cf68285a2e5ca29c5ea7f1c3ae2520`, 코드 커밋 `dcbdf1a8762a1ad064443f68804332928eb8ac01`. [독립 PDF·원문·실패·명령·검사](../assets/issue7445/jeonjik2146_blocking_scope_validation.json).
+- 최신 devel 기존 oracle는6쪽PASS, 후보7쪽. 관련기존19검사15PASS/4FAIL이며 네실패모두선행쪽수입니다. 전체PDF6쪽Native86.44992/49.90645/59.72521/44.29839/39.57099/37.39924%이고행소속/표끝/뒤설명이달라집니다. 추가7쪽의말미설명도직접확인했습니다.
+- [#7445](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5875379798)에 oracle이입력행, #2097이입력항목, #7028/HWP #7032쪽수assertion만 보류했습니다. 정상함수·첫여섯쪽머리행/대각선/빈문단/소유/SVG·HWPX6쪽핀/다른두입력·render_page_samples행/다른축·원문PDF 유지. baseline6→7완화/새함수/생산코드변경없음.
+- 유지검사를실제로재실행해선행assertion뒤도통과했습니다. 관련18PASS+oracle12PASS/4FAIL=30PASS/4FAIL/842SKIP; 다른oracle4실패는그대로입니다. fmt/Native·WASM·alltargetsClippy/workspacebuild/manifest·unitfixedbase정책 모두exit0.
+- 최종개별/전체회귀·원PR Native/freshWASM·PR준비는미완료입니다. 이건좁은실패범위후속이관이며원문개선/피델리티통과가아닙니다.
+
+![전직시험면제6쪽 review](../assets/issue7445/jeonjik2146_native_review_006.png)
+![전직시험면제2쪽 overlay](../assets/issue7445/jeonjik2146_native_overlay_002.png)

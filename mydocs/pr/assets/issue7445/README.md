@@ -375,3 +375,16 @@ text16분할과 정상2함수 합계18PASS이며 전체 회귀/피델리티 승�
 
 ![basic2007 12쪽 review](basic2007_native_review_012.png)
 ![basic2007 14쪽 overlay](basic2007_native_overlay_014.png)
+
+
+## 전직시험면제 표: 실제 차단된 쪽수만 보류
+
+[원문](../../../../samples/task2146/21761835_jeonjik_exemption_table.hwp), [독립 한컴PDF6쪽](../../../../pdf/task2146/21761835_jeonjik_exemption_table-hwp-2020.pdf),
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5875379798), [보정131 검증](jeonjik2146_blocking_scope_validation.json).
+후보7/기준6쪽이며 PDF 전체6쪽 Native 최저37.39924%입니다. 마지막 설명이 추가7쪽으로 넘어갑니다.
+oracle행·#2097 입력항목·#7028/HWP #7032 선행쪽수 assertion만 보류했고 함수/머리행/대각선/빈문단/SVG와정상HWPX6쪽·다른입력/축·원문/PDF를 유지했습니다.
+관련18PASS+oracle12PASS/4FAIL이며 필수lint/정책7단계exit0입니다. 다른4실패는 유지했고 최종전체/freshWASM/피델리티 승인은 미완료입니다.
+
+![전직시험면제6쪽 review](jeonjik2146_native_review_006.png)
+![전직시험면제2쪽 overlay](jeonjik2146_native_overlay_002.png)
+![추가7쪽 설명 이월](jeonjik2146_native_extra_007.png)

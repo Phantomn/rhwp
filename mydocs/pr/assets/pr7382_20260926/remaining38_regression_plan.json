@@ -1510,8 +1510,8 @@
       }
     }
   ],
-  "next_candidate": null,
-  "next_candidate_reason": "고정38의snapshot는37resolved/1승인이관. 정상범위복원으로드러난개별15실패와corpus다른실패원인을먼저각원문별처리하고최종37개별/전체nextest 수행.",
+  "next_candidate": "issue3637 regulatory_impact_nested_table_escape",
+  "next_candidate_reason": "현재oracle31→32 실제실패를먼저개별분석하고다른정상검사유지",
   "current_status_counts": {
     "resolved": 37,
     "deferred": 1,
@@ -2140,6 +2140,25 @@
       "restored_normal_fixture_rows": 2,
       "restoration_passed": 23,
       "restoration_failed": 0
+    },
+    "jeonjik2146": {
+      "stage": 131,
+      "code_commit": "dcbdf1a8762a1ad064443f68804332928eb8ac01",
+      "evidence": "../issue7445/jeonjik2146_blocking_scope_validation.json",
+      "scope": [
+        "oracle 이입력6/6행만",
+        "#2097 PINS 이입력만",
+        "#7028 선행쪽수 assertion 하나만",
+        "#7032 HWP 선행쪽수 assertion 하나만"
+      ],
+      "preserved": [
+        "모든기존함수 및머리행/대각선/SVG/빈문단/소유/좌표검사",
+        "#7032 HWPX6쪽 핀",
+        "#2097 다른두입력",
+        "원문/PDF/render_page_samples행/IR/다른축/문서"
+      ],
+      "passed": 30,
+      "failed": 4
     }
   },
   "latest_axis_snapshot": {
