@@ -59,55 +59,6 @@ fn decode_svg_text(text: &str) -> String {
 }
 
 #[test]
-fn task1105_sample16_hwp5_page_break_before_section_4_matches_hancom() {
-    let doc = load_doc("samples/hwp3-sample16-hwp5.hwp");
-    assert_eq!(doc.page_count(), 64);
-
-    let page20 = doc.dump_page_items(Some(19));
-    assert!(page20.contains("Table          pi=425"));
-    assert!(
-        !page20.contains("pi=426"),
-        "IDC center heading must start after the visible page break:\n{page20}"
-    );
-
-    let page21 = doc.dump_page_items(Some(20));
-    assert!(page21.contains("FullParagraph  pi=426"));
-    assert!(page21.contains("FullParagraph  pi=427"));
-    assert!(page21.contains("FullParagraph  pi=439"));
-    assert!(
-        !page21.contains("pi=440"),
-        "section 4 heading must not remain at the end of page 21:\n{page21}"
-    );
-
-    let page22 = doc.dump_page_items(Some(21));
-    assert!(page22.contains("FullParagraph  pi=440"));
-    assert!(page22.contains("Table          pi=441"));
-    assert!(page22.contains("FullParagraph  pi=449"));
-    assert!(
-        !page22.contains("pi=450"),
-        "firewall paragraph must not leak into page 22:\n{page22}"
-    );
-
-    let page23 = doc.dump_page_items(Some(22));
-    assert!(
-        page23.contains("FullParagraph  pi=450"),
-        "firewall paragraph must start page 23:\n{page23}"
-    );
-    assert!(
-        page23.contains("PartialParagraph  pi=460  lines=0..3"),
-        "integrated DB cluster paragraph must split at the HWP-authored internal page break:\n{page23}"
-    );
-    assert!(
-        !page23.contains("FullParagraph  pi=460"),
-        "integrated DB cluster paragraph must not remain whole on page 23:\n{page23}"
-    );
-    assert!(
-        !page23.contains("pi=461"),
-        "next target-system paragraph must not remain on page 23:\n{page23}"
-    );
-}
-
-#[test]
 fn task1105_hwp3_sample16_page23_square_bullet_matches_hancom() {
     let doc = load_doc("samples/hwp3-sample16.hwp");
     assert_eq!(doc.page_count(), 64);

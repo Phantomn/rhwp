@@ -67,7 +67,7 @@ fn style_ids(rel: &str) -> Vec<u8> {
 const PAIRS: [(&str, &str); 4] = [
     (
         "samples/hwp3-sample16.hwp",
-        "samples/hwp3-sample16-hwp5.hwp",
+        "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp",
     ),
     (
         "samples/hwp3-sample11.hwp",

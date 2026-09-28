@@ -354,7 +354,7 @@ fn shade_values_are_a_subset_of_hancom_own_conversion() {
         ),
         (
             "samples/hwp3-sample16.hwp",
-            "samples/hwp3-sample16-hwp5.hwp",
+            "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp",
         ),
         (
             "samples/hwp3-sample19.hwp",

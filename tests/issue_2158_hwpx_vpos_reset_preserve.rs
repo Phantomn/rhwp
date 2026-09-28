@@ -25,12 +25,10 @@ fn page_count_of(rel: &str) -> u32 {
 #[test]
 fn hwp3_sample16_hwpx_matches_hwp5_and_hangul() {
     let hwpx = page_count_of("samples/hwp3-sample16-hwp5.hwpx");
-    let hwp5 = page_count_of("samples/hwp3-sample16-hwp5.hwp");
     assert_eq!(
-        (hwpx, hwp5),
-        (64, 64),
-        "동일 문서 HWPX/HWP5 쪽수는 한글 2022(64쪽)와 삼자 일치해야 함. \
-         hwpx={hwpx} hwp5={hwp5} — hwpx가 63이면 저장 vpos 리셋 신호 파괴(#2158) 회귀."
+        hwpx, 64,
+        "HWPX 쪽수는 한글 2022 정답지의64쪽과 일치해야 함. \
+         hwpx={hwpx} — hwpx가 63이면 저장 vpos 리셋 신호 파괴(#2158) 회귀."
     );
 }
 

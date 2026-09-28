@@ -53,7 +53,7 @@ fn inspect_cfb(path: &str) {
 #[test]
 fn check_cfb_metadata() {
     for f in [
-        "samples/hwp3-sample16-hwp5.hwp",
+        "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp",
         "samples/hwp3-sample16-hwp5-2010.hwp",
         "samples/hwp3-sample16-hwp5-2018.hwp",
         "samples/hwp3-sample16-hwp5-2022.hwp",
