@@ -2079,6 +2079,12 @@
       "code_commit": "0572a2d899cc58225d9476386d61225de9193eff",
       "evidence": "../issue7445/cyber6795_text_blocking_scope_validation.json",
       "scope": "실제증가 text축 입력/2건행만. 정상6함수/모든다른축·문서·원문유지"
+    },
+    "curriculum2287_text": {
+      "stage": 123,
+      "code_commit": "5117536ee0e1cee0b9ac23547fd3ce0bebeb9e02",
+      "evidence": "../issue7445/curriculum2287_text_blocking_scope_validation.json",
+      "scope": "실제증가 text축 입력/37건행만. 모든기존함수/다른축·문서·원문유지; 시장6761의다른입력실패도보존"
     }
   },
   "latest_axis_snapshot": {
@@ -2093,13 +2099,13 @@
   "current_status_counts_scope": "고정38의과거처리snapshot만.최종37개별은다시실행해야하며전체head통과아님.",
   "final_validation_status": "pending",
   "latest_text_axis_snapshot": {
-    "stage": 122,
-    "code_commit": "0572a2d899cc58225d9476386d61225de9193eff",
+    "stage": 123,
+    "code_commit": "5117536ee0e1cee0b9ac23547fd3ce0bebeb9e02",
     "axis_tests": 16,
     "passed": 15,
     "failed": 1,
-    "failed_inputs": 2,
-    "evidence": "../issue7445/cyber6795_text_blocking_scope_validation.json",
-    "meaning": "text전체16분할만. 한분할안의교육37→90/진안신규5 두입력. off/다른축및최종회귀대체안함"
+    "failed_inputs": 1,
+    "evidence": "../issue7445/curriculum2287_text_blocking_scope_validation.json",
+    "meaning": "text전체16분할만. 진안신규5입력대기. 추가시장6761 317/315실패는같이진단했지만이범위제외대상아님. off/다른축및최종회귀대체안함"
   }
 }

@@ -2329,3 +2329,11 @@ text2→3건의분할단독1FAIL을재현했습니다. 기존#6804/#7274의같�
 [#7445 추가등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5874150745) 후text입력하나/기존2건행만보류했습니다. 기존#6795다섯함수/#6981반례 및모든다른축·문서·원문/PDF 유지,2를3으로완화하지않았습니다. 테스트자체가틀렸다고확정하지않습니다. metrics JSON을dict로잘못읽은진단오류는최종manifest/overlay의6쪽지표수집으로바로잡았고렌더링회귀로세지않습니다.
 
 코드 `0572a2d899cc58225d9476386d61225de9193eff`, [독립원문/PDF·새Sweep·좁은범위·전수분할](../assets/issue7445/cyber6795_text_blocking_scope_validation.json). 정상6PASS, text16분할15PASS/1FAIL로합계21PASS/1FAIL/664SKIP입니다. 한실패분할의다른두입력(교육37→90/진안신규5)은유지해개별처리하며필수lint/정책7단계exit0입니다. 다른off/body/cell/oracle축 또는최종개별/전체검증을대체하지않으며PR준비미완료입니다.
+
+## 보정123 사전 분석·결과 — 교육과정 원문의 실제 text 축만 보류
+
+text37→90건의분할단독1FAIL을재현했습니다. 같은원문/정상한컴PDF415쪽의#7244해시/출처를대조했고현재413쪽입니다. 현재생산Native로25·124·131·361·366·377쪽을새로비교했습니다. 선택6쪽모두90미만/complete/exit1/re_review_required,최저366쪽68.47008%입니다.366쪽review에서행내용소유·학교급/교과/성취기준 코드와표경계가다르고131쪽standalone overlay에서도행높이·글줄·셀내용차이를직접확인했습니다. 전수415쪽/freshWASM미실행입니다.
+
+[#7445 추가등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5874264216) 후text입력하나/기존37건행만보류했습니다. 기존실물/IR함수 및모든다른축·문서·원문/PDF유지,37을90으로완화하지않았습니다. oracle415/413은기존원장값이며현재실패가관측되지않아보류대상에포함하지않았습니다. 테스트자체의오류나문서개선완료로세지않습니다.
+
+코드 `5117536ee0e1cee0b9ac23547fd3ce0bebeb9e02`, [독립원문/PDF·새Sweep·좁은범위·전수분할](../assets/issue7445/curriculum2287_text_blocking_scope_validation.json). text16분할15PASS/1FAIL(진안),기존대조18PASS/별도시장구조조사#6761 1FAIL로합계33PASS/2FAIL/1092SKIP입니다. #6761은다른원문의317/315쪽실패이며이번에제외하지않고기존시장#7147두실패와함께후속개별분석합니다. 필수lint/정책7단계exit0이며다른축/최종검증·PR준비미완료입니다.
