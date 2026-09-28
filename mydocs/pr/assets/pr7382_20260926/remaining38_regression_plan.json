@@ -1132,7 +1132,41 @@
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_1",
       "case": "text_overlap_baseline",
       "status": "pending",
-      "individual_results": [],
+      "individual_results": [
+        {
+          "id": 29,
+          "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_1",
+          "plan": {
+            "caseName": "text_overlap_baseline",
+            "target": "regression_suite_014",
+            "grouped": true
+          },
+          "command": [
+            "cargo",
+            "nextest",
+            "run",
+            "--locked",
+            "--cargo-profile",
+            "release-test",
+            "--target-dir",
+            "target/pr-review",
+            "--test",
+            "regression_suite_014",
+            "-E",
+            "test(=text_overlap_baseline::text_overlaps_do_not_grow_partition_1)",
+            "--test-threads",
+            "8",
+            "--no-fail-fast"
+          ],
+          "exit_code": 100,
+          "seconds": 2.527914541773498,
+          "summary": [
+            "     Summary [   1.497s] 1 test run: 0 passed, 1 failed, 227 skipped"
+          ],
+          "stage": 92,
+          "head": "f56788498d63d21e6cafd9c563fab52c4e0cb133"
+        }
+      ],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
         "target": "regression_suite_016",
@@ -1249,7 +1283,7 @@
     }
   ],
   "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_1",
-  "next_candidate_reason": "고정38의 다음 대기 함수를 개별 실행. 별도 미해결 기록도 최종 제출 전에 처리.",
+  "next_candidate_reason": "기존29번 화학표시기준 신규2건과 saved_bounds HWPX9건. 화학표시 원문부터 독립 PDF로 한 개씩 판단.",
   "current_status_counts": {
     "resolved": 27,
     "deferred_to_issue": 1,

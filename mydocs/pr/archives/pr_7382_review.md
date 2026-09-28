@@ -2142,3 +2142,7 @@ head `a82cee49561109052553907231bcd7f2806f165d`에서 기존24·25번 off-canvas
 기존28번의 text-overlap132→135건 원문은 현재51/한컴50쪽입니다. 선택 Native24·42·43·44·45·50쪽92.59251/53.92934/41.51422/14.87881/38.19829/28.18537%입니다.43쪽 이전 표/각주18~39 중첩과44쪽의 한 쪽 밀림·각주 소유 차이를 review에서 직접 확인했습니다. 전체/fresh WASM은 미실행이며 기존45~80쪽 허용 범위를 피델리티 증거로 인정하지 않습니다.
 
 [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870699037) 후 원문 보존/렌더링·페이지2함수와 원장2행을 제외했습니다. 다른 문서6함수·helper·공차·IR 진단, 손상본4입력의 CLI 패닉 방지 계약을 유지합니다. 코드 `f2a4dd1e1da26f6ad1b861d8ef5297fb643a54fb`, [실행·보존 근거](../assets/issue7445/footnote1937_test_removal_validation.json). 집중 ['     Summary [   1.213s] 8 tests run: 8 passed, 455 skipped']; 필수 fmt/Clippy3종/workspace build/고정base 정책은 근거에 구분했습니다. 이관을 원문 개선이나 최종 전체 회귀 통과로 세지 않습니다.
+
+## 보정92 결과 — 기존29번 개별 실행
+
+head `f56788498d63d21e6cafd9c563fab52c4e0cb133`에서 기존29번 text-overlap partition1을 단독 실행했습니다.1FAIL/227SKIP(exit100,1.497초)이며 화학표시기준 `issue6782/1480000-201900042-chemical-labeling-standards.hwp`의 신규2건과 `task1749/saved_bounds_cumulative_page_break.hwpx` 신규9건입니다. 첫 실패에서 멈췄으며 생산·검사·기대값 변경 없음. [명령·summary](../assets/pr7382_20260926/stage92_individual_validation.json). 화학표시 원문부터 한 개씩 독립 시각 비교합니다. 고정38은27완료/1이관/10대기이며 PR준비 미완료입니다.
