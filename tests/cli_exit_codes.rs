@@ -32,9 +32,7 @@ fn sample_path() -> PathBuf {
 
 /// 샘플을 결정적으로 손상시켜(바이트 플립) 임시 파일로 쓴다 — 퍼징 재현자용.
 fn write_flipped(sample: &str, flip_pct: usize, label: &str) -> PathBuf {
-    let src = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("samples")
-        .join(sample);
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join(sample);
     let mut data = std::fs::read(&src).expect("샘플 읽기");
     let pos = data.len() * flip_pct / 100;
     data[pos] ^= 0xFF;
@@ -51,22 +49,23 @@ fn write_flipped(sample: &str, flip_pct: usize, label: &str) -> PathBuf {
 fn corrupt_input_does_not_panic_in_renderer() {
     // 초인적 규모 퍼징이 잡은 렌더러 오버플로 사이트들의 재현자 — info(레이아웃) 와
     // export-text(전체 렌더) 두 경로 모두.
+    // #7445의 원문 피델리티 검사와 구분한다. 원문90% 위치를 손상한 입력의 패닉 방지다.
     for (sample, pct, cmd, label) in [
-        ("hwp3-sample11.hwp", 45, "info", "typeset-vpos"),
+        ("samples/hwp3-sample11.hwp", 45, "info", "typeset-vpos"),
         (
-            "issue1949_giant_cell_nested_tables_perf.hwp",
+            "samples/issue1949_giant_cell_nested_tables_perf.hwp",
             55,
             "info",
             "tablelayout-vpos",
         ),
         (
-            "HWP5-nopassword-123456.hwp",
+            "samples/HWP5-nopassword-123456.hwp",
             90,
             "export-text",
             "typeset-lhls",
         ),
         (
-            "issue1937_rowbreak_footnote_overpagination.hwp",
+            "mydocs/pr/assets/issue7445/issue1937_rowbreak_footnote_overpagination.hwp",
             90,
             "export-text",
             "heightmeasurer-vpos",
