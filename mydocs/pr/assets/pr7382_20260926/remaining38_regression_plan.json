@@ -474,6 +474,19 @@
           ],
           "stage": 87,
           "head": "2b6780510c986a27292925f7cac176fda4c97bb7"
+        },
+        {
+          "stage": 88,
+          "head": "535b3aba287e7444be079a714f4f2376c81a9b05",
+          "code_commit": "2c39cd3ab5fffffc4fa84997027bed1d08f873a3",
+          "focused_summary": [
+            "        FAIL [   2.427s] (17/17) rhwp::regression_suite_019 body_overflow_baseline::body_overflow_does_not_grow_partition_9",
+            "     Summary [   2.456s] 17 tests run: 16 passed, 1 failed, 5156 skipped",
+            "        FAIL [   2.427s] (17/17) rhwp::regression_suite_019 body_overflow_baseline::body_overflow_does_not_grow_partition_9",
+            "     Summary [   0.183s] 1 test run: 1 passed, 215 skipped"
+          ],
+          "focused_exit": 100,
+          "evidence": "../issue7445/exam_eng_test_removal_validation.json"
         }
       ],
       "resolved_plan": {
@@ -1039,8 +1052,8 @@
       }
     }
   ],
-  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_9",
-  "next_candidate_reason": "기존9번 exam_eng3→5건/hwpctl_API0→1건. 영어시험부터 한 원문씩 독립 PDF로 판단.",
+  "next_candidate": "samples/hwpctl_API_v2.4.hwp",
+  "next_candidate_reason": "기존9번에 검출된 API0→1건을 다음 독립 문서 단계에서 검증.",
   "current_status_counts": {
     "resolved": 21,
     "deferred_to_issue": 1,
@@ -1139,6 +1152,28 @@
       "stage": 86,
       "evidence": "../issue7445/anticorruption6844_test_removal_validation.json",
       "note": "Native5·6쪽90%미달. #7445등록/두 원문보존/렌더링5함수제외. IR속성복원유지, 피델리티 개선 아님."
+    },
+    {
+      "document": "samples/exam_eng.hwp",
+      "observed_stage": 87,
+      "status": "deferred_to_issue",
+      "stage": 88,
+      "note": "전체 Native 최저48.54225%. 원문 보존/렌더링 회귀 제외; 피델리티 해결 아님.",
+      "evidence": "../issue7445/exam_eng_test_removal_validation.json"
+    },
+    {
+      "document": "samples/hwpctl_API_v2.4.hwp",
+      "observed_stage": 87,
+      "status": "pending",
+      "failure": "body overflow0→1건",
+      "note": "영어시험과 별도 원문. corpus 재배정 통과를 원문 해결로 세지 않음."
+    },
+    {
+      "document": "samples/issue7196/156760012_page_top_spacing_trim.hwpx",
+      "observed_stage": 88,
+      "status": "pending",
+      "failure": "body overflow 신규2건",
+      "note": "영어시험 이관 뒤 재배정된 기존9번에서 검출. 독립 시각 검증 미실행."
     }
   ]
 }

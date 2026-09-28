@@ -2118,3 +2118,9 @@ head `88dea0a3a0ddec32cf59a9280c7bf297cc776672`에서 기존7번 body partition4
 ## 보정87 결과 — 기존8·9번의 개별 실행
 
 head `2b6780510c986a27292925f7cac176fda4c97bb7`에서 기존8번 body partition8은1PASS/244SKIP(exit0,0.600초), 다음9번 body partition9는1FAIL/244SKIP(exit100,0.528초)입니다. 실패 원문은 exam_eng3→5건/hwpctl_API0→1건이며 영어시험부터 원문별 독립 시각 검증합니다. 첫 실패에서 다음 함수를 멈췄고 생산·검사·기대값 변경은 없습니다. [개별 실행 근거](../assets/pr7382_20260926/stage87_individual_validation.json). 고정38은21완료/1이관/16대기, PR준비 미완료입니다.
+
+## 보정88 사전 분석·결과 — 영어시험의 미달 회귀 제외
+
+기존9번의 영어시험 본문 초과3→5건을 같은 원문/독립 한컴 PDF 전체8쪽으로 검증했습니다. 현재8/기준8쪽이나 최저7쪽48.54225%,2~8쪽 모두90%미달입니다.4쪽 문항27 표·문단 위치,7쪽 지문·선택지·상자·각주·머리 쪽번호 차이를 review에서 직접 확인했습니다. 전체 Native는 완료, fresh WASM은 미실행입니다.
+
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870452250) 후 원문을 바이트 동일하게 보존하고 전용 렌더링·페이지8함수와 #7061 입력1개·원장3행을 제거했습니다. 순수 HWP→HWPX 총쪽수 필드 파싱·직렬화와 IR진단을 유지합니다. 다른 문서·기대값·공차 유지, 새 함수/skip/ignore/생산 변경 없음. 코드 `2c39cd3ab5fffffc4fa84997027bed1d08f873a3`, [근거](../assets/issue7445/exam_eng_test_removal_validation.json). 유지 검사17PASS이며 기존9번은 재배정된 issue7196의 신규2건으로1FAIL입니다. 집중 ['        FAIL [   2.427s] (17/17) rhwp::regression_suite_019 body_overflow_baseline::body_overflow_does_not_grow_partition_9', '     Summary [   2.456s] 17 tests run: 16 passed, 1 failed, 5156 skipped', '        FAIL [   2.427s] (17/17) rhwp::regression_suite_019 body_overflow_baseline::body_overflow_does_not_grow_partition_9', '     Summary [   0.183s] 1 test run: 1 passed, 215 skipped']; 필수 lint/고정base정책의 정확한 exit를 근거 JSON에 남겼습니다. hwpctl_API 및 다른 대기 문서의 해결이나 PR준비로 세지 않습니다.
