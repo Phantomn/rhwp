@@ -1,4 +1,10 @@
-//! [#7379] 분할 표의 행과 저장 각주 경계를 물리 페이지에 보존한다.
+//! [#7379] 분할 표·각주 경로에서 통과 중인 기존 대조군을 보존한다.
+//!
+//! 원본 정책연구 문서의 시각 비교가 90% 미만이므로 실제 실패한
+//! 78개 함수는 사용자 지시에 따라 #7445에서 후속 검토한다.
+//! 원문과 독립 PDF는 유지하며 제거 목록·실패·시각 증거는
+//! mydocs/pr/assets/issue7445/policy_report_blocking_scope_validation.json에 있다.
+//! 아래 독립 기준 설명은 후속 검토 근거이며 현재 일치 완료 주장이 아니다.
 //!
 //! 독립 기준은 원본 정책연구 HWPX와 한컴2024 PDF 215쪽이다.
 //! 66쪽에는 머리행+본문4행(0..4), 67쪽에는 본문2행(5..6)이 있다.
@@ -99,31 +105,6 @@ fn line_top(root: &RenderNode, needle: &str) -> Option<f64> {
     root.children
         .iter()
         .find_map(|child| line_top(child, needle))
-}
-
-/// PDF의 표 괘선과 캡션/뒤 본문 좌표. 좌표는 PDF pt를96dpi로 환산했고
-/// 저장 gap850HU=11.333px가 표 하단과 캡션 사이 거리임을 별도로 확인했다.
-#[test]
-fn split_table_outer_origin_caption_gap_and_following_body_match_pdf() {
-    let core = core();
-    let first = core.build_page_render_tree(65).expect("66쪽");
-    let next = core.build_page_render_tree(66).expect("67쪽");
-    let first_table = host_table(&first.root).expect("66쪽 표");
-    let next_table = host_table(&next.root).expect("67쪽 표");
-    assert!(
-        (first_table.bbox.y - 799.925).abs() <= 1.5,
-        "66쪽 표 상단: {}",
-        first_table.bbox.y
-    );
-    assert!(
-        (next_table.bbox.y - 86.945).abs() <= 1.5,
-        "67쪽 표 상단: {}",
-        next_table.bbox.y
-    );
-    let caption = line_top(&next.root, "표 23.").expect("표23 캡션");
-    let body = line_top(&next.root, "○ 42 CFR Part 482").expect("표 뒤 본문");
-    assert!((caption - 156.434).abs() <= 1.5, "캡션: {caption}");
-    assert!((body - 200.261).abs() <= 1.5, "뒤 본문: {body}");
 }
 
 /// IR 여백 변형은 캡션 종료 예산의 알고리즘 반례이며 한컴 출력의 대용이 아니다.
@@ -403,144 +384,6 @@ fn assert_terminal_caption_budget(
     assert_eq!(caption_count, 1, "캡션 중복/누락 margin={margin}");
 }
 
-/// 원본 row4의 [0,1620,3240,0] 저장 줄과 PDF76/77의 prefix/tail 소유.
-/// PDF77 그림51 캡션 y=685.034pt를96dpi로 환산했다.
-#[test]
-fn stored_cell_reset_preserves_prefix_tail_and_following_figure_page() {
-    let core = core();
-    let first = core.build_page_render_tree(75).expect("76쪽");
-    let next = core.build_page_render_tree(76).expect("77쪽");
-    let a = table_for_para(&first.root, 866).expect("76쪽 표24");
-    let b = table_for_para(&next.root, 866).expect("77쪽 표24");
-    assert_eq!(visible_rows(a), (0..5).collect(), "앞3줄의 행4 포함");
-    assert_eq!(visible_rows(b), (4..7).collect(), "행4 tail과 나머지 행");
-    assert!(text(a).contains("생존 신장 기증자가"));
-    assert!(!text(a).contains("투석을 시작하게 된 경우"));
-    assert!(text(b).contains("투석을 시작하게 된 경우"));
-    assert!(!text(b).contains("생존 신장 기증자가"));
-    assert!((b.bbox.y - 86.945).abs() <= 1.5, "표24 tail 상단");
-    assert!(
-        (b.bbox.y + b.bbox.height - 257.799).abs() <= 1.5,
-        "표24 tail 하단"
-    );
-    let recovery = line_top(&next.root, "기증자의 회복").expect("뒤 본문");
-    assert!((recovery - 288.289).abs() <= 1.5, "뒤 본문={recovery}");
-    assert!(table_for_para(&next.root, 876).is_some(), "그림51은77쪽");
-    let caption = line_top(&next.root, "그림 51.").expect("그림51 캡션");
-    assert!(
-        (caption - 913.379).abs() <= 1.5,
-        "그림51 캡션={caption}, 앞 표={:?}, 회복 줄={:?}, 그림 표={:?}",
-        b.bbox,
-        line_top(&next.root, "기증자의 회복"),
-        table_for_para(&next.root, 876).map(|node| node.bbox)
-    );
-    for (table, page) in [(a, &first), (b, &next)] {
-        let footer = notes(&page.root).expect("기존 각주 영역");
-        assert!(table.bbox.y + table.bbox.height <= footer.bbox.y + 0.5);
-    }
-}
-
-/// PDF78: 기존105/106, PDF79: 표107..111, PDF80: 남은112..124.
-/// 원본 참조 번호 행과 실제 각주 영역의 물리 소유를 별도로 확인한다.
-#[test]
-fn multirow_table_queues_cell_notes_after_the_accepted_body_fragments() {
-    let core = core();
-    let first = core.build_page_render_tree(77).expect("78쪽");
-    let next = core.build_page_render_tree(78).expect("79쪽");
-    let following = core.build_page_render_tree(79).expect("80쪽");
-    let a = table_for_para(&first.root, 885).expect("표25 시작은78쪽");
-    let b = table_for_para(&next.root, 885).expect("표25 끝은79쪽");
-    assert_eq!(visible_rows(a), (0..4).collect(), "PDF앞3행+행3 prefix");
-    assert_eq!(visible_rows(b), (3..6).collect(), "PDF행3 tail+끝2행");
-    assert!(
-        table_for_para(&following.root, 885).is_none(),
-        "80쪽은뒤본문/남은각주"
-    );
-    let first_notes = text(notes(&first.root).expect("78쪽기존각주"));
-    let next_notes = text(notes(&next.root).expect("79쪽표각주"));
-    let last_notes = text(notes(&following.root).expect("80쪽남은각주"));
-    for number in 105..=106 {
-        assert!(
-            first_notes.contains(&format!("{number})")),
-            "기존각주{number}"
-        );
-    }
-    for number in 107..=124 {
-        let marker = format!("{number})");
-        assert!(
-            !first_notes.contains(&marker),
-            "표각주{number}는후속footer: table={:?}, footer={:?}, caption={:?}, notes={:?}",
-            a.bbox,
-            notes(&first.root).map(|n| n.bbox),
-            line_top(&first.root, "표 25."),
-            (107..=124)
-                .filter(|n| first_notes.contains(&format!("{n})")))
-                .collect::<Vec<_>>()
-        );
-        let (owner, other) = if number <= 111 {
-            (&next_notes, &last_notes)
-        } else {
-            (&last_notes, &next_notes)
-        };
-        assert_eq!(owner.matches(&marker).count(), 1, "번호{number}소유/중복");
-        assert!(!other.contains(&marker), "번호{number}다른쪽중복");
-    }
-    assert!(
-        text(&following.root).contains("Action Plan"),
-        "80쪽뒤본문보존"
-    );
-    for (table, page) in [(a, &first), (b, &next)] {
-        let footer = notes(&page.root).expect("각주영역");
-        assert!(
-            table.bbox.y + table.bbox.height <= footer.bbox.y + 0.5,
-            "표25/각주비충돌: table={:?}, footer={:?}",
-            table.bbox,
-            footer.bbox
-        );
-    }
-}
-
-/// 빈 각주 몸통으로 각주 영역 용량과 참조 번호 소유를 분리한 합성 IR 계약.
-/// 원본 저장 줄/표를 유지하며 본문에 아직 없는 row6의82번은 먼저 등록할 수 없다.
-/// 이 변형은 한컴 출력 일치 증거가 아니다.
-#[test]
-fn queue_capacity_does_not_publish_a_future_row_footnote() {
-    let mut core = core();
-    let mut doc = core.document().clone();
-    let rhwp::model::control::Control::Table(table) =
-        &mut doc.sections[0].paragraphs[HOST_PARA].controls[0]
-    else {
-        panic!("표23")
-    };
-    for cell in &mut table.cells {
-        for para in &mut cell.paragraphs {
-            for control in &mut para.controls {
-                if let rhwp::model::control::Control::Footnote(note) = control {
-                    if note.number != 82 {
-                        note.paragraphs.clear();
-                    }
-                }
-            }
-        }
-    }
-    core.set_document(doc);
-    let first = core.build_page_render_tree(65).expect("앞 조각");
-    let next = core.build_page_render_tree(66).expect("뒤 조각");
-    assert!(!visible_rows(host_table(&first.root).expect("앞 표")).contains(&6));
-    assert!(visible_rows(host_table(&next.root).expect("뒤 표")).contains(&6));
-    let first_notes = text(notes(&first.root).expect("기존각주"));
-    let next_notes = text(notes(&next.root).expect("marker82각주"));
-    assert!(
-        !first_notes.contains("82)"),
-        "marker가없는앞조각에82등록: {first_notes}"
-    );
-    assert_eq!(
-        next_notes.matches("82)").count(),
-        1,
-        "뒤조각82소유: {next_notes}"
-    );
-}
-
 /// 각주116 하나만 footer에 남겨 용량과 같은 행 안의 marker 소유를 분리한다.
 /// 다른 note는 빈 미주로 바꾸되 원래 extended-control 슬롯/저장 줄은 보존한다.
 /// 원본 한컴 출력이 아닌 합성 계약이며, 실제 최종 표의 marker와 footer를 대조한다.
@@ -611,88 +454,6 @@ fn intra_row_cut_does_not_publish_a_later_line_footnote() {
     assert_eq!(footer_pages, 1, "footer 누락/중복 금지");
 }
 
-/// 한컴 PDF p66은 머리행+본문4행, p67은 나머지2행이다. 원본 개체
-/// 11645HU도 첫5행의 저장 높이 합과 같고 각주77은 2줄 뒤 vpos=0으로 재시작한다.
-/// 조각 높이 합만으로는 행 소유와 각주 prefix/tail의 보존을 입증할 수 없다.
-#[test]
-fn saved_rows_and_footnote_reset_keep_their_physical_page_owners() {
-    let core = core();
-    let first = core.build_page_render_tree(65).expect("66쪽");
-    let next = core.build_page_render_tree(66).expect("67쪽");
-    let first_table = host_table(&first.root).expect("66쪽 표");
-    let next_table = host_table(&next.root).expect("67쪽 표");
-    assert_eq!(visible_rows(first_table), (0..5).collect(), "PDF 첫 5행");
-    assert_eq!(
-        visible_rows(next_table),
-        [5, 6].into_iter().collect(),
-        "PDF 끝 2행, 중복 없음"
-    );
-    let first_notes = notes(&first.root).expect("66쪽 각주");
-    let next_notes = notes(&next.root).expect("67쪽 각주");
-    let a = text(first_notes);
-    let b = text(next_notes);
-    assert!(
-        a.contains("77)") && a.contains("Subchapter G"),
-        "77번 앞 두 줄: {a}"
-    );
-    assert!(!a.contains("Part 482(CONDITIONS"), "77번 tail은 67쪽: {a}");
-    assert!(!b.contains("77)"), "tail에서 번호 중복 금지: {b}");
-    assert!(
-        b.contains("Part 482(CONDITIONS") && b.contains("78)"),
-        "77번 tail과 후속 각주: {b}"
-    );
-    for (table, area) in [(first_table, first_notes), (next_table, next_notes)] {
-        assert!(
-            table.bbox.y + table.bbox.height <= area.bbox.y,
-            "표/각주 충돌 금지"
-        );
-    }
-}
-
-/// 각주를 든 RowBreak 자리차지 표가 쪽 경계에서 쪼개져 앞 조각이 66쪽에 남는다.
-#[test]
-fn rowbreak_table_with_own_footnotes_splits_at_the_page_boundary() {
-    let core = core();
-
-    // 66쪽(0-based 65) — 한/글이 앞 조각을 두는 쪽.
-    let tree66 = core.build_page_render_tree(65).expect("66쪽 render tree");
-    let on66 = host_tables(&tree66.root);
-    assert_eq!(
-        on66.len(),
-        1,
-        "66쪽에 문단 {HOST_PARA} 표 조각이 없다 — 표가 통째로 다음 쪽으로 밀렸다(수정 전 상태). \
-         한/글 정본은 이 표의 각주 77번을 66쪽에 둔다. 실제: {on66:?}"
-    );
-
-    // 67쪽 — 이어받은 조각.
-    let tree67 = core.build_page_render_tree(66).expect("67쪽 render tree");
-    let on67 = host_tables(&tree67.root);
-    assert_eq!(
-        on67.len(),
-        1,
-        "67쪽에 이어받은 조각이 없다 — 분할이 두 쪽에 걸치지 않았다. 실제: {on67:?}"
-    );
-
-    // 앞 조각은 쪽 아래쪽에서 시작하고, 이어받은 조각은 본문 상단에서 시작한다.
-    let (first_top, first_h) = on66[0];
-    let (next_top, _) = on67[0];
-    assert!(
-        first_top > 400.0,
-        "66쪽 조각이 쪽 위에서 시작한다 ({first_top:.1}) — 앞 본문 뒤에 이어 붙어야 한다"
-    );
-    assert!(
-        next_top < 200.0,
-        "67쪽 조각이 본문 상단에서 시작하지 않는다 ({next_top:.1})"
-    );
-    // 두 조각의 합이 통짜 높이(약 213.5px)를 넘지 않는다 — 같은 행을 두 번 그리지 않는다.
-    let (_, next_h) = on67[0];
-    assert!(
-        first_h + next_h < 260.0,
-        "두 조각 높이 합 {:.1}px 이 통짜 표보다 크다 — 행이 중복됐을 수 있다",
-        first_h + next_h
-    );
-}
-
 /// 반례 대조군 — 표 안 각주가 **없는** 같은 형상의 표는 종전대로 두 쪽에 걸쳐 쪼개진다.
 ///
 /// 문단 0.866 은 host·`RowBreak`·`treat_as_char`·`wrap`·`vert`/`horz`·행 수가 위 표와 같고
@@ -737,92 +498,6 @@ fn footnote_free_rowbreak_table_keeps_splitting() {
         pages[0] + 1,
         "두 조각이 연속한 쪽에 있지 않다: {pages:?}"
     );
-}
-
-/// 실제 한컴 PDF78 표25 첫 조각의 마지막 가로선970.937px.
-/// 유닛 컷의 내용 소유가 맞아도 빈 밴드/셀 배치를 잃으면 물리 끝점이 다르다.
-#[test]
-fn first_large_table_fragment_preserves_pdf_physical_bottom() {
-    let core = core();
-    let tree = core.build_page_render_tree(77).expect("78쪽");
-    let table = table_for_para(&tree.root, 885).expect("표25 첫 조각");
-    assert!(
-        (table.bbox.y - 527.104).abs() <= 1.5,
-        "표25 위={}",
-        table.bbox.y
-    );
-    let bottom = table.bbox.y + table.bbox.height;
-    assert!(
-        (bottom - 970.937).abs() <= 1.5,
-        "표25 첫 끝={bottom}, 독립PDF970.937"
-    );
-}
-
-/// 수용 예산보다 큰 수동 선언은 실제 저장 컷을 늘리는 근거가 아니다.
-/// 합성 거부 대조군이며 한컴 출력 일치의 대용으로 쓰지 않는다.
-#[test]
-fn declared_opening_frame_cannot_spend_unavailable_body_space() {
-    let mut core = core();
-    let mut doc = core.document().clone();
-    let rhwp::model::control::Control::Table(table) =
-        &mut doc.sections[0].paragraphs[885].controls[0]
-    else {
-        panic!("표25")
-    };
-    table.common.height = 75_000; // 1000px: 한 쪽의 본문 높이보다 큰 거부 입력.
-    core.set_document(doc);
-    let tree = core.build_page_render_tree(77).expect("78쪽");
-    let table = table_for_para(&tree.root, 885).expect("내용 앞 조각");
-    let area = notes(&tree.root).expect("기존 각주 lane");
-    assert!(
-        table.bbox.y + table.bbox.height <= area.bbox.y + 0.5,
-        "선언 상자의 강제 수용 금지: 표={:?}, 각주={:?}",
-        table.bbox,
-        area.bbox
-    );
-    assert!(
-        table.bbox.height < 1000.0,
-        "무효 선언을 실제 조각 높이로 수용하면 안 됨"
-    );
-}
-
-/// 유한한 저장 첫 조각 안에서는 실제 소비한 셀 내용으로 원래 Center를 지킨다.
-/// 내용 높이는 원본 세 문단의8개 저장 줄(900+272HU)에서 독립적으로 계산한다.
-#[test]
-fn saved_opening_frame_aligns_the_consumed_cell_prefix() {
-    use rhwp::model::{control::Control, table::VerticalAlign};
-    let core = core();
-    let tree = core.build_page_render_tree(77).expect("78쪽");
-    let node = table_for_para(&tree.root, 885).expect("첫 조각");
-    let cell_node = node
-        .children
-        .iter()
-        .find(|n| matches!(&n.node_type, RenderNodeType::TableCell(c) if c.row == 3 && c.col == 2))
-        .expect("분할 셀");
-    let Control::Table(table) = &core.document().sections[0].paragraphs[885].controls[0] else {
-        panic!("표25")
-    };
-    let cell = table
-        .cells
-        .iter()
-        .find(|c| c.row == 3 && c.col == 2)
-        .expect("원본 셀");
-    assert_eq!(cell.vertical_align, VerticalAlign::Center);
-    let content: f64 = cell
-        .paragraphs
-        .iter()
-        .take(3)
-        .flat_map(|p| &p.line_segs)
-        .map(|l| f64::from(l.line_height + l.line_spacing) / 75.0)
-        .sum();
-    let pad = cell.effective_padding(&table.padding);
-    let top = f64::from(pad.top) / 75.0;
-    let bottom = f64::from(pad.bottom) / 75.0;
-    let expected = cell_node.bbox.y + top + (cell_node.bbox.height - top - bottom - content) / 2.0;
-    let actual = line_top(cell_node, "[공통]").expect("첫 prefix 줄");
-    assert!((actual - expected).abs() <= 0.5,
-        "분할 뒤 내용의 높이가 아니라 소비한8줄로 Center: 실제{actual}, 기대{expected}, 원줄{content}");
-    assert!((actual - 839.52).abs() <= 1.5, "독립 PDF 첫 prefix 위치");
 }
 
 /// 개수가 적다는 이유로 각주 영역을 표 아래 남은 공간보다 크게 수용하지 않는다.
@@ -908,236 +583,6 @@ fn small_note_queue_reserves_the_actual_painted_footnote_area() {
     assert_eq!(published, [1, 1], "각주 몸통 누락/중복 금지");
 }
 
-/// 원본 마지막 저장 줄43311+1000+padding282=첫 프레임44593HU.
-/// PDF174는그림66/미치지않음.224)까지,175는나머지표·223..231각주를소유한다.
-#[test]
-fn single_cell_saved_frame_preserves_picture_and_note_page_owners() {
-    let core = core();
-    let first = core.build_page_render_tree(173).expect("174쪽");
-    let next = core.build_page_render_tree(174).expect("175쪽");
-    let following = core.build_page_render_tree(175).expect("176쪽");
-    let a = table_for_para(&first.root, 1822).expect("174쪽첫조각");
-    let b = table_for_para(&next.root, 1822).expect("175쪽꼬리");
-    fn has_image(node: &RenderNode) -> bool {
-        matches!(node.node_type, RenderNodeType::Image(_)) || node.children.iter().any(has_image)
-    }
-    assert!(has_image(a), "그림66은첫저장프레임174쪽소유");
-    assert!(
-        text(a).contains("미치지 않음"),
-        "224번표시를가진첫프레임꼬리문장보존"
-    );
-    assert!(!text(b).contains("미치지 않음"), "첫문장꼬리중복금지");
-    assert!(
-        text(b).contains("연령은 주요한 이식 합병증"),
-        "175쪽마지막셀문단보존"
-    );
-    assert!(
-        table_for_para(&following.root, 1822).is_none(),
-        "176쪽불필요한세번째조각금지"
-    );
-    let area = notes(&next.root).expect("175쪽각주");
-    let body = text(area);
-    for number in 223..=231 {
-        assert_eq!(
-            body.matches(&format!("{number})")).count(),
-            1,
-            "175쪽각주{number}소유"
-        );
-    }
-    assert!(
-        text(&next.root).contains("기증자 비만도"),
-        "표뒤본문175쪽소유"
-    );
-    assert!(
-        b.bbox.y + b.bbox.height <= area.bbox.y + 0.5,
-        "표/각주비충돌"
-    );
-}
-
-/// 같은 한컴 PDF174/175의 외곽선과 뒤 제목 좌표; 페이지 소유만으로 대체하지 않는다.
-#[test]
-fn single_cell_saved_frame_border_and_following_heading_match_pdf() {
-    let core = core();
-    let first = core.build_page_render_tree(173).expect("174쪽");
-    let next = core.build_page_render_tree(174).expect("175쪽");
-    let a = table_for_para(&first.root, 1822).expect("첫프레임");
-    let b = table_for_para(&next.root, 1822).expect("마지막프레임");
-    for (label, actual, expected) in [
-        ("첫위", a.bbox.y, 433.127),
-        ("첫끝", a.bbox.y + a.bbox.height, 1027.036),
-        ("꼬리위", b.bbox.y, 86.945),
-        ("꼬리끝", b.bbox.y + b.bbox.height, 583.361),
-        (
-            "뒤제목",
-            line_top(&next.root, "기증자 비만도").expect("뒤제목줄"),
-            641.061,
-        ),
-    ] {
-        assert!(
-            (actual - expected).abs() <= 1.5,
-            "{label}: 실제{actual}, 독립PDF{expected}"
-        );
-    }
-}
-
-/// 실제 HWPX 각주234는 저장 두 줄의 vpos0/0을 보존한다. 독립 PDF176에는
-/// 번호와 첫 줄,177에는 번호/구분선 없는 꼬리와 뒤 각주235가 있다.
-#[test]
-fn unqueued_cell_note_preserves_repeated_page_top_prefix_and_tail() {
-    let core = core();
-    let first = core.build_page_render_tree(175).expect("176쪽");
-    let next = core.build_page_render_tree(176).expect("177쪽");
-    let prefix = text(notes(&first.root).expect("176쪽 각주"));
-    let suffix = text(notes(&next.root).expect("177쪽 각주"));
-    assert!(prefix.contains("234)"), "234 번호는 표시 소유 쪽");
-    assert!(
-        !prefix.contains("severely steatotic"),
-        "234 꼬리는 다음 물리 쪽"
-    );
-    assert!(suffix.contains("severely steatotic"), "234 꼬리 누락 금지");
-    assert!(!suffix.contains("234)"), "이월 꼬리 번호 중복 금지");
-    assert!(suffix.contains("235)"), "다음 정상 각주 보존");
-    for (label, actual, expected) in [
-        (
-            "176 첫 각주",
-            line_top(&first.root, "Dare AJ").expect("232 첫 줄"),
-            949.169,
-        ),
-        (
-            "177 이월 꼬리",
-            line_top(&next.root, "severely steatotic").expect("234 꼬리"),
-            996.209,
-        ),
-    ] {
-        assert!(
-            (actual - expected).abs() <= 1.5,
-            "{label}: 실제{actual}, 독립PDF{expected}"
-        );
-    }
-}
-
-/// 수동 합성 0/0은 원본 저장 경계의 증거가 아니다. 물리 분할을 강제하지 않는다.
-#[test]
-fn synthetic_cell_note_zero_positions_do_not_force_a_physical_tail() {
-    use rhwp::model::{control::Control, paragraph::LineSeg};
-    let mut core = core();
-    let mut doc = core.document().clone();
-    let Control::Table(table) = &mut doc.sections[0].paragraphs[1832].controls[0] else {
-        panic!("원표");
-    };
-    let mut changed = false;
-    for cell in &mut table.cells {
-        for p in &mut cell.paragraphs {
-            for c in &mut p.controls {
-                if let Control::Footnote(note) = c {
-                    if note.number == 234 {
-                        for para in &mut note.paragraphs {
-                            for line in &mut para.line_segs {
-                                line.tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
-                            }
-                        }
-                        changed = true;
-                    }
-                }
-            }
-        }
-    }
-    assert!(changed, "반례의 원본 각주를 실제 변경");
-    core.set_document(doc);
-    let first = core.build_page_render_tree(175).expect("표시 쪽");
-    let prefix = text(notes(&first.root).expect("각주"));
-    assert!(prefix.contains("234)"));
-    assert!(
-        prefix.contains("severely steatotic"),
-        "합성 위치로 실제 저장 경계를 발명하지 않음"
-    );
-}
-
-/// PDF176/177의 단일 셀 통째 표는 다행 RowBreak와 같은 바깥 상자를 쓴다.
-/// 괘선의 실제 상·하단을 검사하며 행 개수를 좌표 규칙의 근거로 삼지 않는다.
-#[test]
-fn whole_single_cell_rowbreak_border_includes_saved_outer_top() {
-    let core = core();
-    for (page, para, top, bottom) in [(175, 1832, 486.508, 903.012), (176, 1843, 539.729, 689.965)]
-    {
-        let tree = core.build_page_render_tree(page).expect("원본 영향 쪽");
-        let table = table_for_para(&tree.root, para).expect("통째 단일 셀 표");
-        assert!(
-            (table.bbox.y - top).abs() <= 1.5,
-            "p{} top: 실제{}, 독립PDF{}",
-            page + 1,
-            table.bbox.y,
-            top
-        );
-        assert!(
-            (table.bbox.y + table.bbox.height - bottom).abs() <= 1.5,
-            "p{} bottom: 실제{}, 독립PDF{}",
-            page + 1,
-            table.bbox.y + table.bbox.height,
-            bottom
-        );
-    }
-}
-
-/// 원본 guide 뒤 vpos50822 = 표높이50256 + 바깥여백283+283HU.
-/// 독립 PDF182의 그림67과 뒤 본문,183의 그림68을 같은 페이지/좌표에서 검사한다.
-#[test]
-fn deferred_float_closed_source_frame_preserves_figure_and_following_body() {
-    let core = core();
-    let first = core.build_page_render_tree(181).expect("182쪽");
-    let next = core.build_page_render_tree(182).expect("183쪽");
-    let table = table_for_para(&first.root, 1904).expect("그림67 표");
-    assert!(
-        (table.bbox.y - 86.945).abs() <= 1.5,
-        "그림67 첫 원점: {}",
-        table.bbox.y
-    );
-    for (label, needle, expected) in [
-        ("그림67 캡션", "그림 67.", 741.701),
-        ("첫 뒤 본문", "매독 전파 사례", 787.461),
-        ("다음 뒤 본문", "기생충 질환:", 894.021),
-    ] {
-        let actual = line_top(&first.root, needle).expect(label);
-        assert!(
-            (actual - expected).abs() <= 1.5,
-            "{label}: 실제{actual}, 독립PDF{expected}"
-        );
-    }
-    assert_eq!(
-        text(&first.root).matches("기생충 질환:").count(),
-        1,
-        "원본 본문 누락/중복 금지"
-    );
-    assert!(
-        !text(&next.root).contains("기생충 질환:"),
-        "뒤 본문을 새 쪽에 다시 방출하지 않음"
-    );
-    assert!(table_for_para(&next.root, 1914).is_some(), "그림68은183쪽");
-    assert_eq!(core.page_count(), 215, "독립 원본 PDF의 전체215쪽");
-}
-
-/// 같은 guide 좌표만으로 개체 소유를 증명할 수 없다. 종료 사다리 등식이
-/// 깨진 합성 입력에서는 새 쪽 원점을 발명하지 않고 원래 앵커 오프셋을 유지한다.
-#[test]
-fn guide_overlap_without_closed_source_frame_keeps_anchor_offset() {
-    let mut core = core();
-    let mut doc = core.document().clone();
-    assert_eq!(
-        doc.sections[0].paragraphs[1910].line_segs[0].vertical_pos,
-        50822
-    );
-    doc.sections[0].paragraphs[1910].line_segs[0].vertical_pos += 1000;
-    core.set_document(doc);
-    let page = core.build_page_render_tree(181).expect("합성 반례 쪽");
-    let table = table_for_para(&page.root, 1904).expect("원표");
-    // 본문 상단83.1733 + 원래 문단 오프셋3022/75 =123.4667px.
-    assert!(
-        (table.bbox.y - 123.4667).abs() <= 0.1,
-        "guide 겹침만으로 새 원점을 수용하지 않음: {}",
-        table.bbox.y
-    );
-}
-
 /// 원본 note240의 두 번째0은 PDF178/179의 실제 물리 각주 경계다.
 #[test]
 fn body_note_repeated_page_top_survives_hwpx_parser() {
@@ -1154,136 +599,6 @@ fn body_note_repeated_page_top_survives_hwpx_parser() {
             .map(|s| s.vertical_pos)
             .collect::<Vec<_>>(),
         vec![0, 0, 1172]
-    );
-}
-
-#[test]
-fn body_note_repeated_page_top_keeps_prefix_tail_and_following_notes() {
-    let core = core();
-    let first = core.build_page_render_tree(177).expect("178쪽");
-    let next = core.build_page_render_tree(178).expect("179쪽");
-    let prefix = text(notes(&first.root).expect("178 각주"));
-    let suffix = text(notes(&next.root).expect("179 각주"));
-    assert!(prefix.contains("240)"));
-    assert!(!prefix.contains("HTLV-1"), "꼬리를 앞쪽에서 소비하지 않음");
-    assert!(
-        suffix.contains("HTLV-1") && suffix.contains("jikeisurgery.jp"),
-        "꼬리 두 줄 보존"
-    );
-    assert!(!suffix.contains("240)"), "번호 중복 금지");
-    assert!(
-        suffix.contains("241)") && suffix.contains("242)"),
-        "뒤 정상 각주 보존"
-    );
-    for (label, actual, expected) in [
-        (
-            "앞 번호 줄",
-            line_top(&first.root, "B형 간염 과거력").expect("앞줄"),
-            1027.569,
-        ),
-        (
-            "꼬리 첫 줄",
-            line_top(&next.root, "HTLV-1").expect("꼬리"),
-            964.689,
-        ),
-        (
-            "꼬리 출처",
-            line_top(&next.root, "jikeisurgery.jp").expect("출처"),
-            980.369,
-        ),
-    ] {
-        assert!(
-            (actual - expected).abs() <= 1.5,
-            "{label}: 실제{actual}, 독립PDF{expected}"
-        );
-    }
-}
-
-/// 합성 위치나 저장 줄이 없는 입력으로 물리 owner를 발명하지 않는다.
-#[test]
-fn body_note_invalid_saved_reset_stays_atomic() {
-    use rhwp::model::{control::Control, paragraph::LineSeg};
-    for synthetic in [true, false] {
-        let mut core = core();
-        let mut doc = core.document().clone();
-        let Control::Footnote(note) = &mut doc.sections[0].paragraphs[1865].controls[0] else {
-            panic!("원본 본문 각주");
-        };
-        if synthetic {
-            for line in &mut note.paragraphs[0].line_segs {
-                line.tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
-            }
-        } else {
-            note.paragraphs[0].line_segs.clear();
-        }
-        core.set_document(doc);
-        let first = core.build_page_render_tree(177).expect("앞쪽");
-        let prefix = text(notes(&first.root).expect("각주"));
-        assert!(
-            prefix.contains("240)")
-                && prefix.contains("HTLV-1")
-                && prefix.contains("jikeisurgery.jp"),
-            "유효하지 않은 저장 줄은 각주를 분할하지 않음: {prefix}"
-        );
-    }
-}
-
-/// 한컴 PDF31의 첫 두 줄은 앞쪽 본문407의 저장 되감김 뒤 꼬리다.
-#[test]
-fn body_first_note_reservation_preserves_saved_reset_tail_owner() {
-    let core = core();
-    let first = core.build_page_render_tree(29).expect("30쪽");
-    let next = core.build_page_render_tree(30).expect("31쪽");
-    assert!(
-        !text(&first.root).contains("문제가 나타남. 조직학적"),
-        "reset 뒤 두 줄을 앞쪽에서 소비하지 않음"
-    );
-    for (needle, expected) in [
-        ("문제가 나타남. 조직학적", 83.141),
-        ("대한 추적 관찰이 필요함", 109.861),
-    ] {
-        let actual = line_top(&next.root, needle).expect("독립PDF의 다음 본문 소유");
-        assert!(
-            (actual - expected).abs() <= 1.5,
-            "{needle}: {actual} vs PDF{expected}"
-        );
-    }
-    assert!(text(notes(&first.root).expect("30각주")).contains("29)"));
-    assert!(!text(notes(&next.root).expect("31각주")).contains("29)"));
-}
-
-/// 본문421의 마지막 줄은 PDF32에서 차트35보다 앞에 점유한다.
-#[test]
-fn body_two_line_note_preserves_reset_tail_before_following_picture() {
-    let core = core();
-    let first = core.build_page_render_tree(30).expect("31쪽");
-    let next = core.build_page_render_tree(31).expect("32쪽");
-    let needle = "와 같이 점차 감소하는 추세임";
-    assert!(
-        !text(&first.root).contains(needle),
-        "본문 꼬리를 앞쪽에서 소비하지 않음"
-    );
-    let actual = line_top(&next.root, needle).expect("차트 앞 본문 꼬리");
-    assert!((actual - 83.141).abs() <= 1.5, "꼬리{actual} vs PDF83.141");
-    assert!(text(notes(&first.root).expect("앞 각주")).contains("30)"));
-    let tail = text(notes(&next.root).expect("꼬리각주"));
-    assert!(tail.contains("Transplantationszentren") && !tail.contains("30)"));
-}
-
-/// 합성 되감김은 원본 저장 경계의 대용이 아니며 이 물리 경로를 켜지 않는다.
-#[test]
-fn synthetic_body_reset_does_not_create_a_saved_footnote_boundary() {
-    use rhwp::model::paragraph::LineSeg;
-    let mut core = core();
-    let mut doc = core.document().clone();
-    for line in &mut doc.sections[0].paragraphs[407].line_segs {
-        line.tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
-    }
-    core.set_document(doc);
-    let first = core.build_page_render_tree(29).expect("변형 앞쪽");
-    assert!(
-        text(&first.root).contains("문제가 나타남. 조직학적"),
-        "합성 되감김을 각주 소유 증거로 쓰지 않음"
     );
 }
 
@@ -1339,256 +654,6 @@ fn assert_continued_body_note_separator(core: DocumentCore) {
     );
 }
 
-#[test]
-fn hwpx_continued_body_note_keeps_page_separator_without_number_repeat() {
-    assert_continued_body_note_separator(core());
-}
-
-#[test]
-fn hwp_continued_body_note_keeps_page_separator_without_number_repeat() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE.replace(".hwpx", ".hwp"));
-    let bytes = std::fs::read(path).expect("같은 보고서 원본HWP");
-    assert_continued_body_note_separator(DocumentCore::from_bytes(&bytes).expect("HWP 로드"));
-}
-
-/// 뒤 본문 다음의 쪽 경계로 그 본문 앞 빈 줄의 점유를 지우지 않는다.
-/// 동일 입력 한컴 PDF32의 세 줄 좌표와 저장53340→55340HU가 독립 근거다.
-#[test]
-fn empty_line_before_visible_body_keeps_its_height_before_later_page_reset() {
-    let core = core();
-    let tree = core.build_page_render_tree(31).expect("32쪽 실제 본문");
-    for (needle, expected) in [
-        ("생존 간 기증을 기증자 이식대상자 관계", 821.061),
-        ("연관계(형제자매", 847.621),
-        ("기증(배우자", 874.341),
-    ] {
-        let actual = line_top(&tree.root, needle).expect("빈 줄 뒤 본문 보존");
-        assert!(
-            (actual - expected).abs() <= 1.5,
-            "{needle}: 실제{actual}, 독립PDF{expected}"
-        );
-    }
-    assert_eq!(core.page_count(), 215, "원본 쪽 수 보존");
-}
-
-/// 동일 저장 표를 담은 직접 HWPX도 원본 한컴의 온전한 행 점유로 분할한다.
-#[test]
-fn stored_rewinding_table_preserves_whole_row_footprint_and_caption() {
-    let core = core();
-    let first = core.build_page_render_tree(105).expect("106쪽 표");
-    let next = core.build_page_render_tree(106).expect("107쪽 이어받기");
-    let first_table = table_for_para(&first.root, 1136).expect("표29 앞 조각");
-    let next_table = table_for_para(&next.root, 1136).expect("표29 뒤 조각");
-    assert_eq!(visible_rows(first_table), BTreeSet::from([0, 1, 2]));
-    assert_eq!(visible_rows(next_table), BTreeSet::from([3, 4, 5, 6, 7]));
-    for (label, actual, expected) in [
-        ("앞 표 상단", first_table.bbox.y, 670.947),
-        (
-            "앞 표 하단",
-            first_table.bbox.y + first_table.bbox.height,
-            986.121,
-        ),
-        (
-            "뒤 표 하단",
-            next_table.bbox.y + next_table.bbox.height,
-            517.833,
-        ),
-        (
-            "끝 캡션",
-            line_top(&next.root, "표 29.").expect("캡션"),
-            529.714,
-        ),
-        (
-            "뒤 본문",
-            line_top(&next.root, "O 미성년자").expect("뒤 본문"),
-            592.901,
-        ),
-    ] {
-        assert!(
-            (actual - expected).abs() <= 1.5,
-            "{label}: 실제{actual}, 독립PDF{expected}"
-        );
-    }
-}
-
-/// 표의 실제 끝점을 예약해야 뒤 본문1144의 물리 경계를 같은 쪽에서 소비한다.
-#[test]
-fn stored_rewinding_table_keeps_following_body_tail_before_figure() {
-    let core = core();
-    let first = core.build_page_render_tree(106).expect("107쪽 본문");
-    let next = core.build_page_render_tree(107).expect("108쪽 꼬리와 그림");
-    let needle = "적으로 적합하다는 결정은 주치의가";
-    assert!(
-        !text(&first.root).contains(needle),
-        "본문 꼬리 조기 소비 금지"
-    );
-    let tail = line_top(&next.root, needle).expect("그림 앞 원본 꼬리");
-    assert!((tail - 83.141).abs() <= 1.5, "꼬리{tail} vs PDF83.141");
-    let title = line_top(&next.root, "1) 장기 기증 관련 결정 순서").expect("그림 제목");
-    assert!((title - 189.861).abs() <= 1.5, "제목{title} vs PDF189.861");
-}
-
-/// 셀 선언 높이는 최소값이며 실제 온전한 행 안 여백을 줄이는 근거가 아니다.
-/// 원본510HU 위 여백과 같은 입력 한컴 PDF의 실제 글줄 위치를 검사한다.
-#[test]
-fn whole_row_cell_uses_its_allocated_height_for_saved_inner_margin() {
-    let core = core();
-    for (page, row, needle, expected) in [
-        (105, 0, "법적 자격이 있는 관계 속에", 678.514),
-        (106, 3, "어떠한 기존 관계 없는 지정", 91.794),
-    ] {
-        let tree = core.build_page_render_tree(page).expect("실제 표 조각");
-        let table = table_for_para(&tree.root, 1136).expect("표29");
-        let cell = table.children.iter().find(|node| {
-            matches!(&node.node_type, RenderNodeType::TableCell(cell) if cell.row == row && cell.col == 0)
-        }).expect("온전한 첫 열 셀");
-        let y = line_top(cell, needle).expect("저장 첫 글줄");
-        assert!(
-            (y - expected).abs() <= 1.5,
-            "{}쪽 글줄{y} vs 독립PDF{expected}",
-            page + 1
-        );
-        assert!(
-            (y - cell.bbox.y - 510.0 / 75.0).abs() <= 0.01,
-            "실제 셀 상자는 저장 위 여백6.8px를 소유: cell{}, line{y}",
-            cell.bbox.y
-        );
-    }
-}
-
-/// 같은 원본의 한컴 PDF44/45는 앞쪽 본문의 저장 vpos=0 꼬리로 시작한다.
-/// 시작 줄의 쪽 비율 대신 실제 저장 앵커와 흐름의 일치로 소유를 확인한다.
-#[test]
-fn anchored_body_reset_preserves_page_top_tail_below_fill_threshold() {
-    let core = core();
-    for (page, tail) in [(43, "(47.7%)이었음."), (44, "되었으며, <표 20>과 같음.")] {
-        let before = core.build_page_render_tree(page - 1).expect("앞 조각 쪽");
-        let next = core.build_page_render_tree(page).expect("꼬리 소유 쪽");
-        let y = line_top(&next.root, tail).expect("독립 PDF의 첫 꼬리 글줄");
-        assert!(
-            (y - 83.141).abs() <= 1.5,
-            "{}쪽 첫 글줄{y} vs PDF83.141",
-            page + 1
-        );
-        assert!(
-            !text(&before.root).contains(tail),
-            "꼬리를 앞쪽에서 중복 소비하면 안 됨"
-        );
-    }
-    let next = core.build_page_render_tree(44).expect("45쪽 뒤 표");
-    let table = table_for_para(&next.root, 518).expect("뒤 표21");
-    assert!(
-        (table.bbox.y - 193.388).abs() <= 1.5,
-        "뒤 표 원점{} vs PDF193.388",
-        table.bbox.y
-    );
-    assert_eq!(core.page_count(), 215, "원본 한컴 PDF215쪽");
-}
-
-/// 저장 앵커가 현재 흐름과 다르거나 합성 줄이면 낮은 시작 높이의
-/// reset만으로 새 물리 쪽 소유를 만들지 않는다.
-#[test]
-fn invalid_body_anchor_does_not_promote_low_fill_reset_to_page_owner() {
-    use rhwp::model::paragraph::LineSeg;
-    for synthetic in [true, false] {
-        let mut core = core();
-        let mut doc = core.document().clone();
-        let paragraph = &mut doc.sections[0].paragraphs[512];
-        if synthetic {
-            for line in &mut paragraph.line_segs {
-                line.tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
-            }
-        } else {
-            paragraph.line_segs[0].vertical_pos -= 7500;
-        }
-        core.set_document(doc);
-        let before = core
-            .build_page_render_tree(42)
-            .expect("유효하지 않은 앵커 대조군");
-        assert!(
-            text(&before.root).contains("(47.7%)이었음."),
-            "증거가 없는 reset으로 꼬리를 새 쪽에 넘기면 안 됨"
-        );
-    }
-}
-
-/// 실제 텍스트 편집이 재구성한 줄은 저장 쪽 경계의 근거로 재사용하지 않는다.
-/// 이 대조군은 편집 후 출력의 한컴 일치가 아니라 재조판 소유 계약을 확인한다.
-#[test]
-fn edited_body_reflow_does_not_reuse_original_saved_reset_owner() {
-    use rhwp::model::paragraph::LineSeg;
-    let mut core = core();
-    let original = &core.document().sections[0].paragraphs[512].line_segs;
-    assert_eq!(original[3].vertical_pos, 0, "원본의 실제 저장 reset");
-    assert!(original
-        .iter()
-        .all(|line| line.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0));
-    core.insert_text_native(0, 512, 0, " ")
-        .expect("실제 본문 편집 명령");
-    let edited = &core.document().sections[0].paragraphs[512].line_segs;
-    assert!(!edited.is_empty(), "실제 재조판 줄 생성");
-    assert!(
-        edited
-            .windows(2)
-            .all(|pair| pair[1].vertical_pos > pair[0].vertical_pos),
-        "실제 재조판은 원본의 내부0 reset을 유지하지 않고 연속 줄 위치를 생성"
-    );
-    let before = core.build_page_render_tree(42).expect("재조판 앞쪽");
-    let next = core.build_page_render_tree(43).expect("재조판 다음 쪽");
-    let tail = "(47.7%)이었음.";
-    assert!(
-        text(&before.root).contains(tail),
-        "원본 저장 컷 대신 실제 재조판 용량으로 소비"
-    );
-    assert!(!text(&next.root).contains(tail), "재조판 내용 중복 없음");
-}
-
-/// 빈 문단의 두 자리차지 표는 각 개체의 바깥 여백을 보존한다.
-/// 독립 기대값은 동일 원본 한컴 PDF44쪽의 괘선과 캡션 상단이다.
-#[test]
-fn empty_host_sibling_tables_preserve_outer_margin_and_caption_origins() {
-    fn collect<'a>(node: &'a RenderNode, out: &mut Vec<&'a RenderNode>) {
-        if matches!(&node.node_type, RenderNodeType::Table(t) if t.para_index == Some(515)) {
-            out.push(node);
-        }
-        for child in &node.children {
-            collect(child, out);
-        }
-    }
-    let core = core();
-    let tree = core.build_page_render_tree(43).expect("44쪽 두 표");
-    let mut tables = Vec::new();
-    collect(&tree.root, &mut tables);
-    assert_eq!(tables.len(), 2, "형제 표의 누락·중복 금지");
-    tables.sort_by(|a, b| a.bbox.y.total_cmp(&b.bbox.y));
-    for (table, top, bottom) in [
-        (tables[0], 327.961344, 536.533325),
-        (tables[1], 568.657349, 860.658691),
-    ] {
-        assert!(
-            (table.bbox.y - top).abs() <= 1.5,
-            "표 상단{} vs 독립 PDF{top}",
-            table.bbox.y
-        );
-        assert!(
-            ((table.bbox.y + table.bbox.height) - bottom).abs() <= 1.5,
-            "표 하단{} vs 독립 PDF{bottom}",
-            (table.bbox.y + table.bbox.height)
-        );
-    }
-    for (needle, expected) in [("표 19. 일본의", 548.261027), ("표 20. 일본 생존", 872.901)]
-    {
-        let y = line_top(&tree.root, needle).expect("표 캡션");
-        assert!(
-            (y - expected).abs() <= 1.5,
-            "캡션{needle} 상단{y} vs 독립 PDF{expected}"
-        );
-    }
-    let body_y = line_top(&tree.root, "간 기증자의 수술 후 주요 합병증").expect("뒤 본문");
-    assert!((body_y - 919.301025).abs() <= 1.5, "뒤 본문{body_y}");
-    assert_eq!(core.page_count(), 215);
-}
-
 /// 한컴 PDF121의 표시와 각주159/160은 같은 쪽에 있고122에는161만 있다.
 /// 문단1297의 앞7줄·뒤3줄 소유와 각주의 등록 시점을 구분한다.
 fn assert_stored_body_multi_note_owner(core: DocumentCore) {
@@ -1613,103 +678,6 @@ fn assert_stored_body_multi_note_owner(core: DocumentCore) {
     let y = line_top(&next.root, "야 함이 조건으로 추가됨.(Article 11)").expect("실제 뒤 본문");
     assert!((y - 136.421071).abs() <= 1.5, "다음 쪽 본문{y}");
     assert_eq!(core.page_count(), 215);
-}
-
-/// 합성 위치는 표시가 앞쪽에 있더라도 저장 쪽 경계로 승격하지 않는다.
-#[test]
-fn synthetic_body_tail_does_not_enable_saved_multi_note_routing() {
-    use rhwp::model::paragraph::LineSeg;
-    let mut core = core();
-    let mut doc = core.document().clone();
-    for line in &mut doc.sections[0].paragraphs[1297].line_segs {
-        line.tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
-    }
-    core.set_document(doc);
-    let first = core.build_page_render_tree(120).expect("합성 앞쪽");
-    let next = core.build_page_render_tree(121).expect("합성 꼬리 쪽");
-    assert!(!text(notes(&first.root).expect("기존 각주")).contains("160)"));
-    assert!(text(notes(&next.root).expect("일반 각주 소유")).contains("160)"));
-}
-
-/// 소급 등록할 공간이 없는 큰 각주는 완료된 표시 쪽 본문을 침범하지 않는다.
-/// 수동 대조군이며 한컴의 원본 출력 일치 증거로 사용하지 않는다.
-#[test]
-fn oversized_body_note_does_not_intrude_into_completed_marker_page() {
-    use rhwp::model::{control::Control, paragraph::LineSeg};
-    let mut core = core();
-    let mut doc = core.document().clone();
-    let Control::Footnote(note) = &mut doc.sections[0].paragraphs[1297].controls[0] else {
-        panic!("원본 각주160");
-    };
-    let original = note.paragraphs[0].clone();
-    for _ in 0..7 {
-        let mut added = original.clone();
-        added.controls.clear();
-        for line in &mut added.line_segs {
-            line.tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
-        }
-        note.paragraphs.push(added);
-    }
-    core.set_document(doc);
-    let first = core.build_page_render_tree(120).expect("완료된 표시 쪽");
-    let area = notes(&first.root).expect("기존 각주159 영역");
-    assert!(
-        !text(area).contains("160)"),
-        "큰 각주를 완료 쪽에 강제 예약하면 안 됨"
-    );
-    let next = core.build_page_render_tree(121).expect("후행 소유 쪽");
-    assert!(text(notes(&next.root).expect("큰 각주 영역")).contains("160)"));
-}
-
-/// 동일 원본 HWPX의 표시 쪽 각주와 뒤 본문을 함께 확인한다.
-#[test]
-fn stored_body_marker_keeps_whole_note_with_prior_notes_on_its_page() {
-    assert_stored_body_multi_note_owner(core());
-}
-
-/// Native HWP의 기존 소유 계약은 독립 HWP 기준 PDF121/122와 같다.
-#[test]
-fn native_hwp_multi_note_owner_remains_on_original_marker_page() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE.replace(".hwpx", ".hwp"));
-    let bytes = std::fs::read(path).expect("동일 보고서 원본 HWP");
-    assert_stored_body_multi_note_owner(DocumentCore::from_bytes(&bytes).expect("HWP 로드"));
-}
-
-/// 음수 줄간격으로 흐름은 그대로여도 앞의 큰 줄 상자가 각주 영역을 점유한다.
-/// 수동 메트릭 반례이며 한컴 원본 출력 일치 증거로 사용하지 않는다.
-#[test]
-fn taller_body_line_box_prevents_completed_page_note_intrusion() {
-    let mut core = core();
-    let mut doc = core.document().clone();
-    let first = &mut doc.sections[0].paragraphs[1297].line_segs[0];
-    // 원래 다음 줄까지의 2000HU 전진을 보존하되 첫 줄 상자는 15000HU다.
-    first.line_height = 15_000;
-    first.line_spacing = -13_000;
-    core.set_document(doc);
-    let first = core
-        .build_page_render_tree(120)
-        .expect("큰 줄 상자의 표시 쪽");
-    let next = core
-        .build_page_render_tree(121)
-        .expect("각주를 수용할 꼬리 쪽");
-    assert!(
-        !text(notes(&first.root).expect("기존 각주159")).contains("160)"),
-        "전진량이 작아도 큰 본문 줄 상자에 각주160을 소급 예약하면 안 됨"
-    );
-    assert!(text(notes(&next.root).expect("꼬리 쪽 각주")).contains("160)"));
-}
-
-/// Native 원본 PDF90의 캡션과 표 괘선은 서로 다른 물리 원점을 가진다.
-#[test]
-fn native_pre_emitted_caption_and_table_share_saved_paragraph_reference() {
-    assert_saved_caption_table_reference(0, false);
-}
-
-/// 문단 기준 양수 오프셋을 바꾸면 표만 이동하며 캡션 소유는 그대로다.
-/// 수동 오프셋 변형은 원본 PDF의 대용이 아닌 좌표 계약 대조군이다.
-#[test]
-fn native_pre_emitted_caption_preserves_positive_table_offset_change() {
-    assert_saved_caption_table_reference(500, false);
 }
 
 fn assert_saved_caption_table_reference(extra_offset: u32, hwpx: bool) {
@@ -1764,91 +732,6 @@ fn assert_saved_caption_table_reference(extra_offset: u32, hwpx: bool) {
     assert!(line_top(&next.root, "표 27.").is_none(), "캡션 중복 없음");
 }
 
-/// 독립 HWP 기준 PDF90은 문단957의 저장 꼬리 여덟 줄과 뒤 문단을 보존한다.
-#[test]
-fn native_stored_bullet_tail_preserves_saved_rows_and_following_paragraph() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE.replace(".hwpx", ".hwp"));
-    let bytes = std::fs::read(path).expect("원본 HWP");
-    let core = DocumentCore::from_bytes(&bytes).expect("HWP 로드");
-    let para = &core.document().sections[0].paragraphs[957];
-    assert_eq!(para.line_segs.len(), 9, "원본 저장 줄");
-    assert!(para
-        .line_segs
-        .iter()
-        .all(|line| line.column_start == 496 && line.segment_width == 44856));
-    let page = core.build_page_render_tree(89).expect("Native 90쪽");
-    fn collect<'a>(node: &'a RenderNode, pi: usize, lines: &mut Vec<&'a RenderNode>) {
-        if matches!(&node.node_type, RenderNodeType::TextLine(line) if line.para_index == Some(pi))
-        {
-            lines.push(node);
-        }
-        for child in &node.children {
-            collect(child, pi, lines);
-        }
-    }
-    let mut lines = Vec::new();
-    collect(&page.root, 957, &mut lines);
-    assert_eq!(lines.len(), 8, "저장 줄1..9의 꼬리 소유");
-    assert!(text(lines[0]).starts_with("Human Rights and Biomedicine)"));
-    assert_eq!(text(lines[7]).trim(), "부재함.");
-    assert!(
-        (lines[7].bbox.y - 269.861).abs() <= 1.5,
-        "꼬리 줄 원점: {}",
-        lines[7].bbox.y
-    );
-    let mut following = Vec::new();
-    collect(&page.root, 958, &mut following);
-    assert_eq!(following.len(), 4, "후행 문단 저장 네 줄");
-    assert!(
-        (following[0].bbox.y - 296.421).abs() <= 1.5,
-        "후행 본문 원점: {}",
-        following[0].bbox.y
-    );
-}
-
-/// HWPX 기준 PDF90도 관계 행까지 실제 각주 영역 앞에 보존한다.
-#[test]
-fn hwpx_stored_caption_table_keeps_relationship_row_above_actual_footnote_area() {
-    assert_saved_caption_table_reference(0, true);
-}
-
-/// 수동 폭 변형과 합성 저장 줄은 원본 목록 분할의 수용 증거가 아니다.
-#[test]
-fn stored_bullet_origin_does_not_admit_wrong_width_or_synthetic_rows() {
-    use rhwp::model::paragraph::LineSeg;
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE.replace(".hwpx", ".hwp"));
-    let bytes = std::fs::read(path).expect("원본 HWP");
-    for synthetic in [false, true] {
-        let mut core = DocumentCore::from_bytes(&bytes).expect("HWP 로드");
-        let mut doc = core.document().clone();
-        for line in &mut doc.sections[0].paragraphs[957].line_segs {
-            if synthetic {
-                line.tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
-            } else {
-                line.segment_width -= 1;
-            }
-        }
-        core.set_document(doc);
-        let page = core
-            .build_page_render_tree(89)
-            .expect("원본 분할을 수용하지 않는 쪽");
-        fn count(node: &RenderNode) -> usize {
-            usize::from(
-                matches!(&node.node_type, RenderNodeType::TextLine(line) if line.para_index == Some(957)),
-            ) + node.children.iter().map(count).sum::<usize>()
-        }
-        assert_ne!(
-            count(&page.root),
-            8,
-            "원본 여덟 저장 줄을 그대로 수용하면 안 됨: synthetic={synthetic}"
-        );
-        assert!(
-            text(&page.root).contains("부재함."),
-            "재조판이 꼬리 내용을 잃으면 안 됨"
-        );
-    }
-}
-
 fn assert_caption_note_owner(hwpx: bool, page: u32, number: u16, expected_y: f64) {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(if hwpx {
         SAMPLE.to_owned()
@@ -1890,35 +773,6 @@ fn assert_caption_note_owner(hwpx: bool, page: u32, number: u16, expected_y: f64
     }
 }
 
-/// 원본 HWPX PDF87의 표 캡션 각주138은 끝 조각 아래에 있다.
-#[test]
-fn hwpx_caption_note_138_is_preserved_on_terminal_table_page() {
-    assert_caption_note_owner(true, 87, 138, 1027.556885);
-}
-
-/// 원본 HWPX PDF91의 캡션 각주142는 다른 본문 각주보다 먼저 보인다.
-#[test]
-fn hwpx_caption_note_142_is_preserved_before_following_body_notes() {
-    assert_caption_note_owner(true, 91, 142, 920.368571);
-}
-
-/// 원본 HWPX PDF95의 URL 각주147도 끝 조각 소유를 따른다.
-#[test]
-fn hwpx_caption_note_147_is_preserved_on_terminal_table_page() {
-    assert_caption_note_owner(true, 95, 147, 1011.888590);
-}
-
-/// Native 원본의 기존 번호 캡션 각주 소유·좌표는 같은 독립 출력에 부합한다.
-#[test]
-fn native_caption_notes_keep_existing_terminal_table_page_owners() {
-    for (page, number, y) in [
-        (87, 138, 1027.556885),
-        (91, 142, 920.368571),
-        (95, 147, 1011.888590),
-    ] {
-        assert_caption_note_owner(false, page, number, y);
-    }
-}
 fn original_picture_wrapper_core(hwpx: bool) -> DocumentCore {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(if hwpx {
         SAMPLE.to_owned()
@@ -2014,26 +868,6 @@ fn assert_picture_fragment_remainder(hwpx: bool) {
     assert!(!text(area).contains("7)"), "앞쪽 각주 중복 없음");
 }
 
-#[test]
-fn hwpx_picture_wrapper_preserves_empty_opening_physical_fragment() {
-    assert_empty_opening_picture_fragment(true);
-}
-
-#[test]
-fn native_picture_wrapper_preserves_empty_opening_physical_fragment() {
-    assert_empty_opening_picture_fragment(false);
-}
-
-#[test]
-fn hwpx_picture_wrapper_continuation_consumes_remaining_physical_height() {
-    assert_picture_fragment_remainder(true);
-}
-
-#[test]
-fn native_picture_wrapper_continuation_consumes_remaining_physical_height() {
-    assert_picture_fragment_remainder(false);
-}
-
 fn assert_interior_control_picture_table_anchor(hwpx: bool) {
     let core = original_picture_wrapper_core(hwpx);
     let host = &core.document().sections[0].paragraphs[246];
@@ -2073,16 +907,6 @@ fn assert_interior_control_picture_table_anchor(hwpx: bool) {
         (next - (6239.0 + 34718.0) / 75.0).abs() <= 1.5,
         "다음 문단 상단 {next}"
     );
-}
-
-#[test]
-fn hwpx_picture_table_uses_interior_control_stored_line_anchor() {
-    assert_interior_control_picture_table_anchor(true);
-}
-
-#[test]
-fn native_picture_table_uses_interior_control_stored_line_anchor() {
-    assert_interior_control_picture_table_anchor(false);
 }
 
 fn assert_square_sibling_table_outer_frames(hwpx: bool) {
@@ -2141,16 +965,6 @@ fn assert_square_sibling_table_outer_frames(hwpx: bool) {
     }
 }
 
-#[test]
-fn hwpx_square_sibling_tables_consume_same_outer_frames_in_budget_and_paint() {
-    assert_square_sibling_table_outer_frames(true);
-}
-
-#[test]
-fn native_square_sibling_tables_consume_same_outer_frames_in_budget_and_paint() {
-    assert_square_sibling_table_outer_frames(false);
-}
-
 fn square_sibling_frames(root: &RenderNode) -> Vec<(f64, f64)> {
     fn collect(node: &RenderNode, frames: &mut Vec<(f64, f64)>) {
         if matches!(&node.node_type, RenderNodeType::Table(t) if t.para_index == Some(259)) {
@@ -2163,48 +977,6 @@ fn square_sibling_frames(root: &RenderNode) -> Vec<(f64, f64)> {
     let mut frames = Vec::new();
     collect(root, &mut frames);
     frames
-}
-
-#[test]
-fn square_sibling_negative_offset_zero_control_preserves_original_frames() {
-    use rhwp::model::control::Control;
-    let mut core = core();
-    let before = core.build_page_render_tree(12).expect("원본 쪽");
-    let mut doc = core.document().clone();
-    let Control::Table(table) = &mut doc.sections[0].paragraphs[259].controls[1] else {
-        panic!("원본 둘째 표");
-    };
-    table.common.vertical_offset = 0;
-    core.set_document(doc);
-    assert_eq!(core.page_count(), 215);
-    let after = core
-        .build_page_render_tree(12)
-        .expect("단일 속성 대조군 쪽");
-    // 한컴 대조군은 전체215쪽 좌표가 원본과 같다. 수정 전에도 통과하는 정상 대조다.
-    assert_eq!(
-        square_sibling_frames(&before.root),
-        square_sibling_frames(&after.root)
-    );
-}
-
-#[test]
-fn square_sibling_synthetic_host_does_not_admit_original_outer_frame() {
-    use rhwp::model::paragraph::LineSeg;
-    let mut core = core();
-    let mut doc = core.document().clone();
-    doc.sections[0].paragraphs[259].line_segs[0].tag |= LineSeg::TAG_IMPLEMENTATION_PROPERTY;
-    core.set_document(doc);
-    let page = core
-        .build_page_render_tree(12)
-        .expect("합성 저장 줄 대조군");
-    let frames = square_sibling_frames(&page.root);
-    assert_eq!(frames.len(), 2, "폴백에서도 형제 내용 소유 보존");
-    assert!(
-        (frames[0].0 - 94.49333333333334).abs() < 0.001,
-        "합성 좌표를 유효 저장 프레임으로 승격하지 않음"
-    );
-    assert!(text(&page.root).contains("표 2. OPTN"));
-    assert!(text(&page.root).contains("그림 9. OPTN"));
 }
 
 fn assert_empty_picture_table_closed_outer_frame(hwpx: bool) {
@@ -2250,16 +1022,6 @@ fn assert_empty_picture_table_closed_outer_frame(hwpx: bool) {
     let body = line_top(&page.root, "장기거래는 인간의 존엄").expect("뒤 본문");
     assert!((body - 730.5011).abs() <= 1.5, "독립 뒤 본문 {body}");
     assert!(text(notes(&page.root).expect("같은 쪽 각주6")).contains("6)"));
-}
-
-#[test]
-fn hwpx_empty_picture_table_closes_offset_and_outer_frame_once() {
-    assert_empty_picture_table_closed_outer_frame(true);
-}
-
-#[test]
-fn native_empty_picture_table_closes_offset_and_outer_frame_once() {
-    assert_empty_picture_table_closed_outer_frame(false);
 }
 
 /// 수동 메타데이터 대조군은 한컴 출력의 일치 증거가 아니다.
@@ -2348,62 +1110,6 @@ fn assert_centered_cell_pictures_match_independent_pdf(native: bool) {
         }
     }
     assert_eq!(core.page_count(), 215);
-}
-
-#[test]
-fn hwpx_centered_cell_pictures_keep_their_flow_frame() {
-    assert_centered_cell_pictures_match_independent_pdf(false);
-}
-
-#[test]
-fn native_centered_cell_pictures_keep_their_flow_frame() {
-    assert_centered_cell_pictures_match_independent_pdf(true);
-}
-
-/// 원본을 복제한 수동 IR의 오프셋 변화이며 한컴 저장본 재생성으로 보고하지 않는다.
-#[test]
-fn centered_picture_flow_keeps_positive_space_and_discards_negative_space() {
-    use rhwp::model::control::Control;
-    for (offset, expected) in [(-1696i32, 166.378662), (0, 166.378662), (1000, 173.090678)] {
-        let mut core = core();
-        let mut doc = core.document().clone();
-        let Control::Table(table) = &mut doc.sections[0].paragraphs[339].controls[0] else {
-            panic!("그림21/22를 담은 표");
-        };
-        let Control::Picture(picture) = &mut table.cells[1].paragraphs[0].controls[0] else {
-            panic!("오른쪽 그림22");
-        };
-        picture.common.vertical_offset = offset as u32;
-        core.set_document(doc);
-        let tree = core.build_page_render_tree(22).unwrap();
-        let table = table_for_para(&tree.root, 339).unwrap();
-        let cell = table
-            .children
-            .iter()
-            .find(
-                |node| matches!(&node.node_type, RenderNodeType::TableCell(cell) if cell.col == 1),
-            )
-            .unwrap();
-        let image = find_picture(cell).expect("오른쪽 그림 유닛 보존");
-        // 두 pos.vertOffset만 바꿔 한컴2024에서 출력한 대조 PDF23쪽의 상단.
-        assert!(
-            (image.bbox.y - expected).abs() < 0.5,
-            "오프셋{offset} 흐름 프레임: {:?}, 독립 PDF{expected}",
-            image.bbox
-        );
-        assert_eq!(core.page_count(), 215);
-    }
-}
-
-/// 정렬 위치와 별도로 캡션 유닛의 단일 소유를 검증한다.
-#[test]
-fn cell_picture_bottom_caption_has_one_owner() {
-    assert_cell_picture_bottom_caption_has_one_owner(false);
-}
-
-#[test]
-fn native_cell_picture_bottom_caption_has_one_owner() {
-    assert_cell_picture_bottom_caption_has_one_owner(true);
 }
 
 fn assert_cell_picture_bottom_caption_has_one_owner(native: bool) {
@@ -2508,16 +1214,6 @@ fn assert_figure11_closed_source_frame(hwpx: bool) {
         footnotes.contains("11)") && footnotes.contains("12)"),
         "각주11/12 보존"
     );
-}
-
-#[test]
-fn hwpx_figure11_table_picture_caption_share_closed_source_frame() {
-    assert_figure11_closed_source_frame(true);
-}
-
-#[test]
-fn native_figure11_table_picture_caption_share_closed_source_frame() {
-    assert_figure11_closed_source_frame(false);
 }
 
 /// 수동 IR 본문 예산으로 통째 수용·행 분할·첫 조각 이월을 직접 검사한다.
@@ -2642,32 +1338,6 @@ fn figure11_closed_frame_preserves_units_across_body_budgets() {
     }
 }
 
-/// 물리 끝행 높이를 조정해도 원본 마지막 두 줄은154쪽에서 한 번씩 보존한다.
-/// 독립 한컴 PDF의 글자 상단과155쪽에서 반복하지 않는 실제 쪽 소유를 확인한다.
-#[test]
-fn hwpx_terminal_source_note_keeps_both_lines_on_original_page() {
-    let core = original_picture_wrapper_core(true);
-    assert_eq!(core.page_count(), 215);
-    let page = core.build_page_render_tree(153).unwrap();
-    let table = table_for_para(&page.root, 1682).expect("154쪽 원본 평가자 표");
-    for (needle, pdf_y) in [
-        (
-            "독립적 의학 검사 수행-생존 기증자의",
-            706.635803 * 4.0 / 3.0,
-        ),
-        ("고지받고 동의를 제공했음을 확인함", 726.555786 * 4.0 / 3.0),
-    ] {
-        let y = line_top(table, needle).expect("원본 마지막 줄");
-        assert!((y - pdf_y).abs() < 0.5, "독립 PDF 원점: {y}/{pdf_y}");
-        assert_eq!(text(table).matches(needle).count(), 1);
-        let next = core.build_page_render_tree(154).unwrap();
-        assert!(
-            !text(&next.root).contains(needle),
-            "다음 쪽에 중복하지 않음"
-        );
-    }
-}
-
 fn figure64_source_picture_count(node: &RenderNode) -> usize {
     usize::from(
         matches!(&node.node_type, RenderNodeType::Image(image) if image.para_index == Some(1692) && image.control_index == Some(1)),
@@ -2721,38 +1391,6 @@ fn assert_figure64_next_page_source_frame(hwpx: bool) {
     assert!(text(&page.root).contains("교토대병원은 생존 간 기증자의 검사 내용"));
 }
 
-#[test]
-fn hwpx_figure64_uses_next_page_source_band_origin() {
-    assert_figure64_next_page_source_frame(true);
-}
-
-#[test]
-fn native_figure64_uses_next_page_source_band_origin() {
-    assert_figure64_next_page_source_frame(false);
-}
-
-/// 수동 원본 대조군에서 저장 어울림 폭이 맞지 않으면 다음 쪽 소유를 추측하지 않는다.
-/// 한컴 재저장 출력 일치가 아니라 저장 계약이 없는 입력의 잘못된 이월 방지 검사다.
-#[test]
-fn figure64_mismatched_successor_band_does_not_claim_next_page() {
-    for hwpx in [false, true] {
-        let mut core = original_picture_wrapper_core(hwpx);
-        let mut doc = core.document().clone();
-        for seg in &mut doc.sections[0].paragraphs[1693].line_segs {
-            if seg.vertical_pos == 0 {
-                seg.segment_width += 1000;
-            }
-        }
-        core.set_document(doc);
-        let page = core.build_page_render_tree(154).unwrap();
-        assert_eq!(
-            figure64_source_picture_count(&page.root),
-            1,
-            "저장 띠 계약이 없는 그림은 원본 호스트가 소유: 형식{hwpx}"
-        );
-    }
-}
-
 /// 동일 원본 PDF120쪽 괘선으로 표 위여백의 단일 소비를 확인한다.
 fn assert_terminal_table_frame_uses_outer_top_once(hwpx: bool) {
     let core = original_picture_wrapper_core(hwpx);
@@ -2772,29 +1410,6 @@ fn assert_terminal_table_frame_uses_outer_top_once(hwpx: bool) {
     let next = core.build_page_render_tree(120).unwrap();
     assert!(text(&next.root).contains("A) 기증자가 법적으로 가능한 연령이 되어야 하고"));
     assert!(table_for_para(&next.root, 1283).is_none());
-}
-
-#[test]
-fn native_terminal_table_frame_consumes_outer_top_once() {
-    assert_terminal_table_frame_uses_outer_top_once(false);
-}
-
-#[test]
-fn hwpx_terminal_table_frame_consumes_outer_top_once() {
-    assert_terminal_table_frame_uses_outer_top_once(true);
-}
-
-/// 원본 표31의 전체 프레임은 본체와 아래 캡션·양쪽 바깥여백을 함께 닫는다.
-/// 독립 한컴2024 PDF126쪽의 괘선/캡션/뒤 제목을96dpi로 환산한다.
-#[test]
-fn captioned_empty_host_table_keeps_its_complete_original_outer_frame_hwpx() {
-    assert_captioned_empty_host_original_outer_frame(SAMPLE);
-}
-
-#[test]
-fn captioned_empty_host_table_keeps_its_complete_original_outer_frame_hwp() {
-    let sample = SAMPLE.replace(".hwpx", ".hwp");
-    assert_captioned_empty_host_original_outer_frame(&sample);
 }
 
 fn assert_captioned_empty_host_original_outer_frame(sample: &str) {
@@ -2823,35 +1438,6 @@ fn assert_captioned_empty_host_original_outer_frame(sample: &str) {
         assert!(table_for_para(&other.root, 1350).is_none(), "표31 중복");
         assert!(line_top(&other.root, "표 31.").is_none(), "캡션 중복");
     }
-}
-
-/// 수동 방향 변형은 캡션 위/아래 공통 상자 계약만 확인한다.
-/// 한컴 재저장 원본의 일치 증거로 사용하지 않는다.
-#[test]
-fn captioned_empty_host_top_caption_keeps_body_and_successor_inside_the_same_frame() {
-    use rhwp::model::control::Control;
-    use rhwp::model::shape::CaptionDirection;
-    let mut core = core();
-    let mut doc = core.document().clone();
-    let Control::Table(table) = &mut doc.sections[0].paragraphs[1350].controls[0] else {
-        panic!("표31");
-    };
-    table.caption.as_mut().expect("캡션").direction = CaptionDirection::Top;
-    core.set_document(doc);
-    assert_eq!(core.page_count(), 215);
-    let page = core.build_page_render_tree(125).expect("126쪽");
-    let table = table_for_para(&page.root, 1350).expect("표31");
-    let caption = line_top(&page.root, "표 31.").expect("위 캡션");
-    assert!(
-        (caption - 466.653333).abs() <= 0.5,
-        "전체 상자 시작: {caption}"
-    );
-    assert!(
-        (table.bbox.y - (caption + 1850.0 / 75.0)).abs() <= 0.5,
-        "위 캡션과 본체 간격"
-    );
-    let following = line_top(&page.root, "나. 장기기증 승인업무절차").expect("뒤 제목");
-    assert!((following - 782.18).abs() <= 0.5, "뒤 제목: {following}");
 }
 
 /// 원본 쪽의 문단을 독립 IR로 옮기고 본문 예산만 줄이는 분할 경계 반례다.
@@ -2979,17 +1565,6 @@ fn captioned_closed_empty_host_frame_preserves_rows_and_caption_when_budget_requ
     assert!(following_owners[0] >= caption_owners[0], "뒤 제목의 순서");
 }
 
-/// 원본 각주171/172의 저장 내어쓰기와 독립 PDF126쪽 x112.0px를 대조한다.
-#[test]
-fn numbered_footnote_continuation_lines_keep_the_original_hanging_indent_hwpx() {
-    assert_numbered_footnote_hanging_indent(SAMPLE);
-}
-
-#[test]
-fn numbered_footnote_continuation_lines_keep_the_original_hanging_indent_hwp() {
-    assert_numbered_footnote_hanging_indent(&SAMPLE.replace(".hwpx", ".hwp"));
-}
-
 fn assert_numbered_footnote_hanging_indent(sample: &str) {
     let bytes = std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(sample)).expect("원본");
     let core = DocumentCore::from_bytes(&bytes).expect("각주 원본");
@@ -3057,86 +1632,6 @@ fn assert_numbered_footnote_hanging_indent(sample: &str) {
             "각주171 중복"
         );
     }
-}
-
-/// 수동 문단속성/합성 줄 변형의 줄별 계약이며 한컴 재저장 증거가 아니다.
-#[test]
-fn numbered_footnote_uses_paragraph_margin_and_signed_indent_without_reusing_stale_flags() {
-    use rhwp::model::control::Control;
-    use rhwp::model::paragraph::LineSeg;
-    for (indent_hu, synthetic) in [(-1800, true), (0, true), (1800, true), (-1800, false)] {
-        let mut core = core();
-        let mut doc = core.document().clone();
-        let note = doc.sections[0].paragraphs[1349]
-            .controls
-            .iter()
-            .find_map(|control| match control {
-                Control::Footnote(note) if note.number == 171 => Some(note),
-                _ => None,
-            })
-            .expect("원본 각주171");
-        let mut style =
-            doc.doc_info.para_shapes[usize::from(note.paragraphs[0].para_shape_id)].clone();
-        style.margin_left = 1500;
-        style.indent = indent_hu;
-        let style_id = doc.doc_info.para_shapes.len() as u16;
-        doc.doc_info.para_shapes.push(style);
-        let note = doc.sections[0].paragraphs[1349]
-            .controls
-            .iter_mut()
-            .find_map(|control| match control {
-                Control::Footnote(note) if note.number == 171 => Some(note),
-                _ => None,
-            })
-            .expect("변형 각주171");
-        note.paragraphs[0].para_shape_id = style_id;
-        for line in &mut note.paragraphs[0].line_segs {
-            line.tag = if synthetic {
-                LineSeg::TAG_IMPLEMENTATION_PROPERTY
-            } else {
-                0
-            };
-        }
-        core.set_document(doc);
-        assert_eq!(core.page_count(), 215, "문단속성 계약의 원본 쪽 소유");
-        let page = core.build_page_render_tree(125).expect("변형126쪽");
-        let area = notes(&page.root).expect("각주 영역");
-        let lines: Vec<_> = area
-            .children
-            .iter()
-            .filter(|n| matches!(n.node_type, RenderNodeType::TextLine(_)))
-            .collect();
-        let start = lines
-            .iter()
-            .position(|n| text(n).starts_with("171)"))
-            .expect("번호 소유");
-        for (index, line) in lines[start..start + 4].iter().enumerate() {
-            let line_indent =
-                if synthetic && ((indent_hu > 0 && index == 0) || (indent_hu < 0 && index > 0)) {
-                    12.0
-                } else {
-                    0.0
-                };
-            let expected = area.bbox.x + 10.0 + line_indent;
-            let run = line.children.first().expect("원본 줄 내용");
-            assert!(
-                (run.bbox.x - expected).abs() <= 0.01,
-                "indent={indent_hu}, synthetic={synthetic}, 줄{index}: {} / {expected}",
-                run.bbox.x
-            );
-        }
-    }
-}
-
-/// 동일 한컴 PDF의 캡션 표 끝 조각과 뒤 제목 원점을 두 원본 형식에서 확인한다.
-#[test]
-fn captioned_saved_rowbreak_terminal_fragment_keeps_outer_frame_hwp() {
-    assert_captioned_terminal_fragment_outer_frame(&SAMPLE.replace(".hwpx", ".hwp"));
-}
-
-#[test]
-fn captioned_saved_rowbreak_terminal_fragment_keeps_outer_frame_hwpx() {
-    assert_captioned_terminal_fragment_outer_frame(SAMPLE);
 }
 
 fn assert_captioned_terminal_fragment_outer_frame(sample: &str) {
