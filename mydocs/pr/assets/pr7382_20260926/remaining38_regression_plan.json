@@ -227,13 +227,28 @@
       "id": 14,
       "function": "issue_5585_sibling_table_anchor_offset::sibling_tables_do_not_recharge_the_paragraph_anchor_offset",
       "case": "issue_5585_sibling_table_anchor_offset",
-      "status": "pending",
-      "individual_results": [],
+      "status": "resolved",
+      "individual_results": [
+        {
+          "before": "85/86 FAIL; 후보7 실제91/86 FAIL",
+          "after": "1PASS; 기존 대조군34PASS",
+          "code_head": "3f2951b6b0ff522b4f702ed8aa895f8195a43a4a",
+          "visual_native": 92.57413,
+          "visual_wasm": 92.57413,
+          "test_changed": true,
+          "existing_function_count": 2,
+          "body_guard_before": "봉인 후보7 CLI에서1FAIL:60/62/65/67/71쪽72.2px",
+          "body_guard_after": "현재 CLI1PASS (34개 기존 검사에 포함)",
+          "new_test_functions": 0
+        }
+      ],
       "resolved_plan": {
         "caseName": "issue_5585_sibling_table_anchor_offset",
-        "target": "regression_suite_013",
+        "target": "regression_suite_017",
         "grouped": true
-      }
+      },
+      "correction_commit": "3f2951b6b0ff522b4f702ed8aa895f8195a43a4a",
+      "evidence": "stage65_validation.json"
     },
     {
       "id": 15,
@@ -589,6 +604,6 @@
       }
     }
   ],
-  "next_candidate": "issue_5585_sibling_table_anchor_offset::sibling_tables_do_not_recharge_the_paragraph_anchor_offset",
-  "next_candidate_reason": "보정64 결과 커밋 뒤 #5585 지표 문서의85/86쪽 차이와 독립 기준/실제내용 소유를 분석한다."
+  "next_candidate": "issue_5941_tail_overflow_drift_gate::issue_5941_drift_past_saved_tail_still_grants_overflow",
+  "next_candidate_reason": "보정65 커밋 뒤 #5941의 기존 실패 함수만 개별 실행하고, 원문/합성 입력과 저장 꼬리 경계의 독립 근거를 확인한 뒤 한 단계씩 해결한다."
 }

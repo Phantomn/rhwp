@@ -901,5 +901,6 @@
     "시험 원문 머리말 글꼴·꼬리말 쪽번호 차이 유지; 보고한 표·그림 위치 계약을 보정"
   ],
   "overall_pr_ready": false,
-  "remaining_original38": 28
+  "remaining_original38": 28,
+  "validated_code_commit": "3f2951b6b0ff522b4f702ed8aa895f8195a43a4a"
 }
