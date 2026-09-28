@@ -318,3 +318,7 @@ venv/bin/python scripts/visual_sweep.py \
 ## 추가: 관제 원문의 실제 text-overlap 축만 보류
 
 [등록 범위 갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869952956), [단독실패·부정증거·유지검사/전수분할](air6764_text_blocking_scope_validation.json). 실제7→11증가의text입력/7건행만보류하고정상관제4함수 및다른축·원문/PDF는유지했습니다. 정상4PASS, text13PASS/3FAIL, lint/정책7단계exit0. 전체피델리티/전체회귀 완료아닙니다.
+
+## 추가: 사이버대학 원문의 실제 text-overlap 축
+
+[추가등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5874150745), [기존 원문](../../../../samples/issue6795/1341000-201100013-cyber-university-application.hwp), [동일입력 정상한컴PDF45쪽](../../../../pdf/1341000-201100013-cyber-university-application-2020.pdf), [단독실패·새선택Native·유지검사/전수분할](cyber6795_text_blocking_scope_validation.json). 실제2→3증가의text입력/2건행만보류하고정상기존6함수 및다른축·원문/PDF를유지했습니다. 선택6쪽중9쪽98.86518%,표구간최저49.74703%이며전수Native/freshWASM미완료입니다. 정상6PASS, text15PASS/1FAIL(그분할의다른두입력미해결), lint/정책7단계exit0. 전체피델리티/전체회귀 완료아닙니다.

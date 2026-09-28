@@ -2321,3 +2321,11 @@ HWP 대응본과 구분해 동일 HWPX/기존 정상 한컴 PDF18쪽의 해시�
 현재원문text7→11건을분할단독1FAIL로재현했습니다. 동일원문/정상한컴PDF/생산binary와빈src diff로기존부정증거103쪽37.65331%·201쪽11.45426%/201대204쪽을재사용했고103쪽review에서정상3단계확산/그림24 대신이전본문이있는페이지내용소유 차이를직접확인했습니다. 전체204쪽Native/freshWASM미완료입니다. [#7445 범위갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869952956) 후이입력의text축과7건원장행만보류했습니다. 정상관제4함수 및모든다른축·문서·원문/PDF유지,7을11로완화하지않았습니다.
 
 코드 `4979472991320a35a622d580245d676d12498b1c`, [단독실패·부정증거·좁은범위·전수분할](../assets/issue7445/air6764_text_blocking_scope_validation.json). 정상4PASS, text16분할13PASS/3FAIL로합계17PASS/3FAIL/854SKIP입니다. 다른3실패는제외하지않았고필수lint/정책7단계exit0입니다. 다른off/body/cell/oracle축 또는최종개별/전체검증을대체하지않으며PR준비미완료입니다.
+
+## 보정122 사전 분석·결과 — 사이버대학 원문의 실제 text 축만 보류
+
+text2→3건의분할단독1FAIL을재현했습니다. 기존#6804/#7274의같은원문/정상한컴PDF 대응과현재해시를확인했고현재45/45쪽입니다. 현재생산Native로실제겹침9·29쪽및분할표28–32쪽을새로비교했습니다. 선택6쪽complete/exit1/re_review_required이며9쪽98.86518%,표구간최저31쪽49.74703%/영향29쪽60.6783%입니다.29쪽review/standalone overlay의내부표행높이·글줄·뒤행위치차이와31쪽review의첫행소유/표종료차이를직접확인했습니다. 전수45쪽/freshWASM은미실행입니다. 정상기존좌표핀통과를PDF정답/전체피델리티로승격하지않습니다.
+
+[#7445 추가등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5874150745) 후text입력하나/기존2건행만보류했습니다. 기존#6795다섯함수/#6981반례 및모든다른축·문서·원문/PDF 유지,2를3으로완화하지않았습니다. 테스트자체가틀렸다고확정하지않습니다. metrics JSON을dict로잘못읽은진단오류는최종manifest/overlay의6쪽지표수집으로바로잡았고렌더링회귀로세지않습니다.
+
+코드 `0572a2d899cc58225d9476386d61225de9193eff`, [독립원문/PDF·새Sweep·좁은범위·전수분할](../assets/issue7445/cyber6795_text_blocking_scope_validation.json). 정상6PASS, text16분할15PASS/1FAIL로합계21PASS/1FAIL/664SKIP입니다. 한실패분할의다른두입력(교육37→90/진안신규5)은유지해개별처리하며필수lint/정책7단계exit0입니다. 다른off/body/cell/oracle축 또는최종개별/전체검증을대체하지않으며PR준비미완료입니다.
