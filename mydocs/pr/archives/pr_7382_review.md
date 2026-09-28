@@ -2092,3 +2092,7 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 기존5번의 마지막 관제교육 본문초과39→40건을 독립 한컴 PDF로 검증했습니다. 실제201/기준204쪽, 선택 Native39·103·124·194·201쪽98.12011/37.65331/23.8889/38.95167/11.45426%입니다.103쪽 로드맵과 설명의 소유,201쪽 역량 표와 부록 소유 차이를 review에서 직접 확인했습니다. 전용182·183쪽의 경계 정확성은 이번 선택 캡처로 입증하지 않았고, 전체/fresh WASM 미실행입니다.
 
 [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869952956) 뒤 원문을 바이트 동일하게 보존하고 전용4함수와 해당 원장3행을 제거했습니다. 다른 문서·기대값·공차를 유지하고 새 함수/skip/ignore/생산 변경은 없습니다. 기존5번 개별1PASS/239SKIP(exit0), fmt·Clippy3종·workspace build·고정 base 정책exit0입니다. 코드 `1d91421c4d0b885e3fec99d549d490758876de1c`, [실행·보존 증거](../assets/issue7445/air6764_test_removal_validation.json). 고정38은18완료/1이관/19대기이며 다른 실패와 최종 전체 회귀·fresh WASM/시각은 남아 PR 준비 미완료입니다.
+
+## 보정83 결과 — 기존6번 개별 실행
+
+head `1fddec84c4d05919323e190d0068046be624d373`에서 기존6번 body partition3을 nextest release-test/공유target/8threads로 단독 실행했습니다. 1FAIL/239SKIP(exit100,44.776초)이며 증가 원문은 전기안전관리규정70833의2→3건입니다. 시장구조조사의44.728초는 같은 corpus의 실제 장기 샘플 실행이며 출력 공백을 중단 사유로 삼지 않았습니다. 첫 실패에서 다음 함수를 멈추고 독립 PDF와 해당 원문의 시각 비교를 먼저 수행합니다. 생산·검사·기대값 변경은 없습니다. [개별 실행 근거](../assets/pr7382_20260926/stage83_individual_validation.json). 고정38은18완료/1이관/19대기, PR 준비 미완료입니다.

@@ -245,7 +245,41 @@
       "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_3",
       "case": "body_overflow_baseline",
       "status": "pending",
-      "individual_results": [],
+      "individual_results": [
+        {
+          "id": 6,
+          "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_3",
+          "plan": {
+            "caseName": "body_overflow_baseline",
+            "target": "regression_suite_019",
+            "grouped": true
+          },
+          "command": [
+            "cargo",
+            "nextest",
+            "run",
+            "--locked",
+            "--cargo-profile",
+            "release-test",
+            "--target-dir",
+            "target/pr-review",
+            "--test",
+            "regression_suite_019",
+            "-E",
+            "test(=body_overflow_baseline::body_overflow_does_not_grow_partition_3)",
+            "--test-threads",
+            "8",
+            "--no-fail-fast"
+          ],
+          "exit_code": 100,
+          "seconds": 45.78649737499654,
+          "summary": [
+            "     Summary [  44.776s] 1 test run: 0 passed, 1 failed, 239 skipped"
+          ],
+          "stage": 83,
+          "head": "1fddec84c4d05919323e190d0068046be624d373"
+        }
+      ],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
         "target": "regression_suite_015",
@@ -846,7 +880,7 @@
     }
   ],
   "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_3",
-  "next_candidate_reason": "다음 고정 대기 함수를 개별 실행하고 첫 실패의 동일 입력 독립 Visual Sweep을 판단한다. HWPX7쪽/별도규제영향/글꼴 추적 추가 실패와 exam footer 및 최종검증도 남아 있음.",
+  "next_candidate_reason": "고정6번 개별FAIL: 전기안전관리규정70833 본문하단2→3건. 동일 입력 독립 PDF/Native sweep으로 먼저 검증. 원래19대기와 추가 실패는 유지.",
   "current_status_counts": {
     "resolved": 18,
     "deferred_to_issue": 1,
