@@ -265,3 +265,12 @@ venv/bin/python scripts/visual_sweep.py \
 ## 보정110: 정상 corpus 범위 복원 완료, 실패는 개별 판정
 
 [보류 축·22원문·복원 행·실행 근거](corpus_scope_restore_validation.json)에 따라 보정69 이후 이동 원문을 samples에도 복원했습니다. 정상 원장24행을 원래 값으로 유지하고 확인된 실패 축만 명시적으로 보류합니다. corpus/matrix86검사는63PASS/23FAIL이며23실패를 자동 이관/제거하지 않았습니다. 기존 개별15실패와 대조해 입력별로 처리합니다. 검사 복원이 문서 피델리티 개선이나 최종회귀 통과를 뜻하지 않습니다. 이전 문서 전체 검사 제외 서술은 보정105~110의 범위로 정정합니다.
+
+## 추가: rowbreak HWPX의 실제 차단 검사만 보류
+
+- [등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5872944940), [원본HWPX](../../../../samples/rowbreak-problem-pages.hwpx), [정상 한컴PDF18쪽](../../../../pdf/rowbreak-problem-pages-hwpx-2020.pdf), [전체Native18쪽·독립기대·검사범위·실행](rowbreak_hwpx_blocking_scope_validation.json).
+- 전체최저9쪽20.18283%,13개쪽90%미달. 실패2함수와text의이입력만보류하고다른18함수/모든다른축은유지했습니다. 남은18함수PASS/필수8단계exit0이며원문피델리티 개선이나전체회귀완료로세지않습니다.
+
+![7쪽 표시작과제26조소유차이](rowbreak_hwpx_native_review_007.png)
+
+![9쪽 이전내용잔류와시행령표위치차이](rowbreak_hwpx_native_overlay_009.png)

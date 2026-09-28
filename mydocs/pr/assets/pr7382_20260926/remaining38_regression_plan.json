@@ -1458,7 +1458,7 @@
       "id": 38,
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_9",
       "case": "text_overlap_baseline",
-      "status": "pending",
+      "status": "resolved",
       "individual_results": [
         {
           "stage": 104,
@@ -1469,6 +1469,38 @@
             "     Summary [   0.868s] 1 test run: 0 passed, 1 failed, 223 skipped"
           ],
           "status": "pending"
+        },
+        {
+          "stage": 111,
+          "code_commit": "83402f03e3ce700149dd6099a078dabdc3859b06",
+          "evidence": "../issue7445/rowbreak_hwpx_blocking_scope_validation.json",
+          "source_input_deferred": "rowbreak-problem-pages.hwpx의text축만보류;다른18함수/모든다른축유지",
+          "original_function_run": {
+            "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_9",
+            "command": [
+              "cargo",
+              "nextest",
+              "run",
+              "--locked",
+              "--cargo-profile",
+              "release-test",
+              "--target-dir",
+              "target/pr-review",
+              "--test",
+              "regression_suite_017",
+              "--test-threads",
+              "8",
+              "--no-fail-fast",
+              "-E",
+              "test(=text_overlap_baseline::text_overlaps_do_not_grow_partition_9)"
+            ],
+            "exit_code": 0,
+            "seconds": 8.46451716683805,
+            "summary": [
+              "Summary [   1.417s] 1 test run: 1 passed, 234 skipped"
+            ]
+          },
+          "resolution_scope": "현재후보의개별1PASS snapshot. 최종37함수재실행/전체회귀대체아님."
         }
       ],
       "resolved_plan": {
@@ -1478,12 +1510,12 @@
       }
     }
   ],
-  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_9",
-  "next_candidate_reason": "rowbreak-problem-pages.hwpx 신규1건. 먼저 기존 정상 검사까지 제외했는지 범위 보정 후 실제 PR 차단 실패만 처리.",
+  "next_candidate": null,
+  "next_candidate_reason": "고정38의snapshot는37resolved/1승인이관. 정상범위복원으로드러난개별15실패와corpus다른실패원인을먼저각원문별처리하고최종37개별/전체nextest 수행.",
   "current_status_counts": {
-    "resolved": 36,
-    "deferred_to_issue": 1,
-    "pending": 1
+    "resolved": 37,
+    "deferred": 1,
+    "pending": 0
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
@@ -1501,7 +1533,8 @@
       "status": "deferred_to_issue",
       "note": "90%미달의실제Native출력을 #7445에등록하고원문보존/전용4검사제외. 피델리티해결아님.",
       "stage": 80,
-      "evidence": "../issue7445/press3637_test_removal_validation.json"
+      "evidence": "../issue7445/press3637_test_removal_validation.json",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     },
     {
       "document": "samples/rowbreak-problem-pages.hwp",
@@ -1510,7 +1543,8 @@
       "status": "deferred_to_issue",
       "note": "선택6쪽 sweep 90%미달. #7445 등록/원문 보존/전용5검사와matrix4입력제외. 피델리티 개선 아님.",
       "stage": 81,
-      "evidence": "../issue7445/rowbreak_hwp_test_removal_validation.json"
+      "evidence": "../issue7445/rowbreak_hwp_test_removal_validation.json",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     },
     {
       "document": "samples/hwp3-sample16-hwp5.hwpx",
@@ -1520,7 +1554,8 @@
       "status": "deferred_to_issue",
       "note": "선택7쪽 모두90%미만. 원문 보존 및 사용자 승인 전용4검사 제외. 피델리티 해결 아님.",
       "stage": 75,
-      "evidence": "../issue7445/sample16hwpx_test_removal_validation.json"
+      "evidence": "../issue7445/sample16hwpx_test_removal_validation.json",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     },
     {
       "document": "samples/task2070/1130000-201900011_D0150004-1-002_2017년기준 시장구조조사.hwp",
@@ -1537,7 +1572,8 @@
       "failure": "body bottom39→40건",
       "note": "원문201/정상204쪽, 선택4쪽90%미달. #7445 등록/원문보존/전용4함수와corpus3행제외; 피델리티 해결 아님.",
       "stage": 82,
-      "evidence": "../issue7445/air6764_test_removal_validation.json"
+      "evidence": "../issue7445/air6764_test_removal_validation.json",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     },
     {
       "document": "samples/issue3637/regulatory_impact_nested_table_escape.hwpx",
@@ -1552,8 +1588,11 @@
         "rowbreak_page7_nested_table_paragraph_keeps_host_text",
         "rowbreak_page7_starts_article_26_like_hancom_pdf"
       ],
-      "status": "pending",
-      "observed_stage": 81
+      "status": "deferred_to_issue",
+      "observed_stage": 81,
+      "stage": 111,
+      "evidence": "../issue7445/rowbreak_hwpx_blocking_scope_validation.json",
+      "note": "전체18쪽Native최저20.18283%.실패2함수/text입력만보류.다른18함수/모든다른축/원문PDF유지.원문피델리티해결아님."
     },
     {
       "document": "samples/143E433F503322BD33.hwp",
@@ -1569,7 +1608,8 @@
       "status": "deferred_to_issue",
       "stage": 84,
       "evidence": "../issue7445/electrical6854_test_removal_validation.json",
-      "note": "선택4쪽90%미달. #7445등록/원문보존/해당 회귀2함수·원장2행제외. 피델리티 개선 아님."
+      "note": "선택4쪽90%미달. #7445등록/원문보존/해당 회귀2함수·원장2행제외. 피델리티 개선 아님.",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     },
     {
       "document": "samples/issue6844/30269-anticorruption-recommendation-toc.hwp",
@@ -1579,7 +1619,8 @@
       "status": "deferred_to_issue",
       "stage": 86,
       "evidence": "../issue7445/anticorruption6844_test_removal_validation.json",
-      "note": "Native5·6쪽90%미달. #7445등록/두 원문보존/렌더링5함수제외. IR속성복원유지, 피델리티 개선 아님."
+      "note": "Native5·6쪽90%미달. #7445등록/두 원문보존/렌더링5함수제외. IR속성복원유지, 피델리티 개선 아님.",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     },
     {
       "document": "samples/exam_eng.hwp",
@@ -1587,7 +1628,8 @@
       "status": "deferred_to_issue",
       "stage": 88,
       "note": "전체 Native 최저48.54225%. 원문 보존/렌더링 회귀 제외; 피델리티 해결 아님.",
-      "evidence": "../issue7445/exam_eng_test_removal_validation.json"
+      "evidence": "../issue7445/exam_eng_test_removal_validation.json",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     },
     {
       "document": "samples/hwpctl_API_v2.4.hwp",
@@ -1596,7 +1638,8 @@
       "failure": "body overflow0→1건",
       "note": "74쪽60.06836%로 원문보존/렌더링회귀 제외. 피델리티 해결 아님.",
       "stage": 89,
-      "evidence": "../issue7445/api24_test_removal_validation.json"
+      "evidence": "../issue7445/api24_test_removal_validation.json",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     },
     {
       "document": "samples/issue7196/156760012_page_top_spacing_trim.hwpx",
@@ -1611,7 +1654,8 @@
       "status": "deferred_to_issue",
       "stage": 91,
       "note": "현재51/정상50쪽, 선택최저14.87881%. 원문보존/렌더링2함수·원장2행 제외. 피델리티 해결 아님.",
-      "evidence": "../issue7445/footnote1937_test_removal_validation.json"
+      "evidence": "../issue7445/footnote1937_test_removal_validation.json",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     },
     {
       "document": "samples/issue6782/1480000-201900042-chemical-labeling-standards.hwp",
@@ -1619,7 +1663,8 @@
       "status": "deferred_to_issue",
       "stage": 93,
       "note": "선택 최저53.67396%. 원문보존/회귀제외. 피델리티 해결 아님.",
-      "evidence": "../issue7445/chemical6782_test_removal_validation.json"
+      "evidence": "../issue7445/chemical6782_test_removal_validation.json",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     },
     {
       "document": "samples/task1749/saved_bounds_cumulative_page_break.hwpx",
@@ -1628,7 +1673,8 @@
       "failure": "text-overlap 신규9건",
       "note": "전체 Native 최저30.44845%. HWPX보존/렌더링회귀제외, IR/HWP대조군 유지. 피델리티 해결 아님.",
       "stage": 94,
-      "evidence": "../issue7445/savedbounds1749_test_removal_validation.json"
+      "evidence": "../issue7445/savedbounds1749_test_removal_validation.json",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     },
     {
       "document": "samples/한글문서파일형식_5.0_revision1.3.hwp",
@@ -1636,7 +1682,8 @@
       "status": "deferred_to_issue",
       "stage": 96,
       "evidence": "../issue7445/format_spec13_test_removal_validation.json",
-      "note": "공식같은원문/PDF 선택Native90%미달/69대71쪽.바이트보존/렌더링4함수제외/IR2유지.피델리티 해결 아님."
+      "note": "공식같은원문/PDF 선택Native90%미달/69대71쪽.바이트보존/렌더링4함수제외/IR2유지.피델리티 해결 아님.",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     },
     {
       "document": "samples/pr4093/outline_navigation_panel_demo.hwpx",
@@ -1645,7 +1692,8 @@
       "failure": "text-overlap 신규2건",
       "note": "전체Native최저51.51148%;원문보존/데모렌더·페이지assertion제외/getter및다른입력유지.피델리티개선아님.",
       "stage": 97,
-      "evidence": "../issue7445/outline4093_test_removal_validation.json"
+      "evidence": "../issue7445/outline4093_test_removal_validation.json",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     },
     {
       "document": "samples/issue6776/78494-virtual-convergence-industry-decree.hwpx",
@@ -1653,7 +1701,8 @@
       "status": "deferred_to_issue",
       "stage": 99,
       "evidence": "../issue7445/decree6776_test_removal_validation.json",
-      "note": "선택Native8쪽90%미달.원문보존/렌더링2함수/body1행제외;음성대조유지.피델리티개선아님."
+      "note": "선택Native8쪽90%미달.원문보존/렌더링2함수/body1행제외;음성대조유지.피델리티개선아님.",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     },
     {
       "document": "samples/pr4093/outline_navigation_table_cell_number.hwpx",
@@ -1662,7 +1711,8 @@
       "failure": "text-overlap 신규2건",
       "note": "전체Native85.44776%;원문보존/혼합함수SVG부분제외/3개·15개getter유지.피델리티개선아님.",
       "stage": 101,
-      "evidence": "../issue7445/outline_minimal4093_test_removal_validation.json"
+      "evidence": "../issue7445/outline_minimal4093_test_removal_validation.json",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     },
     {
       "document": "samples/issue6782/1480000-201900042-chemical-product-labeling-study.hwp",
@@ -1671,7 +1721,8 @@
       "failure": "text-overlap 신규2건",
       "note": "별도 전체원문 선택Native90%미달.원문보존/19함수제외.피델리티개선아님.",
       "stage": 103,
-      "evidence": "../issue7445/chemical_full6782_test_removal_validation.json"
+      "evidence": "../issue7445/chemical_full6782_test_removal_validation.json",
+      "scope_after_user_correction": "기존 note는해당보정당시역사적처리이며현재삭제범위를뜻하지않음. 보정105~110에서정상함수/corpus범위를복원.현재범위는scope_correction및corpus_scope_restore_validation.json을따름."
     }
   ],
   "scope_correction": {
@@ -1934,6 +1985,15 @@
         }
       ],
       "remaining": "개별15실패 및 corpus23실패의 입력/축 대조 후 개별 해결. 고정38의 resolved는 과거 snapshot이며 현재 통과로 세지 않음. 최종37개별 실행 후 전체 nextest 필요."
+    },
+    "rowbreak_hwpx_blocking_scope": {
+      "stage": 111,
+      "code_commit": "83402f03e3ce700149dd6099a078dabdc3859b06",
+      "evidence": "../issue7445/rowbreak_hwpx_blocking_scope_validation.json",
+      "actual_failed_functions_removed": 2,
+      "normal_functions_kept": 18,
+      "normal_functions_result": "18PASS",
+      "corpus_snapshot": "보정110의23실패중이입력원인만처리.현재총FAIL함수수는전체재실행전추정하지않음."
     }
   }
 }
