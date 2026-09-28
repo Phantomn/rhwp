@@ -2086,3 +2086,9 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 초기 전체 target Clippy의 잔여 문서 주석과 단일 입력 loop 오류를 수정해 같은 범위를 다시 검증합니다. 처음 지원하지 않는 Sweep 옵션 호출은 capture 이전 setup 실패이며 올바른 옵션으로 선택6쪽을 완주했습니다. 이 오류를 렌더링 결함 재현으로 세지 않습니다.
 
 최종 최신 배정 집중 검사는37PASS/다른 입력4FAIL/1265SKIP(exit100)이며 fmt·Clippy3종·workspace build·고정 base manifest/unit-tier는exit0입니다. 실패는 별도HWPX의7쪽2함수, exact-face 문서의 추적건수1334/기대1336, 관제교육39→40건입니다. 이번HWP의 제외를 다른 원문의 해결이나 전체 검증 통과로 세지 않습니다. 코드 `66510d325d7c085e684a914f4176d953bf9eef38`, [보존·실행 증거](../assets/issue7445/rowbreak_hwp_test_removal_validation.json). 고정38은17완료/1이관/20대기이며 다음은 고정5번의 관제교육 원문입니다. PR 준비는 미완료입니다.
+
+## 보정82 사전 분석·결과 — 관제교육의 미달 회귀 제외와 기존5번 완료
+
+기존5번의 마지막 관제교육 본문초과39→40건을 독립 한컴 PDF로 검증했습니다. 실제201/기준204쪽, 선택 Native39·103·124·194·201쪽98.12011/37.65331/23.8889/38.95167/11.45426%입니다.103쪽 로드맵과 설명의 소유,201쪽 역량 표와 부록 소유 차이를 review에서 직접 확인했습니다. 전용182·183쪽의 경계 정확성은 이번 선택 캡처로 입증하지 않았고, 전체/fresh WASM 미실행입니다.
+
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869952956) 뒤 원문을 바이트 동일하게 보존하고 전용4함수와 해당 원장3행을 제거했습니다. 다른 문서·기대값·공차를 유지하고 새 함수/skip/ignore/생산 변경은 없습니다. 기존5번 개별1PASS/239SKIP(exit0), fmt·Clippy3종·workspace build·고정 base 정책exit0입니다. 코드 `1d91421c4d0b885e3fec99d549d490758876de1c`, [실행·보존 증거](../assets/issue7445/air6764_test_removal_validation.json). 고정38은18완료/1이관/19대기이며 다른 실패와 최종 전체 회귀·fresh WASM/시각은 남아 PR 준비 미완료입니다.

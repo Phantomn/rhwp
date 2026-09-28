@@ -114,3 +114,13 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native8쪽의 내용 소유와 표 경계 차이](rowbreak_hwp_native_review_008.png)
 
 ![Native12쪽의 표와 본문 위치 차이](rowbreak_hwp_native_overlay_012.png)
+
+## 추가: 항공교통관제사 CBTA 도입 연구
+
+- [등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869952956), [보존 HWP](1613000-202200037-air-traffic-controller-cbta.hwp), [같은 원문의 독립 한컴 PDF204쪽](../../../../pdf/1613000-202200037-air-traffic-controller-cbta-2020.pdf), [제외와 개별 검사 검증](air6764_test_removal_validation.json).
+- 현재201/기준204쪽. 선택 Native39·103·124·194·201쪽은98.12011/37.65331/23.8889/38.95167/11.45426%입니다.103쪽의 로드맵 그림24와 뒤 설명 대신 앞 내용,201쪽의 역량 표 대신 부록5 영문 평가양식이 표시되는 차이를 직접 확인했습니다. 전체204쪽/fresh WASM 비교는 미실행입니다.
+- 원문12,851,712byte를 바이트 동일하게 보존하고 전용4함수와 corpus3행만 제거했습니다. 다른 문서·기대값·공차 유지, 새 함수/ignore/skip/생산 변경 없음. 기존 body partition2는 개별1PASS/239SKIP(exit0), 필수 lint·고정 base 정책도exit0입니다. 제외를 피델리티 개선으로 보고하지 않습니다.
+
+![Native103쪽의 내용 소유와 그림 차이](air6764_native_review_103.png)
+
+![Native201쪽의 역량 표와 부록 소유 차이](air6764_native_overlay_201.png)

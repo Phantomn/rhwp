@@ -174,7 +174,7 @@
       "id": 5,
       "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_2",
       "case": "body_overflow_baseline",
-      "status": "pending",
+      "status": "resolved",
       "individual_results": [
         {
           "stage": 78,
@@ -202,13 +202,43 @@
           "after": "body partition2 단독 선택1FAIL: 관제교육39→40건; 최신 집중37PASS/다른4FAIL",
           "evidence": "../issue7445/rowbreak_hwp_test_removal_validation.json",
           "scope": "rowbreak HWP 이관. body generic 유지; 다른 실패 해결 아님."
+        },
+        {
+          "stage": 82,
+          "after": "개별1PASS/239SKIP,exit0",
+          "code_head": "1d91421c4d0b885e3fec99d549d490758876de1c",
+          "command": [
+            "cargo",
+            "nextest",
+            "run",
+            "--locked",
+            "--cargo-profile",
+            "release-test",
+            "--target-dir",
+            "target/pr-review",
+            "--test-threads",
+            "8",
+            "--no-fail-fast",
+            "--test",
+            "regression_suite_019",
+            "-E",
+            "test(=body_overflow_baseline::body_overflow_does_not_grow_partition_2)"
+          ],
+          "resolved_plan": {
+            "caseName": "body_overflow_baseline",
+            "target": "regression_suite_019",
+            "grouped": true
+          }
         }
       ],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
-        "target": "regression_suite_015",
+        "target": "regression_suite_019",
         "grouped": true
-      }
+      },
+      "code_commit": "1d91421c4d0b885e3fec99d549d490758876de1c",
+      "evidence": "../issue7445/air6764_test_removal_validation.json",
+      "resolution_scope": "사용자 승인 미달 원문 이관 뒤 현재 generic body partition2 개별PASS. 원문의 피델리티 개선이나 다른 입력 해결 아님."
     },
     {
       "id": 6,
@@ -815,12 +845,12 @@
       }
     }
   ],
-  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_2",
-  "next_candidate_reason": "고정5번 본문초과의 관제교육 원문을 같은 입력의 독립 PDF로 별도 판단. 다른 HWPX/글꼴 추적 추가 실패도 보존하며 전체 완료 전 해결.",
+  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_3",
+  "next_candidate_reason": "다음 고정 대기 함수를 개별 실행하고 첫 실패의 동일 입력 독립 Visual Sweep을 판단한다. HWPX7쪽/별도규제영향/글꼴 추적 추가 실패와 exam footer 및 최종검증도 남아 있음.",
   "current_status_counts": {
-    "resolved": 17,
+    "resolved": 18,
     "deferred_to_issue": 1,
-    "pending": 20
+    "pending": 19
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
@@ -868,9 +898,11 @@
     {
       "document": "samples/issue6764/1613000-202200037-air-traffic-controller-cbta.hwp",
       "observed_stage": 78,
-      "status": "pending",
+      "status": "deferred_to_issue",
       "failure": "body bottom39→40건",
-      "note": "독립 Visual Sweep 미실행. 다른문서이관후재배정을해결로세지않음."
+      "note": "원문201/정상204쪽, 선택4쪽90%미달. #7445 등록/원문보존/전용4함수와corpus3행제외; 피델리티 해결 아님.",
+      "stage": 82,
+      "evidence": "../issue7445/air6764_test_removal_validation.json"
     },
     {
       "document": "samples/issue3637/regulatory_impact_nested_table_escape.hwpx",
