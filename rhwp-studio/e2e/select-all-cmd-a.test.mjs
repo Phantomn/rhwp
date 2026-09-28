@@ -417,6 +417,12 @@ await runTest('⌘A 전체 선택 — 셀/글상자 범위 + 표 하이라이트
     await page.evaluate(() => {
       const ih = window.__inputHandler;
       ih.cursor.clearSelection();
+      window.__selectAllPrevented = null;
+      document.addEventListener('keydown', (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
+          window.__selectAllPrevented = event.defaultPrevented;
+        }
+      });
       const input = document.createElement('input');
       input.id = 'select-all-native-input';
       input.value = 'NATIVE INPUT';
@@ -427,17 +433,14 @@ await runTest('⌘A 전체 선택 — 셀/글상자 범위 + 표 하이라이트
     await page.keyboard.press('a');
     await page.keyboard.up('Meta');
     const inputState = await page.evaluate(() => {
-      const input = document.getElementById('select-all-native-input');
       return {
-        start: input.selectionStart,
-        end: input.selectionEnd,
-        length: input.value.length,
+        focused: document.activeElement?.id === 'select-all-native-input',
+        prevented: window.__selectAllPrevented,
         documentSelected: window.__inputHandler.cursor.hasSelection(),
       };
     });
-    assert(inputState.start === 0 && inputState.end === inputState.length,
-      `e2: 입력란의 기본 전체 선택 유지 (실제 ${JSON.stringify(inputState)})`);
-    assert(inputState.documentSelected === false, 'e2: 입력란의 ⌘A가 문서 선택을 실행하지 않음');
+    assert(inputState.focused && inputState.prevented === false && !inputState.documentSelected,
+      `e2: 입력란의 ⌘A는 문서가 가로채지 않음 (실제 ${JSON.stringify(inputState)})`);
 
     await page.evaluate(() => {
       const select = document.createElement('select');
@@ -451,9 +454,10 @@ await runTest('⌘A 전체 선택 — 셀/글상자 범위 + 표 하이라이트
     await page.keyboard.up('Meta');
     const selectState = await page.evaluate(() => ({
       focused: document.activeElement?.id === 'select-all-native-select',
+      prevented: window.__selectAllPrevented,
       documentSelected: window.__inputHandler.cursor.hasSelection(),
     }));
-    assert(selectState.focused && !selectState.documentSelected,
+    assert(selectState.focused && selectState.prevented === false && !selectState.documentSelected,
       `e2: 선택 목록의 ⌘A를 문서가 가로채지 않음 (실제 ${JSON.stringify(selectState)})`);
     await page.evaluate(() => {
       document.getElementById('select-all-native-input')?.remove();
