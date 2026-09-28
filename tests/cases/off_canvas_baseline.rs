@@ -67,6 +67,7 @@ const DEFERRED_OFF_CANVAS_FIXTURES: &[&str] = &[
     "hwp3-sample16-hwp5-2022.hwp",
     "hwp3-sample16-hwp5.hwp",
     "hwp3-sample16-hwp5-2010.hwp",
+    "issue6892/156726122-recycling-press-release.hwpx",
 ];
 
 fn collect_samples() -> Vec<(PathBuf, String)> {
