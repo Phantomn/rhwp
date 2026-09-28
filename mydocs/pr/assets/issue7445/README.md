@@ -249,3 +249,7 @@ venv/bin/python scripts/visual_sweep.py \
 ### 전체 원문 제외 범위 정정(보정105)
 
 보정103의19개 정상검사 동반제외를 철회했습니다. 원문 samples와 body원장1행, 기존19함수/기대값을 복원했으며 ['     Summary [   3.632s] 20 tests run: 20 passed, 1920 skipped']입니다. 필수8단계exit0, 코드 `9efd1823c57b9e9417ef15cf7492269c27f2c8cb`, [복원·검증 근거](chemical_full6782_scope_correction_validation.json). #7382를 실제 막는 text-overlap 신규2건의 문서 입력만 보류합니다. 부정시각증거와 보존 원문은 유지합니다.
+
+### 각주 쪽번호 검사는 제외 대신 전제 교정(보정107)
+
+24쪽에는독립PDF/현재출력모두각주가없고실제25쪽에각주가있습니다.기존함수의페이지전제만교정했고기준선·공차는유지했습니다.Native/freshWASM25쪽97.33607%,집중9PASS입니다. [검사유지·독립근거·수정전후결과](../pr7382_20260926/stage107_footnote_anchor_validation.json).원문51/50쪽및뒤쪽피델리티미달의이관은유지하지만정상/교정된회귀는계속검사합니다.

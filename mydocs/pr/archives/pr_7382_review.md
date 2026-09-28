@@ -2218,3 +2218,13 @@ head `a643e0e6b8bdb40172dbc55386d747b2ea49fd3f`에서 기존36·37번 각1PASS,3
 ## 보정106 사전 분석·결과 — 기존 정상 회귀 동반제외 복원
 
 사용자 정정에 따라 원래 검사102함수와혼합assertion/기대값을 복원하고 보존 입력의 동일해시 경로로 연결했습니다.110개 기존함수 각각실행, 초기경로오류6개 수정/단독재실행후94PASS/16실제FAIL입니다. 통과 검사 유지/실패16개는원문별개별보정 대기입니다. 새검사/생산변경/공차완화 없음. 집중19PASS,필수8단계exit0,코드 `37ec7fa3722ab2c9ae42daa63c8803c628666df5`. [명령·전후경로·결과·미해결](../assets/issue7445/scope_restore_validation.json), [#7445범위정정](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5872059905). 기존부분제외서술은역사기록이며최신범위를따릅니다. 공통원장/renderer manifest 동반제외도재대조합니다. 전체회귀/최종head시각검증/PR준비 미완료입니다.
+
+## 보정107 사전 분석·결과 — 각주 쪽번호 검사 전제 교정·유지
+
+복원대조FAIL의24쪽에는독립PDF/Native모두각주가없습니다.따라서각주소실회귀로해석하지않고 실제각주가있는25쪽을대조했습니다.독립PDF의기준선1061.7197265625는기존기대값과같습니다.Native/freshWASM25쪽각각97.33607%,review직접판독에서각주두줄/구분선/본문/쪽번호보존입니다.
+
+기존함수index23→24만교정하고기대값/공차0.6/함수유지,새검사/생산변경/검사제외없음.보정106HWP경로prefix가별도HWPX까지치환했던1건도정상samples경로로복원했습니다.집중9PASS/필수8단계+freshWASMexit0.Mac로컬no-opt이며Docker최적화빌드아닙니다.코드 `ff3a23d06dd38db9096ba621c5a340eb8460c29c`, [수정전FAIL·독립근거·수정후PASS](../assets/pr7382_20260926/stage107_footnote_anchor_validation.json).원문의51/50쪽·뒤쪽미달은 #7445유지하며현재계약만충족입니다.복원대조의실제실패16개중1교정/15대기,기존38번/전체회귀/공통원장및source-unit동반제외 점검대기입니다.
+
+![실제각주25쪽Native](../assets/pr7382_20260926/footnote_anchor_native_review_025.png)
+
+![실제각주25쪽freshWASM](../assets/pr7382_20260926/footnote_anchor_wasm_overlay_025.png)

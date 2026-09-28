@@ -1682,11 +1682,6 @@
     "effective_individual_fail": 16,
     "pending_actual_failures": [
       {
-        "file": "tests/cases/issue_1133_page_number_bottom_margin.rs",
-        "case": "issue_1133_page_number_bottom_margin",
-        "function": "footnote_page_number_keeps_the_same_bottom_margin_anchor"
-      },
-      {
         "file": "tests/cases/issue_5846_mixed_nested_partial_row_duplicate.rs",
         "case": "issue_5846_mixed_nested_partial_row_duplicate",
         "function": "issue_5846_cut_fragment_defers_partial_nested_tail_row"
@@ -1763,6 +1758,14 @@
       }
     ],
     "corpus_manifest_scope": "정상입력 동반제외 대조/복원 대기",
-    "not_new_tests": true
+    "not_new_tests": true,
+    "corrections_after_snapshot": [
+      {
+        "stage": 107,
+        "function": "footnote_page_number_keeps_the_same_bottom_margin_anchor",
+        "result": "검사 전제 오류 교정으로PASS.같은입력의 실제각주25쪽 Native/freshWASM97.33607%.기대값/공차/함수유지.",
+        "evidence": "stage107_footnote_anchor_validation.json"
+      }
+    ]
   }
 }
