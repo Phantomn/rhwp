@@ -318,7 +318,7 @@
       "id": 7,
       "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_4",
       "case": "body_overflow_baseline",
-      "status": "pending",
+      "status": "resolved",
       "individual_results": [
         {
           "id": 7,
@@ -352,13 +352,41 @@
           ],
           "stage": 85,
           "head": "88dea0a3a0ddec32cf59a9280c7bf297cc776672"
+        },
+        {
+          "stage": 86,
+          "after": "기존7번1PASS/유지속성2PASS,exit0",
+          "code_head": "6c8a6c8e5e83a992fab14a0d90e3fc31e3e7ad4c",
+          "command": [
+            "cargo",
+            "nextest",
+            "run",
+            "--locked",
+            "--cargo-profile",
+            "release-test",
+            "--target-dir",
+            "target/pr-review",
+            "--test-threads",
+            "8",
+            "--no-fail-fast",
+            "--test",
+            "regression_suite_009",
+            "--test",
+            "regression_suite_012",
+            "-E",
+            "test(=body_overflow_baseline::body_overflow_does_not_grow_partition_4) or test(=issue_6806_objectprops_getset_identity::shape_feedback_keeps_stored_zero_size) or test(=issue_6806_objectprops_getset_identity::shape_resize_undo_restores_stored_zero_height)"
+          ],
+          "evidence": "../issue7445/anticorruption6844_test_removal_validation.json"
         }
       ],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
-        "target": "regression_suite_015",
+        "target": "regression_suite_012",
         "grouped": true
-      }
+      },
+      "code_commit": "6c8a6c8e5e83a992fab14a0d90e3fc31e3e7ad4c",
+      "evidence": "../issue7445/anticorruption6844_test_removal_validation.json",
+      "resolution_scope": "바이트 동일 미달 원문 두 경로를 승인 이관한 뒤 현재 body partition4 단독PASS. 원문 피델리티와 다른 입력 해결 아님."
     },
     {
       "id": 8,
@@ -941,12 +969,12 @@
       }
     }
   ],
-  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_4",
-  "next_candidate_reason": "고정7번 단독FAIL: 권익위 의결사항30269 본문하단 신규3건. 같은 원문 독립 PDF와 시각 비교로 먼저 판단.",
+  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_8",
+  "next_candidate_reason": "다음 고정 함수를 개별 실행하고 첫 실패 원문 독립PDF 비교. 추가 HWPX/시장구조/글꼴 추적/잘못된 footer와 최종 전체 검증도 남음.",
   "current_status_counts": {
-    "resolved": 19,
+    "resolved": 20,
     "deferred_to_issue": 1,
-    "pending": 18
+    "pending": 17
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
@@ -1031,6 +1059,16 @@
       "stage": 84,
       "evidence": "../issue7445/electrical6854_test_removal_validation.json",
       "note": "선택4쪽90%미달. #7445등록/원문보존/해당 회귀2함수·원장2행제외. 피델리티 개선 아님."
+    },
+    {
+      "document": "samples/issue6844/30269-anticorruption-recommendation-toc.hwp",
+      "byte_identical_alias": "samples/issue6023/30269_reform_recommendation.hwp",
+      "observed_stage": 85,
+      "failure": "body bottom 신규3건",
+      "status": "deferred_to_issue",
+      "stage": 86,
+      "evidence": "../issue7445/anticorruption6844_test_removal_validation.json",
+      "note": "Native5·6쪽90%미달. #7445등록/두 원문보존/렌더링5함수제외. IR속성복원유지, 피델리티 개선 아님."
     }
   ]
 }

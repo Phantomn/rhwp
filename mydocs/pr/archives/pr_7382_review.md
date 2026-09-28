@@ -2106,3 +2106,11 @@ head `1fddec84c4d05919323e190d0068046be624d373`에서 기존6번 body partition3
 ## 보정85 결과 — 기존7번 개별 실행
 
 head `88dea0a3a0ddec32cf59a9280c7bf297cc776672`에서 기존7번 body partition4을 nextest release-test/공유target/8threads로 단독 실행했습니다. 1FAIL/232SKIP(exit100,0.540초), 권익위 의결사항30269의 본문하단 신규3건이 실패 원문입니다. 첫 실패에서 다음 함수를 멈추고 원문 독립 PDF와 실제 비교로 먼저 판정합니다. 생산·검사·기대값 변경 없음. [실행 근거](../assets/pr7382_20260926/stage85_individual_validation.json). 고정38은19완료/1이관/18대기이며PR준비 미완료입니다.
+
+## 보정86 사전 분석·결과 — 권익위 문서 이관과 기존7번 완료
+
+기존7번의 권익위 의결사항 본문하단 신규3건을 독립 한컴 PDF로 검증했습니다. 실제22/정상22쪽이나 선택 Native2·5·6·22쪽100.0/68.7493/29.19654/94.66351%입니다.5쪽의 다음 장 제목이 본문 하단·쪽번호 영역에 미리 표시되고 도형/본문 위치가 다른 것을 review에서 직접 확인했습니다. 목차4쪽의bbox 자체가 잘못된 기대값이라고 확정하지 않으며 전체/fresh WASM 미실행입니다.
+
+#6844와#6023의 두 등록 경로는 SHA-256/470,016byte가 같은 중복 원문입니다. [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870283939) 후 둘 다 바이트 동일하게 보존하고 전용렌더링5함수를 제거했습니다. #6806의 속성 getter/setter·저장0복원은 유지하며 경로만 이관하고 undo 함수의 SVG 비교는 제거했습니다. IR추출 자료를 보존합니다. 렌더링 원장행은 원래 없으므로 추가/완화가 없습니다. 다른 입력·기대값·공차 유지, 새 함수/skip/ignore/생산 변경 없음.
+
+삭제 전suite 참조와 잔여빈줄의fmt 실패를 수정한 뒤 최신target 배정에서 기존7번1PASS/유지속성2PASS(집중3PASS/477SKIP,exit0), fmt·Clippy3종·workspace build·고정base정책exit0을 확인했습니다. 코드 `6c8a6c8e5e83a992fab14a0d90e3fc31e3e7ad4c`, [실행·보존 증거](../assets/issue7445/anticorruption6844_test_removal_validation.json). 원문 피델리티나 전체 회귀 해결로 세지 않습니다. 고정38은20완료/1이관/17대기, PR준비 미완료입니다.
