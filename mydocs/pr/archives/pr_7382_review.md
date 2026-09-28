@@ -9,9 +9,10 @@ last_verified: 2026-09-28
 
 ## 최종 판정
 
-**통합 PR 준비 보류.** 보정65에서 #5585 정책 지표 문서의 형제 표 순서·소진된 앵커·독립 표 소유와 완전 셀 높이를 보정하고, #6660 병합 제목의 물리 하한을 일반 측정과 공유했습니다. 기존8함수를 갱신했으며 새 테스트 함수는 추가하지 않았습니다. #5585 개별 함수1 PASS, 기존 대조군34 PASS, 필수 fmt·Clippy3단계·workspace 빌드·고정base 정책 검사가 모두 통과했습니다. 정책 지표86쪽과 시험 원문4쪽의 Native·fresh WASM 비교는 각각 최저92.57413%와90.68713%로 모두90% 이상입니다. [보정65 검증과 잔여 차이](../assets/pr7382_20260926/stage65_validation.json).
+**통합 PR 준비 보류.** 현재 브랜치에서 보정68 #6101의 표 높이·재조판 흐름·소실 본문과 글꼴 공급을 보완했고, 보정69는 #7336의 약0.35px 경계 차이로 마지막 행 전체를 이월하던 회귀를 해결했습니다. #6101은 소방교육11쪽·결재문서2쪽 전체 Native/fresh WASM이90% 이상이며 [보정68 검증](../assets/pr7382_20260926/stage68_validation.json)에 상세히 기록했습니다. #7336 기존17번은 수정 전FAIL/수정 후PASS, 기존 집중57 PASS, 필수Rust 검사는 모두 통과했습니다. 대상7쪽 최저95.81586%,HWP대조군6쪽 최저92.83181%로 양 backend 전체 gate를 통과했습니다. [보정69 검증과 잔여 차이](../assets/pr7382_20260926/stage69_validation.json).
 
-고정된 이전 실패38개 중10개를 보정·개별 검증했고1개는 사용자 지시로 #7445에 이관했으며27개는 대기 중입니다. 이관은 결함 해결 또는 PASS가 아닙니다. 모든 개별 보정과 유지된37개 재실행 뒤 전체 nextest·Native Skia·최종 PR head 검증을 진행합니다. 이전 보정58의968개 페이지 비교와 보정52의 전체 nextest 결과는 당시 소스의 과거 증거이며 현재 head 전체 통과 근거로 사용하지 않습니다. 다른 문서의 쪽수·시각 보류도 이번 결과로 해소하지 않았습니다. [고정38 상태](../assets/pr7382_20260926/remaining38_regression_plan.json), [보정58 기록](../assets/pr7382_20260926/stage58_tail1733_validation.json), [보정52 기록](../assets/pr7382_20260926/stage52_page_number_validation.json).
+고정된 이전 실패38개 중12개를 보정·개별 검증했고1개는 사용자 지시로 #7445에 이관했으며25개는 대기 중입니다. 이관은 결함 해결 또는PASS가 아닙니다. 유지37의 개별 재실행 뒤 전체 nextest·Native Skia3·최종 통합 head 검증을 진행합니다. 이전968쪽 비교와 과거 전체 nextest는 현재 head 전체 통과의 근거가 아닙니다. 시험 문서 쪽번호2/1 등 직접 확인한 잔여 차이도 유지합니다. [고정38 상태](../assets/pr7382_20260926/remaining38_regression_plan.json).
+
 
 ## 접수와 provenance
 
@@ -1932,3 +1933,35 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 ![fresh WASM 소방교육7쪽의 표·본문 흐름](../assets/pr7382_20260926/stage68_firefighter6101_wasm_overlay_007.png)
 
 ![fresh WASM 결재문서1쪽의 표와 후속 본문](../assets/pr7382_20260926/stage68_approval6101_wasm_review_001.png)
+
+## 보정69 사전 분석 — #7336 기존17번 저장 인라인 표 간격
+
+- 기준 head `8b5f09c566204ab7041c12a075c0b07dee98361f`에서 기존 `hwpx_stored_inline_table_does_not_double_charge_last_line_spacing`만 먼저 실행합니다. 원문은 `samples/issue7336/stored_frame_page_larger_rowbreak.hwpx`이고 기존 기대는6쪽 동의서의 첫 행3040HU(40.5333px)입니다. 저장 행 높이·정상 PDF의 해당 괘선을 독립 대조하며 정상 쪽수 및 Native/fresh WASM 전체 최저90% 검증 전 기존 기대값을 바꾸지 않습니다. 새 회귀 함수는 추가하지 않습니다.
+
+- 개별17번은 exit100: 현재6쪽에 para4/control1이 없어 실패했습니다. 한컴2020·2024 모두 수행계획서는5쪽에서 완결되고 동의서는6쪽입니다. 현재는8쪽이고5쪽의 마지막 행15가6쪽으로 이월됩니다. `row_cut_content_height → block/prepare.cut_row_heights → row_step.whole_row_height/required_height → table_partial의 같은 행 높이`를 추적했습니다. 진단은 행15의 전체 유닛13개가 내용350.9px로 전부 수용되지만 선언377.8667px가 잔여 약377.51px를 약0.35px 초과해 `res.fully_consumed`의 중간행 분기가 행 전체를 이월함을 보여줍니다. 기존0.5px 경계 공차 안에서만 전체 높이를 그대로 수용하고, 모든 내용·안 여백이 실제 예산에 들어간다는 확인을 추가합니다. 선언 축소·새 공차·새 테스트 함수는 추가하지 않습니다. 초과가0.5px보다 큰 행, 내용 미완결, 원본 컷이 있는 행은 종전 이월을 유지합니다. 전체 출력7쪽/Native·fresh WASM90% 및 직접 괘선·후속 본문 확인 전 해결로 판정하지 않습니다.
+
+## 보정69 결과 — #7336 기존17번의 페이지 소유 복구
+
+- 기존 검사는 유효합니다. 한컴2020·2024 모두7쪽이며6쪽 동의서 첫 행은 저장3040HU와 정상 PDF 약40.44px로 대응합니다. 기존 기대40.5333px/공차0.3px를 유지했고 테스트 파일·함수는 수정하지 않았습니다. 수정 전6쪽에 표가 없어 exit100, 최종 코드에서 개별1 PASS(exit0)입니다.
+- 마지막 행의13개 유닛은350.9px 내용으로 모두 들어갔지만 선언377.8667px가 잔여를 약0.35px 초과해 행 전체가6쪽으로 밀렸습니다. `row_step`에서 전체 내용·안 여백의 실제 수용과 기존0.5px 경계를 함께 확인한 후 원래 높이·모든 유닛을 예약합니다. clamp·행 축소·새 공차·기준값 갱신은 없습니다. 실제 컷, 미완결 내용, 큰 초과는 종전 경로를 유지합니다. 수행계획서5쪽 마지막 행 → 동의서6쪽 → 확인서7쪽으로 원본 소유를 복구했습니다.
+- 원문 본문 아래 여백만0/8/20HU 늘린 진단 대조군은 수정 전8/8/8쪽, 수정 후7/7/8쪽입니다. +20HU는0.5px 경계를 넘으므로 종전 이월을 유지합니다. 이 자료는 수동 변경한 용량 계약 진단이며 정상 한컴 출력 증거나 새 정식 회귀 함수로 취급하지 않습니다.
+- 최종 기존 집중 검사 **57 PASS/3183 SKIP**, 별도17번 **1 PASS/215 SKIP**입니다. fmt/check·Native Clippy·WASM lib Clippy·workspace build·workspace all-targets Clippy·고정base `d6cf1605327ced1c276f17a529192a743a766209` manifest/unit-tier 검사·release-test CLI·fresh WASM은 모두 exit0입니다. WASM은 Mac 로컬 `--no-opt` 대체 빌드입니다. 루트pkg/Studio js·wasm 해시가 같습니다.
+
+| 원문/정상 기준 | 전쪽수→후쪽수/기준 | Native 전체 최저 | fresh WASM 전체 최저 | 판정 |
+| --- | --- | --- | --- | --- |
+| stored_frame_page_larger_rowbreak.hwpx / 동일이름-2020.pdf | 8→7/7 | 95.81586% | 95.81586% | 두 backend 전7쪽 gate PASS |
+| nested_table_fragment_cut.hwp / 동일이름-2020.pdf | 6→6/6 | 92.83181% | 92.83181% | 두 backend 전6쪽 gate PASS |
+
+- 대상5쪽 review/overlay의 하단 내용,6쪽 동의서,대조군4~5쪽 중첩 표와WASM6쪽 후속 내용을 직접 대조했습니다. 대상5쪽 외곽 하단에는 약6.5px 차이,6쪽 동의서 상단에는 약1.8px 차이가 남습니다. HWP 대조군5쪽 제목 상자의 차이도 남으며6쪽 모두 render tree가 수정 전후 byte 단위로 같습니다. 점수100%인 페이지도 픽셀 일치나 전체 피델리티 완성으로 승격하지 않습니다. 앞 보정68의 시험 문서 쪽번호2/1 차이도 해결했다고 보고하지 않습니다.
+- source/runtime/입력·정상 PDF·글꼴·페이지별 수치·명령·대표 PNG 해시는 [보정69 검증 기록](../assets/pr7382_20260926/stage69_validation.json)에 연결합니다. 산출물 원본은 `output/pr-review/planet6897-7382-20260926/stage69-stored7336/visual-final-native`와 `visual-final-wasm`입니다. 원본 문서·PDF를 유지하고 `.log`, 임시 진단 HWPX,SVG 폰트 payload,pkg/generated 파일은 커밋하지 않습니다.
+- 이번 단계는17번만 개별 해결로 갱신합니다. 집중 묶음에서 통과한 다른 대기 함수는 개별 분석·실행·기록을 완료하기 전 해결 수에 넣지 않습니다. 고정38은12해결/1이관/25대기이며 다음은18번 쪽수 검사입니다. 유지37의 개별 재실행·전체 nextest·Native Skia3·최종 통합 head 검증이 남아 **PR 준비 보류**입니다.
+
+![Native 5쪽에서 복구된 마지막 행](../assets/pr7382_20260926/stage69_stored7336_native_review_005.png)
+
+![fresh WASM 6쪽 동의서와 정상 PDF](../assets/pr7382_20260926/stage69_stored7336_wasm_review_006.png)
+
+![fresh WASM 중첩 표 대조군5쪽](../assets/pr7382_20260926/stage69_nested7336_wasm_review_005.png)
+
+- 보정69 코드 commit: `b7436944b81d20ad799edcd59ead3b94621902b3`. 고정 CLI/fresh WASM의 생산 소스 해시와 이 commit의 파일 해시가 동일함을 확인했습니다.
+
+- 사용자 추가 요청으로 [사용자 제공 지표 기준 PDF](../../../tests/fixtures/stored_float_anchor_control/1351000_policy_indicators-2020.pdf)를 현재 fixture 경로에서 함께 커밋합니다. 86쪽/792,765byte, SHA-256 `4873b182ad42ffe1cea6ebd1a585691b703f32cf6cda769a5124d715bd850b96`로 앞 보정65에서 채택한 사용자 원본과 같습니다. 이번 추가는 기준 증적 보존이며 별도 검사 추가나 기대값 갱신을 수반하지 않습니다.

@@ -316,13 +316,27 @@
       "id": 17,
       "function": "issue_7336_table_fragment_cut::hwpx_stored_inline_table_does_not_double_charge_last_line_spacing",
       "case": "issue_7336_table_fragment_cut",
-      "status": "pending",
-      "individual_results": [],
+      "status": "resolved",
+      "individual_results": [
+        {
+          "stage": 69,
+          "before_exit_code": 100,
+          "after_exit_code": 0,
+          "function": "issue_7336_table_fragment_cut::hwpx_stored_inline_table_does_not_double_charge_last_line_spacing",
+          "native_minimum_percent": 95.81586,
+          "wasm_minimum_percent": 95.81586,
+          "pages": 7,
+          "expected_value_change": false,
+          "new_function": false
+        }
+      ],
       "resolved_plan": {
         "caseName": "issue_7336_table_fragment_cut",
         "target": "regression_suite_008",
         "grouped": true
-      }
+      },
+      "code_commit": "b7436944b81d20ad799edcd59ead3b94621902b3",
+      "evidence": "stage69_validation.json"
     },
     {
       "id": 18,
@@ -642,11 +656,11 @@
       }
     }
   ],
-  "next_candidate": "issue_7336_table_fragment_cut::hwpx_stored_inline_table_does_not_double_charge_last_line_spacing",
-  "next_candidate_reason": "현재 브랜치 #6101 보정68을 개별 완료했다. 다음은 #7336의17번 기존 함수 원인 분석·독립 증거 대조다. 전체37개 및 전체회귀 완료 전 PR 보류.",
+  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_0",
+  "next_candidate_reason": "17번 보정69를 현재 브랜치에서 개별 완료했다. 다음18번 쪽수 검사를 독립 실행·기록한다. 전체37 및 전체회귀 완료 전 PR 보류.",
   "current_status_counts": {
-    "pending": 26,
-    "resolved": 11,
+    "pending": 25,
+    "resolved": 12,
     "deferred_to_issue": 1
   }
 }
