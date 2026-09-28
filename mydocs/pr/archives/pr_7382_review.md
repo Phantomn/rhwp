@@ -2188,3 +2188,9 @@ head `14058e212abdb9cb25396924aafb2f8b3686e7c2`에서 기존31·32번은 각1PAS
 ## 보정100 결과 — 기존34번 개별 실행
 
 head `2cd02b417d5830858aadb74e9546a99d8cb90967`에서 기존34번은1FAIL(exit100,0.957초)입니다. 보정97에서 유지한 다른입력인 `pr4093/outline_navigation_table_cell_number.hwpx`의 신규겹침2건으로 첫 실패에서 멈췄습니다. 생산·검사·기대값 변경 없음. [명령·summary](../assets/pr7382_20260926/stage100_individual_validation.json). 이 입력의 독립시각승인을 주장한 적은 없으며 같은입력 PDF검증부터 진행합니다. 고정38은32완료/1이관/5대기입니다.
+
+## 보정101 사전 분석·결과 — 최소 개요 입력 미달 SVG 검사 제외
+
+기존34번의다른최소개요합성입력 신규겹침2건을같은입력/변환해시가고정된독립한컴PDF전체1쪽으로검증했습니다. 전체Native85.44776%,표셀번호2.와뒤개요3.요구사항이겹치며PDF두줄간격을잃는것을직접확인했습니다. 합성입력/글꼴예외없음,freshWASM미실행.
+
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5871582903)후원문보존/생성기최소출력경로이관과기존혼합함수의SVG대조부분만제외했습니다.3개/15개번호·제목·수준getter및기존함수이름유지,새함수없음. 코드 `d01ab7eb21f908a2939df889954b8a0f766a175f`, [근거](../assets/issue7445/outline_minimal4093_test_removal_validation.json). 재생성SHA동일,집중 ['     Summary [   0.838s] 3 tests run: 3 passed, 424 skipped'],필수fmt·Clippy3종·workspace build·고정base정책exit0. 기존34번완료,고정38은33완료/1이관/4대기. 생성제품메타데이터를정상생성본증거로쓰지않으며이관을피델리티개선/전체검증완료로세지않습니다.

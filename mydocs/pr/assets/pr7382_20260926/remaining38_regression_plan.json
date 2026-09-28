@@ -1334,7 +1334,7 @@
       "id": 34,
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_14",
       "case": "text_overlap_baseline",
-      "status": "pending",
+      "status": "resolved",
       "individual_results": [
         {
           "stage": 100,
@@ -1346,13 +1346,23 @@
           ],
           "status": "pending",
           "reason": "pr4093/outline_navigation_table_cell_number.hwpx 신규2건"
+        },
+        {
+          "stage": 101,
+          "test_snapshot_commit": "d01ab7eb21f908a2939df889954b8a0f766a175f",
+          "fixture_deferred": "pr4093/outline_navigation_table_cell_number.hwpx",
+          "fixture_removal_evidence": "../issue7445/outline_minimal4093_test_removal_validation.json",
+          "after": "집중3PASS:현재기존34번/최소3항목getter/데모15항목getter",
+          "status": "resolved",
+          "scope": "미달문서 사용자승인이관후 현재partition14 통과; 원문피델리티 개선 아님"
         }
       ],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
         "target": "regression_suite_016",
         "grouped": true
-      }
+      },
+      "resolution_scope": "미달문서 사용자승인이관후 현재partition14 통과; 원문피델리티 개선 아님"
     },
     {
       "id": 35,
@@ -1403,12 +1413,12 @@
       }
     }
   ],
-  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_14",
-  "next_candidate_reason": "기존34번 최소개요fixture 신규2건.독립PDF 시각검증부터 진행",
+  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_15",
+  "next_candidate_reason": "남은4함수개별실행.첫실패에서동일입력독립시각검증부터수행",
   "current_status_counts": {
-    "resolved": 32,
+    "resolved": 33,
     "deferred_to_issue": 1,
-    "pending": 5
+    "pending": 4
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
@@ -1581,9 +1591,11 @@
     {
       "document": "samples/pr4093/outline_navigation_table_cell_number.hwpx",
       "observed_stage": 100,
-      "status": "pending",
+      "status": "deferred_to_issue",
       "failure": "text-overlap 신규2건",
-      "note": "보정97에서유지한 다른입력.독립시각승인주장 없음.같은원문PDF로검증 필요."
+      "note": "전체Native85.44776%;원문보존/혼합함수SVG부분제외/3개·15개getter유지.피델리티개선아님.",
+      "stage": 101,
+      "evidence": "../issue7445/outline_minimal4093_test_removal_validation.json"
     }
   ]
 }

@@ -224,3 +224,11 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native19쪽 그림·표·뒤본문 차이](decree6776_native_review_019.png)
 
 ![Native63쪽 참고상자·쪽번호 충돌](decree6776_native_overlay_063.png)
+
+## 추가: PR#4093 최소 개요·표셀 번호 합성 HWPX
+
+- [등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5871582903), [보존 원문](outline_navigation_table_cell_number.hwpx), [같은입력의 독립 PDF1쪽](../../../../pdf/issue7382-regression-review/outline_navigation_table_cell_number-2020.pdf), [생성·변환 출처·전수 비교·제외·유지 검증](outline_minimal4093_test_removal_validation.json).
+- Native 전체1쪽85.44776%,현재1/기준1쪽. 표셀번호와뒤3.요구사항의겹침을 직접 확인했습니다. freshWASM 미실행, 합성입력/글꼴차이로 면제하지 않았습니다.
+- 기존최소입력함수의SVG번호 assertion만제외하고3개번호·제목·수준getter계약/데모15항목getter계약·기존함수이름유지. 생성기최소출력도보존경로로변경/재생성원문SHA동일확인. 새검사/생산변경/skip/ignore/공차완화 없음. 집중 ['     Summary [   0.838s] 3 tests run: 3 passed, 424 skipped'],필수lint·정책exit0. 이관을피델리티개선이나질의통과를렌더링승인으로세지않습니다.
+
+![Native1쪽표셀번호와뒤개요겹침](outline_minimal4093_native_review_001.png)
