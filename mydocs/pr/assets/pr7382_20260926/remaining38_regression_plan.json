@@ -1510,8 +1510,8 @@
       }
     }
   ],
-  "next_candidate": "편람 HWPX 실제쪽수/구조와포맷비대칭3실패",
-  "next_candidate_reason": "HWP판정만으로HWPX를동반제외하지않음. 독립PDF/freshNative로실제차단범위판단",
+  "next_candidate": "정책연구 중간진도 HWP oracle215→216",
+  "next_candidate_reason": "원PR의HWPX와구분하여실제차단oracle만개별검증",
   "current_status_counts": {
     "resolved": 37,
     "deferred": 1,
@@ -2209,6 +2209,25 @@
       ],
       "passed": 21,
       "failed": 4
+    },
+    "handbook_hwpx": {
+      "stage": 135,
+      "code_commit": "2085dfdce823ef7eaf2b122b599a2c82705db4e4",
+      "evidence": "../issue7445/handbook_hwpx_blocking_scope_validation.json",
+      "scope": [
+        "#7009 HWPX 총쪽수/간지assertion2곳",
+        "#3931 HWPX쪽수assertion1곳",
+        "두포맷비대칭전용한함수만"
+      ],
+      "preserved": [
+        "#7009 기존HWP/HWPX 함수와부록구간71/74쪽/랜드마크존재",
+        "#3931 문답같은물리쪽PASS·다른저장줄/분할계약",
+        "#6389 정상2함수",
+        "HWPX oracle 원장384/382행(현재385쪽은차1로기준차2보다개선)",
+        "모든다른입력/축/원문/PDF"
+      ],
+      "passed": 23,
+      "failed": 1
     }
   },
   "latest_axis_snapshot": {

@@ -2511,3 +2511,15 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![편람 HWP 부록312쪽 review](../assets/issue7445/handbook_hwp_native_review_312.png)
 ![편람 HWP 말미383쪽 overlay](../assets/issue7445/handbook_hwp_native_overlay_383.png)
+
+
+## 보정135 사전 분석·결과 — 편람 HWPX의 실제 실패 핀만 보류
+
+- 사전 head `496f6d6b7`, 코드 `2085dfdce823ef7eaf2b122b599a2c82705db4e4`. [단독 실패·독립PDF·선행assertion뒤검사·유지범위/명령](../assets/issue7445/handbook_hwpx_blocking_scope_validation.json). HWP판정과 분리해 한컴2024 저장 HWPX와정상한컴2024 PDF384쪽을 직접 비교했습니다. 고정devel의원래두case8PASS는보정134근거를재사용합니다.
+- 후보385쪽/간지311쪽,기존핀382쪽/간지308쪽,독립PDF384쪽/간지310쪽입니다. 기존구조격차는줄지만선택158/159/310–312/383/384쪽의실제소속차이가있고310–312쪽은한쪽만빈페이지로0%입니다. 선택contact sheet·311review/384overlay·추가385판권을직접확인했습니다.
+- 선행쪽수뒤 #7009간지assertion도실제FAIL이며 #3931문답같은물리쪽계약은실제로PASS입니다. [#7445](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5875912864)에쪽수/간지assertion3곳과비대칭전용한함수만후속이관했습니다. #7009기존두함수/정상부록71·74쪽/랜드마크존재·#3931문답/저장줄/분할·다른입력/축/원문PDF를유지했습니다. HWPXoracle는기준차2→현재차1로개선되어차단이아니므로원장행그대로입니다.
+- 집중23PASS/1FAIL/601SKIP: 유지8PASS+oracle15PASS/정책연구HWP1분할FAIL. 필수fmt/Clippy3/workspacebuild/manifest·unitfixedbase정책모두exit0. 새함수/생산변경/공차완화없습니다.
+- 전384쪽/freshWASM 및다른body/cell/시장/font검사군·최종전체회귀/원PR시각증거·PR준비는미완료입니다.
+
+![편람 HWPX311쪽 review](../assets/issue7445/handbook_hwpx_native_review_311.png)
+![편람 HWPX384쪽 overlay](../assets/issue7445/handbook_hwpx_native_overlay_384.png)

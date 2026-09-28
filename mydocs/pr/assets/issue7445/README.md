@@ -428,3 +428,17 @@ HWPX와 포맷비교3실패는 별도 판정 대상으로 남겼습니다. HWP�
 ![편람 HWP 부록312쪽 review](handbook_hwp_native_review_312.png)
 ![편람 HWP 말미383쪽 overlay](handbook_hwp_native_overlay_383.png)
 ![독립 PDF 마지막384쪽](handbook_hwp_reference_last_384.png)
+
+
+## 행정업무운영 편람 HWPX: 실제 쪽수·구조 핀만 보류
+
+[원문](../../../../samples/2025%20행정업무운영%20편람%28최종%29.hwpx), [독립 한컴PDF384쪽](../../../../pdf/2025%20행정업무운영%20편람%28최종%29-hwpx-2024.pdf),
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5875912864), [보정135 검증](handbook_hwpx_blocking_scope_validation.json).
+HWP와 별도로 선택7쪽을 비교했고 부록/말미의 물리 쪽 소속이 밀립니다. 310–312쪽0%는 한쪽만 빈 페이지인 차이입니다.
+실제 쪽수·간지 assertion3곳과 포맷비대칭 전용 한 함수만 보류했습니다. 정상 부록74쪽·문답 배치·다른HWP검사와원문/PDF를 유지했습니다.
+HWPX oracle는 격차가 개선되어 실제차단이 아니므로 원장행을 유지했습니다. 정상8PASS+oracle15PASS/다른1FAIL,lint/정책7exit0입니다.
+전384쪽/freshWASM·다른검사군/전체회귀·피델리티 승인·PR준비는 미완료입니다.
+
+![편람 HWPX311쪽 review](handbook_hwpx_native_review_311.png)
+![편람 HWPX384쪽 overlay](handbook_hwpx_native_overlay_384.png)
+![편람 HWPX 추가385쪽](handbook_hwpx_native_extra_385.png)
