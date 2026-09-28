@@ -1369,7 +1369,19 @@
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_15",
       "case": "text_overlap_baseline",
       "status": "pending",
-      "individual_results": [],
+      "individual_results": [
+        {
+          "stage": 102,
+          "test_snapshot_commit": "f9a154de16df07f957368d29416e081ea335c158",
+          "validation": "stage102_individual_validation.json",
+          "exit_code": 100,
+          "summary": [
+            "     Summary [   0.887s] 1 test run: 0 passed, 1 failed, 222 skipped"
+          ],
+          "status": "pending",
+          "reason": "issue6782/1480000-201900042-chemical-product-labeling-study.hwp 신규2건;보정93축소본과다른해시"
+        }
+      ],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
         "target": "regression_suite_016",
@@ -1414,7 +1426,7 @@
     }
   ],
   "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_15",
-  "next_candidate_reason": "남은4함수개별실행.첫실패에서동일입력독립시각검증부터수행",
+  "next_candidate_reason": "기존35번은보정93축소본과다른전체원문.전체원문자체의독립PDF 비교부터 수행",
   "current_status_counts": {
     "resolved": 33,
     "deferred_to_issue": 1,
@@ -1596,6 +1608,13 @@
       "note": "전체Native85.44776%;원문보존/혼합함수SVG부분제외/3개·15개getter유지.피델리티개선아님.",
       "stage": 101,
       "evidence": "../issue7445/outline_minimal4093_test_removal_validation.json"
+    },
+    {
+      "document": "samples/issue6782/1480000-201900042-chemical-product-labeling-study.hwp",
+      "observed_stage": 102,
+      "status": "pending",
+      "failure": "text-overlap 신규2건",
+      "note": "6,521,856byte전체원문 SHA398d03a5...은보정93축소본과다름.별도기준PDF로검증."
     }
   ]
 }

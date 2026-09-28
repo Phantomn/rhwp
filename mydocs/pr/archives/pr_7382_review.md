@@ -2194,3 +2194,7 @@ head `2cd02b417d5830858aadb74e9546a99d8cb90967`에서 기존34번은1FAIL(exit10
 기존34번의다른최소개요합성입력 신규겹침2건을같은입력/변환해시가고정된독립한컴PDF전체1쪽으로검증했습니다. 전체Native85.44776%,표셀번호2.와뒤개요3.요구사항이겹치며PDF두줄간격을잃는것을직접확인했습니다. 합성입력/글꼴예외없음,freshWASM미실행.
 
 [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5871582903)후원문보존/생성기최소출력경로이관과기존혼합함수의SVG대조부분만제외했습니다.3개/15개번호·제목·수준getter및기존함수이름유지,새함수없음. 코드 `d01ab7eb21f908a2939df889954b8a0f766a175f`, [근거](../assets/issue7445/outline_minimal4093_test_removal_validation.json). 재생성SHA동일,집중 ['     Summary [   0.838s] 3 tests run: 3 passed, 424 skipped'],필수fmt·Clippy3종·workspace build·고정base정책exit0. 기존34번완료,고정38은33완료/1이관/4대기. 생성제품메타데이터를정상생성본증거로쓰지않으며이관을피델리티개선/전체검증완료로세지않습니다.
+
+## 보정102 결과 — 기존35번 개별 실행
+
+head `f9a154de16df07f957368d29416e081ea335c158`에서 기존35번은1FAIL(exit100,0.887초)이며 화학표시기준 전체원문의 신규겹침2건입니다. 첫 실패에서 멈췄고 생산·검사·기대값 변경 없음. [명령·summary](../assets/pr7382_20260926/stage102_individual_validation.json). 전체원문6,521,856byte/SHA398d03a5...는 보정93 축소본과 다릅니다. 축소본 증거를 재사용하지 않고 전체원문의 독립PDF로 검증합니다. 고정38은33완료/1이관/4대기입니다.
