@@ -59,7 +59,7 @@ fn collect(node: &RenderNode, out: &mut Vec<Run>) {
 }
 
 fn open(name: &str) -> DocumentCore {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(name);
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("samples/{name}"));
     DocumentCore::from_bytes(&std::fs::read(path).expect("공개 회귀 문서")).expect("문서 파싱")
 }
 
@@ -96,7 +96,7 @@ fn line_span(doc: &DocumentCore, page: u32, needle: &str) -> Option<(f64, f64)> 
 
 #[test]
 fn use_font_space_line_width_matches_hancom_in_absolute_px() {
-    let doc = open("samples/hwpctl_API_v2.4.hwp");
+    let doc = open("hwpctl_API_v2.4.hwp");
     for (page, needle, oracle_ink_px) in [
         (
             14u32,
@@ -138,7 +138,7 @@ fn use_font_space_line_width_matches_hancom_in_absolute_px() {
 /// 아래 구간을 벗어난다.
 #[test]
 fn latin_slot_with_half_em_space_keeps_half_width() {
-    let doc = open("samples/task2430/1382000_domestic_violence_survey.hwp");
+    let doc = open("task2430/1382000_domestic_violence_survey.hwp");
     // 줄 앞의 `7.` 은 문단 자동 번호라 별도 run 이다. 줄 전체를 짝짓는다.
     let needle = "7.만일이연구에참여하지않는다면불이익이있습니까?";
     let (span, _) = line_span(&doc, 17, needle).expect("17쪽의 7번 문항 줄");

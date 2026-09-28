@@ -16,7 +16,9 @@ fn equations(node: &RenderNode, in_line: bool, result: &mut Vec<(String, bool)>)
 }
 
 fn assert_sample_equations(sample: &str, inline: bool) {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(sample);
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("samples")
+        .join(sample);
     let bytes = std::fs::read(path).expect("read public sample");
     let core = DocumentCore::from_bytes(&bytes).expect("parse public sample");
     let tree = core.build_page_render_tree(5).expect("page 6 render tree");
@@ -39,10 +41,10 @@ fn assert_sample_equations(sample: &str, inline: bool) {
 
 #[test]
 fn standalone_equations_are_extracted_once_in_reading_order() {
-    assert_sample_equations("samples/hwp3-sample16.hwp", false);
+    assert_sample_equations("hwp3-sample16.hwp", false);
 }
 
 #[test]
 fn inline_equations_are_extracted_once_in_reading_order() {
-    assert_sample_equations("samples/hwp3-sample16-hwp5.hwpx", true);
+    assert_sample_equations("hwp3-sample16-hwp5.hwpx", true);
 }
