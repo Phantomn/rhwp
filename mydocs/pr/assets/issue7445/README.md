@@ -349,3 +349,15 @@ text16분할과 정상2함수 합계18PASS이며 전체 회귀/피델리티 승�
 
 ![재활용7쪽 review](recycling6892_native_review_007.png)
 ![재활용7쪽 overlay](recycling6892_native_overlay_007.png)
+
+
+## HWP5 HWPX: 실제 차단된 off-canvas 축만 보류
+
+[원문](../../../../samples/HWP5-nopassword-123456.hwpx), [새 한컴PDF24쪽](../../../../pdf/HWP5-nopassword-123456-hwpx-2024.pdf),
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5874791787), [보정128 검증](hwp5_off_blocking_scope_validation.json).
+신규off1건 입력만 보류했습니다. 현재24/PDF24쪽이지만선택4쪽최저14쪽41.8722%이고 문단소유/글줄/종이하단이 다릅니다.
+밝기·대비/왕복2함수 및다른정상함수·HWP대조군/모든다른축/원문과새PDF를 유지했습니다. off15PASS/1FAIL+정상2PASS이며
+남은basic입력을동반제외하지않았습니다. 전수24쪽/freshWASM/전체회귀승인은미완료입니다.
+
+![HWP5 HWPX14쪽 review](hwp5_native_review_014.png)
+![HWP5 HWPX13쪽 overlay](hwp5_native_overlay_013.png)

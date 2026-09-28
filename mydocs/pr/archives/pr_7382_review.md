@@ -2404,3 +2404,19 @@ SHA가 같고 생산소스는 보정69와 동일합니다. 빌드는 Mac로컬no
 
 ![첫 문단 그림 Native1쪽 review](../assets/pr7382_20260926/first_cell_float_native_review_001.png)
 ![첫 문단 그림 fresh WASM1쪽 overlay](../assets/pr7382_20260926/first_cell_float_wasm_overlay_001.png)
+
+
+## 보정128 사전 분석·결과 — HWP5 HWPX 원문의 실제 off-canvas 입력만 보류
+
+신규1건의 off 분할을 단독1FAIL로 재현했습니다. 14쪽TextLine39가 종이 아래6.56px 나갑니다. 한컴2024 저장본을
+확인하고 지정 서비스engine2024로 같은원문의 [한컴PDF24쪽](../../../pdf/HWP5-nopassword-123456-hwpx-2024.pdf)를 생성했습니다.
+Creator/Producer의Hancom PDF 표기를출력무효로오인하지않았으며출처와실제판독을확인했습니다. 현재24/PDF24쪽입니다.
+현재Native1/13/14/15쪽은63.35754/47.58076/41.8722/54.90896%입니다. 14쪽review에서 문단소유·줄/문단시작이
+다르고 원고지기능 내용이 종이 아래로 내려가며13쪽overlay에도소유·줄바꿈·단락간격차이가있습니다. 전체24쪽/
+freshWASM미실행이고Native부정증거로만썼습니다.
+
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5874791787) 후 이HWPX off입력만 보류했습니다.
+신규1건 baseline은추가하지않았습니다. 기존밝기/대비·왕복2함수 및다른정상함수·HWP대조군/모든다른축·문서·원문과새PDF를유지했습니다.
+코드 `6961bd48748e2c65895272cc9cb413add71e515b`, [개별실패·변환출처·직접판독·분할/대조 결과](../assets/issue7445/hwp5_off_blocking_scope_validation.json).
+off16분할15PASS/1FAIL와정상2PASS로합계17PASS/1FAIL/434SKIP입니다. 남은 basic issue2007 신규2건은동반제외하지
+않았고필수lint/정책7단계exit0입니다. 다른축·최종검증/PR준비미완료입니다.

@@ -2109,6 +2109,14 @@
       "evidence": "first_cell_float_expectation_validation.json",
       "result": "Native/fresh WASM p1 각99.95104%, 기존2PASS/216SKIP 및lint정책7 exit0",
       "remaining": "다른두off실패 및다른축·최종37개별/전체회귀/원PR Native freshWASM 미완료"
+    },
+    "hwp5_off": {
+      "stage": 128,
+      "code_commit": "6961bd48748e2c65895272cc9cb413add71e515b",
+      "scope": "HWPX off 입력 하나만 보류. 밝기/대비·왕복2함수·다른정상함수/HWP대조군/모든다른축/원문 유지;새PDF커밋",
+      "evidence": "../issue7445/hwp5_off_blocking_scope_validation.json",
+      "result": "off15PASS/1FAIL + 정상2PASS =>17PASS/1FAIL; lint정책7 exit0",
+      "remaining": "basic off 및다른축·시장실패·최종개별/전체/원PR Native freshWASM 미완료"
     }
   },
   "latest_axis_snapshot": {
@@ -2133,13 +2141,13 @@
     "meaning": "text16분할만 현재통과. 다른off/body/cell/oracle축·시장6761·최종37개별/전체회귀를 대체하지 않음."
   },
   "latest_off_axis_snapshot": {
-    "stage": 126,
-    "code_commit": "ab0fe1cb4e68b09258615147632beaaef3293dd5",
+    "stage": 128,
+    "code_commit": "6961bd48748e2c65895272cc9cb413add71e515b",
     "axis_tests": 16,
-    "passed": 14,
-    "failed": 2,
-    "failed_inputs": 2,
-    "evidence": "../issue7445/recycling6892_off_blocking_scope_validation.json",
-    "meaning": "off16분할만 현재14PASS/2FAIL. 별도pic-in-table-01 대조실패는 보정127에서 독립PDF로 기대좌표교정하여2앵커PASS. off분할이나 다른축/최종회귀를127에서재실행한것은아님."
+    "passed": 15,
+    "failed": 1,
+    "failed_inputs": 1,
+    "evidence": "../issue7445/hwp5_off_blocking_scope_validation.json",
+    "meaning": "off16분할만 현재15PASS/1FAIL. basic issue2007 신규2 대기. 다른축/최종37개별/전체회귀는 대체하지 않음."
   }
 }
