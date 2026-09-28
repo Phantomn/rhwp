@@ -294,3 +294,7 @@ venv/bin/python scripts/visual_sweep.py \
 ## 추가: 자산관리규정의 실제 실패 두 함수와 off-canvas 입력
 
 [범위 갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868575524), [독립 PDF·실패·좁은 보류·재실행](assets6031_blocking_scope_validation.json). #6031/#6409 두 함수와 off-canvas 이 입력만 보류했습니다. 원문/PDF·다른cell/text축·모든다른문서는 유지합니다. 선택6쪽 최저25.22086%이며 전수/fresh WASM 완료가 아닙니다. 집중1PASS/1FAIL(다른2022변환본), lint·정책7단계exit0입니다. 낮은 점수를 이유로 문서의 모든 검사를 제거하지 않습니다.
+
+## 추가: 2022 변환본의 실제 세 함수와 text/off 입력
+
+[범위 갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869647971), [동일 원문·실패·좁은 보류·실행](sample16_2022_blocking_scope_validation.json). 실제3함수와 text/off의이입력만 보류하고 정상IR/다른버전·원문/PDF·다른축/문서는 유지했습니다. 선택5쪽 최저7.09794%이며 전수/freshWASM 완료가 아닙니다. 정상11함수PASS, text/off32분할24PASS/8FAIL, lint·정책7단계exit0입니다. 다른8실패함수는 개별 판단 대상으로 남겼습니다.

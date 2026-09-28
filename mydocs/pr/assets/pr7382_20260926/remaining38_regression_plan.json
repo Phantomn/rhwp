@@ -2029,6 +2029,25 @@
       "scope": "실제2함수/off-canvas한입력만;원문PDF/cell/text/다른모든문서유지",
       "focused": "1PASS/1FAIL;다른2022변환본실패",
       "remaining_restored_dedicated": 11
+    },
+    "sample16_2022": {
+      "stage": 116,
+      "code_commit": "3c01d2ebbc03388ac01dc4eff5d60caeb0af3f95",
+      "evidence": "../issue7445/sample16_2022_blocking_scope_validation.json",
+      "scope": "실제3함수/text·off의한입력씩만.정상IR/다른버전/모든다른축·문서유지",
+      "focused": "35PASS/8FAIL; 정상11PASS+text/off24PASS/8FAIL",
+      "remaining_restored_dedicated": 8
     }
-  }
+  },
+  "latest_axis_snapshot": {
+    "stage": 116,
+    "code_commit": "3c01d2ebbc03388ac01dc4eff5d60caeb0af3f95",
+    "axis_tests": 32,
+    "passed": 24,
+    "failed": 8,
+    "evidence": "../issue7445/sample16_2022_blocking_scope_validation.json",
+    "meaning": "text/off만현재32분할진단.다른축또는최종37개별/전체회귀를대체하지않음."
+  },
+  "current_status_counts_scope": "고정38의과거처리snapshot만.최종37개별은다시실행해야하며전체head통과아님.",
+  "final_validation_status": "pending"
 }
