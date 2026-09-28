@@ -314,3 +314,7 @@ venv/bin/python scripts/visual_sweep.py \
 ## 추가: near-top 원문의 실제 text-overlap 축만 보류
 
 [등록 범위 갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868460165), [단독실패·부정증거·유지검사/전수분할](neartop5941_text_blocking_scope_validation.json). 실제10→19증가의text입력/10건행만보류하고정상203쪽·1쪽대조·개체높이반례 및다른축·원문/PDF는유지했습니다. 정상3PASS, text12PASS/4FAIL, lint/정책7단계exit0. 전체피델리티/전체회귀 완료아닙니다.
+
+## 추가: 관제 원문의 실제 text-overlap 축만 보류
+
+[등록 범위 갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869952956), [단독실패·부정증거·유지검사/전수분할](air6764_text_blocking_scope_validation.json). 실제7→11증가의text입력/7건행만보류하고정상관제4함수 및다른축·원문/PDF는유지했습니다. 정상4PASS, text13PASS/3FAIL, lint/정책7단계exit0. 전체피델리티/전체회귀 완료아닙니다.

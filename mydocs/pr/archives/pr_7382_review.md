@@ -2315,3 +2315,9 @@ HWP 대응본과 구분해 동일 HWPX/기존 정상 한컴 PDF18쪽의 해시�
 현재원문text10→19건을분할단독1FAIL로재현했습니다. 동일원문/정상한컴PDF/생산binary와빈src diff로기존부정증거39쪽47.03148%·53쪽58.70083%/203대205쪽을재사용했고39쪽review에서문단·표내용소유/외곽/뒤문단 차이를직접확인했습니다. 전체205쪽Native/freshWASM미완료입니다. [#7445 범위갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868460165) 후이입력의text축과10건원장행만보류했습니다. 정상203쪽/작은1쪽/개체높이반례 및모든다른축·문서·원문/PDF유지,10을19로완화하지않았습니다.
 
 코드 `9d1b255c4759b02c29545bfa8b9d5f7dcdde9602`, [단독실패·부정증거·좁은범위·전수분할](../assets/issue7445/neartop5941_text_blocking_scope_validation.json). 정상3PASS, text16분할12PASS/4FAIL로합계15PASS/4FAIL/642SKIP입니다. 다른4실패는제외하지않았고필수lint/정책7단계exit0입니다. 다른off/body/cell/oracle축 또는최종개별/전체검증을대체하지않으며PR준비미완료입니다.
+
+## 보정121 사전 분석·결과 — 관제 원문의 실제 text 증가만 보류
+
+현재원문text7→11건을분할단독1FAIL로재현했습니다. 동일원문/정상한컴PDF/생산binary와빈src diff로기존부정증거103쪽37.65331%·201쪽11.45426%/201대204쪽을재사용했고103쪽review에서정상3단계확산/그림24 대신이전본문이있는페이지내용소유 차이를직접확인했습니다. 전체204쪽Native/freshWASM미완료입니다. [#7445 범위갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869952956) 후이입력의text축과7건원장행만보류했습니다. 정상관제4함수 및모든다른축·문서·원문/PDF유지,7을11로완화하지않았습니다.
+
+코드 `4979472991320a35a622d580245d676d12498b1c`, [단독실패·부정증거·좁은범위·전수분할](../assets/issue7445/air6764_text_blocking_scope_validation.json). 정상4PASS, text16분할13PASS/3FAIL로합계17PASS/3FAIL/854SKIP입니다. 다른3실패는제외하지않았고필수lint/정책7단계exit0입니다. 다른off/body/cell/oracle축 또는최종개별/전체검증을대체하지않으며PR준비미완료입니다.
