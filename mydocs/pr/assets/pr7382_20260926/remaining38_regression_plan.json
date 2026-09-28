@@ -392,20 +392,90 @@
       "id": 8,
       "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_8",
       "case": "body_overflow_baseline",
-      "status": "pending",
-      "individual_results": [],
+      "status": "resolved",
+      "individual_results": [
+        {
+          "id": 8,
+          "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_8",
+          "plan": {
+            "caseName": "body_overflow_baseline",
+            "target": "regression_suite_012",
+            "grouped": true
+          },
+          "command": [
+            "cargo",
+            "nextest",
+            "run",
+            "--locked",
+            "--cargo-profile",
+            "release-test",
+            "--target-dir",
+            "target/pr-review",
+            "--test",
+            "regression_suite_012",
+            "-E",
+            "test(=body_overflow_baseline::body_overflow_does_not_grow_partition_8)",
+            "--test-threads",
+            "8",
+            "--no-fail-fast"
+          ],
+          "exit_code": 0,
+          "seconds": 1.5571164172142744,
+          "summary": [
+            "     Summary [   0.600s] 1 test run: 1 passed, 244 skipped"
+          ],
+          "stage": 87,
+          "head": "2b6780510c986a27292925f7cac176fda4c97bb7"
+        }
+      ],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
-        "target": "regression_suite_015",
+        "target": "regression_suite_012",
         "grouped": true
-      }
+      },
+      "evidence": "stage87_individual_validation.json",
+      "resolution_scope": "현재 head에서 기존8번 generic 단독PASS. 이미 이관한 원문의 피델리티 해결 아님."
     },
     {
       "id": 9,
       "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_9",
       "case": "body_overflow_baseline",
       "status": "pending",
-      "individual_results": [],
+      "individual_results": [
+        {
+          "id": 9,
+          "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_9",
+          "plan": {
+            "caseName": "body_overflow_baseline",
+            "target": "regression_suite_012",
+            "grouped": true
+          },
+          "command": [
+            "cargo",
+            "nextest",
+            "run",
+            "--locked",
+            "--cargo-profile",
+            "release-test",
+            "--target-dir",
+            "target/pr-review",
+            "--test",
+            "regression_suite_012",
+            "-E",
+            "test(=body_overflow_baseline::body_overflow_does_not_grow_partition_9)",
+            "--test-threads",
+            "8",
+            "--no-fail-fast"
+          ],
+          "exit_code": 100,
+          "seconds": 0.8881983337923884,
+          "summary": [
+            "     Summary [   0.528s] 1 test run: 0 passed, 1 failed, 244 skipped"
+          ],
+          "stage": 87,
+          "head": "2b6780510c986a27292925f7cac176fda4c97bb7"
+        }
+      ],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
         "target": "regression_suite_015",
@@ -969,12 +1039,12 @@
       }
     }
   ],
-  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_8",
-  "next_candidate_reason": "다음 고정 함수를 개별 실행하고 첫 실패 원문 독립PDF 비교. 추가 HWPX/시장구조/글꼴 추적/잘못된 footer와 최종 전체 검증도 남음.",
+  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_9",
+  "next_candidate_reason": "기존9번 exam_eng3→5건/hwpctl_API0→1건. 영어시험부터 한 원문씩 독립 PDF로 판단.",
   "current_status_counts": {
-    "resolved": 20,
+    "resolved": 21,
     "deferred_to_issue": 1,
-    "pending": 17
+    "pending": 16
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",

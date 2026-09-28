@@ -2114,3 +2114,7 @@ head `88dea0a3a0ddec32cf59a9280c7bf297cc776672`에서 기존7번 body partition4
 #6844와#6023의 두 등록 경로는 SHA-256/470,016byte가 같은 중복 원문입니다. [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870283939) 후 둘 다 바이트 동일하게 보존하고 전용렌더링5함수를 제거했습니다. #6806의 속성 getter/setter·저장0복원은 유지하며 경로만 이관하고 undo 함수의 SVG 비교는 제거했습니다. IR추출 자료를 보존합니다. 렌더링 원장행은 원래 없으므로 추가/완화가 없습니다. 다른 입력·기대값·공차 유지, 새 함수/skip/ignore/생산 변경 없음.
 
 삭제 전suite 참조와 잔여빈줄의fmt 실패를 수정한 뒤 최신target 배정에서 기존7번1PASS/유지속성2PASS(집중3PASS/477SKIP,exit0), fmt·Clippy3종·workspace build·고정base정책exit0을 확인했습니다. 코드 `6c8a6c8e5e83a992fab14a0d90e3fc31e3e7ad4c`, [실행·보존 증거](../assets/issue7445/anticorruption6844_test_removal_validation.json). 원문 피델리티나 전체 회귀 해결로 세지 않습니다. 고정38은20완료/1이관/17대기, PR준비 미완료입니다.
+
+## 보정87 결과 — 기존8·9번의 개별 실행
+
+head `2b6780510c986a27292925f7cac176fda4c97bb7`에서 기존8번 body partition8은1PASS/244SKIP(exit0,0.600초), 다음9번 body partition9는1FAIL/244SKIP(exit100,0.528초)입니다. 실패 원문은 exam_eng3→5건/hwpctl_API0→1건이며 영어시험부터 원문별 독립 시각 검증합니다. 첫 실패에서 다음 함수를 멈췄고 생산·검사·기대값 변경은 없습니다. [개별 실행 근거](../assets/pr7382_20260926/stage87_individual_validation.json). 고정38은21완료/1이관/16대기, PR준비 미완료입니다.
