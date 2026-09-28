@@ -2228,3 +2228,7 @@ head `a643e0e6b8bdb40172dbc55386d747b2ea49fd3f`에서 기존36·37번 각1PASS,3
 ![실제각주25쪽Native](../assets/pr7382_20260926/footnote_anchor_native_review_025.png)
 
 ![실제각주25쪽freshWASM](../assets/pr7382_20260926/footnote_anchor_wasm_overlay_025.png)
+
+## 보정108 사전 분석·결과 — 소스 내부 정상 회귀 동반제외 복원
+
+이전제외를 source의테스트영역까지대조해영어시험의표바깥여백·총쪽수2개기존함수와sample16의문서스타일·쪽테두리기존혼합assertion/helper를복원했습니다.같은원문보존해시경로로연결했고새함수/생산변경/기대값·공차완화없음.집중4PASS/필수8단계exit0.코드 `3e965ae01ce3c1e323b80342d93d76bb96063bd2`, [소스·입력해시·각명령·결과](../assets/issue7445/source_unit_scope_restore_validation.json). 원문전체피델리티승인아님.15개실제FAIL 및공통원장/manifest동반제외·기존38번/최종37개/전체회귀는계속미완료입니다.

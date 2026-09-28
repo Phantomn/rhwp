@@ -1766,6 +1766,13 @@
         "result": "검사 전제 오류 교정으로PASS.같은입력의 실제각주25쪽 Native/freshWASM97.33607%.기대값/공차/함수유지.",
         "evidence": "stage107_footnote_anchor_validation.json"
       }
-    ]
+    ],
+    "source_unit_restore": {
+      "stage": 108,
+      "restored_functions": 2,
+      "restored_mixed_contracts": 2,
+      "focused_pass": 4,
+      "evidence": "../issue7445/source_unit_scope_restore_validation.json"
+    }
   }
 }
