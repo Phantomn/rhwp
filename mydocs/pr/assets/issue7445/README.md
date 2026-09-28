@@ -302,3 +302,7 @@ venv/bin/python scripts/visual_sweep.py \
 ## 추가: 동일 HWP 두 이름의 실제 차단 범위
 
 [기본원문 범위](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868738187)·[2010이름 범위](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869562651), [동일 바이트·독립 PDF·실패·좁은 보류·검증](sample16_aliases_blocking_scope_validation.json). 두 이름은 같은 입력이며 한컴PDF64쪽도 전체72DPI래스터가 같습니다. 실패5함수와 두 이름의text/off축만 보류하고 정상그림/목차/IR·source-unit·다른버전·원문/PDF·다른축은 유지했습니다. 정상14PASS, text/off24PASS/8FAIL, lint·정책7단계exit0입니다. 영향24쪽7.09794%이며 전수Native/freshWASM 또는 전체회귀 완료가 아닙니다.
+
+## 추가: HWPX의 실제 실패 쪽수만 보류
+
+[범위 갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869485533), [단독 실패·뒤 좌표 진단·동일입력 PDF·유지검사](sample16_hwpx_blocking_scope_validation.json). #6706 함수/좌표·소유 검사는 유지하고 실패 쪽수 assertion 하나만 보류했습니다. #2158 쪽수 전용 한함수만 보류했고 온새미로 및 정상 수식/따옴표/IR·다른 corpus·원문/PDF 유지. 10PASS, 필수8단계exit0입니다. 전체 피델리티 승인/전체회귀 완료는 아닙니다.

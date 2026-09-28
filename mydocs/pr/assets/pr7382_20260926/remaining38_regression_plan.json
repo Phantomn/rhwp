@@ -2045,6 +2045,14 @@
       "scope": "같은바이트 두이름의실제5함수/text·off입력만.정상그림/목차/IR/source-unit/다른버전·축·문서유지",
       "focused": "38PASS/8FAIL; 정상14PASS+text/off24PASS/8FAIL",
       "remaining_restored_dedicated": 3
+    },
+    "sample16_hwpx": {
+      "stage": 118,
+      "code_commit": "838c6387bf3e988d2fdd5bd6e5f88b85c48b59b8",
+      "evidence": "../issue7445/sample16_hwpx_blocking_scope_validation.json",
+      "scope": "#6706 쪽수 assertion 하나만/#2158 쪽수 한함수만. #6706 위치/소유 및 정상 온새미로·수식/따옴표/IR·모든 다른 축·원문 유지",
+      "focused": "10PASS; 필수8단계exit0",
+      "remaining_restored_dedicated": 1
     }
   },
   "latest_axis_snapshot": {
