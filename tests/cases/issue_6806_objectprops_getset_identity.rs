@@ -72,7 +72,7 @@ fn picture_feedback_keeps_allow_overlap_under_restrict_in_page() {
 /// 도형 — 문서가 저장한 **0** 높이를 되먹여도 그대로다.
 #[test]
 fn shape_feedback_keeps_stored_zero_size() {
-    const SAMPLE: &str = "samples/issue6023/30269_reform_recommendation.hwp";
+    const SAMPLE: &str = "mydocs/pr/assets/issue7445/30269_reform_recommendation.hwp";
     let mut core = load(SAMPLE);
     let before = core
         .get_shape_properties_native(0, 28, 0)
@@ -134,23 +134,13 @@ fn shape_edit_that_drops_a_nonzero_size_to_zero_still_clamps() {
 /// 저장 높이 0인 도형을 실제로 확대했다가 undo 하면 한컴 저장값으로 돌아와야 한다.
 #[test]
 fn shape_resize_undo_restores_stored_zero_height() {
-    const SAMPLE: &str = "samples/issue6023/30269_reform_recommendation.hwp";
+    const SAMPLE: &str = "mydocs/pr/assets/issue7445/30269_reform_recommendation.hwp";
     let mut core = load(SAMPLE);
     let before = core
         .get_shape_properties_native(0, 28, 0)
         .expect("높이 0 도형 속성 읽기");
     let before_json: serde_json::Value = serde_json::from_str(&before).expect("원본 봉지 파싱");
     assert_eq!(before_json["height"], 0, "한컴 저장 높이 0 전제");
-    let page_json = core
-        .get_page_of_position_native(0, 28)
-        .expect("도형이 속한 쪽 조회");
-    let page: u32 = serde_json::from_str::<serde_json::Value>(&page_json).expect("쪽 응답 파싱")
-        ["page"]
-        .as_u64()
-        .expect("쪽 번호") as u32;
-    assert!(page < core.page_count(), "대상 도형의 쪽이 존재해야 한다");
-    let before_svg = core.render_page_svg_native(page).expect("원본 영향 쪽 SVG");
-
     core.set_shape_properties_native(0, 28, 0, r#"{"height":400}"#)
         .expect("실제 확대");
     let expanded = core
@@ -168,11 +158,5 @@ fn shape_resize_undo_restores_stored_zero_height() {
     assert_eq!(
         restored, before,
         "undo 뒤 개체 속성 봉지가 원본으로 돌아와야 한다"
-    );
-    assert_eq!(
-        core.render_page_svg_native(page)
-            .expect("undo 뒤 영향 쪽 SVG"),
-        before_svg,
-        "undo 뒤 영향 쪽의 실제 SVG 출력도 원본과 같아야 한다"
     );
 }

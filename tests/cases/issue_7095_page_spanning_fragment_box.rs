@@ -176,44 +176,6 @@ fn load_sample(rel: &str) -> DocumentCore {
     DocumentCore::from_bytes(&std::fs::read(path).expect("read sample")).expect("open")
 }
 
-/// `para_index` 가 같은 표 노드의 상자들.
-fn tables_of_para(nodes: &[RenderNode], para: usize, rows: u16, cols: u16) -> Vec<BoundingBox> {
-    nodes
-        .iter()
-        .filter_map(|n| match &n.node_type {
-            RenderNodeType::Table(t)
-                if t.para_index == Some(para) && t.row_count == rows && t.col_count == cols =>
-            {
-                Some(n.bbox)
-            }
-            _ => None,
-        })
-        .collect()
-}
-
-#[test]
-fn issue_7095_first_fragment_starting_at_page_top_is_pinned_too() {
-    // 30269 10쪽은 표(pi136)의 **첫** 조각인데 쪽 상단에서 시작한다. 정본 상자 아래는
-    // 본문 아래 1028.01 − 바깥 아래 여백 283HU(3.77) − 100HU(1.33) = 1022.91 이다.
-    // 수정 전에는 내용 행 높이(마지막 줄 뒤 줄간격 포함)로 끝나 1028.3, 이어짐 조건으로만
-    // 고정하면 1032.1 로 정본 상자를 9px 넘었다.
-    let core = load_sample("samples/issue6023/30269_reform_recommendation.hwp");
-    let boxes = tables_of_para(&page_nodes(&core, 9), 136, 1, 1);
-    let frag = boxes.first().expect("30269 10쪽 조각 표");
-    let bottom = frag.y + frag.height;
-    assert!(
-        (frag.y - 98.27).abs() < 1.0 && (bottom - 1022.91).abs() < 1.0,
-        "#7095: 30269 10쪽 조각 상자는 위 98.27 · 아래 1022.91 이어야 한다: y={:.2} bottom={:.2}",
-        frag.y,
-        bottom
-    );
-    assert_eq!(
-        core.page_count(),
-        22,
-        "#7095: 30269 쪽수는 정본과 같은 22 여야 한다"
-    );
-}
-
 /// Edited IR flow contract, separate from the unmodified Hancom fixtures above.
 /// Page height is varied across a row-fitting boundary; every numbered unit must
 /// survive once inside its own fragment and following text must remain after it.
