@@ -6384,7 +6384,7 @@
         "test": "issue_3820_stored_reset_fragment_geometry::issue_3820_stored_reset_tables_match_hancom_fragment_geometry_without_moving_owners",
         "lines": [
           226,
-          56320
+          304
         ],
         "sha256": "e140c6348658d25fe0405fe25cefca093aebbb229831d86c3d3f0616e3028634"
       },
@@ -6401,8 +6401,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::stored_cell_reset_preserves_prefix_tail_and_following_figure_page",
         "lines": [
-          33188,
-          33188
+          409,
+          441
         ],
         "sha256": "e24c732145319c37909f8317dba234c0938fcc0897106eab6dff74e197b6e781"
       },
@@ -6410,8 +6410,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::multirow_table_queues_cell_notes_after_the_accepted_body_fragments",
         "lines": [
-          33188,
-          33188
+          446,
+          501
         ],
         "sha256": "8e72e200425cfe1b19c69f8a8135226582d116c21a53b4adc31693409bb7e323"
       },
@@ -6419,8 +6419,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::queue_capacity_does_not_publish_a_future_row_footnote",
         "lines": [
-          33188,
-          33188
+          507,
+          542
         ],
         "sha256": "7b6258c3604a902875563914260b538827f668088960c2cdd344807bab7e1965"
       },
@@ -6428,8 +6428,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::saved_rows_and_footnote_reset_keep_their_physical_page_owners",
         "lines": [
-          289624896,
-          289624896
+          618,
+          650
         ],
         "sha256": "f824b3f1b3eb907680baf378b050ebd4946224f34259b2c2a18b2a931e1685a4"
       },
@@ -6437,8 +6437,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::rowbreak_table_with_own_footnotes_splits_at_the_page_boundary",
         "lines": [
-          289624896,
-          289624896
+          654,
+          694
         ],
         "sha256": "992a4b9f38d9e8347c25e91e2fe8d8b2ab9c5a0add1828a964f3d38372aa7ea0"
       },
@@ -6446,8 +6446,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::first_large_table_fragment_preserves_pdf_physical_bottom",
         "lines": [
-          33188,
-          33188
+          745,
+          759
         ],
         "sha256": "d412402426ca3bde75d0acff0ee6eec6d9ab85fdcd9e779c9a8604af031344cb"
       },
@@ -6455,8 +6455,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::declared_opening_frame_cannot_spend_unavailable_body_space",
         "lines": [
-          33188,
-          33188
+          764,
+          787
         ],
         "sha256": "3a64cf069ec2f0eba4fa836f05d93d9dbbc94dff67cc697f4b6726b561ccfa78"
       },
@@ -6464,8 +6464,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::saved_opening_frame_aligns_the_consumed_cell_prefix",
         "lines": [
-          33188,
-          33188
+          792,
+          826
         ],
         "sha256": "224c6175c8414c479d9f0497720da2c41c35a636ac1a4f4ef593cdb11028d19d"
       },
@@ -6473,8 +6473,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::single_cell_saved_frame_preserves_picture_and_note_page_owners",
         "lines": [
-          289624896,
-          289624896
+          914,
+          955
         ],
         "sha256": "bc248d50670db16e8724d3472889a2292faa4aa8b6be2469ac2a176928a4c0c6"
       },
@@ -6482,8 +6482,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::single_cell_saved_frame_border_and_following_heading_match_pdf",
         "lines": [
-          289624896,
-          289624896
+          959,
+          981
         ],
         "sha256": "fdfe3c83d9f71bcf701599aa7af6e737245acd8e07ec4db0a213b87aa5cb7502"
       },
@@ -6491,8 +6491,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::unqueued_cell_note_preserves_repeated_page_top_prefix_and_tail",
         "lines": [
-          289624896,
-          289624896
+          986,
+          1017
         ],
         "sha256": "61e51502a1d0625c929db0fd5d097f6e0c8719c76cd10da8175d501630e4b243"
       },
@@ -6500,8 +6500,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::synthetic_cell_note_zero_positions_do_not_force_a_physical_tail",
         "lines": [
-          289624896,
-          289624896
+          1021,
+          1054
         ],
         "sha256": "4513426b9117d876913570c6a53123e7e923c65d59f8e3c925fa788da98c59a3"
       },
@@ -6509,8 +6509,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::whole_single_cell_rowbreak_border_includes_saved_outer_top",
         "lines": [
-          289624896,
-          289624896
+          1059,
+          1080
         ],
         "sha256": "6468ac7011e948ec84033029a66db4150f75b73d40bef66e76de8209ff31da26"
       },
@@ -6518,8 +6518,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::deferred_float_closed_source_frame_preserves_figure_and_following_body",
         "lines": [
-          289624896,
-          289624896
+          1085,
+          1117
         ],
         "sha256": "941cf832f7a65c678e3efa3d31765108cfcd879399256bd53261f4133da32dff"
       },
@@ -6527,8 +6527,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::guide_overlap_without_closed_source_frame_keeps_anchor_offset",
         "lines": [
-          289624896,
-          289624896
+          1122,
+          1139
         ],
         "sha256": "6dca98b814d9cf4242da815fdf96afebb1ee6f0df893c30ab5c0661864551c17"
       },
@@ -6536,8 +6536,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::body_note_repeated_page_top_keeps_prefix_tail_and_following_notes",
         "lines": [
-          33188,
-          33188
+          1161,
+          1200
         ],
         "sha256": "516adcea9560a7b56087e8f8d9108a49fbe50cd35d6a2496003106a324c6a01a"
       },
@@ -6545,8 +6545,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::body_note_invalid_saved_reset_stays_atomic",
         "lines": [
-          33188,
-          33188
+          1204,
+          1229
         ],
         "sha256": "a10857ef735c737444ab962e32295011f77b3ae89ef4012e40b0ce91535b0fa5"
       },
@@ -6554,8 +6554,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::body_first_note_reservation_preserves_saved_reset_tail_owner",
         "lines": [
-          33188,
-          33188
+          1233,
+          1253
         ],
         "sha256": "da97fcb78fc21b696758e593ffe2380625cc5972371de8ffb113957f4db42746"
       },
@@ -6563,8 +6563,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::body_two_line_note_preserves_reset_tail_before_following_picture",
         "lines": [
-          33188,
-          33188
+          1257,
+          1271
         ],
         "sha256": "46c9636069fc24cafa0c30d6db16f0a306d65308200c902482cca8e5d54b7f7b"
       },
@@ -6572,8 +6572,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::synthetic_body_reset_does_not_create_a_saved_footnote_boundary",
         "lines": [
-          33188,
-          33188
+          1275,
+          1288
         ],
         "sha256": "c36810bb55cbc4c132cb9f5533dc0d572193e78e41dcd6b822ff5f7ddbf49826"
       },
@@ -6581,8 +6581,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwpx_continued_body_note_keeps_page_separator_without_number_repeat",
         "lines": [
-          289624896,
-          289624896
+          1343,
+          1345
         ],
         "sha256": "aa8b1243b31c682ec3dffa8ffe71d9695e2c41351897f725db87b112ab9cfbc2"
       },
@@ -6590,8 +6590,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwp_continued_body_note_keeps_page_separator_without_number_repeat",
         "lines": [
-          289624896,
-          289624896
+          1348,
+          1352
         ],
         "sha256": "3b11b3a0595291d5e15ea587a57455c9fd566bff59e0ca5dbc319d531b3431cd"
       },
@@ -6599,8 +6599,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::empty_line_before_visible_body_keeps_its_height_before_later_page_reset",
         "lines": [
-          289624896,
-          289624896
+          1357,
+          1372
         ],
         "sha256": "7e8dab59e3c159533eaa74d3e1e986d48d869b6c67bcd092fa385f37ec17fa0e"
       },
@@ -6608,8 +6608,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::stored_rewinding_table_preserves_whole_row_footprint_and_caption",
         "lines": [
-          289624896,
-          289624896
+          1376,
+          1412
         ],
         "sha256": "6b9582f790e0fae98e4941754dd3b8f6c7bf40eaf11f4c004cc1335bb01a61de"
       },
@@ -6617,8 +6617,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::stored_rewinding_table_keeps_following_body_tail_before_figure",
         "lines": [
-          289624896,
-          289624896
+          1416,
+          1429
         ],
         "sha256": "79ce991749ee7e4d888b43b3ddc1bec13851331fa5e1c569d7285302477bd472"
       },
@@ -6626,8 +6626,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::whole_row_cell_uses_its_allocated_height_for_saved_inner_margin",
         "lines": [
-          289624896,
-          289624896
+          1434,
+          1457
         ],
         "sha256": "83bf7963459d008b3fa5bbc96a2f8397743717e7f0d29c4ad5c7bd3d496ef0f3"
       },
@@ -6635,8 +6635,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::anchored_body_reset_preserves_page_top_tail_below_fill_threshold",
         "lines": [
-          289624896,
-          289624896
+          1462,
+          1486
         ],
         "sha256": "96a49a0338f74016966b92777729fe51085529c2e724465457c7903aa7a9643d"
       },
@@ -6644,8 +6644,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::invalid_body_anchor_does_not_promote_low_fill_reset_to_page_owner",
         "lines": [
-          289624896,
-          289624896
+          1491,
+          1513
         ],
         "sha256": "c092d8362c5e38c06cc62e86575550e0962727f11377ebeb44876c9a1a8fc85a"
       },
@@ -6653,8 +6653,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::edited_body_reflow_does_not_reuse_original_saved_reset_owner",
         "lines": [
-          289624896,
-          289624896
+          1518,
+          1544
         ],
         "sha256": "0f5fd510f2ce467c6ef57808a90533f62959987bbc1b2f373e63f9018ea1f37b"
       },
@@ -6662,8 +6662,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::empty_host_sibling_tables_preserve_outer_margin_and_caption_origins",
         "lines": [
-          289624896,
-          289624896
+          1549,
+          1590
         ],
         "sha256": "3424afd3c9ca3041c567541f30d18abcb94f8634aa400b3700c705316fbb41de"
       },
@@ -6671,8 +6671,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::synthetic_body_tail_does_not_enable_saved_multi_note_routing",
         "lines": [
-          33188,
-          33188
+          1620,
+          1632
         ],
         "sha256": "6c94404c6411c5880db0a8a6f498582b92b48108ea6c8dc9a754355102120749"
       },
@@ -6680,8 +6680,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::oversized_body_note_does_not_intrude_into_completed_marker_page",
         "lines": [
-          33188,
-          33188
+          1637,
+          1662
         ],
         "sha256": "9eeb9ac57afa5f91161196dafbfa08ed00fed83542d0f15d6603014b9d7e5967"
       },
@@ -6689,8 +6689,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::stored_body_marker_keeps_whole_note_with_prior_notes_on_its_page",
         "lines": [
-          33188,
-          33188
+          1666,
+          1668
         ],
         "sha256": "af6788d09f88e18b8bc5181a07834b42e60f0e30f0c83d422229a2d2b754652a"
       },
@@ -6698,8 +6698,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::native_hwp_multi_note_owner_remains_on_original_marker_page",
         "lines": [
-          33188,
-          33188
+          1672,
+          1676
         ],
         "sha256": "beb6177892017e5b2e349f2042927cb2ce57d874eade60f958da158cdb2bcef6"
       },
@@ -6707,8 +6707,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::taller_body_line_box_prevents_completed_page_note_intrusion",
         "lines": [
-          33188,
-          33188
+          1681,
+          1700
         ],
         "sha256": "429e51aac0ca2120314018332d7658f1f7da123d470495cb9d6e53b4a1aa0365"
       },
@@ -6716,8 +6716,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::native_pre_emitted_caption_and_table_share_saved_paragraph_reference",
         "lines": [
-          33188,
-          33188
+          1704,
+          1706
         ],
         "sha256": "6ad7e88bd12cf1909533136c1f37c18bbbe302a27692cf6b6a8da94ecfa0f959"
       },
@@ -6725,8 +6725,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::native_pre_emitted_caption_preserves_positive_table_offset_change",
         "lines": [
-          33188,
-          33188
+          1711,
+          1713
         ],
         "sha256": "1fcf7b9a491ec453860fec701cadd1122edfcd455e08222eac79cb34bcce5bd3"
       },
@@ -6734,8 +6734,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::native_stored_bullet_tail_preserves_saved_rows_and_following_paragraph",
         "lines": [
-          289624896,
-          289624896
+          1769,
+          1807
         ],
         "sha256": "ce4784add50b7dc57f4e416cb8283dc502ecd396bd8cce237c205e5b88e03db3"
       },
@@ -6743,8 +6743,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwpx_stored_caption_table_keeps_relationship_row_above_actual_footnote_area",
         "lines": [
-          289624896,
-          289624896
+          1811,
+          1813
         ],
         "sha256": "438eae69d98289055c6c68cfa39288d39b53862ba32bf2b8688a37e05220984b"
       },
@@ -6752,8 +6752,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::stored_bullet_origin_does_not_admit_wrong_width_or_synthetic_rows",
         "lines": [
-          289624896,
-          289624896
+          1817,
+          1850
         ],
         "sha256": "55910db5ef719933ea3e3f7bfb6926774f49d55936d824118491751ba7b10a36"
       },
@@ -6761,8 +6761,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwpx_caption_note_138_is_preserved_on_terminal_table_page",
         "lines": [
-          33188,
-          33188
+          1895,
+          1897
         ],
         "sha256": "9c2980eb9233892f8915c36defe02a58c34f4b5281668abfcf19cc9cbfdfb6e7"
       },
@@ -6770,8 +6770,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwpx_caption_note_142_is_preserved_before_following_body_notes",
         "lines": [
-          33188,
-          33188
+          1901,
+          1903
         ],
         "sha256": "da9098eaf1725951e0429ce66cfa235a4c9b53dd0c370d9c518f74d16d3cbf22"
       },
@@ -6779,8 +6779,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwpx_caption_note_147_is_preserved_on_terminal_table_page",
         "lines": [
-          33188,
-          33188
+          1907,
+          1909
         ],
         "sha256": "cf4379335c59fde5ddfcd47fe57c959537531d8dc71fc4150159b3fa0d08951e"
       },
@@ -6788,8 +6788,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::native_caption_notes_keep_existing_terminal_table_page_owners",
         "lines": [
-          33188,
-          33188
+          1913,
+          1921
         ],
         "sha256": "53105d14d5c891379824373720ca6ca52644fe6abae25ea6e1e805cd42341f4b"
       },
@@ -6797,8 +6797,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwpx_picture_wrapper_preserves_empty_opening_physical_fragment",
         "lines": [
-          33188,
-          33188
+          2018,
+          2020
         ],
         "sha256": "7a1e2557baf2d06a0d64245b4a3bd07caf6e77f607f0ac0556aabd7fe50bb403"
       },
@@ -6806,8 +6806,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::native_picture_wrapper_preserves_empty_opening_physical_fragment",
         "lines": [
-          33188,
-          33188
+          2023,
+          2025
         ],
         "sha256": "cfaedba998cd067ad07c7d62d5793322bc5a14ca4339347e7732ecced9776877"
       },
@@ -6815,8 +6815,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwpx_picture_wrapper_continuation_consumes_remaining_physical_height",
         "lines": [
-          33188,
-          33188
+          2028,
+          2030
         ],
         "sha256": "3017cdef1569521bb29b75bea623b7009b3f1dea860e56f0ebea4bb329be407d"
       },
@@ -6824,8 +6824,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::native_picture_wrapper_continuation_consumes_remaining_physical_height",
         "lines": [
-          33188,
-          33188
+          2033,
+          2035
         ],
         "sha256": "91a72b7f5260a4d994496eb671d533459ea65cbd3b67ff9358406722470fbdbb"
       },
@@ -6833,8 +6833,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwpx_picture_table_uses_interior_control_stored_line_anchor",
         "lines": [
-          289624896,
-          289624896
+          2079,
+          2081
         ],
         "sha256": "af453d61f1f00c2e8e8742ea24960c1f69bb0aedbfa00409712287db23e36d3f"
       },
@@ -6842,8 +6842,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::native_picture_table_uses_interior_control_stored_line_anchor",
         "lines": [
-          289624896,
-          289624896
+          2084,
+          2086
         ],
         "sha256": "f1cd30b1aac406b3d81bbd4d9f8352ebe84541f2160209b3fed4dc004b1ab39e"
       },
@@ -6851,8 +6851,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwpx_square_sibling_tables_consume_same_outer_frames_in_budget_and_paint",
         "lines": [
-          33188,
-          33188
+          2145,
+          2147
         ],
         "sha256": "5f61c38fe365f90bfefe4908349f31e04dceb9c9550749cc23b7f70f8597eb30"
       },
@@ -6860,8 +6860,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::native_square_sibling_tables_consume_same_outer_frames_in_budget_and_paint",
         "lines": [
-          33188,
-          33188
+          2150,
+          2152
         ],
         "sha256": "edacc1c20db4fb34090fa1c9b2017fcdfd24cfbab17dceac95269799d6b1af03"
       },
@@ -6869,8 +6869,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::square_sibling_negative_offset_zero_control_preserves_original_frames",
         "lines": [
-          289624896,
-          289624896
+          2169,
+          2188
         ],
         "sha256": "1630d7e9a047810eb92ee61c92bb766ca73a6e829213d27bb897d89d77c8476c"
       },
@@ -6878,8 +6878,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::square_sibling_synthetic_host_does_not_admit_original_outer_frame",
         "lines": [
-          289624896,
-          289624896
+          2191,
+          2208
         ],
         "sha256": "518715cbf03b2e5b385989f36f1edd43c156c933c72778e0b691c093d42069e0"
       },
@@ -6887,8 +6887,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwpx_empty_picture_table_closes_offset_and_outer_frame_once",
         "lines": [
-          33188,
-          33188
+          2256,
+          2258
         ],
         "sha256": "26dabeda7348c65451c5392d473bf15063cc708018ee4c3d352daf2101de7f9a"
       },
@@ -6896,8 +6896,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::native_empty_picture_table_closes_offset_and_outer_frame_once",
         "lines": [
-          33188,
-          33188
+          2261,
+          2263
         ],
         "sha256": "5b4ecadf28f8c0a05ef5871e655066b673417b7a98960d4169055d2254d60a42"
       },
@@ -6905,8 +6905,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwpx_centered_cell_pictures_keep_their_flow_frame",
         "lines": [
-          33188,
-          33188
+          2354,
+          2356
         ],
         "sha256": "b0d750be50893dbb2557b3b8a4f9afbfd43cb3a4bd43b9bdd43f7e2a55e6eb82"
       },
@@ -6914,8 +6914,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::native_centered_cell_pictures_keep_their_flow_frame",
         "lines": [
-          33188,
-          33188
+          2359,
+          2361
         ],
         "sha256": "a117348865f41d2ec0876d6631f2247b53d08f9d58b139b586f51c78cf4c0ea5"
       },
@@ -6923,8 +6923,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::centered_picture_flow_keeps_positive_space_and_discards_negative_space",
         "lines": [
-          33188,
-          33188
+          2365,
+          2396
         ],
         "sha256": "bed5a1688fa07f904b3507e1296358b5d59789c3fbcf040b7d6cbe8352607b0e"
       },
@@ -6932,8 +6932,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::cell_picture_bottom_caption_has_one_owner",
         "lines": [
-          33188,
-          33188
+          2400,
+          2402
         ],
         "sha256": "229ebd0ec9d8fc05cfdc70df05ce61bab3a26b77b081d6bee4f3410e449c4370"
       },
@@ -6941,8 +6941,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::native_cell_picture_bottom_caption_has_one_owner",
         "lines": [
-          33188,
-          33188
+          2405,
+          2407
         ],
         "sha256": "5c242c603e3edcb90b0ead9a0a736481b3d2ba3719b3bcfb8ef30317fc271686"
       },
@@ -6950,8 +6950,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwpx_figure11_table_picture_caption_share_closed_source_frame",
         "lines": [
-          33188,
-          33188
+          2514,
+          2516
         ],
         "sha256": "d2cb1bcdfcd9e113ef50e048e80676393cbd005e36b417ae607db95d6a64dfd1"
       },
@@ -6959,8 +6959,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::native_figure11_table_picture_caption_share_closed_source_frame",
         "lines": [
-          33188,
-          33188
+          2519,
+          2521
         ],
         "sha256": "f7025bb14cfee262864f8148ccce52f13886d1436a67c610774e7db7a2307ae7"
       },
@@ -6968,8 +6968,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwpx_terminal_source_note_keeps_both_lines_on_original_page",
         "lines": [
-          289624896,
-          289624896
+          2648,
+          2669
         ],
         "sha256": "80d7518e7b324cc9b242c950ab2f5c1cc5b9b45b2860c16c8caae73bb66f9e71"
       },
@@ -6977,8 +6977,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwpx_figure64_uses_next_page_source_band_origin",
         "lines": [
-          289624896,
-          289624896
+          2725,
+          2727
         ],
         "sha256": "eba2b5a7331b710556e89d162e2eb505d4cdff6bc1a9e29b800888837adce820"
       },
@@ -6986,8 +6986,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::native_figure64_uses_next_page_source_band_origin",
         "lines": [
-          289624896,
-          289624896
+          2730,
+          2732
         ],
         "sha256": "5bc33463b53b8a4bcd032e03108d586ca05ced1c01560db3fa68dbe449fa1097"
       },
@@ -6995,8 +6995,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::figure64_mismatched_successor_band_does_not_claim_next_page",
         "lines": [
-          289624896,
-          289624896
+          2737,
+          2754
         ],
         "sha256": "c5fefa76b809ea02ab38839f32453b5f9a93ce73cb267ebb9bd9fa0322542fc8"
       },
@@ -7004,8 +7004,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::native_terminal_table_frame_consumes_outer_top_once",
         "lines": [
-          33188,
-          33188
+          2778,
+          2780
         ],
         "sha256": "b4a68ac76d8ecfe27ef42333d27644fe7dccdbae09fe99f47f77132bc52f649a"
       },
@@ -7013,8 +7013,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::hwpx_terminal_table_frame_consumes_outer_top_once",
         "lines": [
-          33188,
-          33188
+          2783,
+          2785
         ],
         "sha256": "6ff63a0951e1482a82c171144a36942be0dc281d33701dd9172d08b93ec65542"
       },
@@ -7022,8 +7022,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::captioned_empty_host_table_keeps_its_complete_original_outer_frame_hwpx",
         "lines": [
-          33188,
-          33188
+          2790,
+          2792
         ],
         "sha256": "92f6131c08aba4b88a74de2e148975e98ce2b929448a5baeac2882e239c809f7"
       },
@@ -7031,8 +7031,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::captioned_empty_host_table_keeps_its_complete_original_outer_frame_hwp",
         "lines": [
-          33188,
-          33188
+          2795,
+          2798
         ],
         "sha256": "67ae7fe3eb056a57bd58672c86fbd53abeaf198312e4b4e6d8810a2ab7df4e18"
       },
@@ -7040,8 +7040,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::captioned_empty_host_top_caption_keeps_body_and_successor_inside_the_same_frame",
         "lines": [
-          289624896,
-          289624896
+          2831,
+          2855
         ],
         "sha256": "2ff1a9b4e6ae2711b3f3bcd915bdbaae96821306550d85019c58788eacc21f35"
       },
@@ -7049,8 +7049,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::numbered_footnote_continuation_lines_keep_the_original_hanging_indent_hwpx",
         "lines": [
-          33188,
-          33188
+          2984,
+          2986
         ],
         "sha256": "c01bb88e64f7230ee1b8fe2804c01c118b0aa5837da6e8f1cd9c8060a67b9400"
       },
@@ -7058,8 +7058,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::numbered_footnote_continuation_lines_keep_the_original_hanging_indent_hwp",
         "lines": [
-          33188,
-          33188
+          2989,
+          2991
         ],
         "sha256": "c00e94603f0a4dce6dcf0be3488cb8c9de384f3421ec72816d1ca2797e8cdd0e"
       },
@@ -7067,8 +7067,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::numbered_footnote_uses_paragraph_margin_and_signed_indent_without_reusing_stale_flags",
         "lines": [
-          289624896,
-          289624896
+          3064,
+          3129
         ],
         "sha256": "b29dcba99787a9ac4f72cecd496839203e276863ee1d45748c5c7a9d7f2093ca"
       },
@@ -7076,8 +7076,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::captioned_saved_rowbreak_terminal_fragment_keeps_outer_frame_hwp",
         "lines": [
-          289624896,
-          289624896
+          3133,
+          3135
         ],
         "sha256": "1fabd0a5e64ed7af34cd5e90cdb0f059421d1410bb7041abb1d234f3cb726355"
       },
@@ -7085,8 +7085,8 @@
         "source": "tests/cases/issue_7379_rowbreak_table_footnote_reservation.rs",
         "test": "issue_7379_rowbreak_table_footnote_reservation::captioned_saved_rowbreak_terminal_fragment_keeps_outer_frame_hwpx",
         "lines": [
-          289624896,
-          289624896
+          3138,
+          3140
         ],
         "sha256": "a646312d8fad263cfc4ef24a079801ebc4167b296f584b5e732b97fdfbe37e5e"
       },
@@ -7103,8 +7103,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::rowbreak_table_cell_footnotes_keep_the_pdf_fragment_boundary",
         "lines": [
-          56320,
-          56320
+          397,
+          474
         ],
         "sha256": "f748eb7e506f110fc02bf9f5ebe89e76995eb67918003e285e44e604a549f186"
       },
@@ -7112,8 +7112,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_rowbreak_table_reclaims_only_the_actual_existing_footnote_boundary",
         "lines": [
-          56320,
-          56320
+          477,
+          555
         ],
         "sha256": "9a780cec89bee57a8307b8ddd3aad3ba1fb6043307e6f8528e8652b49b52f30d"
       },
@@ -7121,8 +7121,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_rowbreak_table_starts_its_first_fragment_on_p168",
         "lines": [
-          56320,
-          56320
+          562,
+          598
         ],
         "sha256": "9b7f9196f2d2764199b8f3ff788319cc9bf013d01e7984a1e5cfb9b2c776ecd8"
       },
@@ -7130,8 +7130,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_rowbreak_table_keeps_pre_reset_tail_on_p166",
         "lines": [
-          56320,
-          56320
+          604,
+          632
         ],
         "sha256": "0b01589e15fcdaf0b5305fd9e45ee8c3365740b758346c7b8de9f8d004b2de85"
       },
@@ -7139,8 +7139,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_nonvacating_float_ladder_keeps_p171_text_owner",
         "lines": [
-          56320,
-          56320
+          639,
+          674
         ],
         "sha256": "c9260a0a6f9a15ab28922828f6957033979b56dc8a4731277526f74bffad582c"
       },
@@ -7148,8 +7148,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_footnote_reset_keeps_rowbreak_table_on_p174",
         "lines": [
-          56320,
-          56320
+          681,
+          764
         ],
         "sha256": "46610c6d9ae7b50ac48eaa21204d032f59e95a37e83d45a26a78ee59f6c82e86"
       },
@@ -7157,8 +7157,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_figure_table_guides_keep_p182_paragraph_owner",
         "lines": [
-          56320,
-          56320
+          772,
+          814
         ],
         "sha256": "36de4935438235ffac667641779b59aad70d36ec61b1646f947608e43d1376ce"
       },
@@ -7166,8 +7166,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_late_footnote_moves_to_next_reset_page_before_p200_tail",
         "lines": [
-          56320,
-          56320
+          821,
+          862
         ],
         "sha256": "efc0341de584e293eff305c9b4e2cc4327ed202e89e352df331b196a7758183a"
       },
@@ -7175,8 +7175,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_internal_reset_table_splits_at_p172_footnote_boundary",
         "lines": [
-          56320,
-          56320
+          868,
+          911
         ],
         "sha256": "41b3ca9a6c761c2e27da05248d0913a801af32af08083085997bd62ffeb12e13"
       },
@@ -7184,8 +7184,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_footnote_reset_moves_only_the_overlapping_tail_to_the_next_page",
         "lines": [
-          56320,
-          56320
+          914,
+          938
         ],
         "sha256": "12a895ab62a6504b7000d729f28dcf0468ed26a1917dafdd0d39c18720ba4f9a"
       },
@@ -7193,8 +7193,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_existing_footnote_reset_moves_the_p43_tail_before_the_separator",
         "lines": [
-          56320,
-          56320
+          941,
+          992
         ],
         "sha256": "1f25109355dc5b974322fb0d0335175a3154fd95d5a098935b088f1b935f3537"
       },
@@ -7202,8 +7202,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_current_marker_projects_the_p74_footnote_before_body_reset",
         "lines": [
-          56320,
-          56320
+          995,
+          1046
         ],
         "sha256": "2cc2f45af07c2fa93ba54da049c60b6c03517af6cad62bff237cdeabaa417d84"
       },
@@ -7211,8 +7211,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_earlier_marker_projects_the_p120_footnote_before_body_reset",
         "lines": [
-          56320,
-          56320
+          1049,
+          1178
         ],
         "sha256": "30e5a1d6ca28fa1fb917e9962e0ef990c15c26b915e2e32e64e3c107e680bd7d"
       },
@@ -7220,8 +7220,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_body_footnotes_follow_the_p129_and_p131_reset_pages",
         "lines": [
-          56320,
-          56320
+          1181,
+          1330
         ],
         "sha256": "a669b2e2262fb290fb5de8ac75698c9c4a0e1c36aec84781162d7c354c6086e8"
       },
@@ -7229,8 +7229,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_repeated_zero_footnotes_continue_on_p177_and_p179",
         "lines": [
-          56320,
-          56320
+          1333,
+          1394
         ],
         "sha256": "c4d48137bbe208e67472d2e37bce0317fd30ec315d71c0e1a1a41a21dd44b38f"
       },
@@ -7238,8 +7238,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_final_marker_footnote_uses_the_next_reset_page",
         "lines": [
-          56320,
-          56320
+          1397,
+          1444
         ],
         "sha256": "22be9fd15a8cf97849a6efd3167476ef730e71228c44ab026e230f93b70cbcbc"
       },
@@ -7247,8 +7247,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_split_body_footnotes_stay_with_their_marker_page",
         "lines": [
-          56320,
-          56320
+          1447,
+          1521
         ],
         "sha256": "edcf4a61ada229cca5fb11870a15300b6148331cf5cc34afa17683d4ef121762"
       },
@@ -7256,8 +7256,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_repeated_empty_guide_lines_emit_tac_picture_once",
         "lines": [
-          56320,
-          56320
+          1524,
+          1546
         ],
         "sha256": "2c85fb4cd7be5640b1ffdc030157b6580754fdff9cad5caf721eb613b171d5ee"
       },
@@ -7265,8 +7265,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_same_page_stale_rowbreak_picture_keeps_figure_25_visible",
         "lines": [
-          56320,
-          56320
+          1549,
+          1576
         ],
         "sha256": "b11b8240a24c3434697522343eaa8e536b995b266c186fae0bb9d0ccd8c0ff8a"
       },
@@ -7274,8 +7274,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::picture_caption_rowbreak_uses_the_actual_footnote_boundary_before_deferring",
         "lines": [
-          56320,
-          56320
+          1579,
+          1595
         ],
         "sha256": "ae937c9692f7d270fd7644f0d03967f6ca2db52998ae22e2bec2e4fd78b021a2"
       },
@@ -7283,8 +7283,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_reset_tail_uses_the_actual_existing_footnote_boundary",
         "lines": [
-          56320,
-          56320
+          1598,
+          1616
         ],
         "sha256": "2b91dc933ad9bce77196930cfa5348f3d0d96ea5249f97027ab14411806b0233"
       },
@@ -7292,8 +7292,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_rowbreak_tail_keeps_figure_51_with_its_pdf_page",
         "lines": [
-          56320,
-          56320
+          1619,
+          1647
         ],
         "sha256": "0256037bcc2fa58416a1d021665479dbd40e4d68b7851bcd22d3fd546dcc5936"
       },
@@ -7301,8 +7301,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_two_line_footnote_continues_after_the_reset_page",
         "lines": [
-          56320,
-          56320
+          1650,
+          1677
         ],
         "sha256": "2bdbe004c7d78e6fd9b8581549c8dcc47abc1cd8b6ee40c642071442efc5fe1c"
       },
@@ -7310,8 +7310,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_large_rowbreak_table_keeps_its_first_fragment_before_cell_footnotes",
         "lines": [
-          56320,
-          56320
+          1680,
+          1770
         ],
         "sha256": "d1a2c3096c02ea9eb13cc30d2bee8aef3babef1752172413a1e294b367ee6ab8"
       },
@@ -7319,8 +7319,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_empty_rowbreak_table_uses_the_actual_existing_footnote_boundary",
         "lines": [
-          56320,
-          56320
+          1773,
+          1814
         ],
         "sha256": "e0c9fd16b0b0a0f0921fabb02cb356c48ef7eb9a6b63b254a4b988e83ed8319b"
       },
@@ -7328,8 +7328,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_oversized_single_rowbreak_table_splits_inside_the_page_frame",
         "lines": [
-          56320,
-          56320
+          1817,
+          1850
         ],
         "sha256": "e5245767dfae8a8ca1c916b054ad16dfc5db6f9172e8afbecb172663896a8319"
       },
@@ -7337,8 +7337,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_square_picture_uses_the_next_page_wrap_owner",
         "lines": [
-          56320,
-          56320
+          1853,
+          1934
         ],
         "sha256": "2fb5da09d61696efbd331e43f7babbaf58d2a0a2b44af49bd998caa35e56eab0"
       },
@@ -7346,8 +7346,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_text_tail_before_figure_55_keeps_the_pdf_page_owner",
         "lines": [
-          56320,
-          56320
+          1937,
+          1978
         ],
         "sha256": "8d6c3a4710448997ea7c77b03fb47b5efc3d64bbb7f14420b9235b677043cedc"
       },
@@ -7355,8 +7355,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_square_picture_figure_56_uses_the_same_next_page_owner_contract",
         "lines": [
-          56320,
-          56320
+          1981,
+          2055
         ],
         "sha256": "1601360e2fbc240ba33604906080e7fd27a112c8dce367723428e1cb0d40b07e"
       },
@@ -7364,8 +7364,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_table_host_footnotes_follow_the_terminal_fragment_page",
         "lines": [
-          56320,
-          56320
+          2058,
+          2167
         ],
         "sha256": "6f5e34f5199d573eb81b6a0e6ffa2ee1a6dc21bad8f2496480faf6bc5064a5c0"
       },
@@ -7373,8 +7373,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_table_host_footnote_capacity_fallback_preserves_note_once",
         "lines": [
-          56320,
-          56320
+          2170,
+          2232
         ],
         "sha256": "2ed92cfdcecb4dbf215629aceb1dd06d230fd6fff8d9226837db5050180a90de"
       },
@@ -7382,8 +7382,8 @@
         "source": "tests/issue_3738_rowbreak_table_footnote_fragment.rs",
         "test": "issue_3738_rowbreak_table_footnote_fragment::native_hwp5_table_host_footnote_survives_after_terminal_table_page_is_flushed",
         "lines": [
-          56320,
-          56320
+          2235,
+          2343
         ],
         "sha256": "c309e49541c8d9c0722b8f19ddfbc8803ec341bc0aeabc7faa24eb248cac3131"
       }

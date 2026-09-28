@@ -2536,3 +2536,11 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![정책연구 HWP66쪽 review](../assets/issue7445/policy-report-hwp_native_review_066.png)
 ![정책연구 HWPX67쪽 overlay](../assets/issue7445/policy-report-hwpx_native_overlay_067.png)
+
+
+## 검증137 — 전체 nextest 완료, 60개 실패를 개별 판정
+
+- 검증 head `0a069b1f1c1b0541f52f281e2d4f3a316616f982`, [정확한명령·전체실패목록·결과](../assets/pr7382_20260926/stage137_full_regression.json). release-test·공유target/pr-review·8스레드·no-fail-fast로 전체10250검사를 끝까지 실행했습니다. **10190PASS/60FAIL, exit100**, 819.225초입니다.
+- #7382 원 PR은OPEN/head `81a402179dc556cce781d844d4b9252be36ba8af` 그대로입니다. 최신devel고정base `0e8fd49fb868da0d47ac1294dcbbda81f0211233`은 현재브랜치보다31커밋앞서므로 최종통합검증도 남습니다.
+- 실패에는 동일정책연구HWP source 내부3검사, cell/body축, 다른쪽수/레이아웃, SVG snapshot, 비밀번호fixture계약 등이 포함됩니다. 전부7445로이관하지 않습니다. 사용자의90%미만제외조건과실제차단범위를문서별로판정합니다. 다음은이미직접확인한정책연구source3함수이며그영향6쪽최저18.00186%입니다.
+- 보정136 삭제목록118함수의 원본행번호·해시를 원본head의구문트리와다시대조해 검증원장에 보완했습니다. 테스트/생산동작변경은 없습니다. 전체검증FAIL을 승인·PR준비완료로보고하지않습니다.
