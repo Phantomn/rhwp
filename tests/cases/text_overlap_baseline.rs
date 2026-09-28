@@ -64,6 +64,7 @@ const DEFERRED_TEXT_OVERLAP_FIXTURES: &[&str] = &[
     "hwp3-sample16-hwp5-2022.hwp",
     "hwp3-sample16-hwp5.hwp",
     "hwp3-sample16-hwp5-2010.hwp",
+    "issue5941/1480000-201900698-native-neartop-reset.hwp",
 ];
 
 /// 확장자로 샘플을 재귀 수집해 루트 기준 상대 경로(슬래시)로 돌려준다.
