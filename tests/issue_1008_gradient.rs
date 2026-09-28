@@ -58,12 +58,12 @@ fn hwp3_sample16_business_box_has_gradient() {
 }
 
 /// HWPX shape-local fillBrush 의 `<hc:gradation><hc:color .../>` stop 파싱 회귀 가드.
-/// `samples/hwp3-sample16-hwp5.hwpx` page 3 사업개요 TAC 글상자는 gradient fill 을 가지며,
+/// `mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwpx` page 3 사업개요 TAC 글상자는 gradient fill 을 가지며,
 /// color stop 이 누락되면 SVG/WebCanvas 쪽에서 빈 gradient 가 생성되어 검정색으로 칠해진다.
 #[test]
 fn hwpx_sample16_business_box_gradient_colors_materialized() {
-    let bytes =
-        std::fs::read("samples/hwp3-sample16-hwp5.hwpx").expect("read hwp3-sample16-hwp5.hwpx");
+    let bytes = std::fs::read("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwpx")
+        .expect("read hwp3-sample16-hwp5.hwpx");
     let doc = parse_document(&bytes).expect("parse hwp3-sample16-hwp5.hwpx");
 
     // HWPX 변환본도 pi=71 사업개요 본문 박스에 Shape control 이 존재한다.

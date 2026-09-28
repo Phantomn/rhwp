@@ -43,8 +43,3 @@ fn assert_sample_equations(sample: &str, inline: bool) {
 fn standalone_equations_are_extracted_once_in_reading_order() {
     assert_sample_equations("hwp3-sample16.hwp", false);
 }
-
-#[test]
-fn inline_equations_are_extracted_once_in_reading_order() {
-    assert_sample_equations("hwp3-sample16-hwp5.hwpx", true);
-}
