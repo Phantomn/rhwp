@@ -214,3 +214,13 @@ venv/bin/python scripts/visual_sweep.py \
 - 기존데모함수의쪽수/이동쪽/SVG assertion만 제외하고15개번호·제목·수준getter계약및다른최소입력SVG계약유지.검사함수추가/ignore/skip/생산/공차변경없음.생성기의데모출력도여기보존경로로변경하고재생성해시동일확인.집중 ['     Summary [   2.402s] 3 tests run: 3 passed, 447 skipped'],필수lint/정책exit0.기존30번완료이나최종37개/전체회귀완료는별도입니다.
 
 ![Native3쪽표번호와뒤개요겹침](outline4093_native_review_003.png)
+
+## 추가: 가상융합산업 시행령 HWP5
+
+- [등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5871489510), [보존 원문](78494-virtual-convergence-industry-decree.hwpx), [독립 한컴 PDF74쪽](../../../../pdf/78494-virtual-convergence-industry-decree-2020.pdf), [해시·출처·시각·제외·유지 검증](decree6776_test_removal_validation.json). 확장자 HWPX인 실제 HWP5이며 원문/PDF 해시가 기존 등록 manifest와 같습니다.
+- 현재74/기준74쪽. Native선택1/18/19/20/62/63/64/74쪽96.29144/65.08307/59.24283/75.06816/98.18586/72.34041/93.57324/51.68936%입니다. 19쪽 그림·표/뒤 본문과63쪽 참고상자·하단쪽번호 충돌을 직접 확인했습니다. 전체 비교/fresh WASM은 미실행입니다.
+- 원문576,512byte 보존, 렌더링2함수/body1행만 제외하고 등록 manifest의 경로·역할을 이관했습니다. 다른 비-TAC그림입력의 기존 음성대조1함수·기대값/helper/공차 유지, 새 함수/skip/ignore/생산 변경/허용치 완화 없음. 집중 ['     Summary [   2.611s] 2 tests run: 2 passed, 444 skipped'], 필수 lint·정책 exit0입니다. 이관을 원문 피델리티 개선으로 세지 않습니다.
+
+![Native19쪽 그림·표·뒤본문 차이](decree6776_native_review_019.png)
+
+![Native63쪽 참고상자·쪽번호 충돌](decree6776_native_overlay_063.png)

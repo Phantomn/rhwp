@@ -1301,7 +1301,7 @@
       "id": 33,
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_13",
       "case": "text_overlap_baseline",
-      "status": "pending",
+      "status": "resolved",
       "individual_results": [
         {
           "stage": 98,
@@ -1312,13 +1312,23 @@
             "     Summary [   2.633s] 1 test run: 0 passed, 1 failed, 237 skipped"
           ],
           "status": "pending"
+        },
+        {
+          "stage": 99,
+          "test_snapshot_commit": "7336af268e721bf57934be0800c98bbda338fc29",
+          "fixture_deferred": "issue6776/78494-virtual-convergence-industry-decree.hwpx",
+          "fixture_removal_evidence": "../issue7445/decree6776_test_removal_validation.json",
+          "after": "집중2PASS: 현재기존33번/다른비TAC입력 음성대조",
+          "status": "resolved",
+          "scope": "사용자 승인 미달문서이관 후 현재partition13 통과; 원문 피델리티 개선 아님"
         }
       ],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
         "target": "regression_suite_016",
         "grouped": true
-      }
+      },
+      "resolution_scope": "사용자 승인 미달문서이관 후 현재partition13 통과; 원문 피델리티 개선 아님"
     },
     {
       "id": 34,
@@ -1381,12 +1391,12 @@
       }
     }
   ],
-  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_13",
-  "next_candidate_reason": "기존33번 실패 입력의 같은원문 독립 시각 비교부터 수행",
+  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_14",
+  "next_candidate_reason": "다음대기 함수를 개별실행. 첫실패에서 같은입력 원인/독립시각검증부터 수행",
   "current_status_counts": {
-    "resolved": 31,
+    "resolved": 32,
     "deferred_to_issue": 1,
-    "pending": 6
+    "pending": 5
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
@@ -1547,6 +1557,14 @@
       "note": "전체Native최저51.51148%;원문보존/데모렌더·페이지assertion제외/getter및다른입력유지.피델리티개선아님.",
       "stage": 97,
       "evidence": "../issue7445/outline4093_test_removal_validation.json"
+    },
+    {
+      "document": "samples/issue6776/78494-virtual-convergence-industry-decree.hwpx",
+      "observed_stage": 98,
+      "status": "deferred_to_issue",
+      "stage": 99,
+      "evidence": "../issue7445/decree6776_test_removal_validation.json",
+      "note": "선택Native8쪽90%미달.원문보존/렌더링2함수/body1행제외;음성대조유지.피델리티개선아님."
     }
   ]
 }
