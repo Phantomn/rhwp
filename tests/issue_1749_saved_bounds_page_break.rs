@@ -1,6 +1,6 @@
 //! Issue #1749 v2: 누적좌표 문서라도 다음 문단이 명시적 쪽나누기면 saved bounds 를 신뢰한다.
 //!
-//! Regression shape (samples/task1749/saved_bounds_cumulative_page_break.hwpx):
+//! 당시 회귀 사례 (samples/task1749/saved_bounds_cumulative_page_break.hwpx):
 //! - 2쪽 말미 pi=26 은 누적높이 검사 탈락(919.2+36.3 > 930.5px)이지만 저장 bounds
 //!   (vpos 137484 − 2쪽 기준 69310 → bottom ≈ 930.3px ≤ avail)로 2쪽 배치가 정답.
 //! - 이 문서는 누적좌표(쪽 경계에서도 vpos 리셋 없음)인데 다음 문단 pi=27 이 명시적
@@ -9,12 +9,15 @@
 //! - 저장 lineseg 근거: pi=25(vpos=134764)와 pi=26(vpos=137484)은 한 줄(2720HU) 간격
 //!   연속 배치 = 한글은 pi=26 을 2쪽 마지막 줄로 인코딩.
 
+//!
+//! 현재 HWPX 최종 출력 검사는 #7445로 이관하고 저장 IR·HWP 대조군만 유지한다.
+
 use std::fs;
 use std::path::Path;
 
 use rhwp::model::control::Control;
 
-const HWPX_SAMPLE: &str = "samples/task1749/saved_bounds_cumulative_page_break.hwpx";
+const HWPX_SAMPLE: &str = "mydocs/pr/assets/issue7445/saved_bounds_cumulative_page_break.hwpx";
 const HWP_SAMPLE: &str = "samples/task1749/saved_bounds_cumulative_page_break.hwp";
 
 fn load_sample(sample: &str) -> rhwp::wasm_api::HwpDocument {
@@ -29,59 +32,10 @@ fn load_doc() -> rhwp::wasm_api::HwpDocument {
 }
 
 #[test]
-fn issue_1749_v2_pi26_stays_on_page_2() {
-    let doc = load_doc();
-    assert_eq!(
-        doc.page_count(),
-        5,
-        "쪽나누기 직전 단일 줄 문단 pi=26 이 밀리면 5쪽 문서가 6쪽이 된다"
-    );
-
-    let page2 = doc.dump_page_items(Some(1));
-    assert!(
-        page2.contains("pi=26"),
-        "pi=26 은 2쪽 마지막 문단이어야 한다 (저장 lineseg: pi=25 와 한 줄 간격 연속)\n--- page 2 ---\n{}",
-        page2
-    );
-}
-
-#[test]
 fn issue_1811_hwpx_pi52_rowbreak_cut_matches_hwp_reference() {
     let doc = load_doc();
-    assert_eq!(
-        doc.page_count(),
-        5,
-        "p5 tail drift 보정 후에도 전체 5쪽이어야 한다"
-    );
-
-    let page4 = doc.dump_page_items(Some(3));
-    let page4_lines: Vec<_> = page4.lines().collect();
-    let host_idx = page4_lines
-        .iter()
-        .position(|line| line.contains("PartialParagraph") && line.contains("pi=52"))
-        .unwrap_or_else(|| {
-            panic!("4쪽에서 pi=52 host 텍스트를 찾지 못함\n--- page 4 ---\n{page4}")
-        });
-    let table_idx = page4_lines
-        .iter()
-        .position(|line| line.contains("PartialTable") && line.contains("pi=52"))
-        .unwrap_or_else(|| panic!("4쪽에서 pi=52 분할 표를 찾지 못함\n--- page 4 ---\n{page4}"));
-    assert!(
-        host_idx < table_idx,
-        "HWPX RowBreak mixed 문단은 PDF 기준처럼 host 텍스트를 표 fragment 보다 먼저 소비해야 한다\n--- page 4 ---\n{page4}"
-    );
-    let pi52_line = page4_lines[table_idx];
-
-    // [#2015] 종전 이 테스트는 HWPX end_cut=[1] 을 기대했으나, 그것은 vert_offset 이중계상
-    // (pre-emit 된 host_h 위에 vert_off 를 재차감 → page_avail=0)으로 남는 공간이 0 이라
-    // 오판된 값이었다. 이중계상을 보정하면 실제 잔여 공간(≈124px)에 3 유닛이 들어가
-    // HWPX end_cut=[3] 이 HWP 저장 LINE_SEG 참조([3] 아래) 및 한컴 PDF 와 일치한다.
-    assert!(
-        pi52_line.contains("end_cut=[3]"),
-        "HWPX mixed host 텍스트를 p4 에 먼저 배치한 뒤, vert_offset 이중계상 보정으로 첫 fragment 는 \
-         HWP 참조와 동일하게 3 유닛을 담아야 한다(#2015)\n{pi52_line}"
-    );
-
+    // HWPX의 최종 페이지/컷 검사는 #7445로 이관했다.
+    // 기존 HWP 대조군과 셀52 저장 IR 검사만 유지하며 HWPX 피델리티 증거로 세지 않는다.
     let hwp_doc = load_sample(HWP_SAMPLE);
     assert_eq!(
         hwp_doc.page_count(),
