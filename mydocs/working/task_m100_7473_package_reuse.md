@@ -27,3 +27,7 @@ Issue: #7473. 사용자 요청에 따라 반복 빈도 → 좁은 재사용 계�
 실제 helper를 호출하는 unittest 13개(여러 입력 경계 subtest 포함), actionlint, Python/Node 구문, git diff --check 통과. 정상/손상 consumer는 같은 불변 producer artifact ID만 사용한다. 기존 #7474의 빌드 계측 및 브라우저 응답 관찰 코드를 재사용했으며 Rust 제품 코드는 변경하지 않았다.
 
 원본 checkout 로그까지 대조한 결과 동일 head 6회 상한 중 실제 같은 checkout SHA 반복은 **4회**였다. 나머지는 PR merge SHA가 달랐다. 같은 run 안 반복은 여전히 1회다. 상시 도입을 보류하는 판단은 유지한다.
+
+## 완료
+
+최종 code SHA `cef17e8de83049046638dad93331b13bf1ce16b6`, Actions run `36464037905`의 producer/hit/corrupt 3개 job 모두 성공했다. 로컬 최종 unittest는 잘못된 build manifest 형식 대조를 포함해 14개 통과. 정상 패키지 준비 step 430→3초, 손상 fallback 및 3개 문서 Canvas/실제 응답 hash/PNG 동등성을 확인했다. 반복 수요가 작아 production 도입은 보류하며 #7474를 변경하지 않았다. [결과 보고서](../report/task_m100_7473_package_reuse.md)에 수치·증거·한계를 기록했다.

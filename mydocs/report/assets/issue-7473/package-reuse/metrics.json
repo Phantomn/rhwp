@@ -1,0 +1,247 @@
+{
+  "source_sha": "cef17e8de83049046638dad93331b13bf1ce16b6",
+  "success": true,
+  "new_runner_boot_ids": [
+    "48d3a2f5-6606-4347-a505-a0e875ab41bf",
+    "89251241-a24c-4ddc-80f2-1b920a205831",
+    "e5f726a9-e44a-4115-98c4-7f1d339f3685"
+  ],
+  "cold_build_wall_seconds": 428.44,
+  "cold_build_phase_seconds": {
+    "preparation": 2.691,
+    "cargo": 300.26,
+    "bindgen_setup_and_run": 4.962,
+    "wasm_opt_and_finalize": 120.513,
+    "after_package": 0.014
+  },
+  "hit_verify_install_seconds": 1.3710038279999708,
+  "corrupt_fallback_build_wall_seconds": 429.485,
+  "corrupt_reason": "package checksum or size mismatch",
+  "wasm_sha256": "d4f9a862800dad6ac2eb56b6d452a45c385a941bbcc84a0a9e78a273bd4be095",
+  "all_js_wasm_hashes_identical": true,
+  "canvas_passes": {
+    "producer": 3,
+    "hit": 3,
+    "corrupt": 3
+  },
+  "wasm_observations": {
+    "producer": 1,
+    "hit": 1,
+    "corrupt": 1
+  },
+  "pngs_per_job": 9,
+  "all_pngs_identical": true,
+  "jobs": {
+    "producer": {
+      "seconds": 540.0,
+      "steps": {
+        "Set up job": {
+          "seconds": 1.0,
+          "conclusion": "success"
+        },
+        "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": {
+          "seconds": 68.0,
+          "conclusion": "success"
+        },
+        "Run dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4": {
+          "seconds": 10.0,
+          "conclusion": "success"
+        },
+        "Run ./.github/actions/install-wasm-pack": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Assert cold target": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Cold release WASM package": {
+          "seconds": 430.0,
+          "conclusion": "success"
+        },
+        "Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020": {
+          "seconds": 1.0,
+          "conclusion": "success"
+        },
+        "Install browser dependencies": {
+          "seconds": 14.0,
+          "conclusion": "success"
+        },
+        "Canvas regression and actual WASM response hash": {
+          "seconds": 12.0,
+          "conclusion": "success"
+        },
+        "Seal package identity and file checksums": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Publish immutable same-run package": {
+          "seconds": 1.0,
+          "conclusion": "success"
+        },
+        "Upload producer evidence": {
+          "seconds": 1.0,
+          "conclusion": "success"
+        },
+        "Post Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Complete job": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        }
+      }
+    },
+    "consumer (hit)": {
+      "seconds": 113.0,
+      "steps": {
+        "Set up job": {
+          "seconds": 2.0,
+          "conclusion": "success"
+        },
+        "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": {
+          "seconds": 65.0,
+          "conclusion": "success"
+        },
+        "Run dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4": {
+          "seconds": 12.0,
+          "conclusion": "success"
+        },
+        "Run ./.github/actions/install-wasm-pack": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Assert fresh runner target": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Download exact producer artifact": {
+          "seconds": 1.0,
+          "conclusion": "success"
+        },
+        "Corrupt package negative control": {
+          "seconds": 0.0,
+          "conclusion": "skipped"
+        },
+        "Verify and install package or declare miss": {
+          "seconds": 2.0,
+          "conclusion": "success"
+        },
+        "Normal release build on miss": {
+          "seconds": 0.0,
+          "conclusion": "skipped"
+        },
+        "Check intended hit or fallback": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Install browser dependencies": {
+          "seconds": 14.0,
+          "conclusion": "success"
+        },
+        "Canvas regression and actual WASM response hash": {
+          "seconds": 12.0,
+          "conclusion": "success"
+        },
+        "Upload consumer evidence": {
+          "seconds": 1.0,
+          "conclusion": "success"
+        },
+        "Post Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Complete job": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        }
+      }
+    },
+    "consumer (corrupt)": {
+      "seconds": 538.0,
+      "steps": {
+        "Set up job": {
+          "seconds": 1.0,
+          "conclusion": "success"
+        },
+        "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": {
+          "seconds": 67.0,
+          "conclusion": "success"
+        },
+        "Run dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4": {
+          "seconds": 9.0,
+          "conclusion": "success"
+        },
+        "Run ./.github/actions/install-wasm-pack": {
+          "seconds": 1.0,
+          "conclusion": "success"
+        },
+        "Assert fresh runner target": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Download exact producer artifact": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Corrupt package negative control": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Verify and install package or declare miss": {
+          "seconds": 2.0,
+          "conclusion": "success"
+        },
+        "Normal release build on miss": {
+          "seconds": 429.0,
+          "conclusion": "success"
+        },
+        "Check intended hit or fallback": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020": {
+          "seconds": 1.0,
+          "conclusion": "success"
+        },
+        "Install browser dependencies": {
+          "seconds": 13.0,
+          "conclusion": "success"
+        },
+        "Canvas regression and actual WASM response hash": {
+          "seconds": 12.0,
+          "conclusion": "success"
+        },
+        "Upload consumer evidence": {
+          "seconds": 1.0,
+          "conclusion": "success"
+        },
+        "Post Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        },
+        "Complete job": {
+          "seconds": 0.0,
+          "conclusion": "success"
+        }
+      }
+    }
+  }
+}
