@@ -156,3 +156,13 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native7쪽 지문·선택지와 쪽번호 차이](exam_eng_native_overlay_007.png)
 
 영어시험 추가 정정: CanvasKit native/browser manifest의 같은 원문1항목도 제외했습니다. 나머지121개 입력 존재와 실제 manifest 로딩 PASS입니다. 정확한 항목·커밋은 위 JSON의 `manifest_followup_correction`에 기록했습니다.
+
+## 추가: HWP 컨트롤 API v2.4
+
+- [등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870586821), [보존 원문](hwpctl_API_v2.4.hwp), [동일 원문의 독립 한컴 PDF105쪽](../../../../pdf/hwpctl_API_v2.4-hwp-2020.pdf), [시각·제외·유지 검증](api24_test_removal_validation.json). 다른2020·2022 이름 PDF도 보존합니다.
+- 현재105/기준105쪽이나 선택 Native1·28·52·60·74·75·105쪽98.99519/98.33864/99.4403/99.67137/60.06836/98.19912/97.85668%입니다.74쪽 첫 데이터행이 기준14 대신 앞쪽의13으로 시작해 표와 후속 설명이 아래로 밀리는 내용 소유 차이를 직접 확인했습니다. 전체105쪽/fresh WASM은 미실행입니다.
+- 262,144byte 원문을 바이트 동일하게 보존하고 렌더링·페이지23함수, 원장4행, CanvasKit manifest1항목을 제거했습니다. 순수 #3695 개요 구조 파싱/IR과 다른 문서4함수 및 IR원장은 유지합니다. 다른 공차·기대값 유지, 새 함수/ignore/skip/생산 변경 없음. 집중 ['     Summary [   0.913s] 18 tests run: 18 passed, 1078 skipped']; 필수 lint/정책 결과는 JSON에 기록했습니다. CanvasKit 나머지120입력의 존재·실제 manifest 로딩 PASS입니다.
+
+![Native74쪽 표 행 소유와 뒤 설명 차이](api24_native_review_074.png)
+
+![Native74쪽 표와 설명의 중첩](api24_native_overlay_074.png)

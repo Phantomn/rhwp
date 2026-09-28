@@ -440,7 +440,7 @@
       "id": 9,
       "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_9",
       "case": "body_overflow_baseline",
-      "status": "pending",
+      "status": "resolved",
       "individual_results": [
         {
           "id": 9,
@@ -487,13 +487,24 @@
           ],
           "focused_exit": 100,
           "evidence": "../issue7445/exam_eng_test_removal_validation.json"
+        },
+        {
+          "stage": 89,
+          "head": "408d166b7ce7b6a7b4aeb6a2ba440b5faa499da4",
+          "code_commit": "09c4395e84b7edd23d9f819c52ec6c00d635f582",
+          "focused_summary": [
+            "     Summary [   0.913s] 18 tests run: 18 passed, 1078 skipped"
+          ],
+          "focused_exit": 0,
+          "evidence": "../issue7445/api24_test_removal_validation.json"
         }
       ],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
         "target": "regression_suite_015",
         "grouped": true
-      }
+      },
+      "resolution": "API 문서 이관 뒤 최신 corpus 소속의 개별 함수 PASS. 이관 원문 및 다른 corpus 실패 해결로 세지 않음."
     },
     {
       "id": 10,
@@ -1052,12 +1063,12 @@
       }
     }
   ],
-  "next_candidate": "samples/hwpctl_API_v2.4.hwp",
-  "next_candidate_reason": "기존9번에 검출된 API0→1건을 다음 독립 문서 단계에서 검증.",
+  "next_candidate": "off_canvas_baseline::off_canvas_does_not_grow_partition_10",
+  "next_candidate_reason": "고정38의 다음 대기 함수를 개별 실행. 별도 issue7196 및 다른 미해결 기록도 최종 제출 전에 처리.",
   "current_status_counts": {
-    "resolved": 21,
+    "resolved": 22,
     "deferred_to_issue": 1,
-    "pending": 16
+    "pending": 15
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
@@ -1164,9 +1175,11 @@
     {
       "document": "samples/hwpctl_API_v2.4.hwp",
       "observed_stage": 87,
-      "status": "pending",
+      "status": "deferred_to_issue",
       "failure": "body overflow0→1건",
-      "note": "영어시험과 별도 원문. corpus 재배정 통과를 원문 해결로 세지 않음."
+      "note": "74쪽60.06836%로 원문보존/렌더링회귀 제외. 피델리티 해결 아님.",
+      "stage": 89,
+      "evidence": "../issue7445/api24_test_removal_validation.json"
     },
     {
       "document": "samples/issue7196/156760012_page_top_spacing_trim.hwpx",
