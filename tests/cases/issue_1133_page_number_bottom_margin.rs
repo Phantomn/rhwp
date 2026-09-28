@@ -94,7 +94,7 @@ fn page_number_style_control_keeps_independent_baseline() {
 #[test]
 fn footnote_page_number_keeps_the_same_bottom_margin_anchor() {
     let core = open("mydocs/pr/assets/issue7445/issue1937_rowbreak_footnote_overpagination.hwp");
-    let tree = core.build_page_render_tree(23).expect("각주가 있는 24쪽");
+    let tree = core.build_page_render_tree(24).expect("각주가 있는 25쪽");
     assert!(
         tree.root
             .children
@@ -102,8 +102,8 @@ fn footnote_page_number_keeps_the_same_bottom_margin_anchor() {
             .any(|node| matches!(node.node_type, RenderNodeType::FootnoteArea)),
         "각주 없는 경로를 각주 대조군으로 대신하지 않음"
     );
-    let actual = number_baseline(&core, 23);
-    // 같은 원본의 독립 한컴 PDF24쪽, HCRDotum 쪽번호 기준선이다.
+    let actual = number_baseline(&core, 24);
+    // 같은 원본의 독립 한컴 PDF25쪽, HCRDotum 쪽번호 기준선이다.
     assert!(
         (actual - 1_061.719_726_562_5).abs() <= 0.6,
         "각주 쪽의 실제 쪽번호 기준선{actual}, 독립 PDF1061.71973"

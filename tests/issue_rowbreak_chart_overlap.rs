@@ -8,7 +8,7 @@ use rhwp::renderer::render_tree::{BoundingBox, RenderNode, RenderNodeType};
 use std::fs;
 use std::path::Path;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/rowbreak-problem-pages.hwpx";
+const SAMPLE: &str = "samples/rowbreak-problem-pages.hwpx";
 const HWP_SAMPLE: &str = "mydocs/pr/assets/issue7445/rowbreak-problem-pages.hwp";
 const PAGE_INDEX: u32 = 1;
 
