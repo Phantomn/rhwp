@@ -290,3 +290,7 @@ venv/bin/python scripts/visual_sweep.py \
 ## 추가: PII의 실제 차단 한 함수와 혼합 쪽수 항목
 
 [범위 정정 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868672890), [독립 PDF·실패·제외 범위·명령](pii5846_blocking_scope_validation.json). #5846 한 함수와 #2097의 PII 쪽수 항목만 보류했습니다. 다른 정상 #3595 두 함수와 #2097의 다섯 입력은 유지했고3PASS입니다. 필수8단계exit0입니다. 동일 후보의 선택4쪽 최저30.63875%이며 원문/PDF를 유지합니다. cairo PDF를 독립 정답지로 사용하지 않고, 원문 개선이나 전체 회귀 통과로 보고하지 않습니다.
+
+## 추가: 자산관리규정의 실제 실패 두 함수와 off-canvas 입력
+
+[범위 갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868575524), [독립 PDF·실패·좁은 보류·재실행](assets6031_blocking_scope_validation.json). #6031/#6409 두 함수와 off-canvas 이 입력만 보류했습니다. 원문/PDF·다른cell/text축·모든다른문서는 유지합니다. 선택6쪽 최저25.22086%이며 전수/fresh WASM 완료가 아닙니다. 집중1PASS/1FAIL(다른2022변환본), lint·정책7단계exit0입니다. 낮은 점수를 이유로 문서의 모든 검사를 제거하지 않습니다.

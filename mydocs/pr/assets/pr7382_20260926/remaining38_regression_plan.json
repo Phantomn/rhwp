@@ -2021,6 +2021,14 @@
       "scope": "5846 실제 한 함수 +2097 혼합함수의 PII 한 pin 보류; 함수 및 다른5pin/#3595 두 함수 유지",
       "focused": "3PASS",
       "remaining_restored_dedicated": 13
+    },
+    "assets6031": {
+      "stage": 115,
+      "code_commit": "e6a4590f23f00c7756eede591feb0800508d4474",
+      "evidence": "../issue7445/assets6031_blocking_scope_validation.json",
+      "scope": "실제2함수/off-canvas한입력만;원문PDF/cell/text/다른모든문서유지",
+      "focused": "1PASS/1FAIL;다른2022변환본실패",
+      "remaining_restored_dedicated": 11
     }
   }
 }
