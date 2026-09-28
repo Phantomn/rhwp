@@ -1510,8 +1510,8 @@
       }
     }
   ],
-  "next_candidate": "hwpctl_ParameterSetID_Item_v1.2.hwp oracle74→75",
-  "next_candidate_reason": "현재실제차단oracle만개별분석하고정상계약보존",
+  "next_candidate": "2025 행정업무운영 편람 HWP oracle384→383",
+  "next_candidate_reason": "실제차단oracle와기존관련함수의실패지점을개별분석하고정상범위보존",
   "current_status_counts": {
     "resolved": 37,
     "deferred": 1,
@@ -2177,6 +2177,19 @@
       ],
       "passed": 17,
       "failed": 3
+    },
+    "parameter_control": {
+      "stage": 133,
+      "code_commit": "59c1aa39f943bd5c89060c4e3b4afe3f0dc54b77",
+      "evidence": "../issue7445/parameter_control_blocking_scope_validation.json",
+      "scope": "실제실패oracle이입력74/74행한개만",
+      "preserved": [
+        "#6307 행분할/본문하한",
+        "#6656 아이콘줄/저장사다리측정 기존두함수",
+        "모든다른함수/입력/축/원문/PDF"
+      ],
+      "passed": 17,
+      "failed": 2
     }
   },
   "latest_axis_snapshot": {

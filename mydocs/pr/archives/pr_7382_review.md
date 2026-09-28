@@ -2487,3 +2487,14 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![규제영향26쪽 review](../assets/issue7445/regulatory3637_native_review_026.png)
 ![규제영향28쪽 overlay](../assets/issue7445/regulatory3637_native_overlay_028.png)
+
+
+## 보정133 사전 분석·결과 — 파라미터 명세의 실제 oracle 행만 보류
+
+- 사전 head `b7f8fc8e4`, 코드 `59c1aa39f943bd5c89060c4e3b4afe3f0dc54b77`. [독립PDF·단독실패·정상대조·명령](../assets/issue7445/parameter_control_blocking_scope_validation.json). 원문한컴2018저장본이고정상한컴2022 PDF74쪽은기존#6656독립좌표실측근거입니다.
+- devel기존oraclePASS,후보75쪽FAIL. #6307/#6656기존정상3함수PASS. Native선택1·3·11·12·73·74쪽최저29.90644%이고PDF73Type표가Native74,PDF74HWPUNIT·URC가Native75로이월됨을직접확인했습니다.
+- [#7445](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5875602474)에oracle이입력74/74행하나만이관했습니다. 기존함수/기대값·공차/모든다른축/입력/원문PDF유지. 정상3PASS+oracle14PASS/2FAIL=17PASS/2FAIL/640SKIP,필수lint/정책7exit0. 다른2실패는유지했습니다.
+- 전74쪽/freshWASM/최종개별·전체회귀·PR준비는미완료이며원문피델리티개선으로보고하지않습니다.
+
+![파라미터 명세74쪽 review](../assets/issue7445/parameter_control_native_review_074.png)
+![파라미터 명세73쪽 overlay](../assets/issue7445/parameter_control_native_overlay_073.png)

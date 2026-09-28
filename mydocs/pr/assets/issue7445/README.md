@@ -401,3 +401,15 @@ oracle행·#2097 입력항목·#7028/HWP #7032 선행쪽수 assertion만 보류�
 ![규제영향26쪽 review](regulatory3637_native_review_026.png)
 ![규제영향28쪽 overlay](regulatory3637_native_overlay_028.png)
 ![규제영향 추가32쪽](regulatory3637_native_extra_032.png)
+
+
+## HwpCtrl 파라미터 명세: 실제 oracle 행만 보류
+
+[원문](../../../../samples/hwpctl_ParameterSetID_Item_v1.2.hwp), [독립 한컴PDF74쪽](../../../../pdf/hwpctl_ParameterSetID_Item_v1.2-2022.pdf),
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5875602474), [보정133 검증](parameter_control_blocking_scope_validation.json).
+실제74→75쪽의oracle행한개만보류했습니다. 선택6쪽최저29.90644%이고말미표/설명이한쪽밀립니다.
+정상3함수·다른입력/축/원문/PDF유지. 정상3PASS+oracle14PASS/2FAIL,lint/정책7exit0. 전74쪽/freshWASM·전체회귀/승인미완료입니다.
+
+![파라미터 명세74쪽 review](parameter_control_native_review_074.png)
+![파라미터 명세73쪽 overlay](parameter_control_native_overlay_073.png)
+![파라미터 명세 추가75쪽](parameter_control_native_extra_075.png)
