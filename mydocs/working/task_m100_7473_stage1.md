@@ -35,8 +35,9 @@ release에서 wasm-opt 실행 명령이 관측되지 않으면 검증을 실패�
 
 ## 결과
 
-로컬 구현과 기본 시각 비교를 수행했다. 전체 완료 판정은 보류한다.
-원격 push·PR 생성·새 Actions 실행은 아직 수행하지 않았다.
+로컬 구현·시각 비교와 Draft PR #7474의 원격 검증을 완료했다.
+최종 동일 SHA dev/release 각 3회 측정과 결론은 [CI 결과 보고서](../report/task_m100_7473_report.md)에 있다.
+아래 로컬 기록은 당시 조건과 실패 증거를 유지하며, ready/merge 및 캐시 구현은 후속 범위다.
 
 ### 실행 조건과 결과
 
@@ -83,7 +84,7 @@ kps-ai p1의 제목·연도·로고가 dev/release 사이에서 같은 위치와
 bindgen 준비/실행 0.985초, wasm-opt/마무리 27.881초를 관측했다.
 이는 새 release target의 빌드이며 dev의 warm 빌드와 비용 비율을 비교하지 않는다.
 호스트 부하도 통제하지 않았다. 시각 runner 1회 wall은 dev 60.329초 / release 69.616초지만
-반복이 없으므로 성능 개선·회귀의 근거로 쓰지 않는다. CI 증가분은 아직 미측정이다.
+반복이 없으므로 성능 개선·회귀의 근거로 쓰지 않는다. 이 로컬 수치로 CI 증가분을 추정하지 않는다. 실제 CI 비교는 결과 보고서에 있다.
 
 ### readiness 실패와 dev 대조
 
@@ -98,17 +99,16 @@ Canvas2D/CanvasKit 사이의 글자 굵기·세로 글줄 모양 차이는 두 �
 dev 대조에서 `--readiness-only --filter` 조합이 지원되지 않아 처음 명령은 실행 전 실패했으며,
 이후 filter 없이 동일 8개 집합 전체를 실행했다. 이 재실행 결과만 비교했다.
 증거: `output/issue-7473/{readiness,dev-readiness}/baseline-report.md`,
-`readiness-comparison.json`. 후보 Ubuntu CI의 readiness 및 비용은 아직 미검증이다.
+`readiness-comparison.json`. 후속 동일 SHA Ubuntu CI 6회에서는 readiness가 각각 8/8 통과했다. 비용은 결과 보고서를 참조한다.
 
-### 남은 검증과 후속 순서
+### 원격 검증 완료와 후속 순서
 
-1. 로컬 dev/release 공통 readiness 실패를 명시하고 Ubuntu 후보 CI 결과로 적용 범위를 확인한다.
-2. 승인 후 branch push·draft PR로 최신 head의 required checks를 실행한다.
-3. 동일 ref SHA의 수동 `wasm-profile=dev` / `release`를 각각 3회 실행한다.
-   runner 이미지·도구·fixture·폰트·캐시 조건이 맞는 실행끼리만 비교한다.
-   Rust/bindgen/opt는 build.json의 근사 구간, 시각/전체 job은 attempt별 API에서 구분한다.
-4. 실행 결과와 비용이 확인될 때 이슈 완료 여부를 결정한다. 반복 opt 비용이 크다면
-   캐시 무효화·결과 동등성 비용을 함께 따져 별도 이슈/PR로 제안한다.
+사용자 승인 후 branch push·Draft PR #7474 생성·동일 코드 dev/release 각 3회 실행을 완료했다.
+초기 trusted policy mirror 누락을 수정한 후보 `ddf5ce2`에서 Full CI·Render Diff·CodeQL과
+CI Impact Policy가 모두 성공했다. 실제 CI 정책 Node 묶음도 160개 통과했다.
+전체 job 중앙값은 dev 500초 / release 760초이고 opt/마무리는 약 118초다.
+[최종 보고서](../report/task_m100_7473_report.md)에 실행별 링크·환경·한계·후속 캐시 조사 순서를 기록했다.
+Draft 검토 뒤 ready/merge 여부를 결정하며 캐시 변경은 별도 PR로 검증한다.
 
 렌더링 source·baseline·cache 구현 변경은 없으므로 Rust 전체 lint/integration 및
 새 조판 Visual Sweep은 이 변경의 제품 수정 검증에 비해당이다. 실제 CI visual/readiness job은
