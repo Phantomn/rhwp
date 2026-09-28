@@ -2146,3 +2146,9 @@ head `a82cee49561109052553907231bcd7f2806f165d`에서 기존24·25번 off-canvas
 ## 보정92 결과 — 기존29번 개별 실행
 
 head `f56788498d63d21e6cafd9c563fab52c4e0cb133`에서 기존29번 text-overlap partition1을 단독 실행했습니다.1FAIL/227SKIP(exit100,1.497초)이며 화학표시기준 `issue6782/1480000-201900042-chemical-labeling-standards.hwp`의 신규2건과 `task1749/saved_bounds_cumulative_page_break.hwpx` 신규9건입니다. 첫 실패에서 멈췄으며 생산·검사·기대값 변경 없음. [명령·summary](../assets/pr7382_20260926/stage92_individual_validation.json). 화학표시 원문부터 한 개씩 독립 시각 비교합니다. 고정38은27완료/1이관/10대기이며 PR준비 미완료입니다.
+
+## 보정93 사전 분석·결과 — 화학표시기준 축소본 미달 회귀 제외
+
+기존29번의 축소본76쪽 신규겹침2건은5.68px의 캡션/앞 문단 충돌입니다. 해시가 다른 전체 원문을 같은 입력으로 묶지 않고 축소본 자체의 독립 한컴 PDF를 사용했습니다. 현재103/기준103쪽이나 Native76·77·78·83·103쪽60.7561/99.27598/53.67396/99.79822/99.98703%입니다.76쪽 캡션/표 위치와78쪽 표 행 높이·후속 캡션 차이를 직접 확인했고 전체/fresh WASM은 미실행입니다.
+
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870791302) 후 축소본만 보존/렌더링14함수·matrix2입력·body 원장1행을 제외했습니다. #7048 전체원문3함수와 다른 전체원문 검사·helper·공차·기대값 유지, 새 함수/skip/ignore/생산 변경 없음. 코드 `26777a527892cf17ef3b7e7ffcd5715024506ea7`, [근거](../assets/issue7445/chemical6782_test_removal_validation.json). 집중 ['     Summary [   1.328s] 4 tests run: 4 passed, 450 skipped']; 필수 lint/정책 exit는 근거에 구분했습니다. 입력 피델리티 미달 승인 제외이며 각 개별기대값의 오류확정/원문 개선/전체회귀 완료로 세지 않습니다. saved_bounds HWPX는 별도 미해결입니다.

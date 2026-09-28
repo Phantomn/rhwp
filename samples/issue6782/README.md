@@ -131,3 +131,7 @@ rhwp 는 `rhwp export-render-tree -p 76` 의 `Image` 노드 bbox.
 - `issue_6782_cell_float_full_original.rs`는 기존 전체 원본의 그림 11개와 CCC의 cell/index/bin-data 정체를 보호한다.
 - `issue_6782_cell_float_offset_outside_cell.rs`는 원 PR의 축소본 3개 시험 및 전체 원본과의 그림·호스트 셀 geometry 대조 시험을 수행한다.
 - 위 수정 전 수치와 MCP 작업 ID는 원 작성자의 산출 보고다. 메인터너가 새로 실행한 검증 및 대표 증적은 `mydocs/pr/archives/pr_6796_review.md`에 별도로 기록한다.
+
+## 축소본 회귀 이관
+
+축소본은 사용자 승인에 따라 [#7445 보존 자산](../../mydocs/pr/assets/issue7445/1480000-201900042-chemical-labeling-standards.hwp)으로 바이트 동일하게 이동했습니다. Native76쪽60.7561%/78쪽53.67396%로 피델리티 미달입니다. 별도 전체 원본·PDF와 해당 검사는 유지합니다. [실행·제외·유지 근거](../../mydocs/pr/assets/issue7445/chemical6782_test_removal_validation.json). 앞선 절의 samples 경로/부분 검증은 당시 기록이며 현재 전체 승인으로 해석하지 않습니다.

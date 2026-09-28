@@ -1131,7 +1131,7 @@
       "id": 29,
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_1",
       "case": "text_overlap_baseline",
-      "status": "pending",
+      "status": "resolved",
       "individual_results": [
         {
           "id": 29,
@@ -1165,13 +1165,24 @@
           ],
           "stage": 92,
           "head": "f56788498d63d21e6cafd9c563fab52c4e0cb133"
+        },
+        {
+          "stage": 93,
+          "head": "a4ba0551415ab41c9acd7aa0578bd6946a79adf0",
+          "code_commit": "26777a527892cf17ef3b7e7ffcd5715024506ea7",
+          "focused_summary": [
+            "     Summary [   1.328s] 4 tests run: 4 passed, 450 skipped"
+          ],
+          "focused_exit": 0,
+          "evidence": "../issue7445/chemical6782_test_removal_validation.json"
         }
       ],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
         "target": "regression_suite_016",
         "grouped": true
-      }
+      },
+      "resolution": "축소본 이관 뒤 최신 corpus 소속의 개별 함수 PASS. 별도 saved_bounds 원문은 추가 미해결 기록으로 유지."
     },
     {
       "id": 30,
@@ -1282,12 +1293,12 @@
       }
     }
   ],
-  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_1",
-  "next_candidate_reason": "기존29번 화학표시기준 신규2건과 saved_bounds HWPX9건. 화학표시 원문부터 독립 PDF로 한 개씩 판단.",
+  "next_candidate": "samples/task1749/saved_bounds_cumulative_page_break.hwpx",
+  "next_candidate_reason": "기존29번에서 함께 검출된 별도 HWPX를 다음 한 원문 단계에서 시각 검증.",
   "current_status_counts": {
-    "resolved": 27,
+    "resolved": 28,
     "deferred_to_issue": 1,
-    "pending": 10
+    "pending": 9
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
@@ -1414,6 +1425,21 @@
       "stage": 91,
       "note": "현재51/정상50쪽, 선택최저14.87881%. 원문보존/렌더링2함수·원장2행 제외. 피델리티 해결 아님.",
       "evidence": "../issue7445/footnote1937_test_removal_validation.json"
+    },
+    {
+      "document": "samples/issue6782/1480000-201900042-chemical-labeling-standards.hwp",
+      "observed_stage": 92,
+      "status": "deferred_to_issue",
+      "stage": 93,
+      "note": "선택 최저53.67396%. 원문보존/회귀제외. 피델리티 해결 아님.",
+      "evidence": "../issue7445/chemical6782_test_removal_validation.json"
+    },
+    {
+      "document": "samples/task1749/saved_bounds_cumulative_page_break.hwpx",
+      "observed_stage": 92,
+      "status": "pending",
+      "failure": "text-overlap 신규9건",
+      "note": "축소 화학문서와 별도 원문. 독립 기준/실제 시각 판정 미실행."
     }
   ]
 }

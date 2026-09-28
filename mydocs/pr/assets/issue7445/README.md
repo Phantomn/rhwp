@@ -176,3 +176,13 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native43쪽 표와 각주 중첩·내용 소유 차이](footnote1937_native_review_043.png)
 
 ![Native44쪽 페이지 내용 소유 차이](footnote1937_native_overlay_044.png)
+
+## 추가: 화학제품 표시 기준 축소 HWP #6782
+
+- [등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870791302), [보존 축소본](1480000-201900042-chemical-labeling-standards.hwp), [축소본 자체의 독립 한컴 PDF103쪽](../../../../pdf/issue7382-regression-review/1480000-201900042-chemical-labeling-standards-2020.pdf), [시각·제외·유지 검증](chemical6782_test_removal_validation.json). 기존 PDF와 별도 전체 원본은 보존합니다.
+- 현재103/기준103쪽이나 선택 Native76·77·78·83·103쪽60.7561/99.27598/53.67396/99.79822/99.98703%입니다.76쪽 캡션이 앞 문단과 겹치고78쪽 표 행 높이·외곽·후속 표 캡션 위치가 다른 차이를 직접 확인했습니다. 전체103쪽/fresh WASM은 미실행입니다.
+- 193,536byte 축소본은 전체 원문6,521,856byte와 해시가 다른 입력입니다. 축소본만 바이트 동일하게 이관하고 렌더링·페이지/물리 배치14함수, #7048 두matrix의 축소본 입력, body 원장1행을 제거했습니다. #7048 전체 원문의3함수와 다른 원문 검사·helper·기대값·공차를 유지합니다. 새 함수/skip/ignore/생산 변경/공차 완화 없음. 집중 ['     Summary [   1.328s] 4 tests run: 4 passed, 450 skipped']; 필수 lint/정책은 위 JSON에 기록했습니다. 개별기대값오류확정이나 원문 피델리티 해결로 세지 않습니다.
+
+![Native76쪽 표 캡션과 앞 문단 겹침](chemical6782_native_review_076.png)
+
+![Native78쪽 표 행 높이·캡션 차이](chemical6782_native_overlay_078.png)
