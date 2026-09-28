@@ -10,10 +10,21 @@
       "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_0",
       "case": "body_overflow_baseline",
       "status": "pending",
-      "individual_results": [],
+      "individual_results": [
+        {
+          "stage": 71,
+          "before_move": "1PASS,17/19건:문서피델리티승인아님",
+          "after_move": "1FAIL,#6031 1→15건",
+          "test_snapshot_commit": "ca499e732a076009496da9f6b5a90ccdc2442698",
+          "fixture_deferred": "issue5941/1480000-201900698-native-neartop-reset.hwp",
+          "fixture_removal_evidence": "../issue7445/neartop5941_test_removal_validation.json",
+          "status": "pending",
+          "reason": "corpus 재배정의다른문서실패를다음개별검토"
+        }
+      ],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
-        "target": "regression_suite_005",
+        "target": "regression_suite_011",
         "grouped": true
       }
     },
@@ -25,7 +36,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
-        "target": "regression_suite_005",
+        "target": "regression_suite_011",
         "grouped": true
       }
     },
@@ -37,7 +48,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
-        "target": "regression_suite_005",
+        "target": "regression_suite_011",
         "grouped": true
       }
     },
@@ -49,7 +60,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
-        "target": "regression_suite_005",
+        "target": "regression_suite_011",
         "grouped": true
       }
     },
@@ -61,7 +72,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
-        "target": "regression_suite_005",
+        "target": "regression_suite_011",
         "grouped": true
       }
     },
@@ -73,7 +84,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
-        "target": "regression_suite_005",
+        "target": "regression_suite_011",
         "grouped": true
       }
     },
@@ -85,7 +96,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
-        "target": "regression_suite_005",
+        "target": "regression_suite_011",
         "grouped": true
       }
     },
@@ -97,7 +108,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
-        "target": "regression_suite_005",
+        "target": "regression_suite_011",
         "grouped": true
       }
     },
@@ -109,7 +120,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
-        "target": "regression_suite_005",
+        "target": "regression_suite_011",
         "grouped": true
       }
     },
@@ -138,7 +149,7 @@
       ],
       "resolved_plan": {
         "caseName": "issue_1658_page_bottom_fixed_exclusion",
-        "target": "regression_suite_016",
+        "target": "regression_suite_020",
         "grouped": true
       },
       "correction_commit": "0c841eb4b",
@@ -166,7 +177,7 @@
       ],
       "resolved_plan": {
         "caseName": "issue_1733",
-        "target": "regression_suite_016",
+        "target": "regression_suite_028",
         "grouped": true
       },
       "evidence": "stage58_tail1733_validation.json",
@@ -193,7 +204,7 @@
       ],
       "resolved_plan": {
         "caseName": "issue_2006_1790387_prep_pagination_pin",
-        "target": "regression_suite_007",
+        "target": "regression_suite_020",
         "grouped": true
       },
       "evidence": "stage59_prep2006_validation.json",
@@ -217,7 +228,7 @@
       ],
       "resolved_plan": {
         "caseName": "issue_2243",
-        "target": "regression_suite_009",
+        "target": "regression_suite_023",
         "grouped": true
       },
       "correction_commit": "1c82df86f3fe8db6837b23d3e28b890723c617bf",
@@ -244,7 +255,7 @@
       ],
       "resolved_plan": {
         "caseName": "issue_5585_sibling_table_anchor_offset",
-        "target": "regression_suite_017",
+        "target": "regression_suite_022",
         "grouped": true
       },
       "correction_commit": "3f2951b6b0ff522b4f702ed8aa895f8195a43a4a",
@@ -306,7 +317,7 @@
       ],
       "resolved_plan": {
         "caseName": "issue_6101_block_tac_table_text_order",
-        "target": "regression_suite_012",
+        "target": "regression_suite_008",
         "grouped": true
       },
       "correction_commit": "1005da62eecb20b7bfd7972f0797d01f1b0aa0fe",
@@ -383,7 +394,7 @@
       ],
       "resolved_plan": {
         "caseName": "issue_7390_kopub_latin_metrics",
-        "target": "regression_suite_012",
+        "target": "regression_suite_026",
         "grouped": true
       },
       "correction_commit": "fd10e7fd9d9fda41648b0d8ba2f57d219ae8d197",
@@ -408,7 +419,7 @@
       ],
       "resolved_plan": {
         "caseName": "issue_7390_kopub_latin_metrics",
-        "target": "regression_suite_012",
+        "target": "regression_suite_026",
         "grouped": true
       },
       "correction_commit": "fd10e7fd9d9fda41648b0d8ba2f57d219ae8d197",
@@ -497,7 +508,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "off_canvas_baseline",
-        "target": "regression_suite_008",
+        "target": "regression_suite_027",
         "grouped": true
       }
     },
@@ -509,7 +520,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "off_canvas_baseline",
-        "target": "regression_suite_008",
+        "target": "regression_suite_027",
         "grouped": true
       }
     },
@@ -521,7 +532,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "oracle_page_count_baseline",
-        "target": "regression_suite_026",
+        "target": "regression_suite_008",
         "grouped": true
       }
     },
@@ -533,7 +544,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "oracle_page_count_baseline",
-        "target": "regression_suite_026",
+        "target": "regression_suite_008",
         "grouped": true
       }
     },
@@ -545,7 +556,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_027",
+        "target": "regression_suite_024",
         "grouped": true
       }
     },
@@ -557,7 +568,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_027",
+        "target": "regression_suite_024",
         "grouped": true
       }
     },
@@ -569,7 +580,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_027",
+        "target": "regression_suite_024",
         "grouped": true
       }
     },
@@ -581,7 +592,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_027",
+        "target": "regression_suite_024",
         "grouped": true
       }
     },
@@ -593,7 +604,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_027",
+        "target": "regression_suite_024",
         "grouped": true
       }
     },
@@ -605,7 +616,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_027",
+        "target": "regression_suite_024",
         "grouped": true
       }
     },
@@ -617,7 +628,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_027",
+        "target": "regression_suite_024",
         "grouped": true
       }
     },
@@ -629,7 +640,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_027",
+        "target": "regression_suite_024",
         "grouped": true
       }
     },
@@ -641,7 +652,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_027",
+        "target": "regression_suite_024",
         "grouped": true
       }
     },
@@ -653,7 +664,7 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_027",
+        "target": "regression_suite_024",
         "grouped": true
       }
     },
@@ -665,16 +676,22 @@
       "individual_results": [],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_027",
+        "target": "regression_suite_024",
         "grouped": true
       }
     }
   ],
   "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_0",
-  "next_candidate_reason": "18번 보정70 개별 완료. 다음 대기는1번 본문 영역 초과 검사로 원인과 독립 기준부터 분석한다. 유지37 재실행·전체 회귀·최종 검증 완료 전 PR 보류.",
+  "next_candidate_reason": "보정71 큰 생물독 문서를 사용자 지시로 #7445에 이관. corpus 이동 뒤 suite와partition소속이 바뀌어 개별 결과를 다시 확인한다. 90%미만 실패문서는 승인된 이관/검사 제거 경로를 적용한다.",
   "current_status_counts": {
     "pending": 24,
     "resolved": 13,
     "deferred_to_issue": 1
+  },
+  "fixture_removal_policy": {
+    "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
+    "source_date": "2026-09-28",
+    "preserve": "원본 HWP/HWPX와 독립 PDF 및 실패 증거를 보존. 다른 문서/검사/공차 유지.",
+    "not_resolution": "원본 피델리티 개선 또는90%승인으로 세지 않는다."
   }
 }

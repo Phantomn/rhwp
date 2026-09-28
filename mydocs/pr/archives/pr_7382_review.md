@@ -1976,3 +1976,20 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 - 보정69 코드 `b7436944b81d20ad799edcd59ead3b94621902b3`를 포함한 `b87c2130ba41aa33b4b92cfa2187eb90f4933c4f`에서 기존18번만 `cargo nextest`로 실행하여 **1 PASS/215 SKIP, exit0**을 확인했습니다. `release-test`, `target/pr-review`, threads8을 사용했고 코드·기대값·함수는 추가 수정하지 않았습니다.
 - 같은 원문 전7쪽 Native/fresh WASM 최저95.81586%와 직접 확인한 페이지 소유·잔여 위치 차이는 [보정69](../assets/pr7382_20260926/stage69_validation.json)를 연결합니다. 생산 코드 해시와 코드 commit 이후 문서/증적만 변경된 사실을 다시 확인했습니다. 전체 head 새 캡처나 전체 회귀 통과로 보고하지 않습니다. [보정70 개별 검증](../assets/pr7382_20260926/stage70_validation.json)에 이전 실패·현재 명령·출력·해시를 보존했습니다.
 - 고정38은 **13해결/1이관/24대기**입니다. 다음 대기는1번 본문 영역 초과 검사이며, 유지37 각각 재실행·전체 nextest·Native Skia3·최종 통합 head 검증 및 직접 발견된 쪽번호 차이 해소 전 **PR 준비 보류**를 유지합니다.
+
+## 보정71 사전 분석 — 기존1번 본문 영역 초과 partition0
+
+- 기준 head `aa7dc390c6e11e98658926513150be8f93695e7b`에서 `body_overflow_does_not_grow_partition_0`을 먼저 개별 실행합니다. 실패 시 증가 문서와 본문 경계를 넘는 실제 노드를 식별한 뒤 저장 정보·기준 한컴 PDF·같은 페이지 Visual Sweep으로 검사 적절성을 판정합니다. 기존2px 공차와 baseline은 유지하고, 90% 미달 원문은 렌더링부터 개선합니다. 새 검사 함수는 추가하지 않습니다.
+
+- 개별1번은1PASS/228SKIP,현재17건/기존19건입니다. 첫 잘못된 suite005 실행은0검사(exit4)로 제외하고 실제suite025에서 재실행했습니다. 그러나 문서는203/정상205쪽이며39/53쪽Native47.03148/58.70083%로 보류입니다. 첫 페이지 소유 차이는그림7:원문para109의저장vpos300/줄높이21000HU가이전para108의저장끝52982HU 뒤같은본문71154HU에들어가지않지만인라인Picture가reset분기에서제외되어실제21쪽에붙습니다. `apply_stored_paragraph_boundary→advance_column_or_new_page→실제페이지배치`에공통경계를복원하는후보를검증하며,baseline과테스트기대는바꾸지않습니다.
+
+- 사용자 후속 지시로61,810,688byte 생물독 문서를 [#7445 추가 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868460165)했습니다. 원본은`mydocs/pr/assets/issue7445/1480000-201900698-native-neartop-reset.hwp`로해시동일하게보존하고정상PDF205쪽도유지합니다. 큰문서의전용2함수와원장3행만제거하며,작은#5921검사와#7147나머지2함수 및generic partition함수는유지합니다. 렌더러후보는철회했고후보빌드는exit130으로중단했습니다. 제거를해결/PASS로바꾸지않습니다. 다음실패검사도동일입력의Visual Sweep이90%미만이면#7445등록후관련검사를제거하는사용자지시를적용합니다.
+
+- 이동후크기기반corpus partition0은69개문서/스킵1개로재편되어다른문서`issue6031/3249937_asset_management_rules.hwpx`의1→15건증가로FAIL(exit100)입니다. 제거대상생물독문서의재실행실패가아니며다음개별검토대상입니다. 분할번호만으로이전실패원인과같다고간주하지않습니다. 전체회귀PASS·수용가능으로보고하지않습니다.
+
+## 보정71 결과 — 사용자 승인 생물독 문서 이관
+
+- 제거 commit: `ca499e732a076009496da9f6b5a90ccdc2442698`. 61,810,688byte HWP를100%동일한rename으로보존하고전용2함수·세원장행을제거했습니다. 렌더러코드변경·새검사·ignore/공차완화는없습니다. 독립PDF205쪽·대표Native39/53쪽review/overlay를보존했습니다. [제거·검증 기록](../assets/issue7445/neartop5941_test_removal_validation.json).
+- fmt/check, Native Clippy, WASM lib Clippy, workspace build, workspace all-targets Clippy 및고정base `d6cf1605327ced1c276f17a529192a743a766209` manifest 검사는모두exit0입니다. source-side 단위검사는수정하지않았습니다. `.log`,output,pkg,generated파일은커밋하지않습니다.
+- 유지한작은#5921은1PASS/213SKIP입니다. body partition0은재배정된#6031 자산관리규정의1→15건증가로1FAIL/231SKIP이며, #7147의다른시장구조조사원문은기존2함수모두pi934표의쪽위치조건으로FAIL입니다. 두함수와helper는제거전HEAD와같고production도불변이므로생물독원문제거를이문서의수정으로보고하지않습니다. 새로확인한두원문의독립PDF와90%조건을이후개별판정합니다.
+- 고정38의해결수를올리지않습니다(13개별완료/1함수이관/24대기). 전체 corpus소속과suite소속이바뀌어유지37개함수각각을새소속에서다시실행해야합니다. 새정책은실패문서의실제Visual Sweep이90%미만일때#7445에추가등록한뒤관련검사를제거하는것이며,정상출력승인·피델리티해결로세지않습니다. 다음은현재1번의#6031 원문입니다.
