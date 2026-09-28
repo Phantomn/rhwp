@@ -2076,3 +2076,13 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 사용자 지시에 따라 [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869729786) 후 전용4함수와 corpus3행을 제거했습니다. 원문은 바이트 동일하게 이관하고 PDF를 유지했습니다. 다른 issue3637 입력과 합성 중첩 행 계약·함수·공차를 유지하며 생산 변경/새 함수/skip/ignore가 없습니다. 코드 `521cee34a1d62ae144e2db28ab015f95bb39fd99`, [검증·보존 근거](../assets/issue7445/press3637_test_removal_validation.json).
 
 유지5PASS/다른입력2FAIL/849SKIP(exit100), 필수 lint·workspace build·고정 base 정책은exit0입니다. 실패는 별도 규제영향HWPX 셀 위치 검사와 관제교육/rowbreak HWP의 본문 넘침입니다. 원래 고정38은17검증 완료/1이관/20대기이며 다른 원문도 한 개씩 판정합니다. PR 준비는 전체검증 완료 전까지 미완료입니다.
+
+## 보정81 사전 분석·결과 — rowbreak HWP의 미달 회귀 제외
+
+고정5번의 신규 본문 초과1건은 `samples/rowbreak-problem-pages.hwp` 3쪽 표 조각의2.26667px 초과입니다. 같은 원문의 독립 한컴2024 PDF와 비교한 실제/기준 쪽수는18/18이지만, 선택 Native3·8·12·13·17·18쪽은96.83411/49.39444/80.05503/71.99775/99.82183/88.25163%입니다. 8쪽의 이전 내용 이어받기와 제27조 셀 경계/뒤 항목 소유 차이를 직접 확인했습니다. 선택6쪽 실행은 완료했으며 전체/fresh WASM은 미실행입니다.
+
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869840624) 후 HWP 원문을 바이트 동일하게 이관하고, 전용5함수와 공용4함수의 HWP 입력 및 corpus3행만 제거했습니다. HWPX 입력·다른 matrix·기대값·공차는 유지합니다. 순수 #1770 파서 origin-marker 함수는 보존 경로만 수정했습니다. #4967 cache-key 함수는 실제 page tree를 검사하므로 HWP 렌더링 검사 제거 범위입니다. 새 함수/skip/ignore/생산 변경은 없습니다.
+
+초기 전체 target Clippy의 잔여 문서 주석과 단일 입력 loop 오류를 수정해 같은 범위를 다시 검증합니다. 처음 지원하지 않는 Sweep 옵션 호출은 capture 이전 setup 실패이며 올바른 옵션으로 선택6쪽을 완주했습니다. 이 오류를 렌더링 결함 재현으로 세지 않습니다.
+
+최종 최신 배정 집중 검사는37PASS/다른 입력4FAIL/1265SKIP(exit100)이며 fmt·Clippy3종·workspace build·고정 base manifest/unit-tier는exit0입니다. 실패는 별도HWPX의7쪽2함수, exact-face 문서의 추적건수1334/기대1336, 관제교육39→40건입니다. 이번HWP의 제외를 다른 원문의 해결이나 전체 검증 통과로 세지 않습니다. 코드 `66510d325d7c085e684a914f4176d953bf9eef38`, [보존·실행 증거](../assets/issue7445/rowbreak_hwp_test_removal_validation.json). 고정38은17완료/1이관/20대기이며 다음은 고정5번의 관제교육 원문입니다. PR 준비는 미완료입니다.

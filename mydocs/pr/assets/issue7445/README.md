@@ -104,3 +104,13 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native8쪽 중첩 상자와 배경 차이](press3637_native_review_008.png)
 
 ![Native12쪽 향후계획 표의 페이지 소유 차이](press3637_native_overlay_012.png)
+
+## 추가: rowbreak HWP의 표 분할과 내용 소유
+
+- [이관 등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869840624), [보존 HWP](rowbreak-problem-pages.hwp), [같은 원문의 독립 한컴2024 PDF18쪽](../../../../pdf/rowbreak-problem-pages-hwp-2024.pdf), [검사 제외·보존과 검증](rowbreak_hwp_test_removal_validation.json).
+- 실제/기준 모두18쪽이지만 선택 Native3·8·12·13·17·18쪽은96.83411/49.39444/80.05503/71.99775/99.82183/88.25163%입니다. 8쪽 이전 내용 이어받기와 제27조 셀 경계/후속 항목 소유 차이를 직접 확인했습니다. 전체18쪽/fresh WASM 통과를 주장하지 않습니다.
+- HWP 전용5함수와 공용4함수의 HWP matrix 입력, corpus3행만 제거했습니다. HWPX와 다른 matrix·기대값·공차는 유지하며, 순수 #1770 origin-marker 파서 계약은 보존 경로만 수정했습니다. #4967 cache-key 함수는 실제 page tree를 검증하므로 HWP 렌더링 검사 제외에 포함합니다. 정적 IR 자료는 보존합니다. 새 함수/ignore/skip/생산 변경은 없습니다.
+
+![Native8쪽의 내용 소유와 표 경계 차이](rowbreak_hwp_native_review_008.png)
+
+![Native12쪽의 표와 본문 위치 차이](rowbreak_hwp_native_overlay_012.png)

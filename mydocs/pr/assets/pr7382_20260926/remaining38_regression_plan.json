@@ -195,6 +195,13 @@
           "code_commit": "521cee34a1d62ae144e2db28ab015f95bb39fd99",
           "evidence": "../issue7445/press3637_test_removal_validation.json",
           "scope": "미달보도자료 전용4검사 제외; 관제교육/rowbreak 및 별도규제영향HWPX 미해결"
+        },
+        {
+          "stage": 81,
+          "head": "66510d325d7c085e684a914f4176d953bf9eef38",
+          "after": "body partition2 단독 선택1FAIL: 관제교육39→40건; 최신 집중37PASS/다른4FAIL",
+          "evidence": "../issue7445/rowbreak_hwp_test_removal_validation.json",
+          "scope": "rowbreak HWP 이관. body generic 유지; 다른 실패 해결 아님."
         }
       ],
       "resolved_plan": {
@@ -809,7 +816,7 @@
     }
   ],
   "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_2",
-  "next_candidate_reason": "고정5번의남은원문을개별검증. rowbreak HWP부터 처리.",
+  "next_candidate_reason": "고정5번 본문초과의 관제교육 원문을 같은 입력의 독립 PDF로 별도 판단. 다른 HWPX/글꼴 추적 추가 실패도 보존하며 전체 완료 전 해결.",
   "current_status_counts": {
     "resolved": 17,
     "deferred_to_issue": 1,
@@ -835,8 +842,10 @@
       "document": "samples/rowbreak-problem-pages.hwp",
       "observed_stage": 74,
       "failure": "body bottom신규1건",
-      "status": "pending",
-      "note": "corpus재배정후functionPASS를이원문해결로간주하지않음;동일입력Visual Sweep미실행"
+      "status": "deferred_to_issue",
+      "note": "선택6쪽 sweep 90%미달. #7445 등록/원문 보존/전용5검사와matrix4입력제외. 피델리티 개선 아님.",
+      "stage": 81,
+      "evidence": "../issue7445/rowbreak_hwp_test_removal_validation.json"
     },
     {
       "document": "samples/hwp3-sample16-hwp5.hwpx",
@@ -869,6 +878,22 @@
       "status": "pending",
       "failure": "nested_table_starts_inside_its_parent_cell 기존 함수FAIL",
       "note": "다른보도자료이관과별도입력. 독립Visual Sweep미실행."
+    },
+    {
+      "document": "samples/rowbreak-problem-pages.hwpx",
+      "functions": [
+        "rowbreak_page7_nested_table_paragraph_keeps_host_text",
+        "rowbreak_page7_starts_article_26_like_hancom_pdf"
+      ],
+      "status": "pending",
+      "observed_stage": 81
+    },
+    {
+      "document": "samples/143E433F503322BD33.hwp",
+      "function": "stage4_public_hwp_hwpx_profiles_are_end_to_end_and_feature_detected",
+      "observation": "exact-face: charactersSeen/recordsEmitted 1334, 기대1336. 같은 runsSeen194. 원인과 독립 근거 판단 미완료.",
+      "observed_stage": 81,
+      "status": "pending"
     }
   ]
 }
