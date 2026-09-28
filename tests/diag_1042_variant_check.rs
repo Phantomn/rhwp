@@ -3,7 +3,7 @@ fn check_variant_flags() {
     let files = [
         "samples/k-water-rfp.hwp",
         "samples/k-water-rfp-2024.hwp",
-        "samples/hwp3-sample16-hwp5-2022.hwp",
+        "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2022.hwp",
         "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp",
     ];
     for f in files.iter() {

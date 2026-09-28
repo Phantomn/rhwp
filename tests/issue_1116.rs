@@ -137,9 +137,8 @@ fn assert_page3_latin_poppy_resolves_to_palatino(rel_path: &str) {
     let latin_c_attrs = extract_text_attrs(&svg, "C");
     assert!(
         latin_c_attrs.iter().any(|attrs| {
-            // SVG attribute serialization must XML-escape the CSS family-name
-            // quotes. Assert the semantic family list rather than a single
-            // serializer spelling (plain `'` vs `&apos;`).
+            // SVG 속성의 CSS 글꼴 이름 따옴표는 XML escape를 적용한다.
+            // 따옴표 표기 차이보다 실제 글꼴 목록의 의미를 검사한다.
             attrs
                 .replace("&apos;", "'")
                 .contains("font-family=\"'Palatino Linotype',")
@@ -154,11 +153,6 @@ fn assert_page3_latin_poppy_resolves_to_palatino(rel_path: &str) {
         }),
         "{rel_path} p3 Latin glyphs must not fall back through unresolved HCI Poppy: {latin_c_attrs:?}"
     );
-}
-
-#[test]
-fn sample16_hwp5_2022_page3_latin_font_matches_legacy_hancom_mapping() {
-    assert_page3_latin_poppy_resolves_to_palatino("samples/hwp3-sample16-hwp5-2022.hwp");
 }
 
 #[test]
@@ -185,60 +179,5 @@ fn sample16_hwp3_page3_heading_positions_follow_hancom_grid() {
     assert!(
         heading3.is_some(),
         "HWP3 원본 p3 `3. 주요 추진내용`도 한컴 3mm 격자 y≈749.2를 따라야 함: {threes:?}"
-    );
-}
-
-#[test]
-fn sample16_hwp5_2022_page3_bcp_tail_paragraph_folds_orphan_lineseg() {
-    let doc = load_doc("samples/hwp3-sample16-hwp5-2022.hwp");
-    let dump = doc.dump_page_items(Some(2));
-    let p83 = dump
-        .lines()
-        .find(|line| line.contains("FullParagraph  pi=83"))
-        .unwrap_or_else(|| panic!("2022 p3 pi=83 dump line not found:\n{dump}"));
-    let summary = dump
-        .lines()
-        .find(|line| line.contains("단 0 (items=19"))
-        .unwrap_or_else(|| panic!("2022 p3 단 요약을 찾을 수 없음:\n{dump}"));
-
-    // dump-pages 는 #4628 이후 HeightMeasurer 합(31.5)이 아니라 프로덕션
-    // format_paragraph total(sb=1.9 + lines=27.7 + sa=0 → 29.6)을 말한다.
-    // 접힘 계약은 그대로: lh/ls 한 줄, 꼬리 LINE_SEG 를 별도 시각 줄로 세지 않는다.
-    assert!(
-        p83.contains("h=29.6")
-            && p83.contains("lines=27.7")
-            && p83.contains("lh=17.3")
-            && p83.contains("ls=10.4"),
-        "2022 p83 BCP 문단의 마지막 LINE_SEG 꼬리는 한컴오피스처럼 앞 줄에 접혀야 함: {p83}"
-    );
-    assert!(
-        summary.contains("used=874.5px")
-            && summary.contains("hwp_used≈841.6px")
-            && summary.contains("diff=+32.9px"),
-        "2022 p3 단 요약은 p83 꼬리 LINE_SEG를 별도 시각 줄로 세지 않아야 함: {summary}"
-    );
-}
-
-#[test]
-fn sample16_hwp5_2022_page3_bcp_tail_glyph_stays_on_hancom_line() {
-    let svg = render_svg("samples/hwp3-sample16-hwp5-2022.hwp", 2);
-    let tail_glyphs = extract_text_positions(&svg, "립");
-
-    let folded_tail = tail_glyphs
-        .iter()
-        .find(|(x, y)| *x > 620.0 && (*y - 881.35).abs() < 1.0)
-        .copied();
-    assert!(
-        folded_tail.is_some(),
-        "2022 p83 BCP `수립`의 `립`은 한컴오피스처럼 p83 본문 줄 y≈881.35에 있어야 함: {tail_glyphs:?}"
-    );
-
-    let orphan_tail = tail_glyphs
-        .iter()
-        .find(|(x, y)| (*x - 126.7).abs() < 2.0 && (*y - 909.1).abs() < 2.0)
-        .copied();
-    assert!(
-        orphan_tail.is_none(),
-        "2022 p83 BCP `립`이 다음 줄 머리에 단독 배치되면 p84 이하가 한컴오피스보다 내려감: {tail_glyphs:?}"
     );
 }

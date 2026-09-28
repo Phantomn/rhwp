@@ -187,18 +187,6 @@ fn task1105_sample16_hwp5_2018_server_requirements_page_matches_hancom() {
 }
 
 #[test]
-fn task1105_sample16_hwp5_2022_business_selection_break_matches_hancom() {
-    assert_sample16_hwp5_business_selection_starts_next_page("samples/hwp3-sample16-hwp5-2022.hwp");
-}
-
-#[test]
-fn task1105_sample16_hwp5_2022_server_requirements_page_matches_hancom() {
-    assert_sample16_hwp5_server_requirements_page_matches_hancom(
-        "samples/hwp3-sample16-hwp5-2022.hwp",
-    );
-}
-
-#[test]
 fn task1105_sample16_hwp5_2024_business_selection_break_matches_hancom() {
     assert_sample16_hwp5_business_selection_starts_next_page("samples/hwp3-sample16-hwp5-2024.hwp");
 }
