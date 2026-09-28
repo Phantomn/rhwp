@@ -75,8 +75,42 @@
       "id": 3,
       "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_10",
       "case": "body_overflow_baseline",
-      "status": "pending",
-      "individual_results": [],
+      "status": "resolved",
+      "individual_results": [
+        {
+          "stage": 76,
+          "id": 3,
+          "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_10",
+          "plan": {
+            "caseName": "body_overflow_baseline",
+            "target": "regression_suite_015",
+            "grouped": true
+          },
+          "command": [
+            "cargo",
+            "nextest",
+            "run",
+            "--locked",
+            "--cargo-profile",
+            "release-test",
+            "--target-dir",
+            "target/pr-review",
+            "--test",
+            "regression_suite_015",
+            "-E",
+            "test(=body_overflow_baseline::body_overflow_does_not_grow_partition_10)",
+            "--test-threads",
+            "8",
+            "--no-fail-fast"
+          ],
+          "exit_code": 0,
+          "seconds": 10.097216708119959,
+          "summary": [
+            "     Summary [   2.431s] 1 test run: 1 passed, 233 skipped"
+          ],
+          "head": "24d83f3a487a200c821b85c713c32fa93006d9d3"
+        }
+      ],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
         "target": "regression_suite_015",
@@ -88,7 +122,41 @@
       "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_15",
       "case": "body_overflow_baseline",
       "status": "pending",
-      "individual_results": [],
+      "individual_results": [
+        {
+          "stage": 76,
+          "id": 4,
+          "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_15",
+          "plan": {
+            "caseName": "body_overflow_baseline",
+            "target": "regression_suite_015",
+            "grouped": true
+          },
+          "command": [
+            "cargo",
+            "nextest",
+            "run",
+            "--locked",
+            "--cargo-profile",
+            "release-test",
+            "--target-dir",
+            "target/pr-review",
+            "--test",
+            "regression_suite_015",
+            "-E",
+            "test(=body_overflow_baseline::body_overflow_does_not_grow_partition_15)",
+            "--test-threads",
+            "8",
+            "--no-fail-fast"
+          ],
+          "exit_code": 100,
+          "seconds": 0.9144678330048919,
+          "summary": [
+            "     Summary [   0.532s] 1 test run: 0 passed, 1 failed, 233 skipped"
+          ],
+          "head": "24d83f3a487a200c821b85c713c32fa93006d9d3"
+        }
+      ],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
         "target": "regression_suite_015",
@@ -712,12 +780,12 @@
       }
     }
   ],
-  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_10",
-  "next_candidate_reason": "보정75에서 별도 HWPX의 미달 증거 등록·승인 제외를 완료. 고정38의 다음 대기3번을 개별 실행.",
+  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_15",
+  "next_candidate_reason": "3번 개별PASS;4번 FAIL에서 중단. 2010 HWP, 보도자료 HWPX, rowbreak HWP를 각각 독립 출력으로 판정.",
   "current_status_counts": {
-    "resolved": 15,
-    "pending": 22,
-    "deferred_to_issue": 1
+    "resolved": 16,
+    "deferred_to_issue": 1,
+    "pending": 21
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
