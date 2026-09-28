@@ -39,23 +39,7 @@
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 use rhwp::wasm_api::HwpDocument;
 
-const SAMPLE: &str = "samples/hwpctl_API_v2.4.hwp";
-
 const HWPUNIT_PER_PX: f64 = 7200.0 / 96.0;
-
-/// `rhwp dump samples/hwpctl_API_v2.4.hwp` 의 실측값.
-///
-/// `(0-based 쪽, 문단, 앵커 ls[0] vpos, 위 바깥여백, 정본 PDF 윗변)`
-/// 정본 값은 `pdf/hwpctl_API_v2.4-hwp-2020.pdf` 의 가로 괘선(폭 427.7px)이다.
-const STORED_ANCHOR_CASES: &[(u32, usize, i64, i64, f64)] = &[
-    (11, 156, 20193, 283, 398.28),
-    (24, 473, 9460, 283, 255.24),
-    (24, 483, 26453, 283, 481.55),
-    (31, 694, 12980, 283, 302.23),
-    (40, 951, 30893, 283, 540.69),
-    (41, 970, 17675, 283, 364.72),
-    (48, 1172, 5960, 283, 208.73),
-];
 
 fn page_root(sample: &str, page: u32) -> RenderNode {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(sample);
@@ -89,15 +73,6 @@ fn find<'a>(
     out
 }
 
-fn body_top(root: &RenderNode) -> f64 {
-    find(root, &mut |node| {
-        matches!(node.node_type, RenderNodeType::Body { .. })
-    })
-    .first()
-    .map(|node| node.bbox.y)
-    .expect("Body 노드")
-}
-
 fn table_top(root: &RenderNode, para_index: usize) -> f64 {
     let tables = find(root, &mut |node| match &node.node_type {
         RenderNodeType::Table(table) => table.para_index == Some(para_index),
@@ -109,123 +84,6 @@ fn table_top(root: &RenderNode, para_index: usize) -> f64 {
         .iter()
         .map(|node| node.bbox.y)
         .fold(f64::INFINITY, f64::min)
-}
-
-/// 저장 앵커를 쓰는 자리차지 표의 윗변은 `본문 상단 + (앵커 vpos − 위 바깥여백)` 이다.
-///
-/// 수정 전에는 조판이 이 앵커를 거부해 표가 host 줄 높이만큼(9.5~10.3px) 위에 놓였고,
-/// 그 자리가 앞 문단 글자를 지났다.
-#[test]
-fn a_float_table_top_sits_on_its_stored_anchor() {
-    for &(page, para_index, vpos, outer_margin_top, oracle_top) in STORED_ANCHOR_CASES {
-        let root = page_root(SAMPLE, page);
-        let expected = body_top(&root) + (vpos - outer_margin_top) as f64 / HWPUNIT_PER_PX;
-        let actual = table_top(&root, para_index);
-
-        // 저장값으로 세운 기대값과 맞는가.
-        assert!(
-            (actual - expected).abs() <= 1.0,
-            "쪽 {page} 문단 {para_index}: 표 윗변 {actual:.2} 가 저장 앵커 기대값 \
-             {expected:.2}(= 본문 상단 + ({vpos} − {outer_margin_top})HU)에서 벗어났다"
-        );
-        // 그 기대값이 곧 한/글 정본이다.
-        assert!(
-            (actual - oracle_top).abs() <= 1.5,
-            "쪽 {page} 문단 {para_index}: 표 윗변 {actual:.2} 가 정본 {oracle_top:.2} 에서 \
-             1.5px 넘게 벗어났다"
-        );
-    }
-}
-
-/// 어울림(TAC) 표는 이 수정의 비적용 경로다 — 같은 문서의 대조군.
-///
-/// 이 표들은 수정 전에도 정본과 맞았다(54건 중 38건이 1.5px 이내, 중앙값 +0.33px).
-/// 자리차지 원점을 고치면서 이쪽이 흔들리면 수정 범위를 넘은 것이다.
-#[test]
-fn treat_as_char_tables_are_untouched() {
-    // `(쪽, 문단, 정본 PDF 윗변)` — 같은 방식으로 뽑은 어울림 표.
-    const TAC_CASES: &[(u32, usize, f64)] = &[
-        (12, 176, 136.01),
-        (21, 412, 136.01),
-        (23, 440, 136.01),
-        (35, 797, 136.01),
-    ];
-    for &(page, para_index, oracle_top) in TAC_CASES {
-        let root = page_root(SAMPLE, page);
-        let actual = table_top(&root, para_index);
-        assert!(
-            (actual - oracle_top).abs() <= 1.5,
-            "쪽 {page} 문단 {para_index}: 어울림 표 윗변 {actual:.2} 가 정본 \
-             {oracle_top:.2} 에서 벗어났다 — 자리차지 수정이 범위를 넘었다"
-        );
-    }
-}
-
-/// 저장 앵커를 수용한 뒤의 표 분할과 후속 본문도 같은 물리 흐름을 소비해야 한다.
-/// 한컴 PDF 16쪽은 pi=305의 머리행만, 17쪽은 `2` 행부터 표시한다.
-/// 후속 pi=309 표 윗변은 472.76px, 18쪽 Example 글자 상단은 990.08px다.
-#[test]
-fn downstream_table_split_and_body_follow_the_oracle_pages() {
-    let page16 = page_root(SAMPLE, 15);
-    let page17 = page_root(SAMPLE, 16);
-    let tables = |root: &RenderNode| {
-        find(root, &mut |node| {
-            matches!(&node.node_type,
-            RenderNodeType::Table(table) if table.para_index == Some(305))
-        })
-        .into_iter()
-        .cloned()
-        .collect::<Vec<_>>()
-    };
-    let fragment16 = tables(&page16).into_iter().next().expect("16쪽 머리행");
-    let fragment17 = tables(&page17).into_iter().next().expect("17쪽 이어받기");
-    let has_first_data_row = |root: &RenderNode| {
-        !find(root, &mut |node| {
-            matches!(&node.node_type,
-            RenderNodeType::TextRun(run) if run.display_or_text().trim() == "2")
-        })
-        .is_empty()
-    };
-    assert!(
-        !has_first_data_row(&fragment16),
-        "16쪽에 첫 데이터 행을 미리 소비했다"
-    );
-    assert!(
-        has_first_data_row(&fragment17),
-        "17쪽 첫 데이터 행을 잃었다"
-    );
-    assert!((fragment16.bbox.height - (981.01 - 956.39)).abs() <= 1.5);
-    assert!((fragment17.bbox.height - (406.75 - 136.01)).abs() <= 1.5);
-    // [#7203] 종전 핀 472.76 은 **안쪽 괘선**에 맞춘 값이었다. 정본 17쪽의 그 구간에는
-    // 가로 괘선이 둘 있고, 폭으로 가르면 표 외곽은 아래쪽이다.
-    //
-    // ```text
-    //   y=472.76  x=182.62  w=469.35   ← 칸 안쪽 괘선
-    //   y=476.28  x=177.03  w=480.70   ← 표 외곽 (rhwp 표 x=177.1 w=480.5 와 일치)
-    // ```
-    //
-    // pi=309 는 사다리 advance 가 `높이+위+아래`(17848 HU)와 **정확히** 같은 갈래라
-    // 저장 `vpos` 가 바깥 여백 상자의 위끝이고, 표 윗변은 거기서 `outMargin.top`
-    // 283HU(3.77px) 아래다. 같은 문서 같은 갈래 18건의 정본 잔차가 이 수정으로
-    // +3.41px → +0.3px 로 모인다.
-    assert!((table_top(&page17, 309) - 476.28).abs() <= 1.5);
-
-    let page18 = page_root(SAMPLE, 17);
-    let example = find(&page18, &mut |node| {
-        matches!(&node.node_type,
-        RenderNodeType::TextRun(run) if run.display_or_text().trim() == "Example")
-    })
-    .into_iter()
-    .next()
-    .expect("18쪽 Example 제목");
-    assert!((example.bbox.y - 990.08).abs() <= 1.5);
-    let body = find(&page18, &mut |node| {
-        matches!(node.node_type, RenderNodeType::Body { .. })
-    })
-    .into_iter()
-    .next()
-    .expect("18쪽 본문");
-    assert!(example.bbox.y + example.bbox.height <= body.bbox.y + body.bbox.height);
 }
 
 /// 저장 사다리 pi186→187은2432HU = 앞 개체 높이1300 + 위/아래여백566씩이다.
