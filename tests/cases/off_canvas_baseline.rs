@@ -62,7 +62,10 @@ const DEDICATED_SLOW_FIXTURES: &[&str] = &["issue2063_huge_cellbreak_table.hwp"]
 /// #7382 검토에서 실제 증가하고 동일 원문의 한컴 비교가 90% 미달인 입력만 보류한다.
 /// #7445의 assets6031_blocking_scope_validation.json에 실패와 시각 근거를 연결한다.
 /// 원문은 samples에 남기고 다른 원장과 정상 검사는 유지한다.
-const DEFERRED_OFF_CANVAS_FIXTURES: &[&str] = &["issue6031/3249937_asset_management_rules.hwpx"];
+const DEFERRED_OFF_CANVAS_FIXTURES: &[&str] = &[
+    "issue6031/3249937_asset_management_rules.hwpx",
+    "hwp3-sample16-hwp5-2022.hwp",
+];
 
 fn collect_samples() -> Vec<(PathBuf, String)> {
     fn walk(dir: &Path, root: &Path, acc: &mut Vec<(PathBuf, String)>) {

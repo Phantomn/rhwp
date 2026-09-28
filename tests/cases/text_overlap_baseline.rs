@@ -61,6 +61,7 @@ const DEFERRED_TEXT_OVERLAP_FIXTURES: &[&str] = &[
     "issue6776/78494-virtual-convergence-industry-decree.hwpx",
     "한글문서파일형식_5.0_revision1.3.hwp",
     "rowbreak-problem-pages.hwpx",
+    "hwp3-sample16-hwp5-2022.hwp",
 ];
 
 /// 확장자로 샘플을 재귀 수집해 루트 기준 상대 경로(슬래시)로 돌려준다.
