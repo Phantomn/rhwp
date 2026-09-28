@@ -54,3 +54,13 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native46쪽 표하단과 흐름 차이](pii75544_native_review_046.png)
 
 ![Native59쪽 내용 소유 차이](pii75544_native_overlay_059.png)
+
+## 추가: 한컴 HWP5 변환본 `hwp3-sample16-hwp5.hwp`
+
+- [보존 원문](hwp3-sample16-hwp5.hwp), [저장제품에 대응한 한컴2024 PDF64쪽](../../../../pdf/hwp3-sample16-hwp5-hwp-2024.pdf), [이관·실제 비교·검사 결과](sample16_test_removal_validation.json). [이관 등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868738187).
+- 현재65/정상64쪽, Native23쪽26.53989%·24쪽7.09794%·64쪽15.52702%입니다. 23쪽본문하한초과최대97.5467px와24쪽내용소유차이를직접확인했습니다. 전체64쪽/fresh WASM비교는미실행이며전체통과로세지않습니다.
+- 이원문의본문초과/쪽수oracle/render-page원장3행과전용렌더링/쪽수11함수·관련helper를제거하고원문을바이트동일하게이동했습니다. #2158/source-side matrix의해당입력만제거합니다. #4680/#3693/#3695/#3744/#4155의파서/구조/문자음영계약과진단입력은유지하고보존경로로수정합니다. HWP3원본과다른연도변환본·정적IR자료·다른원문·공차는유지합니다. 피델리티해결로세지않습니다.
+
+![Native23쪽 본문과 꼬리말 겹침](sample16_native_review_023.png)
+
+![Native24쪽의 내용 소유 차이](sample16_native_overlay_024.png)
