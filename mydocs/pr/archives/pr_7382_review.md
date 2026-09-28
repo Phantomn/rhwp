@@ -11,7 +11,7 @@ last_verified: 2026-09-28
 
 **통합 PR 준비 보류.** 보정65에서 #5585 정책 지표 문서의 형제 표 순서·소진된 앵커·독립 표 소유와 완전 셀 높이를 보정하고, #6660 병합 제목의 물리 하한을 일반 측정과 공유했습니다. 기존8함수를 갱신했으며 새 테스트 함수는 추가하지 않았습니다. #5585 개별 함수1 PASS, 기존 대조군34 PASS, 필수 fmt·Clippy3단계·workspace 빌드·고정base 정책 검사가 모두 통과했습니다. 정책 지표86쪽과 시험 원문4쪽의 Native·fresh WASM 비교는 각각 최저92.57413%와90.68713%로 모두90% 이상입니다. [보정65 검증과 잔여 차이](../assets/pr7382_20260926/stage65_validation.json).
 
-고정된 이전 실패38개 중10개를 보정·개별 검증했고28개는 대기 중입니다. 모든 개별 보정과 고정38개 재실행 뒤 전체 nextest·Native Skia·최종 PR head 검증을 진행합니다. 이전 보정58의968개 페이지 비교와 보정52의 전체 nextest 결과는 당시 소스의 과거 증거이며 현재 head 전체 통과 근거로 사용하지 않습니다. 다른 문서의 쪽수·시각 보류도 이번 결과로 해소하지 않았습니다. [고정38 상태](../assets/pr7382_20260926/remaining38_regression_plan.json), [보정58 기록](../assets/pr7382_20260926/stage58_tail1733_validation.json), [보정52 기록](../assets/pr7382_20260926/stage52_page_number_validation.json).
+고정된 이전 실패38개 중10개를 보정·개별 검증했고1개는 사용자 지시로 #7445에 이관했으며27개는 대기 중입니다. 이관은 결함 해결 또는 PASS가 아닙니다. 모든 개별 보정과 유지된37개 재실행 뒤 전체 nextest·Native Skia·최종 PR head 검증을 진행합니다. 이전 보정58의968개 페이지 비교와 보정52의 전체 nextest 결과는 당시 소스의 과거 증거이며 현재 head 전체 통과 근거로 사용하지 않습니다. 다른 문서의 쪽수·시각 보류도 이번 결과로 해소하지 않았습니다. [고정38 상태](../assets/pr7382_20260926/remaining38_regression_plan.json), [보정58 기록](../assets/pr7382_20260926/stage58_tail1733_validation.json), [보정52 기록](../assets/pr7382_20260926/stage52_page_number_validation.json).
 
 ## 접수와 provenance
 
@@ -1815,3 +1815,19 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 - 이번 결과는 고정38의14번을 해결한 보정65 범위입니다. 고정38 각각의 최종 재실행과 전체 nextest·Native Skia·최종head 시각 검증이 아직 남으므로 전체 PR 준비 완료로 판정하지 않습니다.
 
 - 보정65 결과 커밋은 `3f2951b6b0ff522b4f702ed8aa895f8195a43a4a`입니다. 고정38 상태를 **10 해결 /28 대기**로 갱신했고, 다음 단계는15번 `issue_5941_tail_overflow_drift_gate::issue_5941_drift_past_saved_tail_still_grants_overflow`의 개별 원인·입력 유효성 분석입니다. 사용자 제공 fixture PDF는 원래 경로에 유지한 untracked 파일이며 증적 커밋에는 byte-identical `pdf/pr7382/` 사본만 포함했습니다.
+
+## 보정66 사전 분석 — 로드맵 #5941 회귀 제외와 #7445 이관
+
+- 사용자 지시로 `1490000-201600081_roadmap_research.hwp`를 현재 회귀 대상에서 제외하고 전체 피델리티 문제는 #7445에서 별도 추적합니다. 기존304쪽은 정상 한컴 PDF302쪽과 다른 잠정 핀이며 현재299쪽으로 바꾸어 통과시키지 않습니다.
+- 보정65 제품의 Native 비교1·61·145쪽에서1쪽84.58019%,145쪽42.91058%로 gate가 `re_review_required`입니다.145쪽 review에서는 정상 PDF의 온전한 표를 앞쪽/현재쪽으로 나눈 차이를 직접 확인했습니다. render-tree/dump-pages에서142·146·157쪽의 그림 겹침도 관측했으나 원인 계층은 아직 확정하지 않았습니다. fresh WASM·전302쪽 비교는 이번 단계에서 수행하지 않았습니다.
+- 해당 단독 검사1개와 이 문서의 baseline4행만 제거하고 원본은 `mydocs/pr/assets/issue7445/`에 바이트 동일하게 이동해 samples 자동 수집에서 제외합니다. 정상 기준 PDF와 기존 실패/시각 증거를 보존합니다. 다른 #5941 문서·검사 및 제품 코드는 유지합니다. 신규 skip/helper나 허용치 완화는 추가하지 않습니다.
+- 제거 후 파생 suite 준비·정책 base 검사·필수 Rust lint와 회귀 목록에서 단독 검사 미수집을 확인하고 결과보고 후 커밋합니다. 고정38은10해결/1이관/27대기로 구분하며 제거를 결함 해결 또는 PASS로 세지 않습니다.
+
+## 보정66 결과 — #5941 검사 제외·원본 보존·#7445 추가 등록
+
+- 원본 HWP3,923,456bytes를 이슈 증적 폴더에 바이트 동일하게 보존했고 정상 한컴 PDF302쪽도 유지했습니다. 단독 검사1개와 해당 baseline4행만 제거했습니다. 나머지 baseline 행은 부모 head와 동일하며 파생 suite와 samples 수집에 제거 문서/검사가 남지 않습니다. 제품 코드·허용치 변경 및 신규 검사/skip/helper는 없습니다. [이동·해시·제거 행·검증 명령](../assets/issue7445/roadmap5941_test_removal_validation.json).
+- fmt, Native/lib WASM/workspace all-targets 세 Clippy, workspace build, 고정base `443844b593c62a722cf9cc3d9d0256e94ab88cb8` manifest 검사는 모두exit0입니다. 유지한 다른 #5941 문서의 기존 검사4개는 nextest release-test/threads8/no-fail-fast로4PASS/0FAIL입니다. 전체 nextest·유지된37함수 재실행은 아직 미완료이며 이번 focused 결과로 대체하지 않습니다.
+- [#7445 추가 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5865123120)을 완료하고 게시 본문이 UTF-8 원문과 동일함을 API로 확인했습니다. 제목은 규제영향분석서와 비정규직 로드맵을 함께 추적하도록 갱신했습니다.145쪽 Native review/overlay PNG를 커밋 증적에 보존합니다. 아직 전302쪽/fresh WASM 비교는 실행하지 않았고 페이지 수299/302 및90%미만 문제는 이슈 보류입니다.
+- 고정38은 **10해결/1이관/27대기**입니다. 이관은 PASS 또는 렌더링 해결이 아닙니다. 다음 개별 보정은 #6101이며 통합 PR 준비는 계속 보류합니다.
+
+![로드맵145쪽 표 분할 차이](../assets/issue7445/roadmap5941_native_review_145.png)

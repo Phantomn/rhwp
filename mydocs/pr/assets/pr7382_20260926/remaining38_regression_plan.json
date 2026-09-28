@@ -3,7 +3,7 @@
   "baseline_full_provenance": "full-provenance.json",
   "baseline_fail_function_count": 38,
   "new_test_policy": "이미 작성한 검사는 유지. 이후 새 검사 추가 없음.",
-  "sequence": "개별 원인 분석/수정/개별 검증/기록/커밋 → 고정38함수 각각 재실행 → 전체 nextest",
+  "sequence": "고정38 중 사용자 승인 이관 검사는 제외 사유 보존. 나머지 개별 분석/수정/검증/기록/커밋 → 유지된37함수 각각 재실행 → 전체 nextest",
   "items": [
     {
       "id": 1,
@@ -254,13 +254,24 @@
       "id": 15,
       "function": "issue_5941_tail_overflow_drift_gate::issue_5941_drift_past_saved_tail_still_grants_overflow",
       "case": "issue_5941_tail_overflow_drift_gate",
-      "status": "pending",
-      "individual_results": [],
+      "status": "deferred_to_issue",
+      "individual_results": [
+        {
+          "exit_code": 100,
+          "actual_page_count": 299,
+          "expected_page_count": 304,
+          "log": "stage66-tail5941/individual-before.log",
+          "result": "stage66-tail5941/individual-before-result.json"
+        }
+      ],
       "resolved_plan": {
         "caseName": "issue_5941_tail_overflow_drift_gate",
         "target": "regression_suite_013",
         "grouped": true
-      }
+      },
+      "issue": "https://github.com/edwardkim/rhwp/issues/7445",
+      "reason": "사용자 지시로 검사 제거. 독립 PDF302쪽/현재299쪽 및 Native90%미만. 피델리티 해결 아님.",
+      "evidence": "../issue7445/roadmap5941_test_removal_validation.json"
     },
     {
       "id": 16,
@@ -604,6 +615,6 @@
       }
     }
   ],
-  "next_candidate": "issue_5941_tail_overflow_drift_gate::issue_5941_drift_past_saved_tail_still_grants_overflow",
-  "next_candidate_reason": "보정65 커밋 뒤 #5941의 기존 실패 함수만 개별 실행하고, 원문/합성 입력과 저장 꼬리 경계의 독립 근거를 확인한 뒤 한 단계씩 해결한다."
+  "next_candidate": "issue_6101_block_tac_table_text_order::issue_6101_table_after_control_text_renders_and_table_stays_left",
+  "next_candidate_reason": "#5941은 사용자 지시로 #7445 이관·검사 제거. 다음 #6101 기존 실패를 개별 분석한다."
 }

@@ -251,7 +251,6 @@ hwp5rb	issue5885/3171199_design_capability_criteria.hwp	sections[].paragraphs[].
 hwp5rb	issue5941/1130000-200900012_anchor_delay_ulp.hwp	sections[].paragraphs[].controls[].cells[].list_header_width_ref	4
 hwp5rb	issue5941/1130000-200900012_anchor_delay_ulp.hwp	sections[].paragraphs[].controls[].section_def.raw_ctrl_extra.len	1
 hwp5rb	issue5941/1130000-200900012_anchor_delay_ulp.hwp	sections[].section_def.raw_ctrl_extra.len	1
-hwp5rb	issue5941/1490000-201600081_roadmap_research.hwp	sections[].paragraphs[].controls[].cells[].list_header_width_ref	1078
 hwp5rb	issue5966/1130000-202100008_franchise_review_report.hwp	sections[].paragraphs[].controls[].cells[].list_header_width_ref	19
 hwp5rb	issue5966/1130000-202100008_franchise_review_report.hwp	sections[].paragraphs[].controls[].cells[].paragraphs[].controls[].cells[].list_header_width_ref	5
 hwp5rb	issue5966/1130000-202100008_franchise_review_report.hwp	sections[].paragraphs[].controls[].paragraphs[].controls[].cells[].list_header_width_ref	11
