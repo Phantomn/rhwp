@@ -319,7 +319,41 @@
       "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_4",
       "case": "body_overflow_baseline",
       "status": "pending",
-      "individual_results": [],
+      "individual_results": [
+        {
+          "id": 7,
+          "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_4",
+          "plan": {
+            "caseName": "body_overflow_baseline",
+            "target": "regression_suite_017",
+            "grouped": true
+          },
+          "command": [
+            "cargo",
+            "nextest",
+            "run",
+            "--locked",
+            "--cargo-profile",
+            "release-test",
+            "--target-dir",
+            "target/pr-review",
+            "--test",
+            "regression_suite_017",
+            "-E",
+            "test(=body_overflow_baseline::body_overflow_does_not_grow_partition_4)",
+            "--test-threads",
+            "8",
+            "--no-fail-fast"
+          ],
+          "exit_code": 100,
+          "seconds": 1.541432250291109,
+          "summary": [
+            "     Summary [   0.540s] 1 test run: 0 passed, 1 failed, 232 skipped"
+          ],
+          "stage": 85,
+          "head": "88dea0a3a0ddec32cf59a9280c7bf297cc776672"
+        }
+      ],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
         "target": "regression_suite_015",
@@ -908,7 +942,7 @@
     }
   ],
   "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_4",
-  "next_candidate_reason": "다음 고정 대기 함수를 개별 실행하고 첫 실패의 원문을 독립 PDF로 판단. 추가 HWPX/시장구조/글꼴 추적 실패와 footer 및 최종 전체 검증도 남음.",
+  "next_candidate_reason": "고정7번 단독FAIL: 권익위 의결사항30269 본문하단 신규3건. 같은 원문 독립 PDF와 시각 비교로 먼저 판단.",
   "current_status_counts": {
     "resolved": 19,
     "deferred_to_issue": 1,
