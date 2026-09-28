@@ -68,6 +68,7 @@ const DEFERRED_TEXT_OVERLAP_FIXTURES: &[&str] = &[
     "issue6764/1613000-202200037-air-traffic-controller-cbta.hwp",
     "issue6795/1341000-201100013-cyber-university-application.hwp",
     "task2287/1342000_edu_curriculum_map.hwp",
+    "task2319/20544835_jinan_apt_form.hwp",
 ];
 
 /// 확장자로 샘플을 재귀 수집해 루트 기준 상대 경로(슬래시)로 돌려준다.
