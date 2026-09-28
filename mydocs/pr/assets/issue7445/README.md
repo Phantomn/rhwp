@@ -298,3 +298,7 @@ venv/bin/python scripts/visual_sweep.py \
 ## 추가: 2022 변환본의 실제 세 함수와 text/off 입력
 
 [범위 갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869647971), [동일 원문·실패·좁은 보류·실행](sample16_2022_blocking_scope_validation.json). 실제3함수와 text/off의이입력만 보류하고 정상IR/다른버전·원문/PDF·다른축/문서는 유지했습니다. 선택5쪽 최저7.09794%이며 전수/freshWASM 완료가 아닙니다. 정상11함수PASS, text/off32분할24PASS/8FAIL, lint·정책7단계exit0입니다. 다른8실패함수는 개별 판단 대상으로 남겼습니다.
+
+## 추가: 동일 HWP 두 이름의 실제 차단 범위
+
+[기본원문 범위](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868738187)·[2010이름 범위](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5869562651), [동일 바이트·독립 PDF·실패·좁은 보류·검증](sample16_aliases_blocking_scope_validation.json). 두 이름은 같은 입력이며 한컴PDF64쪽도 전체72DPI래스터가 같습니다. 실패5함수와 두 이름의text/off축만 보류하고 정상그림/목차/IR·source-unit·다른버전·원문/PDF·다른축은 유지했습니다. 정상14PASS, text/off24PASS/8FAIL, lint·정책7단계exit0입니다. 영향24쪽7.09794%이며 전수Native/freshWASM 또는 전체회귀 완료가 아닙니다.
