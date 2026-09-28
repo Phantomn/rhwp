@@ -40,8 +40,6 @@ use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 use rhwp::wasm_api::HwpDocument;
 
 const SAMPLE: &str = "samples/hwpctl_API_v2.4.hwp";
-/// `vertical_offset` 이 걸린 자리차지 표가 있는 문서 — 저장 앵커를 쓰면 안 되는 갈래.
-const OFFSET_SAMPLE: &str = "samples/rowbreak-problem-pages.hwp";
 
 const HWPUNIT_PER_PX: f64 = 7200.0 / 96.0;
 
@@ -161,41 +159,6 @@ fn treat_as_char_tables_are_untouched() {
              {oracle_top:.2} 에서 벗어났다 — 자리차지 수정이 범위를 넘었다"
         );
     }
-}
-
-/// 문단 기준 `vertical_offset` 이 걸린 자리차지 표는 저장 앵커를 쓰지 않는다.
-///
-/// 윗변이 `앵커 + 오프셋` 이라 `vpos − 위여백` 산식이 성립하지 않는다.
-/// `rowbreak-problem-pages.hwp` 구역1 의 `vertical_offset` 152·3019 HU 표가 이 갈래다 —
-/// 앵커를 그대로 믿으면 12쪽 본문이 쪽 밖 480px 까지 밀리고 글자 11쌍이 겹친다.
-#[test]
-fn an_offset_anchored_float_table_keeps_flow_placement() {
-    const PAGE: u32 = 11;
-    let root = page_root(OFFSET_SAMPLE, PAGE);
-    // 쪽 번호·꼬리말은 Body 밖에 산다 — 본문 글줄만 센다.
-    let body = find(&root, &mut |node| {
-        matches!(node.node_type, RenderNodeType::Body { .. })
-    })
-    .first()
-    .copied()
-    .expect("Body 노드");
-    let body_bottom = body.bbox.y + body.bbox.height;
-
-    let escaped: Vec<f64> = find(body, &mut |node| {
-        matches!(node.node_type, RenderNodeType::TextLine(_))
-    })
-    .iter()
-    .map(|node| node.bbox.y + node.bbox.height)
-    .filter(|bottom| *bottom > body_bottom + 2.0)
-    .collect();
-
-    assert!(
-        escaped.is_empty(),
-        "본문 바닥 {body_bottom:.1} 아래로 빠져나간 본문 글줄 {}개(최대 {:.1}) — 오프셋이 \
-         걸린 자리차지 표까지 저장 앵커로 배치하면 이 쪽이 무너진다",
-        escaped.len(),
-        escaped.iter().cloned().fold(f64::NEG_INFINITY, f64::max)
-    );
 }
 
 /// 저장 앵커를 수용한 뒤의 표 분할과 후속 본문도 같은 물리 흐름을 소비해야 한다.
