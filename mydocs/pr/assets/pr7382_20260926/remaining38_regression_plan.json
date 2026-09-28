@@ -342,13 +342,27 @@
       "id": 18,
       "function": "issue_7336_table_fragment_cut::stored_frame_page_larger_rowbreak_table_is_split_across_pages",
       "case": "issue_7336_table_fragment_cut",
-      "status": "pending",
-      "individual_results": [],
+      "status": "resolved",
+      "individual_results": [
+        {
+          "stage": 70,
+          "before": "보존된 전체 실행에서8/7 FAIL",
+          "after": "개별1PASS/215SKIP,exit0",
+          "test_head": "b87c2130ba41aa33b4b92cfa2187eb90f4933c4f",
+          "expected_value_change": false,
+          "new_function": false,
+          "visual_evidence_reuse": "stage69_validation.json",
+          "native_minimum_percent": 95.81586,
+          "wasm_minimum_percent": 95.81586
+        }
+      ],
       "resolved_plan": {
         "caseName": "issue_7336_table_fragment_cut",
         "target": "regression_suite_008",
         "grouped": true
-      }
+      },
+      "code_commit": "b7436944b81d20ad799edcd59ead3b94621902b3",
+      "evidence": "stage70_validation.json"
     },
     {
       "id": 19,
@@ -657,10 +671,10 @@
     }
   ],
   "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_0",
-  "next_candidate_reason": "17번 보정69를 현재 브랜치에서 개별 완료했다. 다음18번 쪽수 검사를 독립 실행·기록한다. 전체37 및 전체회귀 완료 전 PR 보류.",
+  "next_candidate_reason": "18번 보정70 개별 완료. 다음 대기는1번 본문 영역 초과 검사로 원인과 독립 기준부터 분석한다. 유지37 재실행·전체 회귀·최종 검증 완료 전 PR 보류.",
   "current_status_counts": {
-    "pending": 25,
-    "resolved": 12,
+    "pending": 24,
+    "resolved": 13,
     "deferred_to_issue": 1
   }
 }
