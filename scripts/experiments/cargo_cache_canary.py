@@ -25,7 +25,7 @@ def sha(path):
 def key(profile, lock, rust, generation):
     if profile not in ('dev', 'release'):
         raise ValueError('unsupported profile')
-    return f'canary-7473-v1-Linux-X64-wasm32-{profile}-{rust[:16]}-{lock[:16]}-{generation}'
+    return f'canary-7473-v2-Linux-X64-wasm32-{profile}-{rust[:16]}-{lock[:16]}-{generation}'
 
 
 def measure(profile, label):
@@ -58,6 +58,9 @@ def measure(profile, label):
                   runner_name=os.environ.get('RUNNER_NAME'), hostname=platform.node(),
                   boot_id=Path('/proc/sys/kernel/random/boot_id').read_text().strip() if Path('/proc/sys/kernel/random/boot_id').exists() else None,
                   cargo_incremental=os.environ.get('CARGO_INCREMENTAL'), units=units,
+                  source_dirty=capture('git', 'status', '--porcelain', '--untracked-files=no'),
+                  cpu_info=Path('/proc/cpuinfo').read_text() if Path('/proc/cpuinfo').exists() else '',
+                  cpu_count=os.cpu_count(), load_average=os.getloadavg(),
                   fresh_units=sum(x['fresh'] for x in units), rebuilt_units=sum(not x['fresh'] for x in units))
     if proc.returncode == 0:
         result['wasm'] = {'bytes': wasm.stat().st_size, 'sha256': sha(wasm)}
@@ -113,13 +116,99 @@ def verify():
     (OUT/'verification.json').write_text(json.dumps(dict(success=True,new_runner=True,wasm_identical=True),indent=2)+'\n')
 
 
+def tracked_manifest():
+    names = subprocess.check_output(['git', 'ls-files', '-z'], cwd=ROOT).decode().split('\0')
+    result = {}
+    for name in sorted(filter(None, names)):
+        path = ROOT / name
+        if path.is_symlink():
+            result[name] = dict(kind='symlink', link=os.readlink(path))
+        elif path.is_file():
+            result[name] = dict(kind='file', sha256=sha(path), mtime_ns=path.stat().st_mtime_ns)
+        else:
+            raise RuntimeError(f'missing tracked input: {name}')
+    return result
+
+
+def save_manifest():
+    OUT.mkdir(parents=True, exist_ok=True)
+    data = dict(source_sha=capture('git', 'rev-parse', 'HEAD'), files=tracked_manifest())
+    (OUT/'source-manifest.json').write_text(json.dumps(data, indent=2)+'\n')
+
+
+def restore_mtimes(expected):
+    # Validate every byte and the full tracked file set BEFORE changing any timestamp.
+    if expected['source_sha'] != capture('git', 'rev-parse', 'HEAD'):
+        raise ValueError('source SHA mismatch')
+    actual = tracked_manifest()
+    content = lambda files: {name: {k:v for k,v in item.items() if k != 'mtime_ns'}
+                             for name,item in files.items()}
+    if content(actual) != content(expected['files']):
+        raise ValueError('tracked content mismatch; no timestamps changed')
+    for name,item in expected['files'].items():
+        if item['kind'] == 'file':
+            path = ROOT/name
+            os.utime(path, ns=(path.stat().st_atime_ns, item['mtime_ns']))
+    return sum(item['kind']=='file' for item in expected['files'].values())
+
+
+def boundary():
+    seed_dir = ROOT/'output/canary-seed'
+    expected = json.loads((seed_dir/'source-manifest.json').read_text())
+    seed = json.loads((seed_dir/'seed.json').read_text())
+    result = dict(diagnostic_only=True, source_sha=expected['source_sha'])
+    started = time.monotonic()
+    result['timestamps_restored'] = restore_mtimes(expected)
+    result['hash_guard_and_mtime_seconds'] = time.monotonic()-started
+    measure('release','mtime-aligned')
+    aligned = json.loads((OUT/'mtime-aligned.json').read_text())
+    assert aligned['boot_id'] != seed['boot_id'], 'not a new runner'
+    for field in ('source_sha','rustc','cargo_lock_sha256','profile','image_version','cargo_incremental'):
+        assert aligned[field] == seed[field], field
+    assert aligned['rebuilt_units'] == 0 and aligned['wasm'] == seed['wasm']
+    path = ROOT/'src/lib.rs'
+    original = path.read_bytes()
+    try:
+        # Timestamp alone must invalidate the root library, with identical output.
+        os.utime(path, None)
+        measure('release','timestamp-only')
+        touched = json.loads((OUT/'timestamp-only.json').read_text())
+        assert touched['rebuilt_units'] > 0 and touched['wasm'] == seed['wasm']
+        before = b'env!("CARGO_PKG_VERSION").to_string()'
+        after = b'concat!(env!("CARGO_PKG_VERSION"), "-cache-boundary-probe").to_string()'
+        assert original.count(before) == 1
+        path.write_bytes(original.replace(before, after))
+        changed_mtime = path.stat().st_mtime_ns
+        rejected = False
+        try:
+            restore_mtimes(expected)
+        except ValueError as error:
+            rejected = True
+            result['content_guard_error'] = str(error)
+        assert rejected and path.stat().st_mtime_ns == changed_mtime
+        result['content_guard_rejected'] = True
+        result['source_patch'] = dict(path='src/lib.rs', before=before.decode(), after=after.decode(),
+                                    original_sha256=hashlib.sha256(original).hexdigest(), changed_sha256=sha(path))
+        measure('release','content-changed')
+        changed = json.loads((OUT/'content-changed.json').read_text())
+        assert changed['rebuilt_units'] > 0 and changed['wasm']['sha256'] != seed['wasm']['sha256']
+        result['success'] = True
+    finally:
+        path.write_bytes(original)
+        result['tracked_diff_after_cleanup'] = capture('git','diff','--stat')
+        (OUT/'boundary-verification.json').write_text(json.dumps(result,indent=2)+'\n')
+    assert not result['tracked_diff_after_cleanup']
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('mode', choices=['identity','build','snapshot','verify'])
-    parser.add_argument('--profile', choices=['dev','release'], default='dev')
+    parser.add_argument('mode', choices=['identity','build','snapshot','verify','manifest','boundary'])
+    parser.add_argument('--profile', choices=['dev','release'], default='release')
     parser.add_argument('--label', default='seed')
     a=parser.parse_args()
     if a.mode=='identity': identity(a.profile)
     elif a.mode=='build': measure(a.profile,a.label)
     elif a.mode=='snapshot': snapshot()
+    elif a.mode=='manifest': save_manifest()
+    elif a.mode=='boundary': boundary()
     else: verify()

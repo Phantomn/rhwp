@@ -1,15 +1,8 @@
 # Experiment branch only. Replaces this existing dispatch entrypoint on this ref;
 # never proposed as the production Render Diff workflow.
-name: Cargo cache canary 7473
+name: Release cache boundary experiment 7473
 on:
   workflow_dispatch:
-    inputs:
-      profile:
-        description: Cargo WASM profile
-        type: choice
-        options: [dev, release]
-        default: dev
-        required: true
 permissions:
   contents: read
 concurrency:
@@ -38,13 +31,15 @@ jobs:
       - name: Profile and toolchain cache identity
         id: identity
         env:
-          PROFILE: ${{ inputs.profile }}
+          PROFILE: release
         run: python3 scripts/experiments/cargo_cache_canary.py identity --profile "$PROFILE"
       - name: Assert cold target
         run: test ! -d target/pr-review
+      - name: Record byte hashes and checkout timestamps
+        run: python3 scripts/experiments/cargo_cache_canary.py manifest
       - name: Cold Cargo build
         env:
-          PROFILE: ${{ inputs.profile }}
+          PROFILE: release
         run: python3 scripts/experiments/cargo_cache_canary.py build --profile "$PROFILE" --label seed
       - name: Bound cache size
         run: python3 scripts/experiments/cargo_cache_canary.py snapshot
@@ -59,13 +54,18 @@ jobs:
       - uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: cargo-canary-seed-${{ inputs.profile }}
+          name: cargo-canary-seed-release
           path: output/cargo-cache-canary/
           retention-days: 14
-  restore:
+  compare:
     needs: seed
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [cold, restored]
+        repeat: [1, 2, 3]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -76,20 +76,54 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Assert fresh target
         run: test ! -d target/pr-review
-      - name: Other profile must miss
-        id: mismatch
+      - name: Restore exact profile cache
+        if: matrix.mode == 'restored'
+        id: cache
         uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target/pr-review
-          key: ${{ needs.seed.outputs.other_key }}
-          lookup-only: true
-      - name: Verify profile isolation
+          key: ${{ needs.seed.outputs.key }}
+          fail-on-cache-miss: true
+      - name: Verify exact hit
+        if: matrix.mode == 'restored'
         env:
-          MATCHED: ${{ steps.mismatch.outputs.cache-matched-key }}
-        run: test -z "$MATCHED"
+          HIT: ${{ steps.cache.outputs.cache-hit }}
+          MATCHED: ${{ steps.cache.outputs.cache-matched-key }}
+          EXPECTED: ${{ needs.seed.outputs.key }}
+        run: test "$HIT" = true && test "$MATCHED" = "$EXPECTED"
+      - name: Measured release Cargo
+        run: python3 scripts/experiments/cargo_cache_canary.py build --profile release --label restored
+      - name: Same runner no-op control
+        run: python3 scripts/experiments/cargo_cache_canary.py build --profile release --label same-runner-noop
+      - uses: actions/download-artifact@v6
+        with:
+          name: cargo-canary-seed-release
+          path: output/canary-seed
+      - name: Verify new runner and identical output
+        run: python3 scripts/experiments/cargo_cache_canary.py verify
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: release-${{ matrix.mode }}-${{ matrix.repeat }}
+          path: output/cargo-cache-canary/
+          retention-days: 14
+  boundary:
+    needs: seed
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: 1.93.1
+          targets: wasm32-unknown-unknown
+      - name: Assert fresh target
+        run: test ! -d target/pr-review
       - name: Restore exact profile cache
         id: cache
         uses: actions/cache/restore@v6
@@ -100,33 +134,21 @@ jobs:
             target/pr-review
           key: ${{ needs.seed.outputs.key }}
           fail-on-cache-miss: true
-      - name: Record restored identity
+      - name: Verify exact hit
         env:
-          EXPECTED: ${{ needs.seed.outputs.key }}
-          MATCHED: ${{ steps.cache.outputs.cache-matched-key }}
           HIT: ${{ steps.cache.outputs.cache-hit }}
-        run: |
-          test "$HIT" = true
-          test "$MATCHED" = "$EXPECTED"
-          mkdir -p output/cargo-cache-canary
-          python3 -c 'import json,os; from pathlib import Path; Path("output/cargo-cache-canary/restore.json").write_text(json.dumps({k:os.environ[k] for k in ("EXPECTED","MATCHED","HIT")},indent=2))'
-      - name: Cargo after remote restore
-        env:
-          PROFILE: ${{ inputs.profile }}
-        run: python3 scripts/experiments/cargo_cache_canary.py build --profile "$PROFILE" --label restored
-      - name: Same runner no-op control
-        env:
-          PROFILE: ${{ inputs.profile }}
-        run: python3 scripts/experiments/cargo_cache_canary.py build --profile "$PROFILE" --label same-runner-noop
+          MATCHED: ${{ steps.cache.outputs.cache-matched-key }}
+          EXPECTED: ${{ needs.seed.outputs.key }}
+        run: test "$HIT" = true && test "$MATCHED" = "$EXPECTED"
       - uses: actions/download-artifact@v6
         with:
-          name: cargo-canary-seed-${{ inputs.profile }}
+          name: cargo-canary-seed-release
           path: output/canary-seed
-      - name: Verify new runner and identical output
-        run: python3 scripts/experiments/cargo_cache_canary.py verify
+      - name: Hash-guarded mtime and real source change controls
+        run: python3 scripts/experiments/cargo_cache_canary.py boundary
       - uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: cargo-canary-restore-${{ inputs.profile }}
+          name: release-boundary
           path: output/cargo-cache-canary/
           retention-days: 14
