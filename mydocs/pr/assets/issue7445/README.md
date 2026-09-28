@@ -310,3 +310,7 @@ venv/bin/python scripts/visual_sweep.py \
 ## 추가: 저장 bounds의 실제 실패 컷만 보류
 
 [범위 갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870886007), [개별실패·정상대조·유지검사](savedbounds1749_blocking_scope_validation.json). HWPX 컷 assertion 하나만 보류하고 함수 자체/정상5쪽/host순서·HWP컷/IR52·다른2함수 및 다른축·원문/PDF는 유지했습니다. 기존3함수PASS, 필수8단계exit0입니다. 전체Native 최저30.44845%의 부정증거이며 전체피델리티 승인/전체회귀 완료는 아닙니다.
+
+## 추가: near-top 원문의 실제 text-overlap 축만 보류
+
+[등록 범위 갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868460165), [단독실패·부정증거·유지검사/전수분할](neartop5941_text_blocking_scope_validation.json). 실제10→19증가의text입력/10건행만보류하고정상203쪽·1쪽대조·개체높이반례 및다른축·원문/PDF는유지했습니다. 정상3PASS, text12PASS/4FAIL, lint/정책7단계exit0. 전체피델리티/전체회귀 완료아닙니다.

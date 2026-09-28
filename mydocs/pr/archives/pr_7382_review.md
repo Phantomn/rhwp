@@ -2309,3 +2309,9 @@ HWP 대응본과 구분해 동일 HWPX/기존 정상 한컴 PDF18쪽의 해시�
 [#7445 범위 갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870886007) 후 HWPX 컷 assertion 하나만 보류했고 함수/쪽수/순서·HWP·IR/다른2함수/다른축·원문/PDF를유지했습니다. [3]을현재[2]로완화하지않았습니다.
 
 코드 `f1083037faac517f7dde23bba4a1f97e5eb8ed64`, [개별실패·컷/소비 순서·IR/HWP 대조·좁은 변경·검증](../assets/issue7445/savedbounds1749_blocking_scope_validation.json). 기존3함수PASS/205SKIP, 필수8단계exit0입니다. 신규회귀/생산변경없음. 복원16실패는1각주독립보정/13실패전용함수 보류/2혼합함수 실제assertion만보류로정상부분유지했습니다. corpus·최종37개별/전체검증·PR준비는미완료입니다.
+
+## 보정120 사전 분석·결과 — near-top 원문의 실제 text 증가만 보류
+
+현재원문text10→19건을분할단독1FAIL로재현했습니다. 동일원문/정상한컴PDF/생산binary와빈src diff로기존부정증거39쪽47.03148%·53쪽58.70083%/203대205쪽을재사용했고39쪽review에서문단·표내용소유/외곽/뒤문단 차이를직접확인했습니다. 전체205쪽Native/freshWASM미완료입니다. [#7445 범위갱신](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868460165) 후이입력의text축과10건원장행만보류했습니다. 정상203쪽/작은1쪽/개체높이반례 및모든다른축·문서·원문/PDF유지,10을19로완화하지않았습니다.
+
+코드 `9d1b255c4759b02c29545bfa8b9d5f7dcdde9602`, [단독실패·부정증거·좁은범위·전수분할](../assets/issue7445/neartop5941_text_blocking_scope_validation.json). 정상3PASS, text16분할12PASS/4FAIL로합계15PASS/4FAIL/642SKIP입니다. 다른4실패는제외하지않았고필수lint/정책7단계exit0입니다. 다른off/body/cell/oracle축 또는최종개별/전체검증을대체하지않으며PR준비미완료입니다.

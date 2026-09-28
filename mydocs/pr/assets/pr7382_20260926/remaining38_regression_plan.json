@@ -2061,6 +2061,12 @@
       "scope": "실패 HWPX 컷 assertion 하나만. 정상쪽수/순서·HWP/IR 및모든다른축·원문 유지",
       "focused": "3PASS; 필수8단계exit0",
       "remaining_restored_dedicated": 0
+    },
+    "neartop5941_text": {
+      "stage": 120,
+      "code_commit": "9d1b255c4759b02c29545bfa8b9d5f7dcdde9602",
+      "evidence": "../issue7445/neartop5941_text_blocking_scope_validation.json",
+      "scope": "실제증가 text축 입력/10건행만. 정상3함수/모든다른축·문서·원문유지"
     }
   },
   "latest_axis_snapshot": {
@@ -2073,5 +2079,14 @@
     "meaning": "text/off만현재32분할진단.다른축또는최종37개별/전체회귀를대체하지않음."
   },
   "current_status_counts_scope": "고정38의과거처리snapshot만.최종37개별은다시실행해야하며전체head통과아님.",
-  "final_validation_status": "pending"
+  "final_validation_status": "pending",
+  "latest_text_axis_snapshot": {
+    "stage": 120,
+    "code_commit": "9d1b255c4759b02c29545bfa8b9d5f7dcdde9602",
+    "axis_tests": 16,
+    "passed": 12,
+    "failed": 4,
+    "evidence": "../issue7445/neartop5941_text_blocking_scope_validation.json",
+    "meaning": "text전체16분할만. off/다른축 및최종회귀를대체하지않음"
+  }
 }
