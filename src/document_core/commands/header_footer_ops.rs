@@ -118,10 +118,7 @@ impl DocumentCore {
         // 새 머리말/꼬리말도 본문과 같은 문서 기본 문단 모양(0번)을 사용한다.
         // blank2010의 0번 모양은 양쪽 정렬이다. 합성 HF에는 저장 LINE_SEG를 미리
         // 만들지 않아 파일명·쪽번호 같은 동적 필드가 현재 문서 문맥으로 해석되게 한다.
-        let empty_para = Paragraph {
-            char_count: 1, // PARA_TEXT가 없어도 문단 끝 마커는 계수한다.
-            ..Default::default()
-        };
+        let empty_para = Paragraph::default();
 
         // 컨트롤 생성
         let ctrl = if is_header {

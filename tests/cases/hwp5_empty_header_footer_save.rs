@@ -135,7 +135,7 @@ fn existing_instance_and_change_tracking_bytes_survive() {
 }
 
 #[test]
-fn newly_created_header_and_footer_keep_count_without_stored_lines() {
+fn newly_created_header_and_footer_save_without_stored_lines() {
     let mut core = HwpDocument::create_empty();
     core.create_blank_document_native().unwrap();
     for is_header in [true, false] {
@@ -153,9 +153,25 @@ fn newly_created_header_and_footer_keep_count_without_stored_lines() {
         };
         checked += 1;
         assert_eq!(paras.len(), 1);
-        assert_eq!(paras[0].char_count, 1);
         assert!(paras[0].line_segs.is_empty());
         assert!(!paras[0].has_para_text);
     }
     assert_eq!(checked, 6);
+    let records = body_records(&serialize_hwp(core.document()).unwrap());
+    let headers: Vec<_> = records
+        .iter()
+        .filter(|r| r.tag_id == tags::HWPTAG_PARA_HEADER && r.level == 2)
+        .collect();
+    assert_eq!(headers.len(), 6);
+    for header in headers {
+        assert_eq!(
+            u32::from_le_bytes(header.data[..4].try_into().unwrap()),
+            0x80000001
+        );
+    }
+    assert!(
+        !records
+            .iter()
+            .any(|r| r.level == 3 && r.tag_id == tags::HWPTAG_PARA_LINE_SEG)
+    );
 }
