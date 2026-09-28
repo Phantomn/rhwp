@@ -44,3 +44,13 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native15쪽의 페이지 내용과 세로 위치 차이](assets6031_native_review_015.png)
 
 ![Native41쪽의 표·서식 소유 차이](assets6031_native_overlay_041.png)
+
+## 추가: 개인정보 분석 편람 `75544`
+
+- [이관 등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868672890), [보존 원본HWPX](75544_pii_bunseok.hwpx), [한컴PDF66쪽](../../../../pdf/task2097/75544_pii_bunseok-hwpx-2020.pdf), [선택쪽 비교·검사 제거 검증](pii75544_test_removal_validation.json).
+- 현재70/한컴66쪽. Native22쪽93.59725%,46쪽65.56940%,59쪽30.66565%,60쪽30.63875%입니다. 46쪽 표높이/본문흐름과59쪽 내용소유차이를직접확인했습니다. 기존이름2020.pdf는cairo출력이므로이번독립기준으로사용하지않고보존합니다. 전체/fresh WASM통과는주장하지않습니다.
+- 문서전용#5846함수와본문초과/캔버스/글자겹침/셀초과/쪽수oracle/render-page의해당원문행만제거합니다. generic함수와다른원문·공차는유지하고, 정적IR추출자료·직렬화계약은보존합니다. 렌더링결함해결로세지않습니다.
+
+![Native46쪽 표하단과 흐름 차이](pii75544_native_review_046.png)
+
+![Native59쪽 내용 소유 차이](pii75544_native_overlay_059.png)

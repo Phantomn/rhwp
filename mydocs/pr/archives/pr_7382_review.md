@@ -2006,3 +2006,15 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 - #7080 유지5함수는5PASS입니다. fmt/check·Native/WASM/workspace Clippy·workspace build·고정base manifest 검사는모두exit0입니다. source-side 단위검사변경은없습니다.
 - body partition0은70문서/스킵0으로재편됐고 `task2097/75544_pii_bunseok.hwpx`의1→2건으로1FAIL입니다. 자산관리규정 제거를이문서의수정이나전체통과로보고하지않습니다. 다음은이문서의실제초과페이지와독립PDF를개별검토합니다.
 - 고정38은13개별완료/1함수이관/24대기를유지합니다. 전체37함수재실행·전체nextest·NativeSkia3 및최종head검증전에는PR준비보류입니다. `.log`·output·파생suite는커밋하지않습니다.
+
+## 보정73 사전 분석 — 현재1번의 개인정보 분석 편람
+
+- 기준head `8672401774d5a173ddcc681ceb844124dad5cf62`에서 `task2097/75544_pii_bunseok.hwpx`의본문초과1→2건을개별검토합니다. 기존 `75544_pii_bunseok-2020.pdf`는cairo출력이므로독립정답지로채택하지않고, 별도한컴PDF `75544_pii_bunseok-hwpx-2020.pdf`66쪽과실제초과쪽·기존59/60쪽내용소유를비교합니다. 실제Creator는Hwp2022이며파일명만으로생성엔진을추정하지않습니다. 렌더러/기대값수정전Native실제출력을확인하고,90%미만이면사용자승인#7445등록/검사제거를적용합니다.
+
+- Native22/46/59/60쪽은93.59725/65.56940/30.66565/30.63875%이며현재70/기준66쪽입니다. #5846전용함수도66쪽기대로1FAIL(exit100)했습니다. 실제46쪽표높이/본문흐름과59쪽의법령/서식내용소유차이를직접확인한뒤 [#7445에추가등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868672890)했습니다. 원본HWPX를해시동일하게보존하고전용1함수와렌더링/쪽수원장6행만제거합니다. 정적IR/직렬화자료·다른원문·공차는유지하며전체/fresh WASM통과와렌더링해결로세지않습니다.
+
+## 보정73 결과 — 개인정보 분석 편람 이관 후 개별1번 완료
+
+- 검사/입력 이관commit `63a6e9eadb9ef190142f6eeeb1f0394e9b7fdc8b`. 원본HWPX의SHA-256 `f429768ec02e5a849d08c06678cbee029fdc8618ca9e2bdcdbba485087fe71f1`은이동전과같고, 두기존PDF·Native대표22/46/59/60쪽PNG와정적IR자료를보존했습니다. [검증결과](../assets/issue7445/pii75544_test_removal_validation.json). 전용1함수와원장6행만제거했으며렌더러와다른원문·공차는불변입니다.
+- 재편된body partition0은1PASS, render-page fixture계약기존6함수도6PASS입니다(합계7PASS/442SKIP,exit0). fmt/check·Native/WASM/workspace Clippy·workspace build·고정base manifest는모두exit0입니다. source-side검사수정은없습니다.
+- 원래38의1번은승인된미달원문의이관후남은corpus검사통과로개별완료했습니다. 생물독/자산관리규정/개인정보편람의피델리티해결로세지않습니다. 고정38은14개별완료/1함수이관/23대기이며, 다음은기존2번body partition1입니다. 유지37함수각각의최종재실행·전체nextest·NativeSkia3와최종head검증전에PR준비완료로보고하지않습니다. 로그·임시SVG·파생suite는커밋하지않습니다.

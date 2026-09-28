@@ -9,7 +9,7 @@
       "id": 1,
       "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_0",
       "case": "body_overflow_baseline",
-      "status": "pending",
+      "status": "resolved",
       "individual_results": [
         {
           "stage": 71,
@@ -29,13 +29,23 @@
           "fixture_removal_evidence": "../issue7445/assets6031_test_removal_validation.json",
           "status": "pending",
           "reason": "corpus 재배정 후 다른 실패 문서 개별 검토"
+        },
+        {
+          "stage": 73,
+          "test_snapshot_commit": "63a6e9eadb9ef190142f6eeeb1f0394e9b7fdc8b",
+          "fixture_deferred": "task2097/75544_pii_bunseok.hwpx",
+          "fixture_removal_evidence": "../issue7445/pii75544_test_removal_validation.json",
+          "after_move": "body partition0 1PASS; render-page contract6PASS; aggregate7PASS/442SKIP",
+          "status": "resolved",
+          "resolution_scope": "승인된미달문서이관후남은corpus개별검사통과. 원문피델리티해결아님."
         }
       ],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
         "target": "regression_suite_025",
         "grouped": true
-      }
+      },
+      "resolution_scope": "실패문서의사용자승인이관후유지된partition0검사의통과; 이관원문피델리티해결아님"
     },
     {
       "id": 2,
@@ -213,7 +223,7 @@
       ],
       "resolved_plan": {
         "caseName": "issue_2006_1790387_prep_pagination_pin",
-        "target": "regression_suite_010",
+        "target": "regression_suite_012",
         "grouped": true
       },
       "evidence": "stage59_prep2006_validation.json",
@@ -690,11 +700,11 @@
       }
     }
   ],
-  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_0",
-  "next_candidate_reason": "보정72 후 corpus 재배정으로 확인한 task2097/75544_pii_bunseok.hwpx의1→2건을 개별 분석. 실제 Visual Sweep90%미만이면 #7445 등록후 해당 문서의 검사만 제거.",
+  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_1",
+  "next_candidate_reason": "원래38의2번 partition1을현재corpus와suite로개별실행후실제원인문서를판정한다. 승인된이관으로통과한1번은원문피델리티해결과구별한다.",
   "current_status_counts": {
-    "pending": 24,
-    "resolved": 13,
+    "resolved": 14,
+    "pending": 23,
     "deferred_to_issue": 1
   },
   "fixture_removal_policy": {
