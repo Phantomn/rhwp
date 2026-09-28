@@ -95,8 +95,10 @@ issue5788/tac_table_missing_anchor_line_spacing.hwp	5
 issue5793/pua_f0827_double_rule.hwp	1
 issue5870/empty_host_float_flow_advance.hwp	2
 issue5877/fragment_ghost_vrules.hwp	6
+issue5941/1480000-201900698-native-neartop-reset.hwp	10
 issue5966/1130000-202100008_franchise_review_report.hwp	26
 issue6030/2386771_agritech_review_form.hwp	2
+issue6031/3249937_asset_management_rules.hwpx	1
 issue6035/cgmp_evaluation_table.hwpx	1
 issue6036/156509073_police_press_release.hwpx	1
 issue6060/30307_local_service_reform.hwp	2
@@ -109,7 +111,9 @@ issue6310/press_release_cell_logo.hwpx	4
 issue6551/113424_evaluation_guideline.hwpx	3
 issue6601/36331407_side_by_side_tac_tables.hwpx	11
 issue6697/80550-agricultural-machinery-act-amendment.hwpx	14
+issue6764/1613000-202200037-air-traffic-controller-cbta.hwp	7
 issue6795/1341000-201100013-cyber-university-application.hwp	2
+issue6854/70833-electrical-safety-rule-regulatory-analysis.hwp	5
 issue6879/156767332-broadcast-revenue-attachment.hwp	1
 kps-ai.hwp	2
 mel-001.hwp	1
@@ -125,6 +129,7 @@ task1768/distribution_doc.hwpx	1
 task2070/1130000-201900011_D0150004-1-002_2017년기준 시장구조조사.hwp	48
 task2093/1192000_hydrogen_policy_research.hwp	1
 task2097/21217935_simsa_jipyo.hwp	48
+task2097/75544_pii_bunseok.hwpx	2
 task2279/36404953_gyeoljae.hwpx	1
 # #7226: 걸침 전용 행의 이중 소유를 없애 이 문서의 겹침이 68 → 39 로 줄었고(devel 236a601da),
 # 이후 표 조판 묶음으로 37 까지 내려갔다. 33쪽 겹침은 0 이다. 여유 없이 실측으로 조인다.

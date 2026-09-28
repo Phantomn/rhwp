@@ -67,9 +67,23 @@ const BODY_OVERFLOW_TOLERANCE_PX: f64 = 2.0;
 const DEDICATED_SLOW_FIXTURES: &[&str] = &["issue2063_huge_cellbreak_table.hwp"];
 
 /// #7382 검토에서 본문 넘침 증가가 확인되고 같은 원문의 한컴 비교가 90% 미달인 입력.
-/// API: 0→1, 영어 시험: 3→5. #7445의 api24/exam_eng 증적에 근거한다.
+/// 각 원문의 증가/시각 근거는 #7445 증적과 corpus_scope_restore_validation.json에 연결한다.
 /// 원문은 samples에 유지하며 다른 래칫·쪽수·렌더러 비교 대상에서는 제외하지 않는다.
-const DEFERRED_BODY_OVERFLOW_FIXTURES: &[&str] = &["hwpctl_API_v2.4.hwp", "exam_eng.hwp"];
+const DEFERRED_BODY_OVERFLOW_FIXTURES: &[&str] = &[
+    "exam_eng.hwp",
+    "hwpctl_API_v2.4.hwp",
+    "hwp3-sample16-hwp5.hwp",
+    "hwp3-sample16-hwp5-2010.hwp",
+    "hwp3-sample16-hwp5-2022.hwp",
+    "issue3637/press_release_split_cell_nested_table.hwpx",
+    "issue6031/3249937_asset_management_rules.hwpx",
+    "task2097/75544_pii_bunseok.hwpx",
+    "issue6764/1613000-202200037-air-traffic-controller-cbta.hwp",
+    "issue6023/30269_reform_recommendation.hwp",
+    "issue6844/30269-anticorruption-recommendation-toc.hwp",
+    "issue6854/70833-electrical-safety-rule-regulatory-analysis.hwp",
+    "rowbreak-problem-pages.hwp",
+];
 
 fn collect_samples() -> Vec<(PathBuf, String)> {
     fn walk(dir: &Path, root: &Path, acc: &mut Vec<(PathBuf, String)>) {
