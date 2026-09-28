@@ -40,9 +40,15 @@ def measure(profile, label):
     elapsed = time.monotonic() - started
     units = []
     for line in (OUT / f'{label}.jsonl').read_text().splitlines():
+        if not line.startswith('{'):
+            continue  # -vv also forwards bracket-prefixed build-script stdout.
         event = json.loads(line)
         if event.get('reason') == 'compiler-artifact':
             units.append({k: event[k] for k in ('package_id', 'target', 'profile', 'fresh')})
+    finished = [json.loads(line) for line in (OUT / f'{label}.jsonl').read_text().splitlines()
+                if line.startswith('{') and json.loads(line).get('reason') == 'build-finished']
+    if proc.returncode == 0 and (not finished or not finished[-1].get('success')):
+        raise RuntimeError('missing successful Cargo build-finished event')
     wasm = TARGET / 'wasm32-unknown-unknown' / ('debug' if profile == 'dev' else 'release') / 'rhwp.wasm'
     result = dict(label=label, profile=profile, command=command, wall_seconds=elapsed,
                   returncode=proc.returncode, source_sha=capture('git', 'rev-parse', 'HEAD'),
