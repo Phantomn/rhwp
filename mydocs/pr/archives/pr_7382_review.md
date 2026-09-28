@@ -2475,3 +2475,15 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![전직시험면제6쪽 review](../assets/issue7445/jeonjik2146_native_review_006.png)
 ![전직시험면제2쪽 overlay](../assets/issue7445/jeonjik2146_native_overlay_002.png)
+
+
+## 보정132 사전 분석·결과 — 규제영향 중첩 표의 실제 쪽수·소속만 보류
+
+- 사전 head `b77d41894bc373d93addfef8d864c521f0e45a14`, 코드 `467b2835f47a58f596af9b281c166c5bf06c55f1`. [동일입력/PDF·실패재현·유지검사·명령](../assets/issue7445/regulatory3637_blocking_scope_validation.json). ZIP HWPX·마지막저장한컴2020이며paired정상한컴2022 PDF31쪽을사용했습니다. cairo current-2020은독립기준아닙니다.
+- devel기존함수/oracle는PASS, 후보32쪽과26/27줄소속은실제FAIL입니다. 선행쪽수뒤의26임금존재·27사업체존재·27임금부재를기존Rust함수로각각exit100재현했습니다. 선택1·25–31Native최저24.2785%이며큰물리쪽소속차이를직접확인했고추가32쪽에도말미표/설명이넘어갑니다.
+- [#7445](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5875495573)에 이입력oracle31/31행 및실제실패assertion4개만후속이관했습니다. 기존함수·정상26다음내용부재/28숨은줄/전체넘침상한1100px·다른입력/축/원문/PDF 유지. baseline31→32완화·새함수·생산변경없음.
+- 유지4PASS+oracle13PASS/3FAIL=17PASS/3FAIL/648SKIP. 필수fmt/Native·WASM·alltargetsClippy/workspacebuild/manifest·unit정책fixedbase모두exit0. 다른3oracle실패는유지했습니다.
+- 전31쪽/freshWASM/최종전체회귀·원PR시각증거·PR준비는미완료이며피델리티개선으로보고하지않습니다.
+
+![규제영향26쪽 review](../assets/issue7445/regulatory3637_native_review_026.png)
+![규제영향28쪽 overlay](../assets/issue7445/regulatory3637_native_overlay_028.png)

@@ -1510,8 +1510,8 @@
       }
     }
   ],
-  "next_candidate": "issue3637 regulatory_impact_nested_table_escape",
-  "next_candidate_reason": "현재oracle31→32 실제실패를먼저개별분석하고다른정상검사유지",
+  "next_candidate": "hwpctl_ParameterSetID_Item_v1.2.hwp oracle74→75",
+  "next_candidate_reason": "현재실제차단oracle만개별분석하고정상계약보존",
   "current_status_counts": {
     "resolved": 37,
     "deferred": 1,
@@ -2159,6 +2159,24 @@
       ],
       "passed": 30,
       "failed": 4
+    },
+    "regulatory3637": {
+      "stage": 132,
+      "code_commit": "467b2835f47a58f596af9b281c166c5bf06c55f1",
+      "evidence": "../issue7445/regulatory3637_blocking_scope_validation.json",
+      "scope": [
+        "oracle 이입력31/31행",
+        "기존함수의위쪽수/소유assertion4개만"
+      ],
+      "preserved": [
+        "기존중첩표함수자체",
+        "p26 다음사업체조사줄부재",
+        "p28 숨은셀줄없음",
+        "전체페이지중첩표넘침상한1100px",
+        "다른정상입력/모든다른축/원문/PDF"
+      ],
+      "passed": 17,
+      "failed": 3
     }
   },
   "latest_axis_snapshot": {

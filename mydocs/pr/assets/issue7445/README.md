@@ -388,3 +388,16 @@ oracle행·#2097 입력항목·#7028/HWP #7032 선행쪽수 assertion만 보류�
 ![전직시험면제6쪽 review](jeonjik2146_native_review_006.png)
 ![전직시험면제2쪽 overlay](jeonjik2146_native_overlay_002.png)
 ![추가7쪽 설명 이월](jeonjik2146_native_extra_007.png)
+
+
+## 규제영향 중첩 표: 실제 차단된 쪽수·소속 assertion만 보류
+
+[원문](../../../../samples/issue3637/regulatory_impact_nested_table_escape.hwpx), [독립 한컴PDF31쪽](../../../../pdf/issue3637/regulatory_impact_nested_table_escape-hwpx-2020.pdf),
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5875495573), [보정132 검증](regulatory3637_blocking_scope_validation.json).
+후보32/기준31쪽이며 선택Native8쪽최저24.2785%입니다. PDF26·27쪽줄소속이후보27·28쪽으로이월됩니다.
+기존함수의실패쪽수/소유assertion4개와oracle이입력행만보류했습니다. 함수·정상26쪽다음내용부재·28쪽숨은줄·넘침상한/다른입력·축·원문PDF유지.
+쪽수뒤의세실패도기존Rust함수에서각각재현했고유지검사는4PASS입니다. oracle13PASS/3FAIL,lint/정책7exit0. 전31쪽/freshWASM/전체회귀·승인은미완료입니다.
+
+![규제영향26쪽 review](regulatory3637_native_review_026.png)
+![규제영향28쪽 overlay](regulatory3637_native_overlay_028.png)
+![규제영향 추가32쪽](regulatory3637_native_extra_032.png)
