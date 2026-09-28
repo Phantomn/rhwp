@@ -2158,3 +2158,7 @@ head `f56788498d63d21e6cafd9c563fab52c4e0cb133`에서 기존29번 text-overlap p
 기존29번의 HWPX4쪽 신규겹침9건을 실제 공개 결재문서/기존 독립 한컴2024 PDF 전체5쪽으로 검증했습니다. PR#1752/계획#1811/결과#2015의 입력별 대응을 확인했습니다. 현재5/기준5쪽이나 Native1~5쪽94.04792/98.06349/82.65886/72.63884/30.44845%입니다.4쪽 표/문단 겹침과표내용소유,5쪽 이어받기·뒤 설명/표/제목 위치 차이를 직접 확인했습니다. fresh WASM은 미실행입니다.
 
 [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870886007) 뒤 HWPX만 보존/렌더링3함수와 body1행을 제외했습니다. #1811 혼합 함수의 HWPX 페이지/cut 부분만 제외하고 셀52/57 저장 IR 및 기존 HWP5쪽/3유닛컷 대조군을 유지합니다. same-id 역사적IR catalogue/배열계약, 다른 원문·기대값·공차 유지, 새 함수/skip/ignore/생산 변경 없음. 코드 `3f7ea7600d9c1bd4ef4804badcb94b7eafe890cb`, [근거](../assets/issue7445/savedbounds1749_test_removal_validation.json). 집중 ['     Summary [   1.181s] 4 tests run: 4 passed, 628 skipped']; 필수 lint/정책 exit는 근거에서 구분했습니다. IR/HWP 대조군을 HWPX 승인으로 세지 않으며 원문 피델리티/전체회귀 완료로 보고하지 않습니다.
+
+## 보정95 결과 — 기존30번 개별 실행
+
+head `f90b2d3592dbd239f00e4bb5ce5777756da05e48`에서 기존30번 text-overlap partition10을 단독 실행했습니다.1FAIL/227SKIP(exit100,0.615초)이며 `한글문서파일형식_5.0_revision1.3.hwp`의 신규겹침1건입니다. 첫 실패에서 멈췄으며 생산·검사·기대값 변경 없음. [명령·summary](../assets/pr7382_20260926/stage95_individual_validation.json). 동일 원문 독립 시각 비교를 먼저 수행합니다. 고정38은28완료/1이관/9대기이며 PR준비 미완료입니다.
