@@ -2096,3 +2096,9 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 ## 보정83 결과 — 기존6번 개별 실행
 
 head `1fddec84c4d05919323e190d0068046be624d373`에서 기존6번 body partition3을 nextest release-test/공유target/8threads로 단독 실행했습니다. 1FAIL/239SKIP(exit100,44.776초)이며 증가 원문은 전기안전관리규정70833의2→3건입니다. 시장구조조사의44.728초는 같은 corpus의 실제 장기 샘플 실행이며 출력 공백을 중단 사유로 삼지 않았습니다. 첫 실패에서 다음 함수를 멈추고 독립 PDF와 해당 원문의 시각 비교를 먼저 수행합니다. 생산·검사·기대값 변경은 없습니다. [개별 실행 근거](../assets/pr7382_20260926/stage83_individual_validation.json). 고정38은18완료/1이관/19대기, PR 준비 미완료입니다.
+
+## 보정84 사전 분석·결과 — 전기안전규정 제외와 기존6번 완료
+
+기존6번의 전기안전규정 본문하단2→3건을 같은 원문/독립 한컴18쪽 PDF로 검증했습니다. 실제18/기준18쪽이나 선택 Native5·6·10·14·18쪽37.05508/35.31196/19.83933/93.80158/20.13671%입니다.5쪽은 앞 표가 반복되고 정상 다음 표가 표시되지 않으며10쪽은 규제 적정성 대신 이전 이해관계자 표/규제목표가 표시됩니다. 해당 review를 직접 확인했고 전체/fresh WASM은 미실행입니다.
+
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870144757) 후 원문을 바이트 동일하게 이관하고 HWP 전용2함수와 해당corpus2행만 제거했습니다. 같은case의 춘천HWPX2함수·helper·기대값·공차 유지, 새 함수/skip/ignore/생산 변경 없음. [입력·검증 근거](../assets/issue7445/electrical6854_test_removal_validation.json), 코드 `5dcf8eb2c96da81b4b8054c888d0892ae25d8a2d`입니다. 기존6번 단독1PASS와 유지HWPX2PASS(집중3PASS/466SKIP,exit0), fmt·Clippy3종·workspace build·고정base정책exit0입니다. 원문 피델리티나 다른 입력 해결로 세지 않습니다. 고정38은19완료/1이관/18대기, 최종 전체 검증과PR준비 미완료입니다.

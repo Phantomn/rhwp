@@ -124,3 +124,13 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native103쪽의 내용 소유와 그림 차이](air6764_native_review_103.png)
 
 ![Native201쪽의 역량 표와 부록 소유 차이](air6764_native_overlay_201.png)
+
+## 추가: 전기안전관리법 시행규칙 규제영향분석서70833
+
+- [등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870144757), [보존 HWP](70833-electrical-safety-rule-regulatory-analysis.hwp), [같은 원문의 독립 한컴 PDF18쪽](../../../../pdf/70833-electrical-safety-rule-regulatory-analysis-2020.pdf), [검사 제외와 유지 검증](electrical6854_test_removal_validation.json).
+- 실제18/기준18쪽이나 Native5·6·10·14·18쪽37.05508/35.31196/19.83933/93.80158/20.13671%입니다.5쪽의 이전 표 반복/다음 표 소유 차이,10쪽의 규제 적정성 대신 이전 이해관계자 표와 규제목표가 표시되는 차이를 review에서 직접 확인했습니다. 전체/fresh WASM 통과를 주장하지 않습니다.
+- 원문70,656byte를 바이트 동일하게 보존하고 HWP 전용2함수와 corpus2행만 제거했습니다. 춘천 인사 규칙 HWPX2함수·helper·기대값·공차 유지, 새 함수/ignore/skip/생산 변경 없음. 기존6번 단독1PASS와 유지 HWPX2PASS(집중3PASS/466SKIP,exit0), 필수 lint·고정 base 정책exit0입니다. 이관을 피델리티 개선으로 세지 않습니다.
+
+![Native5쪽의 분할 표 내용 소유 차이](electrical6854_native_review_005.png)
+
+![Native10쪽의 표와 본문 소유 차이](electrical6854_native_overlay_010.png)

@@ -244,7 +244,7 @@
       "id": 6,
       "function": "body_overflow_baseline::body_overflow_does_not_grow_partition_3",
       "case": "body_overflow_baseline",
-      "status": "pending",
+      "status": "resolved",
       "individual_results": [
         {
           "id": 6,
@@ -278,13 +278,41 @@
           ],
           "stage": 83,
           "head": "1fddec84c4d05919323e190d0068046be624d373"
+        },
+        {
+          "stage": 84,
+          "after": "기존6번1PASS/유지대조군2PASS,exit0",
+          "code_head": "5dcf8eb2c96da81b4b8054c888d0892ae25d8a2d",
+          "evidence": "../issue7445/electrical6854_test_removal_validation.json",
+          "command": [
+            "cargo",
+            "nextest",
+            "run",
+            "--locked",
+            "--cargo-profile",
+            "release-test",
+            "--target-dir",
+            "target/pr-review",
+            "--test-threads",
+            "8",
+            "--no-fail-fast",
+            "--test",
+            "regression_suite_017",
+            "--test",
+            "regression_suite_022",
+            "-E",
+            "test(=body_overflow_baseline::body_overflow_does_not_grow_partition_3) or test(/(^|::)issue_6854_empty_para_orphan_page::/)"
+          ]
         }
       ],
       "resolved_plan": {
         "caseName": "body_overflow_baseline",
-        "target": "regression_suite_015",
+        "target": "regression_suite_017",
         "grouped": true
-      }
+      },
+      "code_commit": "5dcf8eb2c96da81b4b8054c888d0892ae25d8a2d",
+      "evidence": "../issue7445/electrical6854_test_removal_validation.json",
+      "resolution_scope": "사용자 승인 미달 HWP 이관 뒤 현재 body partition3 단독PASS. 원문 피델리티와 다른 입력 해결 아님."
     },
     {
       "id": 7,
@@ -879,12 +907,12 @@
       }
     }
   ],
-  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_3",
-  "next_candidate_reason": "고정6번 개별FAIL: 전기안전관리규정70833 본문하단2→3건. 동일 입력 독립 PDF/Native sweep으로 먼저 검증. 원래19대기와 추가 실패는 유지.",
+  "next_candidate": "body_overflow_baseline::body_overflow_does_not_grow_partition_4",
+  "next_candidate_reason": "다음 고정 대기 함수를 개별 실행하고 첫 실패의 원문을 독립 PDF로 판단. 추가 HWPX/시장구조/글꼴 추적 실패와 footer 및 최종 전체 검증도 남음.",
   "current_status_counts": {
-    "resolved": 18,
+    "resolved": 19,
     "deferred_to_issue": 1,
-    "pending": 19
+    "pending": 18
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
@@ -960,6 +988,15 @@
       "observation": "exact-face: charactersSeen/recordsEmitted 1334, 기대1336. 같은 runsSeen194. 원인과 독립 근거 판단 미완료.",
       "observed_stage": 81,
       "status": "pending"
+    },
+    {
+      "document": "samples/issue6854/70833-electrical-safety-rule-regulatory-analysis.hwp",
+      "observed_stage": 83,
+      "failure": "body bottom2→3건",
+      "status": "deferred_to_issue",
+      "stage": 84,
+      "evidence": "../issue7445/electrical6854_test_removal_validation.json",
+      "note": "선택4쪽90%미달. #7445등록/원문보존/해당 회귀2함수·원장2행제외. 피델리티 개선 아님."
     }
   ]
 }
