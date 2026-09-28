@@ -21,3 +21,9 @@ Issue: #7473. 사용자 요청에 따라 반복 빈도 → 좁은 재사용 계�
 ## 운영 경계
 
 실험 branch만 push하고 기존 Render Diff dispatch entrypoint를 이 ref에서만 대체한다. production trigger/check/permission은 변경하지 않는다. contents:read, 외부 action SHA 고정, artifact 보존은 3일. 원상복구는 실험 ref를 사용하지 않는 것이며 사용자 소스나 #7474에 영향을 주지 않는다.
+
+## 구현 전 로컬 검증
+
+실제 helper를 호출하는 unittest 13개(여러 입력 경계 subtest 포함), actionlint, Python/Node 구문, git diff --check 통과. 정상/손상 consumer는 같은 불변 producer artifact ID만 사용한다. 기존 #7474의 빌드 계측 및 브라우저 응답 관찰 코드를 재사용했으며 Rust 제품 코드는 변경하지 않았다.
+
+원본 checkout 로그까지 대조한 결과 동일 head 6회 상한 중 실제 같은 checkout SHA 반복은 **4회**였다. 나머지는 PR merge SHA가 달랐다. 같은 run 안 반복은 여전히 1회다. 상시 도입을 보류하는 판단은 유지한다.
