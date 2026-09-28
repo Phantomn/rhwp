@@ -24,7 +24,8 @@
 
 산출물은 저장소에 커밋되어 있으므로 테스트는 이 스크립트를 실행하지 않는다 — 재생성할
 때만 기준 문서가 필요하다. PR #4093 의 확인용 자료를 한자리에 모으려고
-최소 문서는 `samples/pr4093/`, 피델리티 미달 데모는 #7445 보존 자산에 둔다.
+두 입력은 피델리티 미달로 #7445 보존 자산에 둔다.
+원문을 `samples/`에 다시 넣기 전에 독립 PDF와 전체 시각 검증을 다시 수행해야 한다.
 `samples/` 아래는 overflow-cell 원장의 전수 대상이므로
 fixture 를 바꾸면 `tests/overflow_cell_baseline.rs` 게이트를 함께 돌린다
 (`mydocs/manual/pr_review/local_validation.md` 4.3.1).
@@ -38,8 +39,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "samples" / "hwpx" / "ref" / "ref_empty.hwpx"
-OUTPUT_DIR = ROOT / "samples" / "pr4093"
-OUTPUT = OUTPUT_DIR / "outline_navigation_table_cell_number.hwpx"
+OUTPUT = ROOT / "mydocs" / "pr" / "assets" / "issue7445" / "outline_navigation_table_cell_number.hwpx"
 DEMO_OUTPUT = ROOT / "mydocs" / "pr" / "assets" / "issue7445" / "outline_navigation_panel_demo.hwpx"
 ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 
@@ -255,7 +255,7 @@ def main() -> int:
     if not SOURCE.is_file():
         raise RuntimeError(f"기준 문서가 없다: {SOURCE}")
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     write_fixture(OUTPUT, minimal_body())
     DEMO_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     write_fixture(DEMO_OUTPUT, demo_body())
