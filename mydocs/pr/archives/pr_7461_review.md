@@ -2,8 +2,9 @@
 
 ## 최종 판정
 
-**머지 보류 — 최신 PR head의 GitHub Actions 완료 대기.** 로컬 검증은 통과했다.
-최신 required checks와 mergeability 확인 및 별도 병합 지시가 완료 조건이다.
+**승인 — 로컬 검증과 Full CI 통과.** 검증 후보는
+`1f170889dfeda896706275b0029943ea2786cc9d`이며 작업지시자가 CI 완료 후 병합과 후속 처리를 승인했다.
+이 판정 기록을 포함한 최신 head의 required checks와 mergeability를 재확인하고 일반 merge한다.
 
 ## 접수와 적용
 
@@ -37,12 +38,28 @@ runner, job 이름, required check 배선은 변경하지 않았다.
 
 조판 원칙·Visual Sweep·HWP/HWPX/PDF 입력 커밋 확인은 **비해당**이다.
 제품 Rust·WASM·Studio·fixture·baseline 변경이 없다. 제품 전체 로컬 빌드는 비해당이며
-새 Action의 GitHub runner에서의 실제 nextest 설치·archive 실행은 원격 CI에서 확인해야 한다.
+새 Action의 GitHub runner에서의 실제 nextest 설치는 builder A–D와 runner A–D 총 8개
+job에서 모두 성공했다. archive 빌드·테스트 A–D도 모두 성공했다.
 
 ## CI와 후속 조건
 
-최초 후보의 [CI run](https://github.com/edwardkim/rhwp/actions/runs/36383960201)은
-PR 생성으로 시작됐으며 기록 시점에 진행 중이었다. 이 후행 문서 commit까지 포함한 최신
-head가 최종 CI 확인 대상이다. workflow 변경 PR이므로 review-only 재사용을 가정하지 않는다.
-source와 이 기록을 같은 PR에 포함한다. 이후 병합·원 PR 종료·코멘트는 별도 지시 범위다.
+후행 기록을 포함한 검증 후보 `1f170889d`의
+[Full CI](https://github.com/edwardkim/rhwp/actions/runs/36384085507)는 2026-09-28 KST에 성공했다.
+Lint, Native Skia, Frontend package gate, archive 빌드·테스트 A–D, Build & Test를 확인했다.
+[CodeQL](https://github.com/edwardkim/rhwp/actions/runs/36384085538)의 언어별 분석과 GHAS CodeQL check,
+[Adapter inter-diff](https://github.com/edwardkim/rhwp/actions/runs/36384085460),
+[Proptest roundtrip](https://github.com/edwardkim/rhwp/actions/runs/36384085553)도 성공했다.
+검증 후보의 최종 상태는 30 SUCCESS·4 SKIPPED, MERGEABLE/CLEAN이며 실패·대기는 없었다.
+새 기록 commit의 최신 required checks는 별도로 확인하며 workflow 변경 PR의 재사용을 가정하지 않는다.
 되돌리기는 위 체리픽 commit의 revert로 이전 Action SHA를 복원한다.
+
+## Merge 후 contributor PR comment 계획
+
+사용자가 병합과 후속 처리를 승인했다. 실제 merge SHA를 확인하고 review·오늘할일·Action SHA의
+devel 포함을 확인한 뒤 #7461과 원 PR #7458에 한국어 존댓말로 결과를 게시한다.
+원 PR에는 체리픽 통합 PR, 원/체리픽/merge SHA, 위 CI·로컬 검증 링크를 남긴 후 superseded로 닫는다.
+관련 closing issue는 GraphQL 조회 결과 0개이며 별도 issue 종료는 없다.
+시각 증적은 비해당이다. merge 후 duration 갱신의 성공 또는 증거 부족에 따른 보류 이유를
+확인하고 최종 코멘트에 남긴다. 재검증 workflow를 시작하거나 재실행하지 않는다.
+문서는 이미 이 PR의 archive 경로에 포함되어 추가 기록 PR·devel 직접 push는 필요 없다.
+local devel을 fast-forward하고 이번 작업의 local/remote 통합 branch를 안전 조건 확인 후 정리한다.
