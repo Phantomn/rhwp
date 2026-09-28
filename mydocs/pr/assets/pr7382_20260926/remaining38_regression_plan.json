@@ -1780,6 +1780,160 @@
       "evidence": "../issue7445/corpus_api_eng_scope_restore_validation.json",
       "result": "11PASS, 필수8단계exit0",
       "remaining": "그 외 원문의 정상 corpus 제외 범위 대조와15실패함수 개별처리"
+    },
+    "corpus_restore": {
+      "stage": 110,
+      "code_commit": "501888148359749aef460291e3282a65ebe1eb96",
+      "evidence": "../issue7445/corpus_scope_restore_validation.json",
+      "original_inputs_restored": 22,
+      "normal_baseline_rows_restored_stage110": 24,
+      "diagnostic_result": "86기존검사=63PASS/23FAIL/1086SKIP",
+      "actual_failures": [
+        {
+          "test": "rhwp::regression_suite_009 text_overlap_baseline::text_overlaps_do_not_grow_partition_10",
+          "observations": [
+            "증가: issue6795/1341000-201100013-cyber-university-application.hwp — 2 → 3건"
+          ]
+        },
+        {
+          "test": "rhwp::overflow_cell_baseline overflow_cell_lines_do_not_grow_partition_9",
+          "observations": [
+            "신규 발생: issue6035/cgmp_evaluation_table.hwpx — 7줄 (baseline 없음)"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_009 text_overlap_baseline::text_overlaps_do_not_grow_partition_12",
+          "observations": [
+            "신규 발생: hwp3-sample16-hwp5-2010.hwp — 1건 (baseline 없음)"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_009 text_overlap_baseline::text_overlaps_do_not_grow_partition_0",
+          "observations": [
+            "증가: issue5941/1480000-201900698-native-neartop-reset.hwp — 10 → 19건"
+          ]
+        },
+        {
+          "test": "rhwp::overflow_cell_baseline overflow_cell_lines_do_not_grow_partition_8",
+          "observations": [
+            "증가: task2097/21217935_simsa_jipyo.hwp — 24 → 26줄"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_009 text_overlap_baseline::text_overlaps_do_not_grow_partition_2",
+          "observations": [
+            "신규 발생: task2319/20544835_jinan_apt_form.hwp — 5건 (baseline 없음)"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_009 text_overlap_baseline::text_overlaps_do_not_grow_partition_13",
+          "observations": [
+            "신규 발생: hwp3-sample16-hwp5-2022.hwp — 1건 (baseline 없음)",
+            "증가: task2287/1342000_edu_curriculum_map.hwp — 37 → 90건"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_009 text_overlap_baseline::text_overlaps_do_not_grow_partition_14",
+          "observations": [
+            "증가: rowbreak-problem-pages.hwpx — 1 → 2건"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_009 text_overlap_baseline::text_overlaps_do_not_grow_partition_8",
+          "observations": [
+            "신규 발생: hwp3-sample16-hwp5.hwp — 1건 (baseline 없음)"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_014 oracle_page_count_baseline::page_counts_do_not_drift_from_hancom_oracle_partition_0",
+          "observations": [
+            "samples/issue3637/regulatory_impact_nested_table_escape.hwpx: 정답지 [31] 대비 격차가 커졌다 — 기준 31쪽(차 0) → 현재 32쪽(차 1)"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_009 text_overlap_baseline::text_overlaps_do_not_grow_partition_3",
+          "observations": [
+            "증가: issue6764/1613000-202200037-air-traffic-controller-cbta.hwp — 7 → 11건"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_014 oracle_page_count_baseline::page_counts_do_not_drift_from_hancom_oracle_partition_1",
+          "observations": [
+            "samples/2025 행정업무운영 편람(최종).hwp: 정답지 [384] 대비 격차가 커졌다 — 기준 384쪽(차 0) → 현재 383쪽(차 1)"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_014 oracle_page_count_baseline::page_counts_do_not_drift_from_hancom_oracle_partition_7",
+          "observations": [
+            "samples/hwpctl_ParameterSetID_Item_v1.2.hwp: 정답지 [74] 대비 격차가 커졌다 — 기준 74쪽(차 0) → 현재 75쪽(차 1)"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_014 oracle_page_count_baseline::page_counts_do_not_drift_from_hancom_oracle_partition_14",
+          "observations": [
+            "samples/basic/issue2007_nested_cell_pagination_42065.hwp: 정답지 [17] 대비 격차가 커졌다 — 기준 17쪽(차 0) → 현재 21쪽(차 4)"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_022 body_overflow_baseline::body_overflow_does_not_grow_partition_11",
+          "observations": [
+            "신규 발생: issue7196/156760012_page_top_spacing_trim.hwpx — 2건 (baseline 없음)"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_014 oracle_page_count_baseline::page_counts_do_not_drift_from_hancom_oracle_partition_5",
+          "observations": [
+            "samples/task2146/21761835_jeonjik_exemption_table.hwp: 정답지 [6] 대비 격차가 커졌다 — 기준 6쪽(차 0) → 현재 7쪽(차 1)",
+            "samples/정책연구용역사업 중간진도보고서(살아있는 간장 기증자의 의학적 선별기준 연구).hwp: 정답지 [215] 대비 격차가 커졌다 — 기준 215쪽(차 0) → 현재 216쪽(차 1)"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_022 body_overflow_baseline::body_overflow_does_not_grow_partition_5",
+          "observations": [
+            "증가: issue1853_caption_precedes_body_split.hwpx — 0 → 2건"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_022 body_overflow_baseline::body_overflow_does_not_grow_partition_7",
+          "observations": [
+            "증가: hwpx/issue2019_floating_form_74312.hwpx — 2 → 3건"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_027 off_canvas_baseline::off_canvas_does_not_grow_partition_11",
+          "observations": [
+            "신규 발생: hwp3-sample16-hwp5.hwp — 1건 (baseline 없음)"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_027 off_canvas_baseline::off_canvas_does_not_grow_partition_10",
+          "observations": [
+            "신규 발생: hwp3-sample16-hwp5-2010.hwp — 1건 (baseline 없음)"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_027 off_canvas_baseline::off_canvas_does_not_grow_partition_13",
+          "observations": [
+            "신규 발생: HWP5-nopassword-123456.hwpx — 1건 (baseline 없음)",
+            "신규 발생: basic/issue2007_nested_cell_pagination_42065.hwp — 2건 (baseline 없음)",
+            "신규 발생: hwp3-sample16-hwp5-2022.hwp — 1건 (baseline 없음)",
+            "증가: issue6031/3249937_asset_management_rules.hwpx — 1 → 12건"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_027 off_canvas_baseline::off_canvas_does_not_grow_partition_3",
+          "observations": [
+            "신규 발생: issue6892/156726122-recycling-press-release.hwpx — 1건 (baseline 없음)"
+          ]
+        },
+        {
+          "test": "rhwp::regression_suite_022 body_overflow_baseline::body_overflow_does_not_grow_partition_10",
+          "observations": [
+            "신규 발생: issue6778/156757920-animal-welfare-husbandry-guidelines.hwp — 1건 (baseline 없음)"
+          ]
+        }
+      ],
+      "remaining": "개별15실패 및 corpus23실패의 입력/축 대조 후 개별 해결. 고정38의 resolved는 과거 snapshot이며 현재 통과로 세지 않음. 최종37개별 실행 후 전체 nextest 필요."
     }
   }
 }

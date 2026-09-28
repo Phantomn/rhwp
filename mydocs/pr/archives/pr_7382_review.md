@@ -2238,3 +2238,9 @@ head `a643e0e6b8bdb40172dbc55386d747b2ea49fd3f`에서 기존36·37번 각1PASS,3
 사용자께서 확인하신 대상은 PR#7382입니다. API/영어 원문의 실제 본문 넘침 증가(API0→1, 영어3→5)와 다른 정상 검사 축을 구분했습니다. 보존 원문과 같은 바이트의 samples 입력, renderer manifest2항목, 쪽수 oracle/matrix4행과 API text 원장1행을 복원했습니다. 본문 넘침만 명시적 목록으로 보류하며 다른 corpus의 자동 수집과 정상 개별 함수를 유지합니다. 기존 수치·공차·생산코드·함수 수를 바꾸지 않았습니다.
 
 코드 `65a5e2d31e703be24e5b8a14a3c53c399dd7a2e3`, [입력·실행·범위 근거](../assets/issue7445/corpus_api_eng_scope_restore_validation.json). 두 입력이 실제 포함된 off-canvas/cell/text/oracle 분할과 matrix 계약을 실행해11PASS/917SKIP, 필수8단계exit0입니다. renderer manifest122항목의 실제 로드/digest 확인은 통과했지만 backend 재캡처로 보고하지 않습니다. 문서 피델리티 미달은 미해결이며 나머지 corpus의 과잉제외 대조와15개 실제 실패 함수 개별 처리가 남았습니다. 최종 전체회귀/PR 준비는 미완료입니다.
+
+## 보정110 사전 분석·결과 — 나머지 정상 corpus 범위 복원
+
+보정69 이후 이동한22입력 중 API·영어 외20입력도 보존 원문과 바이트/해시가 같은 samples 경로로 복원했습니다. 확인된 본문13입력/text8입력 및 쪽수5입력의 해당 축 보류만 유지하고 다른 축은 원래 기대값으로 검사합니다. neartop의 본문17/19 통과를 실패로 보지 않으며 정상 원장24행(body7/off7/text5/oracle2/matrix2/cell1)을 복원했습니다. 보정69 이전 사용자 지정 거대문서 제외는 대상이 아닙니다. 새 함수·생산 변경·기준값/공차 완화는 없습니다.
+
+코드 `501888148359749aef460291e3282a65ebe1eb96`, [입력·증거·실패 목록·명령](../assets/issue7445/corpus_scope_restore_validation.json). 기존 corpus80분할과 matrix6계약을 실행해63PASS/23FAIL/1086SKIP(exit100,110.901초), lint·정책7단계exit0입니다. 이 실패를 제외 목록에 자동 추가하지 않았습니다. 정상 범위 복원 진단이며 최종 전체회귀 통과가 아닙니다. 기존38 완료 표시는 과거 snapshot이고 최종 재실행이 필요합니다. 복원된 개별검사15실패와 corpus23실패는 같은 원문인지 대조하며 개별 처리합니다. PR준비는 미완료입니다.

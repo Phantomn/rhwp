@@ -261,3 +261,7 @@ venv/bin/python scripts/visual_sweep.py \
 ## 보정109: API·영어의 정상 원장 및 렌더러 범위 복원
 
 [범위·실행 근거](corpus_api_eng_scope_restore_validation.json)에 따라 원본 samples 입력과 renderer2항목, 정상 text/oracle/matrix 행을 복원했습니다. 집중11PASS/필수8단계exit0이며 본문 넘침만 명시적으로 보류합니다. 이전 문서 전체 검사 제외 서술은 이 범위로 정정합니다. backend 캡처와 문서 전체 피델리티/최종 회귀 완료는 별도 미완료입니다.
+
+## 보정110: 정상 corpus 범위 복원 완료, 실패는 개별 판정
+
+[보류 축·22원문·복원 행·실행 근거](corpus_scope_restore_validation.json)에 따라 보정69 이후 이동 원문을 samples에도 복원했습니다. 정상 원장24행을 원래 값으로 유지하고 확인된 실패 축만 명시적으로 보류합니다. corpus/matrix86검사는63PASS/23FAIL이며23실패를 자동 이관/제거하지 않았습니다. 기존 개별15실패와 대조해 입력별로 처리합니다. 검사 복원이 문서 피델리티 개선이나 최종회귀 통과를 뜻하지 않습니다. 이전 문서 전체 검사 제외 서술은 보정105~110의 범위로 정정합니다.
