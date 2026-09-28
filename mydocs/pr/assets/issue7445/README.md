@@ -206,3 +206,11 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native15쪽 표 내용·분할 차이](format_spec13_native_review_015.png)
 
 ![Native49쪽 내용 소유 차이](format_spec13_native_overlay_049.png)
+
+## 추가: PR#4093 개요 탐색 패널 합성 HWPX
+
+- [등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5871352884), [보존 데모](outline_navigation_panel_demo.hwpx), [같은 입력의 독립 PDF3쪽](../../../../pdf/issue7382-regression-review/outline_navigation_panel_demo-2020.pdf), [입력생성·변환출처·전수비교·유지검증](outline4093_test_removal_validation.json).생성원문SHA와한컴변환job/다운로드SHA대조.
+- 전체Native1/2/3쪽100/100/51.51148%,현재3/기준3쪽.3쪽표셀번호와뒤개요겹침2건·후속내용위치차이를직접확인했습니다.freshWASM 미실행.합성입력/글꼴차이로면제하지않습니다.
+- 기존데모함수의쪽수/이동쪽/SVG assertion만 제외하고15개번호·제목·수준getter계약및다른최소입력SVG계약유지.검사함수추가/ignore/skip/생산/공차변경없음.생성기의데모출력도여기보존경로로변경하고재생성해시동일확인.집중 ['     Summary [   2.402s] 3 tests run: 3 passed, 447 skipped'],필수lint/정책exit0.기존30번완료이나최종37개/전체회귀완료는별도입니다.
+
+![Native3쪽표번호와뒤개요겹침](outline4093_native_review_003.png)

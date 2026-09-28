@@ -269,7 +269,7 @@
     "source_preserved_sha256": "f21edf2138e134702366f2fb6a2ab082b05c6dcb42216ec4fa2575ed292efd1d",
     "failed_conversion_attempts": {
       "mcp_default_original": "HwpEditorFrame.SaveAsDocument returned false for HWP",
-      "mcp_clear_distribution": "진행 중; BodyText가 안내문이므로 비교 기준으로 수용하지 않음",
+      "mcp_clear_distribution": "900초 timeout 실패, 출력0byte. 안내문BodyText 때문에 기준으로 수용하지 않음.",
       "win10_ted_diagnostic_print": "PDF 경로 HWP 중간 저장만 생략한 별도worker를 빌드; Hancom2020 Print action unavailable; 서비스 미배포/원문 불변"
     },
     "rust_scope": {
@@ -568,5 +568,12 @@
   "test_source_sha256": {
     "tests/cases/issue_5128_spec_page_roundtrip.rs": "15033c4cf765a1ee2e4beac8947ad0d31a06a35b36a0381086922708d94af8ed",
     "tests/issue_2099_araea_pua.rs": "f6518e42e595d5985494605304be2e5d8906d862c9dcbea79c31bc667053c80c"
+  },
+  "conversion_attempt_terminal": {
+    "job_id": "a3313bd8-e42d-40ee-88dc-19e1f58084be",
+    "status": "failed",
+    "elapsed_seconds": 900,
+    "output_bytes": 0,
+    "error": "Hancom 2020 direct conversion exceeded 900 seconds."
   }
 }

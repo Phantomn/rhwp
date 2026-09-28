@@ -1188,7 +1188,7 @@
       "id": 30,
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_10",
       "case": "text_overlap_baseline",
-      "status": "pending",
+      "status": "resolved",
       "individual_results": [
         {
           "id": 30,
@@ -1231,13 +1231,23 @@
           "after": "집중5PASS/기존30번1FAIL,corpus재배정 pr4093/outline_navigation_panel_demo.hwpx 신규2건",
           "status": "pending",
           "scope": "미달문서보존이관;다른입력실패해결 아님"
+        },
+        {
+          "stage": 97,
+          "test_snapshot_commit": "93f62ee4fd4b9b626ba59ae03e782e866d8e9604",
+          "fixture_deferred": "pr4093/outline_navigation_panel_demo.hwpx",
+          "fixture_removal_evidence": "../issue7445/outline4093_test_removal_validation.json",
+          "after": "집중3PASS:현재기존30번/데모getter/다른최소입력SVG",
+          "status": "resolved",
+          "scope": "미달문서사용자승인이관후현재partition10통과;이관원문피델리티개선아님"
         }
       ],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
-        "target": "regression_suite_016",
+        "target": "regression_suite_020",
         "grouped": true
-      }
+      },
+      "resolution_scope": "미달문서사용자승인이관후현재partition10통과;이관원문피델리티개선아님"
     },
     {
       "id": 31,
@@ -1336,12 +1346,12 @@
       }
     }
   ],
-  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_10",
-  "next_candidate_reason": "pr4093/outline_navigation_panel_demo.hwpx 실제 신규2건의같은원문 독립PDF 시각비교부터 수행",
+  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_11",
+  "next_candidate_reason": "다음대기함수를개별실행.첫실패에서동일입력원인/독립시각검증부터진행",
   "current_status_counts": {
-    "resolved": 28,
+    "resolved": 29,
     "deferred_to_issue": 1,
-    "pending": 9
+    "pending": 8
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
@@ -1497,9 +1507,11 @@
     {
       "document": "samples/pr4093/outline_navigation_panel_demo.hwpx",
       "observed_stage": 96,
-      "status": "pending",
+      "status": "deferred_to_issue",
       "failure": "text-overlap 신규2건",
-      "note": "기존30번 corpus재배정에서 발견.독립시각검증 필요."
+      "note": "전체Native최저51.51148%;원문보존/데모렌더·페이지assertion제외/getter및다른입력유지.피델리티개선아님.",
+      "stage": 97,
+      "evidence": "../issue7445/outline4093_test_removal_validation.json"
     }
   ]
 }
