@@ -1993,3 +1993,16 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 - fmt/check, Native Clippy, WASM lib Clippy, workspace build, workspace all-targets Clippy 및고정base `d6cf1605327ced1c276f17a529192a743a766209` manifest 검사는모두exit0입니다. source-side 단위검사는수정하지않았습니다. `.log`,output,pkg,generated파일은커밋하지않습니다.
 - 유지한작은#5921은1PASS/213SKIP입니다. body partition0은재배정된#6031 자산관리규정의1→15건증가로1FAIL/231SKIP이며, #7147의다른시장구조조사원문은기존2함수모두pi934표의쪽위치조건으로FAIL입니다. 두함수와helper는제거전HEAD와같고production도불변이므로생물독원문제거를이문서의수정으로보고하지않습니다. 새로확인한두원문의독립PDF와90%조건을이후개별판정합니다.
 - 고정38의해결수를올리지않습니다(13개별완료/1함수이관/24대기). 전체 corpus소속과suite소속이바뀌어유지37개함수각각을새소속에서다시실행해야합니다. 새정책은실패문서의실제Visual Sweep이90%미만일때#7445에추가등록한뒤관련검사를제거하는것이며,정상출력승인·피델리티해결로세지않습니다. 다음은현재1번의#6031 원문입니다.
+
+## 보정72 사전 분석 — 현재1번의 #6031 자산관리규정
+
+- 기준head `711cea1ac2f41bb33199dd800a8c983462af7ec6`에서corpus재배정으로드러난`3249937_asset_management_rules.hwpx`의본문초과1→15건을개별검토합니다. 독립PDF는기존정상60쪽이며파일명이2020이어도Creator는Hwp2022로표기됩니다. 버전문자열만으로재생성하지않고실제원문대응을대조합니다. 실제본문초과쪽과기존3·4·6·41·42쪽계약을먼저Visual Sweep으로판독한후90%미만은승인된#7445이관/검사제거경로를적용합니다.
+
+- Native3·4·6·15·41·42쪽은50.62960/49.34186/39.04806/29.16104/25.22086/25.84322%로모두90%미만입니다. 현재59/독립60쪽,본문바닥초과15건이며15쪽문단/제목의배치와41쪽붙임4/신고서의소유차이를직접판독했습니다. [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868575524)후원본HWPX를이슈자산에해시동일하게이동했습니다. 문서전용2함수·원장3행·공통#7080의이원문입력한개만제거하며,렌더러·다른원문·5개공통함수·최소20개관측·공차는유지합니다. 전체/fresh WASM미실행을통과로승격하지않습니다.
+
+## 보정72 결과 — 사용자 기준에 따른 자산관리규정 검사 이관
+
+- 검사·입력 이관 commit `5a0d2d48ead8f5595f55ce673b7e4957b157c3ef`. 원본 HWPX는100%동일한rename이며 독립PDF60쪽을 유지했습니다. 전용2함수·원장3행·#7080의 해당 입력만 제거했습니다. 렌더러와 다른 원문·공차는 바꾸지 않았습니다. [실제 비교·검사 결과](../assets/issue7445/assets6031_test_removal_validation.json).
+- #7080 유지5함수는5PASS입니다. fmt/check·Native/WASM/workspace Clippy·workspace build·고정base manifest 검사는모두exit0입니다. source-side 단위검사변경은없습니다.
+- body partition0은70문서/스킵0으로재편됐고 `task2097/75544_pii_bunseok.hwpx`의1→2건으로1FAIL입니다. 자산관리규정 제거를이문서의수정이나전체통과로보고하지않습니다. 다음은이문서의실제초과페이지와독립PDF를개별검토합니다.
+- 고정38은13개별완료/1함수이관/24대기를유지합니다. 전체37함수재실행·전체nextest·NativeSkia3 및최종head검증전에는PR준비보류입니다. `.log`·output·파생suite는커밋하지않습니다.

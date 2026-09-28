@@ -34,3 +34,13 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native39쪽의 페이지 내용 소유 차이](neartop5941_native_review_039.png)
 
 ![Native53쪽의 표 분할 위치 차이](neartop5941_native_overlay_053.png)
+
+## 추가: 자산관리규정 `3249937`
+
+- [이관 등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5868575524), [원본 HWPX](3249937_asset_management_rules.hwpx), [기존 독립 PDF60쪽](../../../../pdf/3249937_asset_management_rules-2020.pdf), [선택6쪽 실제 비교·이동·검사 제거 검증](assets6031_test_removal_validation.json).
+- 현재59/기준60쪽이며Native3·4·6·15·41·42쪽은모두90%미만(최저41쪽25.22086%)입니다. 본문초과15건과페이지내용소유차이가남습니다. 전체60쪽/fresh WASM비교통과를주장하지않습니다.
+- 문서전용#6031/#6409두함수와세원장행을제거하고#7080의자산관리규정입력한개만matrix에서제거합니다. #7080기존5함수·다른두원문·최소20개관측과공차는유지합니다. 원본423,622byte를바이트동일하게보존하고렌더러는바꾸지않습니다.
+
+![Native15쪽의 페이지 내용과 세로 위치 차이](assets6031_native_review_015.png)
+
+![Native41쪽의 표·서식 소유 차이](assets6031_native_overlay_041.png)
