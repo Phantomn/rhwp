@@ -166,3 +166,13 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native74쪽 표 행 소유와 뒤 설명 차이](api24_native_review_074.png)
 
 ![Native74쪽 표와 설명의 중첩](api24_native_overlay_074.png)
+
+## 추가: 소상공인 중간보고서 RowBreak 표·각주 #1937
+
+- [등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870699037), [보존 원문](issue1937_rowbreak_footnote_overpagination.hwp), [독립 한컴 PDF50쪽](../../../../pdf/issue7382-regression-review/issue1937_rowbreak_footnote_overpagination-2020.pdf), [시각·제외·유지 검증](footnote1937_test_removal_validation.json).
+- 현재51/기준50쪽. 선택 Native24·42·43·44·45·50쪽92.59251/53.92934/41.51422/14.87881/38.19829/28.18537%입니다.43쪽 이전 표/각주가 겹치고44쪽은 정상43쪽 본문으로 밀리는 차이를 직접 확인했습니다. 전체50/51쪽/fresh WASM 통과를 주장하지 않습니다.
+- 원문147,456byte를 바이트 동일하게 보존하고 전용 페이지·각주 쪽번호2함수와 body/text 원장2행을 제거했습니다. #1133 다른 문서6함수·helper·기대값·공차 및 IR 진단은 유지합니다. CLI의90% 위치 손상본 패닉 방지는 독립 안전성 계약으로 보존 경로만 바꾸며 같은4입력을 유지합니다. 새 함수/ignore/skip/생산 변경/공차 완화 없음. 집중 ['     Summary [   1.213s] 8 tests run: 8 passed, 455 skipped']; 필수 lint/정책은 위 JSON에 정확한 exit를 기록했습니다.
+
+![Native43쪽 표와 각주 중첩·내용 소유 차이](footnote1937_native_review_043.png)
+
+![Native44쪽 페이지 내용 소유 차이](footnote1937_native_overlay_044.png)

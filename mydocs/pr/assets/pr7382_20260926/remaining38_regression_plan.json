@@ -1074,7 +1074,7 @@
       "id": 28,
       "function": "text_overlap_baseline::text_overlaps_do_not_grow_partition_0",
       "case": "text_overlap_baseline",
-      "status": "pending",
+      "status": "resolved",
       "individual_results": [
         {
           "id": 28,
@@ -1108,13 +1108,24 @@
           ],
           "stage": 90,
           "head": "a82cee49561109052553907231bcd7f2806f165d"
+        },
+        {
+          "stage": 91,
+          "head": "e1883f5cb4ddd161256b3d6251fc88586dcee3dc",
+          "code_commit": "f2a4dd1e1da26f6ad1b861d8ef5297fb643a54fb",
+          "focused_summary": [
+            "     Summary [   1.213s] 8 tests run: 8 passed, 455 skipped"
+          ],
+          "focused_exit": 0,
+          "evidence": "../issue7445/footnote1937_test_removal_validation.json"
         }
       ],
       "resolved_plan": {
         "caseName": "text_overlap_baseline",
         "target": "regression_suite_016",
         "grouped": true
-      }
+      },
+      "resolution": "각주1937 이관 뒤 최신 corpus 소속의 개별 함수 PASS. 원문 피델리티 해결로 세지 않음."
     },
     {
       "id": 29,
@@ -1237,12 +1248,12 @@
       }
     }
   ],
-  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_0",
-  "next_candidate_reason": "기존28번 issue1937_rowbreak_footnote_overpagination.hwp 132→135건. 같은 원문 독립 PDF와 실제 텍스트겹침으로 먼저 판단.",
+  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_1",
+  "next_candidate_reason": "고정38의 다음 대기 함수를 개별 실행. 별도 미해결 기록도 최종 제출 전에 처리.",
   "current_status_counts": {
-    "resolved": 26,
+    "resolved": 27,
     "deferred_to_issue": 1,
-    "pending": 11
+    "pending": 10
   },
   "fixture_removal_policy": {
     "user_instruction": "실패한 회귀의 동일 문서 Visual Sweep90%미만이면 #7445 추가 등록 후 해당 문서의 회귀 검사 제거",
@@ -1361,6 +1372,14 @@
       "status": "pending",
       "failure": "body overflow 신규2건",
       "note": "영어시험 이관 뒤 재배정된 기존9번에서 검출. 독립 시각 검증 미실행."
+    },
+    {
+      "document": "samples/issue1937_rowbreak_footnote_overpagination.hwp",
+      "observed_stage": 90,
+      "status": "deferred_to_issue",
+      "stage": 91,
+      "note": "현재51/정상50쪽, 선택최저14.87881%. 원문보존/렌더링2함수·원장2행 제외. 피델리티 해결 아님.",
+      "evidence": "../issue7445/footnote1937_test_removal_validation.json"
     }
   ]
 }
