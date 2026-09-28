@@ -43,7 +43,7 @@ Issue #7473. #7474는 기존 Draft/head를 유지한다. 실험 branch `codex/wa
 ## 4. 실행
 
 - 최종 코드 실행: https://github.com/edwardkim/rhwp/actions/runs/36464037905
-- 초안 실행 36463795798은 잘못된 manifest 형식의 fallback을 보완하려고 준비 단계에서 취소했다. 완료 표본으로 사용하지 않는다.
+- 초안 실행 36463795798은 잘못된 manifest 형식의 fallback을 보완하려고 취소했다. API에서 WASM build step에 진입한 뒤 73초 만에 중단된 것으로 확인했으며, 완료 표본으로 사용하지 않는다.
 - producer cold 1개 + 정상/손상 consumer 2개, Ubuntu 24.04·Rust 1.93.1·Chromium 1660786. source와 tool을 같게 하되 독립 VM을 사용한다.
 - 기존 #7474의 계측 및 실제 WASM 응답 관찰 코드를 재사용했다. 새 비교는 Canvas 기본 3개 fixture의 첫 페이지만 다루며 Native/PDF/readiness 전체 CI나 한컴 기준 출력과의 정합성 검증을 대신하지 않는다.
 
