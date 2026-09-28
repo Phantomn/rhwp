@@ -2126,6 +2126,20 @@
       "summary": [
         "     Summary [  56.349s] 37 tests run: 32 passed, 5 failed, 655 skipped"
       ]
+    },
+    "blocking_scope_audit": {
+      "stage": 130,
+      "code_commit": "b20c22377e0ca1ab9b5f49f176534812505ef226",
+      "evidence": "blocking_scope_audit_validation.json",
+      "devel_passed": 306,
+      "devel_failed": 0,
+      "verified_deferred_axes": 37,
+      "verified_oracle_rows": 6,
+      "verified_individual_failure_pairs": 15,
+      "restored_normal_helpers": 3,
+      "restored_normal_fixture_rows": 2,
+      "restoration_passed": 23,
+      "restoration_failed": 0
     }
   },
   "latest_axis_snapshot": {
@@ -2138,7 +2152,7 @@
     "meaning": "text/off만현재32분할진단.다른축또는최종37개별/전체회귀를대체하지않음."
   },
   "current_status_counts_scope": "고정38의과거처리snapshot만.최종37개별은다시실행해야하며전체head통과아님.",
-  "final_validation_status": "pending",
+  "final_validation_status": "미완료. 현재 PR을 실제로 막는 실패만 처리하고 정상 검사는 유지합니다. 최종 개별/전체 검증·PR 준비는 미완료입니다.",
   "latest_text_axis_snapshot": {
     "stage": 125,
     "code_commit": "45edbe87fcde65296760f7d79e4907dfcc73e97d",
