@@ -2523,3 +2523,16 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![편람 HWPX311쪽 review](../assets/issue7445/handbook_hwpx_native_review_311.png)
 ![편람 HWPX384쪽 overlay](../assets/issue7445/handbook_hwpx_native_overlay_384.png)
+
+
+## 보정136 사전 분석·결과 — 90% 미만 정책연구 문서의 실제 차단 검사 제거
+
+- 사용자의 재지시를 적용해 렌더러 개선을 중지하고 이번 `entry.rs` 변경은 모두 원복했습니다. `src/**`·`crates/**` 변경은 없습니다. 사전 head `5deb943bfc7fe7e8926f5dd2aae6741a24f703f4`, 코드 커밋 `2e76743a7ef2899428da359806827da4f86f080e`입니다.
+- [원문·독립 PDF·실패 목록·제거/보존 범위·명령](../assets/issue7445/policy_report_blocking_scope_validation.json). 같은 정책연구 HWP/HWPX 원문과 정상 한컴2024 PDF는 보존합니다. 기준 두 형식 모두215쪽/현재216쪽이며 Native 선택 HWP6쪽 최저32.05171%, HWPX4쪽 최저31.53863%입니다. 각66쪽 review·67쪽 overlay에서 본문·표·각주 소속 차이를 직접 확인했습니다.
+- 수정 전140검사20PASS/120FAIL을 재현했습니다. [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5876239548) 후 실제 실패118함수(#7379 78/#3738 32/캡션·테두리·저장프레임8), HWP oracle한행, #4882의215쪽 전제 한곳만 제거했습니다. HWPX oracle는 기존 격차6→현재1로 차단이 아니므로 유지했습니다.
+- 기존 통과20검사의 함수 본문은 삭제 전후 정확히 동일합니다. #4882 기존 함수는 원본==왕복 쪽수 등식과5개 IR검사를 유지하고 이름을 현재 계약에 맞췄습니다. 새 함수/기준값 완화/원문 삭제/다른 입력·축 일괄 제외는 없습니다.
+- 제거 후 유지37PASS/0FAIL(14+1+6+oracle16)입니다. 필수fmt/Clippy3/workspacebuild/manifest·unitfixedbase정책 모두exit0입니다. 기준 base `0e8fd49fb868da0d47ac1294dcbbda81f0211233`입니다.
+- 이것은 회귀 실행 범위의 후속 이관입니다. 문서 출력 개선·90% 시각 gate 통과·최종 전체 검증/PR준비로 보고하지 않습니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage136-policy-report-hwp/`에만 보관합니다.
+
+![정책연구 HWP66쪽 review](../assets/issue7445/policy-report-hwp_native_review_066.png)
+![정책연구 HWPX67쪽 overlay](../assets/issue7445/policy-report-hwpx_native_overlay_067.png)

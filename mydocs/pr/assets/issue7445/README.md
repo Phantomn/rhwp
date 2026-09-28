@@ -442,3 +442,15 @@ HWPX oracle는 격차가 개선되어 실제차단이 아니므로 원장행을 
 ![편람 HWPX311쪽 review](handbook_hwpx_native_review_311.png)
 ![편람 HWPX384쪽 overlay](handbook_hwpx_native_overlay_384.png)
 ![편람 HWPX 추가385쪽](handbook_hwpx_native_extra_385.png)
+
+
+## 정책연구 HWP/HWPX: 90% 미만 문서의 실제 차단 회귀만 이관
+
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5876239548), [실패목록·보존범위·명령과시각증거](policy_report_blocking_scope_validation.json).
+두 원문과 정상 한컴2024 PDF를 저장소에 그대로 보존했습니다. 기준215쪽/현재216쪽이며 선택 HWP6쪽 최저32.05171%, HWPX4쪽 최저31.53863%입니다.
+사용자의 재지시에 따라 렌더러 개선을 중지하고 이번 변경은 모두 원복했습니다. 실제 실패118함수와 HWP oracle 한행·#4882의215쪽 전제만 제거했습니다.
+기존통과20검사·왕복 쪽수등식/IR·차단하지않는HWPX oracle 및다른입력/축은 유지합니다. 유지37PASS/0FAIL, 필수lint/정책7exit0입니다.
+이관은 원문 피델리티 개선·시각 gate 통과가 아닙니다. 전체문서 개선과 적절한회귀복원은 이 이슈에서 후속검토합니다. 최종 전체검증/PR준비는미완료입니다.
+
+![정책연구 HWP66쪽 review](policy-report-hwp_native_review_066.png)
+![정책연구 HWPX67쪽 overlay](policy-report-hwpx_native_overlay_067.png)
