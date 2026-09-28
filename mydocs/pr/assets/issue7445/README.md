@@ -196,3 +196,13 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native4쪽 표와 문단 중첩](savedbounds1749_native_review_004.png)
 
 ![Native5쪽 이어받기와 뒤 내용 위치 차이](savedbounds1749_native_overlay_005.png)
+
+## 추가: 한컴 공식 형식5.0 revision1.3 배포용 HWP
+
+- [등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5871244705), [보존 원문](한글문서파일형식_5.0_revision1.3.hwp), [공식 PDF71쪽](../../../../pdf/한글문서파일형식_5.0_revision1.3-hancom-official.pdf), [동일 원문 해시·PDF출처·시각 비교·제외·유지 검증](format_spec13_test_removal_validation.json). 공식CDN의 HWP가 저장소 원문과 SHA-256 동일하며 PDF Creator/원문저장빌드 모두2018/10.0.0.7282입니다.
+- 현재69/기준71쪽.선택Native1/15/16/48/49/50/68/69쪽은96.24622/40.68047/31.25675/38.87576/26.93028/35.3439/18.57411/0%입니다.15/49쪽 표 내용·분할과 머리말,69쪽 발행정보 페이지 소유 차이를 직접 확인했습니다.전체비교/freshWASM은 미실행입니다.
+- 렌더링·페이지4함수/body·offcanvas2행만 제외, IR원본표식·프로필/왕복2함수 및 다른입력3함수 유지.원문342,528byte 불변/공식PDF830,986byte 보존, 생산변경/새 함수/skip/ignore/공차완화 없음.집중5PASS/다른입력1FAIL,필수lint·정책 통과.기존30번은pr4093입력의2건으로 pending 유지합니다.이관을피델리티 개선으로 세지 않습니다.
+
+![Native15쪽 표 내용·분할 차이](format_spec13_native_review_015.png)
+
+![Native49쪽 내용 소유 차이](format_spec13_native_overlay_049.png)

@@ -2162,3 +2162,9 @@ head `f56788498d63d21e6cafd9c563fab52c4e0cb133`에서 기존29번 text-overlap p
 ## 보정95 결과 — 기존30번 개별 실행
 
 head `f90b2d3592dbd239f00e4bb5ce5777756da05e48`에서 기존30번 text-overlap partition10을 단독 실행했습니다.1FAIL/227SKIP(exit100,0.615초)이며 `한글문서파일형식_5.0_revision1.3.hwp`의 신규겹침1건입니다. 첫 실패에서 멈췄으며 생산·검사·기대값 변경 없음. [명령·summary](../assets/pr7382_20260926/stage95_individual_validation.json). 동일 원문 독립 시각 비교를 먼저 수행합니다. 고정38은28완료/1이관/9대기이며 PR준비 미완료입니다.
+
+## 보정96 사전 분석·결과 — 공식 형식문서 미달 회귀 제외
+
+기존30번의49쪽 신규겹침1건에 대해 공식CDN의 원문HWP가 저장소파일과 SHA-256 동일함을 확인했습니다.같이 배포되는 PDF의 Creator가 저장제품/빌드2018/10.0.0.7282와 같고71쪽입니다.원문 배포용특성 때문에 중간HWP저장/직접인쇄시도는 실패/보류이며 기준으로 수용하지 않습니다.원문변경/서비스배포 없이 공식짝 자료를 사용합니다.현재69/기준71쪽,선택8쪽 최저69쪽0%,15쪽40.68047/49쪽26.93028%입니다.15/49쪽 표분할·내용소유·머리말 및69쪽발행정보소유차이를 직접확인했습니다.전체Native/freshWASM 미실행입니다.
+
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5871244705) 후 원문/공식PDF보존,렌더링·페이지4함수/body·offcanvas2행만 제외했습니다.IR표식·프로필/왕복2함수와 #2099 다른입력3함수 유지,진단실제입력경로 갱신,역사적기록 유지.코드 `eb94eba73dfcaa147392ee7b87ab1a58b88f65d6`, [근거](../assets/issue7445/format_spec13_test_removal_validation.json).집중 ['        FAIL [   2.725s] (6/6) rhwp::regression_suite_020 text_overlap_baseline::text_overlaps_do_not_grow_partition_10', '     Summary [   2.731s] 6 tests run: 5 passed, 1 failed, 664 skipped', '        FAIL [   2.725s] (6/6) rhwp::regression_suite_020 text_overlap_baseline::text_overlaps_do_not_grow_partition_10'],필수fmt·Clippy3종·workspace build·고정base정책 exit0.기존30번은corpus재배정의pr4093/outline_navigation_panel_demo.hwpx 신규겹침2건으로 pending입니다.새검사/생산변경/공차완화 없음.이관을피델리티 개선/승인/전체회귀완료로 세지 않습니다.

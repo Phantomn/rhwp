@@ -1222,6 +1222,15 @@
           ],
           "stage": 95,
           "head": "f90b2d3592dbd239f00e4bb5ce5777756da05e48"
+        },
+        {
+          "stage": 96,
+          "test_snapshot_commit": "eb94eba73dfcaa147392ee7b87ab1a58b88f65d6",
+          "fixture_deferred": "한글문서파일형식_5.0_revision1.3.hwp",
+          "fixture_removal_evidence": "../issue7445/format_spec13_test_removal_validation.json",
+          "after": "집중5PASS/기존30번1FAIL,corpus재배정 pr4093/outline_navigation_panel_demo.hwpx 신규2건",
+          "status": "pending",
+          "scope": "미달문서보존이관;다른입력실패해결 아님"
         }
       ],
       "resolved_plan": {
@@ -1328,7 +1337,7 @@
     }
   ],
   "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_10",
-  "next_candidate_reason": "기존30번 한글문서파일형식_5.0_revision1.3.hwp 신규겹침1건. 같은 원문 독립 PDF로 판정.",
+  "next_candidate_reason": "pr4093/outline_navigation_panel_demo.hwpx 실제 신규2건의같은원문 독립PDF 시각비교부터 수행",
   "current_status_counts": {
     "resolved": 28,
     "deferred_to_issue": 1,
@@ -1476,6 +1485,21 @@
       "note": "전체 Native 최저30.44845%. HWPX보존/렌더링회귀제외, IR/HWP대조군 유지. 피델리티 해결 아님.",
       "stage": 94,
       "evidence": "../issue7445/savedbounds1749_test_removal_validation.json"
+    },
+    {
+      "document": "samples/한글문서파일형식_5.0_revision1.3.hwp",
+      "observed_stage": 95,
+      "status": "deferred_to_issue",
+      "stage": 96,
+      "evidence": "../issue7445/format_spec13_test_removal_validation.json",
+      "note": "공식같은원문/PDF 선택Native90%미달/69대71쪽.바이트보존/렌더링4함수제외/IR2유지.피델리티 해결 아님."
+    },
+    {
+      "document": "samples/pr4093/outline_navigation_panel_demo.hwpx",
+      "observed_stage": 96,
+      "status": "pending",
+      "failure": "text-overlap 신규2건",
+      "note": "기존30번 corpus재배정에서 발견.독립시각검증 필요."
     }
   ]
 }
