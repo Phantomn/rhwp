@@ -2132,3 +2132,7 @@ head `2b6780510c986a27292925f7cac176fda4c97bb7`에서 기존8번 body partition8
 기존9번에 검출된 API 본문하단0→1건은74쪽 TextLine14.26667px입니다. 독립 한컴105쪽 PDF와 Native1·28·52·60·74·75·105쪽을 비교했습니다. 현재105/기준105쪽이나74쪽60.06836%, 나머지 선택6쪽은97.85668%이상입니다.74쪽에 앞쪽 소유 movePrevPos/13행이 남고 정상 moveNextPosEx/14행부터 후속 표행·설명이 밀리는 차이를 직접 확인했습니다. 전체105쪽/fresh WASM은 미실행입니다.
 
 [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870586821) 후 원문을 바이트 동일하게 보존하고 전용 렌더링23함수·원장4행·CanvasKit manifest1항목을 제거했습니다. #3695의 순수 개요 구조 파싱/IR과 다른 문서4함수·helper·기대값·공차 및 IR원장은 유지합니다. 새 함수/skip/ignore/생산 변경 없음. 코드 `09c4395e84b7edd23d9f819c52ec6c00d635f582`, [증거](../assets/issue7445/api24_test_removal_validation.json). 집중 ['     Summary [   0.913s] 18 tests run: 18 passed, 1078 skipped']; fmt·Clippy3종·workspace build·고정base정책 exit는 JSON에서 구분합니다. CanvasKit120입력 존재/실제 manifest 로딩 PASS입니다. 원문 피델리티나 전체 회귀 해결로 세지 않습니다.
+
+## 보정90 결과 — 기존24~28번의 개별 실행
+
+head `a82cee49561109052553907231bcd7f2806f165d`에서 기존24·25번 off-canvas partition10·14와26·27번 oracle partition13·15를 순서대로 각각1PASS로 확인했습니다. 다음28번 text-overlap partition0는1FAIL/225SKIP(exit100,2.507초)이며 원문 `issue1937_rowbreak_footnote_overpagination.hwp`의132→135건 증가입니다. 첫 실패에서 멈췄으며 생산·검사·기대값 변경은 없습니다. [개별 명령·summary](../assets/pr7382_20260926/stage90_individual_validation.json). 고정38은26완료/1이관/11대기입니다. 해당 각주 원문의 독립 시각 판정을 다음 단계에서 수행하며 PR준비·최종 전체 검증은 미완료입니다.
