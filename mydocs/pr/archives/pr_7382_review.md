@@ -2420,3 +2420,21 @@ freshWASM미실행이고Native부정증거로만썼습니다.
 코드 `6961bd48748e2c65895272cc9cb413add71e515b`, [개별실패·변환출처·직접판독·분할/대조 결과](../assets/issue7445/hwp5_off_blocking_scope_validation.json).
 off16분할15PASS/1FAIL와정상2PASS로합계17PASS/1FAIL/434SKIP입니다. 남은 basic issue2007 신규2건은동반제외하지
 않았고필수lint/정책7단계exit0입니다. 다른축·최종검증/PR준비미완료입니다.
+
+
+## 보정129 사전 분석·결과 — basic2007의 실제 두 차단 축만 보류
+
+동일 원문의 off-canvas 신규2건과 oracle17→21쪽 실패를 각각 단독 재현했습니다.
+최신 devel의 원래 검사에서는 off0건/17쪽이며 정상5함수도 통과합니다.
+Native10/11/12/13/14/16/17쪽 비교는62.50548/60.79677/1.04782/49.05945/3.45708/28.06232/13.81874%입니다.
+12쪽 review와14쪽 overlay에서 본문 누락을 직접 확인했습니다. 저장 사양이나 정상 PDF의 연도표기로
+입력을 무효 판정하지 않았고, 전수/freshWASM은 미실행인 부정 증거로 구분했습니다.
+
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5874913489) 후 off입력과
+oracle17/17행만 보류했습니다. 기대17을21로 완화하지 않았으며 정상세로정렬5함수/다른모든축·문서/원문PDF는 유지했습니다.
+코드 `6288398853c9cf0ca945ac285baddd7c17cb6fd8`, [범위·전후실패·검증 근거](../assets/issue7445/basic2007_blocking_scope_validation.json).
+집중37개는32PASS/5FAIL이고 off16개와 정상5개는 모두PASS입니다. 남은5개oracle실패를 함께 제외하지 않았습니다.
+필수lint·정책7단계exit0이며 전체회귀·최종시각/PR준비는 미완료입니다.
+
+![basic2007 12쪽 review](../assets/issue7445/basic2007_native_review_012.png)
+![basic2007 14쪽 overlay](../assets/issue7445/basic2007_native_overlay_014.png)

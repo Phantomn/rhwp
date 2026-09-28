@@ -2117,6 +2117,15 @@
       "evidence": "../issue7445/hwp5_off_blocking_scope_validation.json",
       "result": "off15PASS/1FAIL + 정상2PASS =>17PASS/1FAIL; lint정책7 exit0",
       "remaining": "basic off 및다른축·시장실패·최종개별/전체/원PR Native freshWASM 미완료"
+    },
+    "basic2007": {
+      "stage": 129,
+      "code_commit": "6288398853c9cf0ca945ac285baddd7c17cb6fd8",
+      "evidence": "../issue7445/basic2007_blocking_scope_validation.json",
+      "scope": "실제 실패한 basic2007 off-canvas 입력과 oracle 17/17행만 보류. 정상 세로정렬5함수·모든 다른 검사 축/문서·원문/PDF 유지.",
+      "summary": [
+        "     Summary [  56.349s] 37 tests run: 32 passed, 5 failed, 655 skipped"
+      ]
     }
   },
   "latest_axis_snapshot": {
@@ -2141,13 +2150,10 @@
     "meaning": "text16분할만 현재통과. 다른off/body/cell/oracle축·시장6761·최종37개별/전체회귀를 대체하지 않음."
   },
   "latest_off_axis_snapshot": {
-    "stage": 128,
-    "code_commit": "6961bd48748e2c65895272cc9cb413add71e515b",
-    "axis_tests": 16,
-    "passed": 15,
-    "failed": 1,
-    "failed_inputs": 1,
-    "evidence": "../issue7445/hwp5_off_blocking_scope_validation.json",
-    "meaning": "off16분할만 현재15PASS/1FAIL. basic issue2007 신규2 대기. 다른축/최종37개별/전체회귀는 대체하지 않음."
+    "stage": 129,
+    "passed": 16,
+    "failed": 0,
+    "scope": "off16분할만. 원문피델리티 해결/전체검증 완료가 아닙니다.",
+    "evidence": "../issue7445/basic2007_blocking_scope_validation.json"
   }
 }

@@ -361,3 +361,17 @@ text16분할과 정상2함수 합계18PASS이며 전체 회귀/피델리티 승�
 
 ![HWP5 HWPX14쪽 review](hwp5_native_review_014.png)
 ![HWP5 HWPX13쪽 overlay](hwp5_native_overlay_013.png)
+
+
+## basic2007: 실제 차단된 off-canvas·oracle 축만 보류
+
+[원문](../../../../samples/basic/issue2007_nested_cell_pagination_42065.hwp),
+[기존 한컴PDF17쪽](../../../../pdf/basic/issue2007_nested_cell_pagination_42065-hwp-2020.pdf),
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5874913489),
+[보정129 검증](basic2007_blocking_scope_validation.json).
+최신devel0건/17쪽 대비 후보off2건/21쪽입니다. 선택Native7쪽 최저12쪽1.04782%이며 실제 본문이 누락됩니다.
+이 입력의 두 축만 보류하고 정상5함수·다른축/문서·원문PDF를 유지했습니다. off16PASS+정상5PASS,
+집중전체32PASS/5FAIL이며 다른5oracle실패는 유지했습니다. 전수/freshWASM/전체회귀 승인은 미완료입니다.
+
+![basic2007 12쪽 review](basic2007_native_review_012.png)
+![basic2007 14쪽 overlay](basic2007_native_overlay_014.png)
