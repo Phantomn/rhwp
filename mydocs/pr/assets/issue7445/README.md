@@ -454,3 +454,13 @@ HWPX oracle는 격차가 개선되어 실제차단이 아니므로 원장행을 
 
 ![정책연구 HWP66쪽 review](policy-report-hwp_native_review_066.png)
 ![정책연구 HWPX67쪽 overlay](policy-report-hwpx_native_overlay_067.png)
+
+
+### 정책연구 HWP source 내부 검사 3개 추가
+
+[#7445 추가](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5876621658), [보정138 검증](policy_report_source_unit_validation.json).
+전체실행에서 실제실패한 source 내부3함수만 추가이관했습니다. 영향6쪽 최저18.00186%이며 물리쪽소속차이가있습니다.
+원문/PDF·생산동작·다른55검사본문유지. 54PASS/0FAIL, 기존ignore1유지, 필수lint/정책7exit0입니다. 다른57전체실패와PR준비는후속검토대상입니다.
+
+![정책연구182쪽 review](policy_report_source_unit_native_review_182.png)
+![정책연구107쪽 overlay](policy_report_source_unit_native_overlay_107.png)

@@ -2544,3 +2544,14 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - #7382 원 PR은OPEN/head `81a402179dc556cce781d844d4b9252be36ba8af` 그대로입니다. 최신devel고정base `0e8fd49fb868da0d47ac1294dcbbda81f0211233`은 현재브랜치보다31커밋앞서므로 최종통합검증도 남습니다.
 - 실패에는 동일정책연구HWP source 내부3검사, cell/body축, 다른쪽수/레이아웃, SVG snapshot, 비밀번호fixture계약 등이 포함됩니다. 전부7445로이관하지 않습니다. 사용자의90%미만제외조건과실제차단범위를문서별로판정합니다. 다음은이미직접확인한정책연구source3함수이며그영향6쪽최저18.00186%입니다.
 - 보정136 삭제목록118함수의 원본행번호·해시를 원본head의구문트리와다시대조해 검증원장에 보완했습니다. 테스트/생산동작변경은 없습니다. 전체검증FAIL을 승인·PR준비완료로보고하지않습니다.
+
+
+## 보정138 사전 분석·결과 — 정책연구 source 내부 실제 실패 3개 제외
+
+- 전체검증137에서 실제FAIL한 동일정책연구HWP source 내부3함수만 [#7445에 추가](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5876621658)했습니다. 사전head `fb73f24b7`, 코드 `76e6834b1037f8ef37e6e7fef5a746ccf9a157ae`. [원래함수/해시·제거·보존·명령·결과](../assets/issue7445/policy_report_source_unit_validation.json).
+- 영향94/95/106/107/156/182쪽은 정상한컴2024 PDF와Native54.77737/51.96505/33.20293/31.07231/28.45017/18.00186%입니다. contact sheet·182review·107overlay에서 본문/표/그림의 물리쪽소속 차이를 직접 확인했습니다. 사용자90%미만제외지시를적용하며렌더러는개선하지않습니다.
+- 다른55검사본문은원래그대로보존했습니다. **54PASS/0FAIL**, 기존 `test_552_passage_box_top_gap_p2_4_6`의`#[ignore]`1건은그대로입니다. 필수fmt/Native·WASM·alltargetsClippy/workspacebuild/manifest·unitfixedbase정책7단계exit0. 원문/PDF·생산동작을유지했습니다.
+- 전체60FAIL중 이3곳만처리했으며다른57실패의통과로보고하지않습니다. 다음은비밀번호fixture의복호화/오류계약과페이지수전제를분리검토합니다. 문서피델리티승인·최종PR준비는미완료입니다.
+
+![정책연구 source검사182쪽 review](../assets/issue7445/policy_report_source_unit_native_review_182.png)
+![정책연구 source검사107쪽 overlay](../assets/issue7445/policy_report_source_unit_native_overlay_107.png)
