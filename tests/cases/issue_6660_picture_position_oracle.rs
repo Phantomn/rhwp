@@ -1,8 +1,8 @@
 //! #6660의 두 그림을 한컴 PDF 좌표에 직접 대조한다.
 //!
-//! 한컴 2022 PDF의 841 x 1190pt 용지를 원본 HWP 용지 높이
-//! 111685HU / 75로 균일 확대했다. bbox JSON의 반올림된 쪽 높이로
-//! 다시 배율을 계산하거나 허용 오차를 넓히지 않는다.
+//! 정본: `pdf/exam_science-2020.pdf`(MCP engine2020, 원문272×394mm 용지,4쪽).
+//! PDF 이미지 원점(pt)을96dpi로 변환했다. 이전 A3 PDF를 쪽 높이로 재확대하던
+//! 간접 좌표 대신 원문 용지를 보존한 출력의 실제 좌표를 쓴다. 허용 오차1px는 유지한다.
 
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -80,7 +80,7 @@ fn both_reported_pictures_are_within_one_pixel_of_hancom() {
     );
 
     let mut failures = Vec::new();
-    for (page, pi, width, oracle_y) in [(1, 28, 75.2, 1085.0663), (4, 109, 59.5, 1011.5182)] {
+    for (page, pi, width, oracle_y) in [(1, 28, 75.2, 1083.50399), (4, 109, 59.5, 1010.11865)] {
         let path = output.path().join(format!("render_tree_{page:03}.json"));
         let tree: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
         let mut found = Vec::new();

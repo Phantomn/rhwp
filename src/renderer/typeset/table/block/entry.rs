@@ -1269,7 +1269,7 @@ impl TypesetEngine {
             }
         }
 
-        let original_control_frame = self.query_original_control_table_frame(
+        let mut original_control_frame = self.query_original_control_table_frame(
             st,
             paragraphs_all,
             para_idx,
@@ -1277,6 +1277,49 @@ impl TypesetEngine {
             table,
             ft.effective_height,
         );
+        // 독립 저장 프레임은 이미 흐름을 차지한 다른 호스트의 표 안으로
+        // 되돌아갈 수 없다. 다음 쪽에서 같은 프레임을 다시 조회해 예약과
+        // 실제 배치가 함께 그 원점을 소비하도록 한다.
+        let precedes_reserved_table_flow = original_control_frame.is_some_and(|placement| {
+            placement.table_top < st.current_height
+                && table.common.flow_with_text
+                && !table.common.allow_overlap
+                && st.current_items.iter().any(|item| {
+                    let (PageItem::Table {
+                        para_index,
+                        control_index,
+                    }
+                    | PageItem::PartialTable {
+                        para_index,
+                        control_index,
+                        ..
+                    }) = item
+                    else {
+                        return false;
+                    };
+                    *para_index != para_idx
+                        && paragraphs_all
+                            .get(*para_index)
+                            .and_then(|host| host.controls.get(*control_index))
+                            .is_some_and(|control| {
+                                matches!(control, Control::Table(previous)
+                                    if is_para_topbottom_float(&previous.common)
+                                        && previous.common.flow_with_text
+                                        && !previous.common.allow_overlap)
+                            })
+                })
+        });
+        if precedes_reserved_table_flow {
+            st.advance_column_or_new_page();
+            original_control_frame = self.query_original_control_table_frame(
+                st,
+                paragraphs_all,
+                para_idx,
+                ctrl_idx,
+                table,
+                ft.effective_height,
+            );
+        }
         // 유효 전체 저장 프레임은 실제 각주 경계로 수용 여부를 확인한다.
         // 안전 여유 때문에 원점을 버리고 표를 위로 당기는 폴백으로 바꾸지 않는다.
         let actual_footnote_boundary =
@@ -1333,20 +1376,30 @@ impl TypesetEngine {
             ft.host_spacing.before,
             ft.effective_height,
         );
-        let whole_placement_height =
-            if let Some(placement) = closed_source_frame_placement.or(captioned_column_placement) {
-                placement.occupied_bottom - st.current_height
-            } else if let Some((source_top, source_bottom)) = saved_table_source_frame {
-                source_bottom - source_top
-            } else if let Some(advance) = single_row_object_height_advance {
-                advance
-            } else if is_para_topbottom_float(&table.common)
-                && (para_has_non_whitespace_text(para) || hwpx_noninline_tac_measured_fit)
-            {
-                ft.effective_height
-            } else {
-                table_total
-            };
+        let consumed_whole_anchor = self.query_stored_whole_flow_anchor(
+            st,
+            para_idx,
+            ctrl_idx,
+            para,
+            table,
+            ft.effective_height,
+        );
+        let whole_placement_height = if let Some(placement) = closed_source_frame_placement
+            .or(captioned_column_placement)
+            .or(consumed_whole_anchor)
+        {
+            placement.occupied_bottom - st.current_height
+        } else if let Some((source_top, source_bottom)) = saved_table_source_frame {
+            source_bottom - source_top
+        } else if let Some(advance) = single_row_object_height_advance {
+            advance
+        } else if is_para_topbottom_float(&table.common)
+            && (para_has_non_whitespace_text(para) || hwpx_noninline_tac_measured_fit)
+        {
+            ft.effective_height
+        } else {
+            table_total
+        };
         let unconstrained_host_placement = para_has_non_whitespace_text(para)
             .then(|| {
                 let text_origin = placement_para_start_height
@@ -1435,6 +1488,7 @@ impl TypesetEngine {
         };
         let resolved_host_placement = closed_source_frame_placement
             .or(captioned_column_placement)
+            .or(consumed_whole_anchor)
             .or_else(|| {
                 unconstrained_host_placement.map(|p| constrain_host_placement.constrain(p, st))
             });

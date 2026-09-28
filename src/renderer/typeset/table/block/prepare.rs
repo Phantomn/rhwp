@@ -946,19 +946,30 @@ impl TypesetEngine {
             ft.host_spacing.before,
             ft.effective_height,
         );
-        let (fragment_host_placement, host_frame) =
-            if let Some(placement) = closed_source_frame_placement.or(captioned_column_placement) {
+        let stored_whole_flow_anchor = self.query_stored_whole_flow_anchor(
+            st,
+            para_idx,
+            ctrl_idx,
+            para,
+            table,
+            ft.effective_height,
+        );
+        let (fragment_host_placement, host_frame) = if let Some(placement) =
+            closed_source_frame_placement
+                .or(captioned_column_placement)
+                .or(stored_whole_flow_anchor)
+        {
+            (
+                Some(placement),
                 (
-                    Some(placement),
-                    (
-                        st.pages.len(),
-                        st.current_column,
-                        st.current_zone_y_offset.to_bits(),
-                    ),
-                )
-            } else {
-                (fragment_host_placement, host_frame)
-            };
+                    st.pages.len(),
+                    st.current_column,
+                    st.current_zone_y_offset.to_bits(),
+                ),
+            )
+        } else {
+            (fragment_host_placement, host_frame)
+        };
         let prepared = BlockTableContinuationPreparedState {
             host_placement: fragment_host_placement,
             host_frame,

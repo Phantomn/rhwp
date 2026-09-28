@@ -4,7 +4,8 @@
 use crate::renderer::typeset::{
     controls, hwpunit_to_px, is_para_topbottom_float, is_synthetic_line_seg,
     line_seg_visible_bounds_px, native_hwp5_saved_rowbreak_tail_frame_matches,
-    para_has_visible_text, rowbreak_table_has_internal_saved_vpos_reset, signed_hwpunit, table,
+    para_has_non_whitespace_text, para_has_visible_text,
+    rowbreak_table_has_internal_saved_vpos_reset, signed_hwpunit, table,
     table_declared_height_has_stored_cell_content_frame,
     table_declared_object_covers_cell_row_frames, PageItem, TypesetEngine, TypesetState,
 };
@@ -35,6 +36,99 @@ pub(super) struct WholeFit {
 }
 
 impl TypesetEngine {
+    /// 원본 공동 앵커의 첫 수용 원점과 이월 후 소비된 오프셋을 함께 조회한다.
+    /// 예약 하단과 출력 원점을 한 계획으로 반환하며, 편집·분할·절대 배치는 제외한다.
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::renderer::typeset) fn query_stored_whole_flow_anchor(
+        &self,
+        st: &TypesetState,
+        para_idx: usize,
+        ctrl_idx: usize,
+        para: &crate::model::paragraph::Paragraph,
+        table: &crate::model::table::Table,
+        effective_height: f64,
+    ) -> Option<crate::renderer::float_placement::ParagraphFloatPlacement> {
+        use crate::renderer::float_placement as placement;
+        if !(st.profile.hwp5_stored_pagination_layout() || st.profile.hwpx_stored_layout())
+            || st.profile.session_edited()
+            || st.col_count != 1
+            || !st.current_items.is_empty()
+            || st.current_height > 0.5
+            || para.stored_text_partition_is_dirty()
+            || para.line_segs.is_empty()
+            || para.line_segs.iter().any(is_synthetic_line_seg)
+            || para_has_non_whitespace_text(para)
+            || !is_para_topbottom_float(&table.common)
+            || !table.common.flow_with_text
+            || table.common.allow_overlap
+            || !matches!(table.page_break, crate::model::table::TablePageBreak::None)
+            || !matches!(table.common.vert_align, crate::model::shape::VertAlign::Top)
+            || table.caption.is_some()
+            || self.render_normalization.table_text_reflowed(table)
+        {
+            return None;
+        }
+        let line = controls::order::stored_cross_column_flow_line(
+            para,
+            ctrl_idx,
+            st.base_available_height(),
+            self.dpi,
+        );
+        // 실제 앞쪽에 놓인 같은 줄의 흐름 표만 앵커 소비를 증명한다.
+        // 배열상 앞 형제나 다른 저장 줄의 TAC는 아직 놓이지 않은 표를 대신하지 않는다.
+        let prior_line_flow = line.is_some_and(|line| {
+            // 새 쪽을 만들면 마지막 PageContent는 아직 빈 현재 쪽이다.
+            // 같은 구역의 실제 소유 단이 있는 직전 쪽을 찾아야 한다.
+            st.pages
+                .iter()
+                .rev()
+                .find(|page| !page.column_contents.is_empty())
+                .filter(|page| page.section_index == st.section_index)
+                .is_some_and(|page| {
+                    page.column_contents
+                        .iter()
+                        .flat_map(|column| &column.items)
+                        .any(|item| {
+                            matches!(item, PageItem::Table { para_index, control_index }
+                            | PageItem::PartialTable { para_index, control_index, .. }
+                    if *para_index == para_idx
+                        && *control_index != ctrl_idx
+                        && controls::order::stored_cross_column_flow_line(
+                            para, *control_index, st.base_available_height(), self.dpi,
+                        ) == Some(line))
+                        })
+                })
+        });
+        let consumed = prior_line_flow
+            || placement::para_offset_consumed_by_page_break(
+                para,
+                &table.common,
+                st.base_available_height(),
+                self.dpi,
+            );
+        if line.is_none() && !consumed {
+            return None;
+        }
+        let top = st.current_height
+            + hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
+            + if consumed {
+                0.0
+            } else {
+                hwpunit_to_px(signed_hwpunit(table.common.vertical_offset), self.dpi)
+            };
+        Some(placement::ParagraphFloatPlacement {
+            flow: placement::ParagraphFloatFlow::NextLine,
+            anchor_y: st.current_height,
+            stored_host_origin: None,
+            stored_successor_line_origin: None,
+            table_left: None,
+            table_top: top,
+            occupied_bottom: top
+                + effective_height
+                + hwpunit_to_px(table.outer_margin_bottom as i32, self.dpi),
+        })
+    }
+
     /// 선방출한 Native 캡션과 첫 표 조각은 저장 문단 앵커를 함께 사용한다.
     /// 줄 전진량을 뺀 오프셋을 문단 기준 좌표로 다시 해석하지 않는다.
     pub(in crate::renderer::typeset) fn query_pre_emitted_caption_rowbreak_placement(

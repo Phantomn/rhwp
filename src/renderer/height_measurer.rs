@@ -2716,6 +2716,9 @@ impl HeightMeasurer {
                     cell_w_px, pad_left, pad_right, self.dpi,
                 );
 
+                // 실제 합계에 들어간 셀 마지막 줄간격만 선언 높이 수용에서 회수한다.
+                // 비-TAC 마지막 줄은 이미 제외되므로 아래에서 다시 빼지 않는다.
+                let mut included_cell_last_trailing_ls = 0.0;
                 // 셀 내 문단들의 실제 높이 합산
                 let text_height: f64 = if cell.text_direction != 0 {
                     // 세로쓰기: line_seg.segment_width가 열의 세로 길이
@@ -2948,6 +2951,11 @@ impl HeightMeasurer {
                                                         && is_cell_last_line),
                                             )
                                         };
+                                        // 완전 셀의 마지막 줄에는 뒤따르는 글줄이 없으므로
+                                        // 실제 배치와 MeasuredCell처럼 마지막 줄간격을 제외한다.
+                                        // TAC라는 이유만으로 더하면 행을 키우거나 다른 행의
+                                        // 여유를 빼앗는다(정책 지표 19·20·37쪽 독립 PDF).
+                                        // RowBreak TAC의 기존 분할 회계는 아래 조건으로 보존한다.
                                         // [#5923] 셀 마지막 줄 trailing 줄간격은 비-TAC
                                         // 표에서 문단 수와 무관하게 제외한다 — 렌더 행높이
                                         // 회계와 정본이 같다. 다문단 셀만 포함하던 구규칙은
@@ -2983,6 +2991,7 @@ impl HeightMeasurer {
                                         let include_trailing_ls = !is_cell_last_line
                                             || (cell_para_count > 1
                                                 && table.common.treat_as_char
+                                                && matches!(table.page_break, TablePageBreak::RowBreak)
                                                 && !last_line_is_object_only
                                                 && !last_line_is_empty);
                                         if include_trailing_ls {
@@ -3000,6 +3009,9 @@ impl HeightMeasurer {
                                             } else {
                                                 trailing
                                             };
+                                            if is_cell_last_line {
+                                                included_cell_last_trailing_ls = trailing;
+                                            }
                                             h + trailing
                                         } else {
                                             h
@@ -3460,32 +3472,10 @@ impl HeightMeasurer {
                 // 초과하는 기존 보존 케이스(aift/KTX)는 조건 미충족으로 불변.
                 // RowBreak(행 단위 쪽나눔) 표는 TAC 여부와 무관하게 clamp 제외 —
                 // 분할 배치가 trailing 포함 측정에 정합 (rowbreak-problem-pages p11~13).
-                let cell_last_trailing_ls = if cell.text_direction == 0
-                    && !has_nested_table_in_cell
-                    && cell.paragraphs.len() > 1
+                let cell_last_trailing_ls = if !has_nested_table_in_cell
                     && !matches!(table.page_break, TablePageBreak::RowBreak)
                 {
-                    cell.paragraphs
-                        .last()
-                        .map(|p| {
-                            let mut comp =
-                                crate::renderer::composer::compose_paragraph_in_context(p, styles);
-                            crate::renderer::composer::recompose_horizontal_cell_lines_for_width(
-                                &mut comp,
-                                p,
-                                cell_inner_width,
-                                styles,
-                                self.dpi,
-                                self.legacy_hwp3_stored_geometry,
-                                self.is_native_hwp5,
-                                &self.single_line_overflow_cache,
-                            );
-                            comp.lines
-                                .last()
-                                .map(|l| hwpunit_to_px(l.line_spacing, self.dpi))
-                                .unwrap_or(0.0)
-                        })
-                        .unwrap_or(0.0)
+                    included_cell_last_trailing_ls
                 } else {
                     0.0
                 };
@@ -3956,6 +3946,11 @@ impl HeightMeasurer {
                                                         && is_cell_last_line),
                                             )
                                         };
+                                        // 완전 셀의 마지막 줄에는 뒤따르는 글줄이 없으므로
+                                        // 실제 배치와 MeasuredCell처럼 마지막 줄간격을 제외한다.
+                                        // TAC라는 이유만으로 더하면 행을 키우거나 다른 행의
+                                        // 여유를 빼앗는다(정책 지표 19·20·37쪽 독립 PDF).
+                                        // RowBreak TAC의 기존 분할 회계는 아래 조건으로 보존한다.
                                         // [#5923] 셀 마지막 줄 trailing 줄간격은 비-TAC
                                         // 표에서 문단 수와 무관하게 제외한다 — 렌더 행높이
                                         // 회계와 정본이 같다. 다문단 셀만 포함하던 구규칙은
@@ -3991,6 +3986,7 @@ impl HeightMeasurer {
                                         let include_trailing_ls = !is_cell_last_line
                                             || (cell_para_count > 1
                                                 && table.common.treat_as_char
+                                                && matches!(table.page_break, TablePageBreak::RowBreak)
                                                 && !last_line_is_object_only
                                                 && !last_line_is_empty);
                                         if include_trailing_ls {
@@ -4052,6 +4048,39 @@ impl HeightMeasurer {
                         .max(nested_bottom)
                         .max(wrap_bottom);
                     content_height + pad_top + pad_bottom
+                };
+                // 병합 제목의 비활성 하단 여백은 TAC 축소 여부와 무관하다.
+                // 복원 단계와 같은 저장 물리 하한을 원래 행 측정에서도 소비한다.
+                // 합성된 실제 요구량이 저장 내용+여백과 같을 때만 적용하므로
+                // 편집·재조판·개체로 생긴 추가 공간을 저장 프레임으로 대체하지 않는다.
+                let required_height = if self.is_native_hwp5
+                    && !self.session_edited
+                    && !self.render_normalization.table_text_reflowed(table)
+                    && cell.text_direction == 0
+                    && !cell.paragraphs.is_empty()
+                    && cell
+                        .paragraphs
+                        .iter()
+                        .all(|p| !crate::renderer::para_has_no_stored_line_segs(p))
+                {
+                    let stored_end = cell
+                        .paragraphs
+                        .iter()
+                        .flat_map(|p| &p.line_segs)
+                        .map(|seg| i64::from(seg.vertical_pos) + i64::from(seg.line_height))
+                        .max()
+                        .unwrap_or(0);
+                    let padded = stored_end + i64::from(cell.stored_vertical_padding_hu());
+                    let physical = Self::merged_cell_restore_floor_hu(table, cell, stored_end);
+                    if physical < padded
+                        && (required_height - hwpunit_to_px(padded as i32, self.dpi)).abs() <= 0.01
+                    {
+                        hwpunit_to_px(physical as i32, self.dpi)
+                    } else {
+                        required_height
+                    }
+                } else {
+                    required_height
                 };
                 let required_height =
                     crate::renderer::float_placement::stored_hwpx_no_adjust_cell_content_end(

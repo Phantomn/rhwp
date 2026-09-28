@@ -90,7 +90,12 @@ pub(in crate::renderer::typeset) fn place(
         ctrl_order,
         first_placed_table,
         last_placed_table,
-    } = controls::order::for_paragraph(para, &fmt, engine.tac_flow_query());
+    } = controls::order::for_paragraph(
+        para,
+        &fmt,
+        engine.tac_flow_query(),
+        st.base_available_height(),
+    );
 
     // [#703 잔여] 데코레이션(글앞/글뒤) 표 단축은 표만 방출하고 흐름을 0
     // 소비했다. host 문단에 제목 등 가시 텍스트가 있으면 그 텍스트가
@@ -152,14 +157,13 @@ pub(in crate::renderer::typeset) fn place(
                     // PartialParagraph = 텍스트 줄만이고 표는 Shape 가 따로
                     // 그리므로 중복 렌더는 없다(place_table_with_text 의 pre-text
                     // 발행과 같은 계약).
-                    // Defer host text until every co-anchored table has
-                    // computed its anchor and overlay continuation bounds.
+                    // 모든 공동 앵커 표가 원점과 이월 경계를 계산한 뒤
+                    // 호스트 글줄을 한 번 방출한다.
                     decoration_host_text_pending = true;
                     continue;
                 }
-                // Ordinary/TAC table paths already own host text, including
-                // their deferred emission and layout fallback. Do not add a
-                // second full-range PartialParagraph for mixed controls.
+                // 일반/TAC 경로는 지연 방출과 배치 폴백까지 호스트 글줄을 소유한다.
+                // 혼합 컨트롤에 전체 PartialParagraph를 다시 추가하지 않는다.
                 flow_table_owns_host_text = true;
                 let break_after_current_table = controls::flow_table::place(
                     engine,
@@ -215,7 +219,7 @@ pub(in crate::renderer::typeset) fn place(
         }
     }
 
-    // Emit host text once after every control has resolved its anchor, before TAC reconciliation.
+    // 모든 컨트롤 원점이 정해진 뒤, TAC 높이 조정 전에 호스트 글줄을 한 번 방출한다.
     controls::place_decoration_host_text(
         st,
         para_idx,

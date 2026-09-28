@@ -414,6 +414,22 @@ impl TypesetEngine {
                 })
                 .flatten()
         });
+        // 수용 검사 중 내용 소비 없이 새 쪽으로 이월한 통째 표도 같은
+        // 저장 앵커 계획을 다시 조회한다. 예산 원점과 확정 출력이 갈라지지 않는다.
+        let fragment_placement = fragment_placement.or_else(|| {
+            (!is_continuation && cursor_row == 0 && start_cut.is_empty())
+                .then(|| {
+                    self.query_stored_whole_flow_anchor(
+                        st,
+                        para_idx,
+                        input.source.control_index,
+                        para,
+                        table,
+                        0.0,
+                    )
+                })
+                .flatten()
+        });
         let fragment_placement = fragment_placement.or_else(|| {
             (prepared.stored_rewinding_rowbreak_uses_painted_row_footprint
                 && start_cut.is_empty()
