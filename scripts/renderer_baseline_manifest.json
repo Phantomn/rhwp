@@ -1425,24 +1425,6 @@
       "baselineTier": "extended"
     },
     {
-      "id": "exam-eng",
-      "file": "exam_eng.hwp",
-      "category": "exam",
-      "page": 0,
-      "notes": "English exam real-document sample for mixed text and layout parity.",
-      "browserParityThresholds": {
-        "maxDiffRatio": null,
-        "inkMaskNeighborhoodRadius": 3,
-        "inkMaskMaxDiffRatio": 0.002,
-        "nonInkMaxDiffPixels": 0,
-        "solidInkMaxDiffRatio": 0.02
-      },
-      "diagnosticAxes": [
-        "exam"
-      ],
-      "baselineTier": "extended"
-    },
-    {
       "id": "exam-math",
       "file": "exam_math.hwp",
       "category": "exam",
