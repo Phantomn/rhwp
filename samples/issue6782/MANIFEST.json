@@ -4,9 +4,9 @@
   "title": "안전확인대상생활화학제품 표시기준 제정 연구 (최종보고서)",
   "entries": [
     {
-      "path": "mydocs/pr/assets/issue7445/1480000-201900042-chemical-product-labeling-study.hwp",
+      "path": "samples/issue6782/1480000-201900042-chemical-product-labeling-study.hwp",
       "format": "hwp",
-      "role": "deferred_fidelity_fixture",
+      "role": "regression_fixture",
       "source": "https://github.com/edwardkim/rhwp/issues/6782",
       "originalFilename": "1480000-201900042_D0150004-1-001_(최종보고서) 안전확인대상생활화학제품 표시기준 제정 연구(부록 제외).hwp",
       "bytes": 6521856,
@@ -22,7 +22,9 @@
       "historicalContract": "물리 77쪽 row4/col3의 CCC 그림 복원과 칸 안 그림 11개 보존. 전체 페이지 동일 주장은 하지 않는다.",
       "referencePdfSha256": "f8e5c0408e221080ede9a9a67b153d02d792d22961c738e46749641f32a32e79",
       "deferredReason": "보정103 선택 Native 최저49.36129%,76쪽 표/캡션 겹침과78쪽 그림 누락.103/103쪽 일치만으로 승인하지 않음.",
-      "validationEvidence": "mydocs/pr/assets/issue7445/chemical_full6782_test_removal_validation.json"
+      "validationEvidence": "mydocs/pr/assets/issue7445/chemical_full6782_test_removal_validation.json",
+      "preservedCopy": "mydocs/pr/assets/issue7445/1480000-201900042-chemical-product-labeling-study.hwp",
+      "deferredScope": "보정105: PR#7382를 실제 막는 text-overlap corpus 입력만 제외. 개별19함수와 다른 원장 검사 복원/유지.90%미달 부정 증거는 그대로 보류."
     },
     {
       "path": "mydocs/pr/assets/issue7445/1480000-201900042-chemical-labeling-standards.hwp",
