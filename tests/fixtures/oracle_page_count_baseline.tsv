@@ -147,6 +147,7 @@ samples/draw-group.hwp	1	1
 samples/endnote-01.hwp	5	5
 samples/eq-01.hwp	1	1
 samples/equation-lim.hwp	1	1
+samples/exam_eng.hwp	8	8
 samples/exam_kor.hwp	20	20
 samples/exam_math.hwp	20	20
 samples/exam_math_8.hwp	1	1
@@ -184,6 +185,7 @@ samples/hwp3-sample5-hwpx.hwpx	64	64
 samples/hwp3-sample5.hwp	64	64
 samples/hwp_table_test-m.hwp	3	3
 samples/hwp_table_test.hwp	3	3
+samples/hwpctl_API_v2.4.hwp	105	105
 samples/hwpctl_Action_Table__v1.1.hwp	16	16
 samples/hwpctl_ParameterSetID_Item_v1.2.hwp	74	74
 samples/hwpspec.hwp	178	178
