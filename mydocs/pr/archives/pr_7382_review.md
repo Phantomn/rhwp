@@ -2383,3 +2383,24 @@ baseline 신규1건은 추가하지 않았습니다. 기존앵커2함수/다른�
 off16분할14PASS/2FAIL와앵커1PASS/다른입력대조1FAIL로합계15PASS/3FAIL/409SKIP입니다. 다른두 off실패
 (HWP5-nopassword 신규1, basic issue2007 신규2) 및 pic-in-table-01 그림y38.3067/기대39.7 대조실패는 제외하지
 않았습니다. 필수lint/정책7단계exit0이며 다른축·최종검증/PR준비는 미완료입니다.
+
+
+## 보정127 사전 분석·결과 — 다른 입력의 잘못된 그림 좌표 기대값 교정
+
+pic-in-table-01 대조 함수를 단독1FAIL로 재현했습니다. 기존39.7/50.9px는 수정 전 바이너리의 값이며
+독립 정본의 좌표가 아닙니다. 한컴2022 저장본/같은Creator 버전의 [기존 한컴PDF](../../../pdf/pic-in-table-01-2022.pdf)
+1쪽 그림y는28.76899pt/37.15897pt, 96DPI로38.35865px/49.54529px입니다. 현재출력의 첫그림38.3067px가
+정본에 맞으며 기존39.7px 핀이 정상 출력을 실패시킵니다.
+
+현재 Native와 루트fresh WASM의 영향1쪽은 모두99.95104%, 실제rhwp PNG SHA도 같습니다. 양쪽review/standalone
+ overlay를 직접 열어 두 머리말 그림·표외곽·뒤본문 배치를 확인했습니다. 타이틀 굵기 등 미세잔여가 있어
+완전픽셀일치로세지않습니다. 전체22쪽이나 다른 경로의 피델리티 승인은 미검증입니다. rootpkg/Studio JS·WASM
+SHA가 같고 생산소스는 보정69와 동일합니다. 빌드는 Mac로컬no-opt 대체이며 Docker최적화 통과로 보고하지 않습니다.
+
+코드 `ecbaeff9afcecbe50ed97248ad6ac2bd44b892dc`에서 두 y기대값만38.36/49.55로 교정하고 함수2개/그림개수/높이/0.5공차/모든다른축을 유지했습니다.
+[#검증 근거](../assets/pr7382_20260926/first_cell_float_expectation_validation.json), 기존2PASS/216SKIP 및필수lint/정책7단계exit0입니다.
+#7445로 보류하지 않았으며 신규회귀/생산변경없습니다. 다른 off2입력·body/cell/oracle·시장실패 및최종개별/전체검증은
+남아 있어PR준비미완료입니다. 진단의Python환경/PNG파일명 추정 오류는 venv와실제파일목록으로수정했으며회귀로세지않습니다.
+
+![첫 문단 그림 Native1쪽 review](../assets/pr7382_20260926/first_cell_float_native_review_001.png)
+![첫 문단 그림 fresh WASM1쪽 overlay](../assets/pr7382_20260926/first_cell_float_wasm_overlay_001.png)
