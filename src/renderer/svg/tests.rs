@@ -107,8 +107,8 @@ fn legacy_hanyang_faces_have_portable_local_aliases() {
     );
     assert_eq!(
         known_font_filenames("휴먼명조").first(),
-        Some(&"HANBatang.ttf"),
-        "한컴 2020 PDF와 같은 HCR Batang을 휴먼명조보다 먼저 찾아야 함"
+        Some(&"HMKMM.TTF"),
+        "Windows 한컴 PDF의 원 휴먼명조를 먼저 찾고 비트맵 strike는 임베드 사본에서 제거해야 함"
     );
     assert_eq!(
         known_font_filenames("한양신명조").first(),
@@ -274,7 +274,28 @@ fn style_font_face_css_orders_broken_bitmap_faces_after_outline_fallbacks() {
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn full_font_embed_uses_real_bold_face_when_document_uses_bold() {
-    let dir = std::env::temp_dir().join(format!("rhwp-svg-bold-font-{}", std::process::id()));
+    let chars = std::collections::HashSet::from(['가']);
+    let regular = include_bytes!("../../../tests/fixtures/fonts/RHWPHostFixture-Regular.ttf");
+    let bitmap_only = include_bytes!("../../../tests/fixtures/fonts/RHWPBitmapSvgGlyphSmoke.ttf");
+    let collection = include_bytes!("../../../tests/fixtures/fonts/RHWPHostFixture.ttc");
+    // 비혼합 윤곽선, 비트맵 전용 및 collection은 입력 bytes를 그대로 보존한다.
+    assert_eq!(svg_outline_font_data(regular, &chars).as_ref(), regular);
+    assert_eq!(
+        svg_outline_font_data(bitmap_only, &chars).as_ref(),
+        bitmap_only
+    );
+    assert_eq!(
+        svg_outline_font_data(collection, &chars).as_ref(),
+        collection
+    );
+    assert_eq!(
+        svg_outline_font_data(b"regular", &chars).as_ref(),
+        b"regular"
+    );
+
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("output/pr-review/regression-temp")
+        .join(format!("rhwp-svg-bold-font-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temporary font directory");
     std::fs::write(dir.join("HANBatang.ttf"), b"regular").expect("regular test font");
     std::fs::write(dir.join("HANBatangB.ttf"), b"bold").expect("bold test font");

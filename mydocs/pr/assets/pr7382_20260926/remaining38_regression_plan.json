@@ -278,7 +278,15 @@
       "function": "issue_6101_block_tac_table_text_order::issue_6101_table_after_control_text_renders_and_table_stays_left",
       "case": "issue_6101_block_tac_table_text_order",
       "status": "pending",
-      "individual_results": [],
+      "individual_results": [
+        {
+          "stage": 67,
+          "case_result": "기존2함수 PASS. 12쪽 기대는 정상11쪽과 달라 정확성 판정 보류.",
+          "font_result": "3·7쪽 두부문자 보정. 전체 피델리티 해결 아님.",
+          "evidence": "stage67_validation.json",
+          "status": "pending"
+        }
+      ],
       "resolved_plan": {
         "caseName": "issue_6101_block_tac_table_text_order",
         "target": "regression_suite_009",
@@ -616,5 +624,5 @@
     }
   ],
   "next_candidate": "issue_6101_block_tac_table_text_order::issue_6101_table_after_control_text_renders_and_table_stays_left",
-  "next_candidate_reason": "#5941은 사용자 지시로 #7445 이관·검사 제거. 다음 #6101 기존 실패를 개별 분석한다."
+  "next_candidate_reason": "#6101 두부문자 보정 완료 후 표 높이·줄바꿈·12/11쪽 불일치를 계속 분석한다. 전체 최저90% 전 기존 기대값을 갱신하지 않는다."
 }

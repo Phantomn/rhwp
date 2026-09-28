@@ -4436,10 +4436,9 @@ fn known_font_filenames(font_name: &str) -> Vec<&'static str> {
         "궁서" | "Gungsuh" => vec!["gungsuh.ttc", "GUNGSUH.TTC", "hamchob-r.ttf"],
         "굴림체" | "GulimChe" => vec!["gulim.ttc", "hamchod-r.ttf"],
         "바탕체" | "BatangChe" => vec!["batang.ttc", "hamchob-r.ttf"],
-        // 한컴 2020 PDF는 legacy 휴먼명조를 HCR Batang으로 출력한다. HMKMM은
-        // EBDT bitmap strike를 포함해 Chrome에서 두부 또는 폭 차이를 만들므로,
-        // full embed도 기준 출력과 같은 HCR Batang을 우선한다.
-        "휴먼명조" => vec!["HANBatang.ttf", "HBATANG.TTF", "HMKMM.TTF", "hamchob-r.ttf"],
+        // 정상 Windows 한컴 출력의 원 face는 휴먼명조다. EBDT 혼합 배포본도
+        // 임베드 사본에서 outline을 보존하므로 원 face를 대체 face보다 먼저 찾는다.
+        "휴먼명조" => vec!["HMKMM.TTF", "HANBatang.ttf", "HBATANG.TTF", "hamchob-r.ttf"],
         "새바탕" | "새돋움" | "새굴림" | "새궁서" => {
             vec!["hamchob-r.ttf", "hamchod-r.ttf"]
         }
@@ -4611,6 +4610,128 @@ fn find_font_file(plan: &FontFileLookupPlan) -> Option<std::path::PathBuf> {
     None
 }
 
+/// 윤곽선이 있는 TrueType의 선택 face에 대한 브라우저용 사본에서 구형 비트맵 strike만 뺀다.
+///
+/// 휴먼명조 같은 EBDT/EBLC 혼합 글꼴은 Chrome에서 해당 크기의 한글이 두부가
+/// 될 수 있다. 원본 cmap·glyph ID·윤곽선·advance는 그대로 복사한다. 비트맵만
+/// 있는 사용 글리프는 원본을 유지하며 문서/디스크 입력은 바꾸지 않는다.
+fn svg_outline_font_data<'a>(
+    data: &'a [u8],
+    chars: &std::collections::HashSet<char>,
+) -> std::borrow::Cow<'a, [u8]> {
+    let original = || std::borrow::Cow::Borrowed(data);
+    // 기존 임베드의 기본 face(0)를 유지한다. collection의 다른 face는
+    // 선택하지 않으며, 이 face의 테이블 오프셋은 collection 전체 기준이다.
+    let sfnt_offset = if data.get(..4) == Some(b"ttcf") {
+        let Some(offset) = data.get(12..16) else {
+            return original();
+        };
+        u32::from_be_bytes(offset.try_into().unwrap()) as usize
+    } else {
+        0
+    };
+    let Some(header) = sfnt_offset
+        .checked_add(12)
+        .and_then(|end| data.get(sfnt_offset..end))
+    else {
+        return original();
+    };
+    if !matches!(header.get(..4), Some(b"\0\x01\0\0" | b"true")) {
+        return original();
+    }
+    let Ok(face) = ttf_parser::Face::parse(data, 0) else {
+        return original();
+    };
+    let mut outline_count = 0;
+    for ch in chars.iter().filter(|ch| !ch.is_whitespace()) {
+        // cmap 부재 문자는 기존 CSS fallback이 담당한다. 비트맵 전용 글리프는
+        // 제거할 수 없으며, 윤곽선 없는 글꼴 전체를 바꾸지도 않는다.
+        if let Some(glyph) = face.glyph_index(*ch) {
+            if face.glyph_bounding_box(glyph).is_none() {
+                return original();
+            }
+            outline_count += 1;
+        }
+    }
+    if outline_count == 0 || data.len() < 12 {
+        return original();
+    }
+    let table_count = usize::from(u16::from_be_bytes([header[4], header[5]]));
+    let Some(directory) = data.get(sfnt_offset + 12..sfnt_offset + 12 + table_count * 16) else {
+        return original();
+    };
+    let mut tables = Vec::with_capacity(table_count);
+    let mut has_bitmap = false;
+    for record in directory.chunks_exact(16) {
+        if matches!(&record[..4], b"EBDT" | b"EBLC") {
+            has_bitmap = true;
+            continue;
+        }
+        let offset = u32::from_be_bytes(record[8..12].try_into().unwrap()) as usize;
+        let length = u32::from_be_bytes(record[12..16].try_into().unwrap()) as usize;
+        let Some(bytes) = offset
+            .checked_add(length)
+            .and_then(|end| data.get(offset..end))
+        else {
+            return original();
+        };
+        tables.push((&record[..4], bytes));
+    }
+    if !has_bitmap
+        || !tables
+            .iter()
+            .any(|(tag, bytes)| *tag == b"head" && bytes.len() >= 12)
+    {
+        return original();
+    }
+    // sfnt의 검색 헤더·테이블 checksum·head 전체 checksum을 새 오프셋에 맞춘다.
+    let count = tables.len() as u16;
+    // 검색 헤더의 u16 범위와 원본 크기를 넘는 테이블 복사량은 수용하지 않는다.
+    if count > u16::MAX / 16
+        || tables
+            .iter()
+            .try_fold(12 + tables.len() * 16, |size, (_, bytes)| {
+                size.checked_add(bytes.len().next_multiple_of(4))
+            })
+            .is_none_or(|size| size > data.len())
+    {
+        return original();
+    }
+    let power = 1u16 << (15 - count.leading_zeros());
+    let mut result = vec![0u8; 12 + tables.len() * 16];
+    result[..4].copy_from_slice(&header[..4]);
+    result[4..6].copy_from_slice(&count.to_be_bytes());
+    result[6..8].copy_from_slice(&(power * 16).to_be_bytes());
+    result[8..10].copy_from_slice(&(15 - power.leading_zeros() as u16).to_be_bytes());
+    result[10..12].copy_from_slice(&(count * 16 - power * 16).to_be_bytes());
+    let checksum = |bytes: &[u8]| {
+        bytes.chunks(4).fold(0u32, |sum, chunk| {
+            let mut word = [0; 4];
+            word[..chunk.len()].copy_from_slice(chunk);
+            sum.wrapping_add(u32::from_be_bytes(word))
+        })
+    };
+    let mut head_adjustment = 0;
+    for (index, (tag, bytes)) in tables.iter().enumerate() {
+        let offset = result.len();
+        result.extend_from_slice(bytes);
+        result.resize(result.len().next_multiple_of(4), 0);
+        if *tag == b"head" {
+            head_adjustment = offset + 8;
+            result[head_adjustment..head_adjustment + 4].fill(0);
+        }
+        let sum = checksum(&result[offset..offset + bytes.len()]);
+        let record = &mut result[12 + index * 16..28 + index * 16];
+        record[..4].copy_from_slice(tag);
+        record[4..8].copy_from_slice(&sum.to_be_bytes());
+        record[8..12].copy_from_slice(&(offset as u32).to_be_bytes());
+        record[12..16].copy_from_slice(&(bytes.len() as u32).to_be_bytes());
+    }
+    let adjustment = 0xB1B0_AFBAu32.wrapping_sub(checksum(&result));
+    result[head_adjustment..head_adjustment + 4].copy_from_slice(&adjustment.to_be_bytes());
+    std::borrow::Cow::Owned(result)
+}
+
 /// [#2524] 문서 임베디드(BinData) 폰트를 @font-face 로 직접 임베딩한다.
 ///
 /// 미설치 임베디드 폰트(bitmap 등)는 `find_font_file`(디스크) 조회에 실패해
@@ -4620,13 +4741,15 @@ fn find_font_file(plan: &FontFileLookupPlan) -> Option<std::path::PathBuf> {
 fn embedded_font_face_css(
     font_name: &str,
     embedded_fonts: &std::collections::HashMap<String, Vec<u8>>,
+    chars: &std::collections::HashSet<char>,
 ) -> Option<String> {
     let bytes = embedded_fonts.get(font_name)?;
     if bytes.is_empty() {
         return None;
     }
-    let (mime, format) = font_data_uri_format(bytes);
-    let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+    let bytes = svg_outline_font_data(bytes, chars);
+    let (mime, format) = font_data_uri_format(&bytes);
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
     Some(format!(
         "@font-face {{ font-family: \"{}\"; src: url(\"data:{};base64,{}\") format(\"{}\"); }}\n",
         font_name, mime, b64, format,
@@ -4702,7 +4825,11 @@ pub fn generate_embedded_font_style(
     let mut font_names = renderer.font_codepoints().keys().collect::<Vec<_>>();
     font_names.sort_unstable();
     for font_name in font_names {
-        if let Some(line) = embedded_font_face_css(font_name, embedded_fonts) {
+        if let Some(line) = embedded_font_face_css(
+            font_name,
+            embedded_fonts,
+            &renderer.font_codepoints()[font_name],
+        ) {
             css.push_str(&line);
         }
     }
@@ -4731,7 +4858,11 @@ pub fn generate_font_style(
     match renderer.font_embed_mode {
         FontEmbedMode::Style => {
             for &font_name in &font_names {
-                if let Some(line) = embedded_font_face_css(font_name, embedded_fonts) {
+                if let Some(line) = embedded_font_face_css(
+                    font_name,
+                    embedded_fonts,
+                    &renderer.font_codepoints()[font_name],
+                ) {
                     css.push_str(&line);
                     continue;
                 }
@@ -4757,13 +4888,36 @@ pub fn generate_font_style(
         FontEmbedMode::Subset => {
             for &font_name in &font_names {
                 let chars = &codepoints[font_name];
-                if let Some(line) = embedded_font_face_css(font_name, embedded_fonts) {
+                if let Some(line) = embedded_font_face_css(
+                    font_name,
+                    embedded_fonts,
+                    &renderer.font_codepoints()[font_name],
+                ) {
                     css.push_str(&line);
                     continue;
                 }
                 let regular_lookup = plan_svg_font_file_lookup(font_name, font_paths, false);
                 if let Some(font_path) = find_font_file(&regular_lookup) {
                     if let Ok(font_data) = std::fs::read(&font_path) {
+                        let outline_data = svg_outline_font_data(&font_data, chars);
+                        if matches!(outline_data, std::borrow::Cow::Owned(_)) {
+                            let b64 =
+                                base64::engine::general_purpose::STANDARD.encode(&outline_data);
+                            css.push_str(&format!(
+                                "@font-face {{ font-family: \"{}\"; src: url(\"data:font/ttf;base64,{}\") format(\"truetype\"); }}\n",
+                                font_name, b64,
+                            ));
+                            if renderer.font_bold_families().contains(font_name) {
+                                let bold_lookup =
+                                    plan_svg_font_file_lookup(font_name, font_paths, true);
+                                append_embedded_bold_font_face_css(
+                                    &mut css,
+                                    font_name,
+                                    &bold_lookup,
+                                );
+                            }
+                            continue;
+                        }
                         // codepoint → glyph ID 변환 (ttf-parser cmap 사용)
                         let glyphs = ttf_parser::Face::parse(&font_data, 0)
                             .map(|face| {
@@ -4835,13 +4989,18 @@ pub fn generate_font_style(
         }
         FontEmbedMode::Full => {
             for &font_name in &font_names {
-                if let Some(line) = embedded_font_face_css(font_name, embedded_fonts) {
+                if let Some(line) = embedded_font_face_css(
+                    font_name,
+                    embedded_fonts,
+                    &renderer.font_codepoints()[font_name],
+                ) {
                     css.push_str(&line);
                     continue;
                 }
                 let regular_lookup = plan_svg_font_file_lookup(font_name, font_paths, false);
                 if let Some(font_path) = find_font_file(&regular_lookup) {
                     if let Ok(font_data) = std::fs::read(&font_path) {
+                        let font_data = svg_outline_font_data(&font_data, &codepoints[font_name]);
                         let b64 = base64::engine::general_purpose::STANDARD.encode(&font_data);
                         css.push_str(&format!(
                             "@font-face {{ font-family: \"{}\"; src: url(\"data:font/opentype;base64,{}\") format(\"opentype\"); }}\n",

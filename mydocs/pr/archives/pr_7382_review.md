@@ -1831,3 +1831,27 @@ Producer `c34c15bbd` + 최종 Rust/test diff SHA256 `8ac3def6592910224db5c6445c7
 - 고정38은 **10해결/1이관/27대기**입니다. 이관은 PASS 또는 렌더링 해결이 아닙니다. 다음 개별 보정은 #6101이며 통합 PR 준비는 계속 보류합니다.
 
 ![로드맵145쪽 표 분할 차이](../assets/issue7445/roadmap5941_native_review_145.png)
+
+## 보정67 사전 분석 — #6101 두부문자와 미검증 쪽수 핀
+
+- 현재 기존 #6101 두 함수는2PASS이나 소방교육 원본은12쪽/독립 한컴11쪽으로 출력됩니다. 기존12쪽 기대는 정상값이 아닌 잠정 핀이므로 유지한 채 먼저 실제 출력을 개선합니다. 새 검사는 추가하지 않습니다.
+- 기존 local2020 PDF는 Linux cairo1.18 출력이며 현재 Windows 한컴 engine2020으로 동일 원문을 다시 변환했습니다(job `2ee76728-acd9-48ba-8cea-3fb0d943b6c2`,11쪽). 원문 hash와 정상 대응을 확인했으며 기존 PDF는 보존합니다. 옛 출력의 글꼴 대체/굵기 차이를 Windows 글꼴 계약으로 그대로 사용하지 않습니다.
+- 두부문자는 원문 일반 한글/숫자가 사라진 문제가 아닙니다. 실제 `휴먼명조` HMKMM의 cmap와 glyf 윤곽선은 존재하지만 EBDT/EBLC bitmap strike가 함께 들어 있습니다. 임시 진단에서 이 두 테이블만 제거한 같은 글꼴의 전체 embed로3쪽 연락처/하단 문장이 정상적으로 표시됩니다.7쪽의 같은 글꼴에도 적용되며 현재 일치율80.93690/78.28182%여서 시각 통과는 아닙니다. 진단용 글꼴 사본은output에만 둡니다.
+- 수정 경로는 원문 글꼴 → SVG CSS 생성용 폰트 bytes → data URI → 브라우저 glyph입니다. 글리프 ID·cmap·윤곽선·advance·조판 좌표를 그대로 보존하는 단일sfnt의 outline 가능 문자에만 bitmap strike 제거를 적용하고 bitmap-only/collection/잘못된 입력은 변경하지 않습니다. 입력 파일 자체나 본문 문자열은 고치지 않습니다. WASM의 문서 내장 font CSS와 Native 전체 embed의 실제 호출 경로를 함께 확인합니다.
+- 작은 동일 페이지 전후 비교로 두부 제거를 먼저 확인하고 남은 표 높이·쪽수 차이를 추적합니다. 모든11쪽 Native/fresh WASM90% 이상 전에는 기존 쪽수 기대나 geometry oracle을 변경하지 않습니다.
+
+- 후보1 재검증에서 초기 원인 분류를 정정했습니다. 실제 첫 sweep의 `휴먼명조` embed는HMKMM이 아니라 선행 검색 디렉터리의Batang.ttc(sha `84b0ba79a5d1c6012bbccf8d364ddc04a0c8b135d227a159196c558225cf1d89`)였습니다. 이 collection의첫 face에도EBDT/EBLC가 있어단일sfnt만보정한후보1로7쪽의일부두부가남습니다. 임시진단의HMKMM은글리프윤곽선보존방향만입증하며실제font선택의근거를대신하지않습니다. 실제선택face의cmap/glyf/advance를그대로단일sfnt사본에보존하는collection지원과byte동일원글꼴공급을함께재검증합니다. 이전후보결과는완료근거로쓰지않습니다.
+
+## 보정67 결과 — 두부문자 임베드 보정, #6101 전체 검토 보류
+
+- 정상 Windows 한컴 PDF가 사용하는 원 휴먼명조를 byte 동일하게 공급하고 `HMKMM.TTF`를 대체 글꼴보다 먼저 찾도록 수정했습니다. 원 글꼴은 `output`에만 보관하며 커밋하지 않습니다. 기존 Linux PDF도 그대로 보존합니다. 새 정상 기준은 [소방교육 11쪽](../../../pdf/pr7382/36361137_firefighter_training_plan-2020.pdf)과 [결재문서 2쪽](../../../pdf/pr7382/36501883_approval_doc_body-2020.pdf)입니다.
+- `svg_outline_font_data`는 실제 사용 문자에 윤곽선이 있는 TrueType 단일 글꼴 또는 기존 기본 TTC face 0의 임베딩 사본에서 EBDT/EBLC만 제거합니다. cmap·glyph ID·glyf·advance와 나머지 테이블 bytes는 보존하고 sfnt 오프셋·checksum만 재작성합니다. 비트맵 전용 사용 글리프, 비혼합 글꼴, 잘못된 입력은 원본을 유지합니다. Native 전체/혼합 서브셋 임베드와 공통 문서 내장 글꼴 CSS 경로가 같은 결과를 사용합니다. 사전 분석의 collection 전체 미변경 제한은 후보1의 불완전한 조건이므로 최종 구현에는 적용하지 않습니다.
+- 최종 Native 및 fresh WASM의 실제 SVG에서 휴먼명조가 원본의 EBDT/EBLC만 제거한 사본임을 확인했습니다. 다른 모든 테이블은 head checksum 필드를 제외하고 byte 동일하며 전체 sfnt checksum은 `0xb1b0afba`입니다. 글꼴/문서 원본이나 본문 문자열을 수정하거나 글자를 숨기지 않았고 후보2의 12쪽 render-tree는 변경 전과 동일했습니다. [원인·입력·실제 글꼴 보존·빌드·실행 검증 원장](../assets/pr7382_20260926/stage67_validation.json).
+- 최종 Native 7쪽 review·3쪽 standalone overlay와 fresh WASM 3쪽 review·7쪽 standalone overlay를 직접 읽어 연락처·지원금·일정의 두부문자 제거를 확인했습니다. WASM은 새 패키지의 실제 SVG/render-tree를 사용하며, 문서에 없는 설치 글꼴의 CSS 공급만 같은 Native 전체 임베드 정책으로 보충합니다. Native 트리를 WASM 트리로 대신하지 않습니다. **두 backend 모두 3쪽80.65124% /7쪽78.42703%, gate `re_review_required`**입니다. 표 높이·지원금 줄바꿈·일부 글꼴 굵기·12/11쪽 불일치를 두부문자 보정 완료와 구분합니다. 전체11쪽 시각 통과나 #6101 해결을 주장하지 않습니다.
+- fmt check·Native/lib WASM/workspace all-targets 세 Clippy·workspace build·고정 base `443844b593c62a722cf9cc3d9d0256e94ab88cb8`의 manifest/unit-tier 정책 검사는 모두exit0입니다. 기존 #6101 두 함수2PASS(run `92772039-d892-4d97-9d41-d1f3492ca0c4`), 기존 Bold 함수1PASS(`f96904f8-869b-484e-a7de-699bfeade490`), 수정한 기존 별칭 함수1PASS(`7e83a09b-8529-40f3-99d9-668b768cd757`)입니다. nextest는 release-test/threads8/no-fail-fast이며 새 회귀 함수는 없습니다. Mac fresh WASM은 `--no-opt` 대체 빌드 통과이고 Docker 최적화 빌드 통과가 아닙니다.
+- 추가 대조군은 후보2의 정책 지표4·53·79·86쪽 Native 최저92.57413%/gate `passed`이며4쪽 review를 직접 확인했습니다. 최종 source와 주석만 다르지만 CLI hash가 달라 이 결과를 최종 head 전체 검증으로 재사용하지 않습니다. 최종 source 두 파일 hash 및 CLI/JS/WASM hash는 검증 원장에 고정했습니다.
+- 로그·임시 SVG/글꼴·pkg·파생 suite는 커밋하지 않습니다. 사용자 제공 fixture PDF는 원래 경로의 untracked 파일로 유지합니다. 기존 #6101의12쪽 잠정 핀과 geometry oracle은 아직 갱신하지 않습니다. 고정38은 **10해결/1이관/27대기**이며 #6101은 계속 대기입니다. 다음 단계에서 표 높이·줄바꿈·추가쪽의 실제 소비 경로를 분석하고, 전11쪽 Native/fresh WASM 최저90% 이상 및 정상 쪽수가 확인된 뒤 기존 검사 기대값을 갱신합니다. 통합 PR 준비는 보류합니다.
+
+![Native 7쪽 두부문자 보정과 남은 줄바꿈 차이](../assets/pr7382_20260926/stage67_native_review_007.png)
+
+![fresh WASM 3쪽 두부문자 보정과 남은 표 높이 차이](../assets/pr7382_20260926/stage67_wasm_review_003.png)
