@@ -190,12 +190,12 @@ const CANVAS_SELECTOR = '#scroll-container canvas';
 
 /** Vite dev server에서 앱을 로드하고 WASM 초기화 완료 대기 */
 export async function loadApp(page, search = '') {
-  const artifact = observeWasmArtifact(page);
+  const artifact = await observeWasmArtifact(page);
   try {
     await loadAppUnchecked(page, search);
     await artifact.finish();
   } finally {
-    artifact.stop();
+    await artifact.stop();
   }
 }
 
