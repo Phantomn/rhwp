@@ -2152,3 +2152,9 @@ head `f56788498d63d21e6cafd9c563fab52c4e0cb133`에서 기존29번 text-overlap p
 기존29번의 축소본76쪽 신규겹침2건은5.68px의 캡션/앞 문단 충돌입니다. 해시가 다른 전체 원문을 같은 입력으로 묶지 않고 축소본 자체의 독립 한컴 PDF를 사용했습니다. 현재103/기준103쪽이나 Native76·77·78·83·103쪽60.7561/99.27598/53.67396/99.79822/99.98703%입니다.76쪽 캡션/표 위치와78쪽 표 행 높이·후속 캡션 차이를 직접 확인했고 전체/fresh WASM은 미실행입니다.
 
 [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870791302) 후 축소본만 보존/렌더링14함수·matrix2입력·body 원장1행을 제외했습니다. #7048 전체원문3함수와 다른 전체원문 검사·helper·공차·기대값 유지, 새 함수/skip/ignore/생산 변경 없음. 코드 `26777a527892cf17ef3b7e7ffcd5715024506ea7`, [근거](../assets/issue7445/chemical6782_test_removal_validation.json). 집중 ['     Summary [   1.328s] 4 tests run: 4 passed, 450 skipped']; 필수 lint/정책 exit는 근거에 구분했습니다. 입력 피델리티 미달 승인 제외이며 각 개별기대값의 오류확정/원문 개선/전체회귀 완료로 세지 않습니다. saved_bounds HWPX는 별도 미해결입니다.
+
+## 보정94 사전 분석·결과 — saved-bounds HWPX 미달 회귀 제외
+
+기존29번의 HWPX4쪽 신규겹침9건을 실제 공개 결재문서/기존 독립 한컴2024 PDF 전체5쪽으로 검증했습니다. PR#1752/계획#1811/결과#2015의 입력별 대응을 확인했습니다. 현재5/기준5쪽이나 Native1~5쪽94.04792/98.06349/82.65886/72.63884/30.44845%입니다.4쪽 표/문단 겹침과표내용소유,5쪽 이어받기·뒤 설명/표/제목 위치 차이를 직접 확인했습니다. fresh WASM은 미실행입니다.
+
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870886007) 뒤 HWPX만 보존/렌더링3함수와 body1행을 제외했습니다. #1811 혼합 함수의 HWPX 페이지/cut 부분만 제외하고 셀52/57 저장 IR 및 기존 HWP5쪽/3유닛컷 대조군을 유지합니다. same-id 역사적IR catalogue/배열계약, 다른 원문·기대값·공차 유지, 새 함수/skip/ignore/생산 변경 없음. 코드 `3f7ea7600d9c1bd4ef4804badcb94b7eafe890cb`, [근거](../assets/issue7445/savedbounds1749_test_removal_validation.json). 집중 ['     Summary [   1.181s] 4 tests run: 4 passed, 628 skipped']; 필수 lint/정책 exit는 근거에서 구분했습니다. IR/HWP 대조군을 HWPX 승인으로 세지 않으며 원문 피델리티/전체회귀 완료로 보고하지 않습니다.

@@ -1293,8 +1293,8 @@
       }
     }
   ],
-  "next_candidate": "samples/task1749/saved_bounds_cumulative_page_break.hwpx",
-  "next_candidate_reason": "기존29번에서 함께 검출된 별도 HWPX를 다음 한 원문 단계에서 시각 검증.",
+  "next_candidate": "text_overlap_baseline::text_overlaps_do_not_grow_partition_10",
+  "next_candidate_reason": "고정38 다음 대기 함수를 개별 실행. 별도 미해결 입력도 최종 제출 전에 처리.",
   "current_status_counts": {
     "resolved": 28,
     "deferred_to_issue": 1,
@@ -1437,9 +1437,11 @@
     {
       "document": "samples/task1749/saved_bounds_cumulative_page_break.hwpx",
       "observed_stage": 92,
-      "status": "pending",
+      "status": "deferred_to_issue",
       "failure": "text-overlap 신규9건",
-      "note": "축소 화학문서와 별도 원문. 독립 기준/실제 시각 판정 미실행."
+      "note": "전체 Native 최저30.44845%. HWPX보존/렌더링회귀제외, IR/HWP대조군 유지. 피델리티 해결 아님.",
+      "stage": 94,
+      "evidence": "../issue7445/savedbounds1749_test_removal_validation.json"
     }
   ]
 }

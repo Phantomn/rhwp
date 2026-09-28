@@ -186,3 +186,13 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native76쪽 표 캡션과 앞 문단 겹침](chemical6782_native_review_076.png)
 
 ![Native78쪽 표 행 높이·캡션 차이](chemical6782_native_overlay_078.png)
+
+## 추가: 공개 결재문서36375752 saved-bounds HWPX
+
+- [등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870886007), [보존 HWPX](saved_bounds_cumulative_page_break.hwpx), [독립 한컴2024 PDF5쪽](../../../../samples/task1749/saved_bounds_cumulative_page_break-2024.pdf), [원문/PDF 대응·전수 비교·제외·유지 검증](savedbounds1749_test_removal_validation.json). 기존 PR#1752/계획#1811/결과#2015의 입력별 PDF 대응을 확인했습니다.
+- 현재5/기준5쪽이나 전체 Native1~5쪽94.04792/98.06349/82.65886/72.63884/30.44845%입니다.4쪽 표와 후속 문단의 겹침9건·표의 페이지 소유,5쪽 이어받기와 뒤 내용 위치 차이를 직접 확인했습니다. fresh WASM은 미실행입니다.
+- 51,205byte HWPX만 바이트 동일하게 보존하고 렌더링·페이지3함수와 body 원장1행을 제거했습니다. #1811 혼합 함수의 HWPX 페이지/cut 부분만 제외하고 셀52/57 저장 IR 및 HWP5쪽/3유닛컷 대조군 기대값·공차를 유지합니다. same-id 역사적IR catalogue와 배열 경계 계약도 유지합니다. IR/HWP 대조군을 HWPX fidelity 승인으로 세지 않습니다. 새 함수/ignore/skip/생산 변경/공차 완화 없음. 집중 ['     Summary [   1.181s] 4 tests run: 4 passed, 628 skipped']; 필수 lint/정책은 위 JSON에 정확히 기록했습니다.
+
+![Native4쪽 표와 문단 중첩](savedbounds1749_native_review_004.png)
+
+![Native5쪽 이어받기와 뒤 내용 위치 차이](savedbounds1749_native_overlay_005.png)

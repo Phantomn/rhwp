@@ -25,3 +25,7 @@
 - 기대(한글 정합): pi=26 은 2쪽 마지막, 전체 5쪽.
 - 검증: `rhwp dump-pages samples/task1749/saved_bounds_cumulative_page_break.hwpx` /
   `cargo test --test issue_1749_saved_bounds_page_break`
+
+## HWPX 회귀 이관
+
+페이지나누기 HWPX는 사용자 승인으로 [#7445 보존 자산](../../mydocs/pr/assets/issue7445/saved_bounds_cumulative_page_break.hwpx)에 바이트 동일하게 이동했습니다. 전체 Native 최저5쪽30.44845%이며 최종 출력 검사는 이슈에서 재구축합니다. 저장 IR·기존 HWP 대조군과 나머지누적좌표입력/기준PDF는 유지합니다. [시각·제외·유지 근거](../../mydocs/pr/assets/issue7445/savedbounds1749_test_removal_validation.json). 위 samples HWPX 경로와 이전 cargo 명령은 당시 기록입니다.
