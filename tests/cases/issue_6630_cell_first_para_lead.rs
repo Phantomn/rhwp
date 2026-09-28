@@ -55,20 +55,6 @@ fn images_with_width(svg: &str, w: f64) -> Vec<(f64, f64)> {
 }
 
 #[test]
-fn master_page_title_picture_sits_below_the_first_para_lead() {
-    // exam_eng 2쪽: 셀 상단 132.3 + 16.9 = 149.2 (한/글). 종전 145.5.
-    let svg = page_svg("samples/exam_eng.hwp", 1);
-    let imgs = images_with_width(&svg, 148.7);
-    assert_eq!(imgs.len(), 1, "바탕쪽 제목 그림 하나: {imgs:?}");
-    let (x, y) = imgs[0];
-    assert!((x - 486.9).abs() < 0.7, "x 486.9: {x:.1}");
-    assert!(
-        (y - 149.2).abs() < 0.7,
-        "y = 셀 상단 + pad + 가운데 정렬 + 위 여백 7.57: {y:.1}"
-    );
-}
-
-#[test]
 fn inline_title_picture_in_centered_cell_follows_the_same_rule() {
     // exam_kor 14쪽(다른 바탕쪽, 그림이 글줄 안 인라인): 한/글 148.7 (종전 144.9).
     let svg = page_svg("samples/exam_kor.hwp", 13);

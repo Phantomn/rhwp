@@ -775,7 +775,8 @@ fn total_page_auto_num_preserved_on_hwp_to_hwpx_roundtrip() {
     use rhwp::parser::{hwpx::parse_hwpx, parse_hwp};
     use rhwp::serializer::hwpx::serialize_hwpx;
 
-    let d1 = parse_hwp(include_bytes!("../samples/exam_eng.hwp")).expect("parse exam_eng");
+    let d1 = parse_hwp(include_bytes!("../mydocs/pr/assets/issue7445/exam_eng.hwp"))
+        .expect("parse exam_eng");
     let total_pages_before: Vec<_> = auto_nums(&d1)
         .into_iter()
         .filter(|(_, number_type, _)| *number_type == AutoNumberType::TotalPage)
