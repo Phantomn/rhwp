@@ -242,3 +242,7 @@ venv/bin/python scripts/visual_sweep.py \
 ![Native76쪽 표·캡션과본문 겹침](chemical_full6782_native_review_076.png)
 
 ![Native78쪽 인증마크 그림 누락](chemical_full6782_native_review_078.png)
+
+### 전체 원문 제외 범위 정정(보정105)
+
+보정103의19개 정상검사 동반제외를 철회했습니다. 원문 samples와 body원장1행, 기존19함수/기대값을 복원했으며 ['     Summary [   3.632s] 20 tests run: 20 passed, 1920 skipped']입니다. 필수8단계exit0, 코드 `9efd1823c57b9e9417ef15cf7492269c27f2c8cb`, [복원·검증 근거](chemical_full6782_scope_correction_validation.json). #7382를 실제 막는 text-overlap 신규2건의 문서 입력만 보류합니다. 부정시각증거와 보존 원문은 유지합니다.

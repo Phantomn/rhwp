@@ -135,3 +135,5 @@ rhwp 는 `rhwp export-render-tree -p 76` 의 `Image` 노드 bbox.
 ## 축소본 회귀 이관
 
 축소본은 사용자 승인에 따라 [#7445 보존 자산](../../mydocs/pr/assets/issue7445/1480000-201900042-chemical-labeling-standards.hwp)으로 바이트 동일하게 이동했습니다. Native76쪽60.7561%/78쪽53.67396%로 피델리티 미달입니다. 보정93 당시에는 별도 전체 원문 검사를 유지했습니다. 보정103에서 전체 원문 자체도 선택 Native 최저49.36129%로 확인되어 원문·PDF를 보존하고 렌더링19함수를 제외했습니다. [전체 원문 근거](../../mydocs/pr/assets/issue7445/chemical_full6782_test_removal_validation.json). [실행·제외·유지 근거](../../mydocs/pr/assets/issue7445/chemical6782_test_removal_validation.json). 앞선 절의 samples 경로/부분 검증은 당시 기록이며 현재 전체 승인으로 해석하지 않습니다.
+
+보정105에서 정상19개검사/body원장을 복원했습니다. 현재 #7445 보류 범위는 실제 실패한 text-overlap corpus의 전체 원문 입력만입니다. [복원 근거](../../mydocs/pr/assets/issue7445/chemical_full6782_scope_correction_validation.json).

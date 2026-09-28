@@ -1327,5 +1327,12 @@
     "     Summary [   2.687s] 1 test run: 1 passed, 223 skipped"
   ],
   "issue_comment": "https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5871748601",
-  "limits": "원문 피델리티 해결/PR승인/최종 전체회귀 완료 아님. Native 선택90%미달에 따른 사용자 승인 제외."
+  "limits": "원문 피델리티 해결/PR승인/최종 전체회귀 완료 아님. Native 선택90%미달에 따른 사용자 승인 제외.",
+  "superseded_removal_scope": {
+    "stage": 105,
+    "reason": "사용자 정정: PR을 막지 않는 정상 검사 동반제외 철회",
+    "current_evidence": "chemical_full6782_scope_correction_validation.json",
+    "restored_functions": 19,
+    "retained_deferred_scope": "실제FAIL한 text-overlap corpus 원문 입력만"
+  }
 }

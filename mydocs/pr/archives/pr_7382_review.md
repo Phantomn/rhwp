@@ -2210,3 +2210,7 @@ head `f9a154de16df07f957368d29416e081ea335c158`에서 기존35번은1FAIL(exit10
 head `a643e0e6b8bdb40172dbc55386d747b2ea49fd3f`에서 기존36·37번 각1PASS,38번1FAIL입니다.38번은 rowbreak-problem-pages.hwpx text-overlap1→2건입니다. [개별 명령·summary](../assets/pr7382_20260926/stage104_individual_validation.json). 고정38의 현재36완료/1이관/1대기이며 최종재실행/전체회귀 미완료입니다.
 
 사용자 정정에 따라 #7445 처리는 PR을 실제 막는 실패 함수/assertion/corpus 입력으로 제한합니다. 동일 문서90%미달을 이유로 정상 검사까지 일괄 제외하지 않습니다. 보정103에서 제외한 전체원문19함수에는 이전PASS 기록이 있어 복원 후 현재head에서 다시 검사합니다. 앞선 제외 역시 실패 로그와 대조해 정상 검사의 동반 제외를 보정합니다. #7832는 API에서 존재하지 않으며 현재 검토 PR#7382로 우선 진행합니다.
+
+## 보정105 결과 — PR 차단 범위만 보류·정상19함수 복원
+
+사용자 정정을 반영해 보정10319함수와 원문 samples/body원장1행을 복원했습니다. 실제 실패가 확인된 text-overlap 신규2건 원문입력만명시적으로제외하며 정상함수/다른원장 계속검사합니다. 집중 ['     Summary [   3.632s] 20 tests run: 20 passed, 1920 skipped'],필수8단계exit0. 코드 `9efd1823c57b9e9417ef15cf7492269c27f2c8cb`, [근거](../assets/issue7445/chemical_full6782_scope_correction_validation.json). 부정시각증거/보존 원문·PDF 유지, 피델리티승인 아님. 사용자 확인PR#7382입니다. 나머지 이전동반제외를 원래검사/현재실패 증거로 대조합니다.
