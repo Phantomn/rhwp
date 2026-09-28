@@ -1994,6 +1994,17 @@
       "normal_functions_kept": 18,
       "normal_functions_result": "18PASS",
       "corpus_snapshot": "보정110의23실패중이입력원인만처리.현재총FAIL함수수는전체재실행전추정하지않음."
+    },
+    "normal_reader_paths": {
+      "stage": 112,
+      "code_commit": "f48fa6d88d40fbf8fe39b5f76d795653ce48216b",
+      "files": 76,
+      "path_references": 135,
+      "inputs_with_identical_preserved_bytes": 22,
+      "focused": "19PASS",
+      "source_units": "4PASS",
+      "evidence": "../issue7445/normal_reader_scope_restore_validation.json",
+      "limits": "생산/함수/기대값 변경 없음. 실제 실패 개별 처리와 최종 재실행은 별도."
     }
   }
 }

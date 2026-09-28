@@ -274,3 +274,7 @@ venv/bin/python scripts/visual_sweep.py \
 ![7쪽 표시작과제26조소유차이](rowbreak_hwpx_native_review_007.png)
 
 ![9쪽 이전내용잔류와시행령표위치차이](rowbreak_hwpx_native_overlay_009.png)
+
+## 보정112: 정상 검사는 samples 원문을 소비
+
+보정69 이후 복원 원문22개는 증거 사본과 동일 바이트입니다. 정상76파일/135경로를 canonical samples로 복원했고 기존 집중19개와 소스 내부4개 및 필수 lint/정책은 통과했습니다. [해시·소비 경로·검증](normal_reader_scope_restore_validation.json). 과거 증거 사본은 보존하며, 이 복원을 전체 회귀 통과로 세지 않습니다.

@@ -2250,3 +2250,9 @@ head `a643e0e6b8bdb40172dbc55386d747b2ea49fd3f`에서 기존36·37번 각1PASS,3
 HWP 대응본과 구분해 동일 HWPX/기존 정상 한컴 PDF18쪽의 해시를 보정52 근거와 확인했습니다. 두7쪽 개별검사와 text-overlap1→2를 각각1FAIL로 재현했습니다. 독립 PDF7쪽에 제26조가 있지만 현재는8쪽으로 넘어가므로 이 쪽 소유 기대는 근거가 있습니다. 전체 Native18/18쪽 비교 최저9쪽20.18283%,13개쪽90%미달입니다.7/8쪽33.49973/43.01334%,7/8/9/16 review 및7/16 standalone overlay에서표시작의큰빈영역·내용이월·후속표/문단위치차이를직접확인했습니다. fresh WASM 미실행이며 글꼴 예외는 없습니다.
 
 [issuecomment-5872944940](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5872944940) 후 실패2함수와이HWPX의text입력/기준1행만보류했습니다. 다른18함수·HWP대조군·원문/PDF·다른corpus축·쪽수원장·기대값/공차를유지합니다. 영어소개주석과잘못된HWPX소개경로도교정했습니다. 코드 `83402f03e3ce700149dd6099a078dabdc3859b06`, [입력·독립기대·시각·범위·실행](../assets/issue7445/rowbreak_hwpx_blocking_scope_validation.json). 남은18함수18PASS/194SKIP,필수8단계exit0,고정38의원래text partition9는별도1PASS/234SKIP입니다. 현재미달원문은재배정에서partition14였으며원래함수명은최종재실행대상으로유지합니다. 이보류는원문개선/전체회귀통과가아니며다른corpus실패원인·개별15실패및최종37개별/전체검증·PR준비는미완료입니다.
+
+## 보정112 사전 분석·결과 — 정상 검사의 canonical 원문 경로 복원
+
+사용자께서 대상 PR은 #7382로 확인하셨습니다. 보정110에서 복원한 samples 원문22개와 과거 증거 사본의 동일 바이트를 확인했습니다. 정상 검사가 향후 개선 원문을 소비하도록76개 파일의135개 경로를 samples로 복원했습니다. src3개는 cfg(test) 내부이고 함수·기대값·공차·생산 동작은 유지했습니다. 동적 경로3개는 root.join의 전체 상대경로 소비를 대조했습니다. 이번 소개 주석은 한국어로 정리했습니다.
+
+코드 `f48fa6d88d40fbf8fe39b5f76d795653ce48216b`, [원문·변경 전후 소스 해시·경로·명령·결과](../assets/issue7445/normal_reader_scope_restore_validation.json). 기존 집중19PASS/1082SKIP, 소스 내부4PASS/4064SKIP, fmt·Clippy3종·workspace build·고정base manifest/unit 정책 모두exit0입니다. 이전 미달 증거 사본과 사용자가 별도로 제외한 거대 입력은 유지합니다. 개별15실패 및 다른 corpus 원인·최종37개별/전체검증·PR준비는 미완료입니다.
