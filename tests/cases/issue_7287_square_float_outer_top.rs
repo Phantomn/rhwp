@@ -88,7 +88,7 @@ fn empty_host_square_float_top_includes_its_outer_margin() {
         (95, 2509, 441.92, 438.50),
     ];
 
-    let core = core("mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp");
+    let core = core("samples/hwpctl_API_v2.4.hwp");
     for &(page, para_index, oracle_top, before_top) in CASES {
         let (top, _, _) = table_of(&core, page, para_index)
             .unwrap_or_else(|| panic!("{}쪽 문단 {para_index} 의 표를 찾지 못했다", page + 1));

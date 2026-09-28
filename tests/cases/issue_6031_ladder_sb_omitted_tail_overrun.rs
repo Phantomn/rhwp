@@ -1,6 +1,6 @@
 //! [Issue #6031] 저장 사다리가 문단 위 간격(sb)을 안 담은 HWPX 문서에서 쪽-말미
 //! 줄이 본문 하단 여백을 뚫고 그려진다
-//! (`mydocs/pr/assets/issue7445/3249937_asset_management_rules.hwpx` 3쪽 +25.1pt ·
+//! (`samples/issue6031/3249937_asset_management_rules.hwpx` 3쪽 +25.1pt ·
 //! 6쪽 +12.1/+40.1pt, 60쪽 저장 linesegarray 문서).
 //!
 //! 기전(#5801 코어의 잔존 변형): typeset 은 vpos 스냅·트림으로 커서를 sb-누락
@@ -23,7 +23,7 @@ use std::path::Path;
 
 use rhwp::document_core::DocumentCore;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/3249937_asset_management_rules.hwpx";
+const SAMPLE: &str = "samples/issue6031/3249937_asset_management_rules.hwpx";
 
 /// 본문 하단 = 위 20mm + 본문 1009.15px → 1084.7px. baseline 은 그 안이어야 한다.
 const BODY_BOTTOM_PX: f64 = 1085.2;

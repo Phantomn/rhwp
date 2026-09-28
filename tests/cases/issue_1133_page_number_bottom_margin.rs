@@ -93,7 +93,7 @@ fn page_number_style_control_keeps_independent_baseline() {
 
 #[test]
 fn footnote_page_number_keeps_the_same_bottom_margin_anchor() {
-    let core = open("mydocs/pr/assets/issue7445/issue1937_rowbreak_footnote_overpagination.hwp");
+    let core = open("samples/issue1937_rowbreak_footnote_overpagination.hwp");
     let tree = core.build_page_render_tree(24).expect("각주가 있는 25쪽");
     assert!(
         tree.root

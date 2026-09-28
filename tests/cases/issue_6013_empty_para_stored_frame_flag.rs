@@ -18,7 +18,7 @@ use rhwp::document_core::DocumentCore;
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 
 // #6023(PR #6047)과 같은 재현물 — 같은 경로·같은 내용이라 랜딩 순서 무관 합류.
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/30269_reform_recommendation.hwp";
+const SAMPLE: &str = "samples/issue6023/30269_reform_recommendation.hwp";
 
 fn count_runs_containing(node: &RenderNode, needle: &str) -> usize {
     let own = match &node.node_type {

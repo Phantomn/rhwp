@@ -1,6 +1,6 @@
 //! [#6630] 세로 가운데/아래 정렬 셀의 첫 문단 위 여백 계약.
 //!
-//! `mydocs/pr/assets/issue7445/exam_eng.hwp` 2쪽 바탕쪽 머리 표(1×3)의 가운데 셀(pad 141HU, valign=Center)에
+//! `samples/exam_eng.hwp` 2쪽 바탕쪽 머리 표(1×3)의 가운데 셀(pad 141HU, valign=Center)에
 //! 글자처럼 놓인 제목 그림(148.7×37.8px). 그림 문단(ps 1)의 위 여백은 1136HU(해석값 7.57px)이고
 //! 저장 줄 원장 첫 줄 `vpos=568HU`(7.57px). 한/글 2022 PDF(4절→A3 균일 배율 0.9385, 왼쪽 위 기준)
 //! 실측: 셀 (413.2, 132.3, 296.1×64.3), 그림 상단 = 셀 상단 + 16.9
@@ -57,7 +57,7 @@ fn images_with_width(svg: &str, w: f64) -> Vec<(f64, f64)> {
 #[test]
 fn master_page_title_picture_sits_below_the_first_para_lead() {
     // exam_eng 2쪽: 셀 상단 132.3 + 16.9 = 149.2 (한/글). 종전 145.5.
-    let svg = page_svg("mydocs/pr/assets/issue7445/exam_eng.hwp", 1);
+    let svg = page_svg("samples/exam_eng.hwp", 1);
     let imgs = images_with_width(&svg, 148.7);
     assert_eq!(imgs.len(), 1, "바탕쪽 제목 그림 하나: {imgs:?}");
     let (x, y) = imgs[0];

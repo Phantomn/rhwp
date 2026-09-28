@@ -33,7 +33,7 @@ use std::path::Path;
 use rhwp::document_core::DocumentCore;
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 
-const FIXTURE: &str = "mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp";
+const FIXTURE: &str = "samples/hwpctl_API_v2.4.hwp";
 /// 코드 상자 표의 폭(32079 HU = 427.7px).
 const CODE_BOX_WIDTH_PX: f64 = 427.7;
 /// 한/글 2020 정본 16쪽 — 저장 `vpos=500HU` 인 단 맨 위 표의 윗변.

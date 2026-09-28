@@ -24,7 +24,7 @@
 //! 분할 첫 조각의 윗변이 **앵커 문단의 선행 간격만큼 내려가지 않는다**. 간격이 0 인 문단은
 //! 보정이 no-op 이므로 종전 좌표가 그대로 유지된다 — 그 불변도 함께 잠근다.
 //!
-//! 실측(`mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp`, 렌더 트리 `Table` 노드 `bbox.y` 대 정본 괘선):
+//! 실측(`samples/hwpctl_API_v2.4.hwp`, 렌더 트리 `Table` 노드 `bbox.y` 대 정본 괘선):
 //!
 //! ```text
 //!   쪽   문단    간격(HU)   수정 전    수정 후    정본
@@ -43,7 +43,7 @@
 use rhwp::document_core::DocumentCore;
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp";
+const SAMPLE: &str = "samples/hwpctl_API_v2.4.hwp";
 
 fn core() -> DocumentCore {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE);

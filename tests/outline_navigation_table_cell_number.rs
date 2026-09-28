@@ -11,8 +11,8 @@
 
 use rhwp::wasm_api::HwpDocument;
 
-const FIXTURE: &str = "mydocs/pr/assets/issue7445/outline_navigation_table_cell_number.hwpx";
-const DEMO_FIXTURE: &str = "mydocs/pr/assets/issue7445/outline_navigation_panel_demo.hwpx";
+const FIXTURE: &str = "samples/pr4093/outline_navigation_table_cell_number.hwpx";
+const DEMO_FIXTURE: &str = "samples/pr4093/outline_navigation_panel_demo.hwpx";
 
 /// SVG `<text>` 내용만 이어 붙이고 공백을 지운 문자열.
 fn page_text(doc: &HwpDocument, page: u32) -> String {

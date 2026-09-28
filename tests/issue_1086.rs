@@ -1,7 +1,7 @@
-//! Issue #1086: HWP3-origin pagination and RowBreak/rowspan over-split regressions.
+//! 이슈 #1086: HWP3 유래 문서의 쪽 나눔과 RowBreak·행 병합의 과도한 분할 회귀 검사.
 //!
-//! The Hancom 2022 PDF oracle for `samples/k-water-rfp.hwp` has 27 pages.
-//! The Hancom HWP5 conversion oracle for `mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp` has 64 pages.
+//! `samples/k-water-rfp.hwp`의 정상 한컴2022 PDF는 27쪽이다.
+//! `samples/hwp3-sample16-hwp5.hwp`의 정상 한컴 HWP5 변환 출력은 64쪽이다.
 
 use std::fs;
 use std::path::Path;
@@ -31,10 +31,7 @@ fn task1086_k_water_rfp_page_count_matches_hancom_pdf() {
 
 #[test]
 fn task1086_hwp3_sample16_hwp5_page_count_matches_hancom_office() {
-    assert_eq!(
-        page_count("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp"),
-        64
-    );
+    assert_eq!(page_count("samples/hwp3-sample16-hwp5.hwp"), 64);
 }
 
 #[test]

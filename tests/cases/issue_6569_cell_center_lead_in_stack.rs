@@ -79,8 +79,7 @@ fn centered_cell_does_not_subtract_lead_the_stack_already_holds() {
 /// `exam_eng` 2쪽 바탕쪽 머리 표의 제목 그림이 그 계약이다.
 #[test]
 fn issue_6630_contract_still_holds_when_stack_excludes_lead() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("mydocs/pr/assets/issue7445/exam_eng.hwp");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/exam_eng.hwp");
     let Ok(bytes) = std::fs::read(&path) else {
         return;
     };

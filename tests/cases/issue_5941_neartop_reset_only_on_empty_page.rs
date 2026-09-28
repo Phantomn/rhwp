@@ -23,7 +23,7 @@
 
 use rhwp::wasm_api::HwpDocument;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/1480000-201900698-native-neartop-reset.hwp";
+const SAMPLE: &str = "samples/issue5941/1480000-201900698-native-neartop-reset.hwp";
 
 fn sample() -> Vec<u8> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE);

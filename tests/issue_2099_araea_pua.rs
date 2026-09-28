@@ -59,10 +59,7 @@ fn issue_2099_pua_test_svg_matches_visible_f53a_baseline() {
 
 #[test]
 fn issue_2099_revision13_page1_prioritizes_old_hangul_font() {
-    let svg = render_sample_page(
-        "mydocs/pr/assets/issue7445/한글문서파일형식_5.0_revision1.3.hwp",
-        0,
-    );
+    let svg = render_sample_page("samples/한글문서파일형식_5.0_revision1.3.hwp", 0);
     assert!(
         !svg.contains('\u{F53A}'),
         "사용자 재현 68쪽 배포본 SVG에도 raw U+F53A가 남으면 안 됨",

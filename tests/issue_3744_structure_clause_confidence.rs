@@ -307,7 +307,7 @@ fn direct_mok_shape_gate_rejects_indented_or_nested_paragraphs() {
 
 #[test]
 fn agreement_keeps_normal_ho_under_article() {
-    let structure = load_structure("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp");
+    let structure = load_structure("samples/hwp3-sample16-hwp5.hwp");
     let article = find_at(&structure.roots, 0, 945).expect("협정서 제1조");
 
     assert_eq!((article.kind, article.marker.as_str()), ("조", "제1조"));

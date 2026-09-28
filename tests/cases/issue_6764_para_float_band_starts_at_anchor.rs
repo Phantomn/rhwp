@@ -38,7 +38,7 @@ use std::path::PathBuf;
 use rhwp::document_core::DocumentCore;
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/1613000-202200037-air-traffic-controller-cbta.hwp";
+const SAMPLE: &str = "samples/issue6764/1613000-202200037-air-traffic-controller-cbta.hwp";
 
 /// 작업 디렉터리나 비공개 환경 변수와 무관한 정식 회귀 입력.
 fn document_path() -> PathBuf {

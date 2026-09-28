@@ -65,7 +65,7 @@ fn corrupt_input_does_not_panic_in_renderer() {
             "typeset-lhls",
         ),
         (
-            "mydocs/pr/assets/issue7445/issue1937_rowbreak_footnote_overpagination.hwp",
+            "samples/issue1937_rowbreak_footnote_overpagination.hwp",
             90,
             "export-text",
             "heightmeasurer-vpos",

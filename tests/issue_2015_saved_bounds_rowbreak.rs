@@ -1,6 +1,6 @@
 //! Issue #2015: HWPX saved-bounds RowBreak 표 잔존 드리프트 (#1811 후속).
 //!
-//! mydocs/pr/assets/issue7445/saved_bounds_cumulative_page_break.hwpx 4쪽(0-based 3)에서:
+//! samples/task1749/saved_bounds_cumulative_page_break.hwpx 4쪽(0-based 3)에서:
 //! - 부동(tac=false) RowBreak 표 pi=52 프래그먼트가 body 영역 바닥을 91.2px 초과
 //!   (LAYOUT_OVERFLOW: para=52, type=PartialTable, overflow=91.2px).
 //!   typeset 의 used 회계(저장바운드 806.0px)와 layout 실측 바닥(1117.7px)이 어긋난다.
@@ -15,7 +15,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
-const HWPX_SAMPLE: &str = "mydocs/pr/assets/issue7445/saved_bounds_cumulative_page_break.hwpx";
+const HWPX_SAMPLE: &str = "samples/task1749/saved_bounds_cumulative_page_break.hwpx";
 
 fn load_doc() -> rhwp::wasm_api::HwpDocument {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(HWPX_SAMPLE);

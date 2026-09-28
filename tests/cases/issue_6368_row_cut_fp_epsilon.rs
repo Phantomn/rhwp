@@ -1,6 +1,6 @@
 //! [Issue #6368] 표 행 컷 기본 용량 비교의 부동소수 끝자리 관용.
 //!
-//! `mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp` Example 코드 상자(1×1 RowBreak 표)의 마지막
+//! `samples/hwpctl_API_v2.4.hwp` Example 코드 상자(1×1 RowBreak 표)의 마지막
 //! 코드 줄은 유닛 합 vs 예산이 **0.07px대** 초과다(이슈 서술 0.07px, RHWP_DIAG_6368
 //! 실측 0.0267px). 관용이 0이면 그 줄만 13쪽 머리의 고아로 이월된다
 //! (p12→13 table_fragment 24자). 현재 devel 의
@@ -16,7 +16,7 @@ use std::path::Path;
 
 use rhwp::document_core::DocumentCore;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp";
+const SAMPLE: &str = "samples/hwpctl_API_v2.4.hwp";
 /// 한컴 정답지 12쪽에 남는 Example 코드 상자 마지막 줄.
 const LAST_CODE_LINE: &str = r#"tbset.SetItem("Cols", 5);"#;
 const HANGUL_PAGE_COUNT: u32 = 105;

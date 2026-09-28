@@ -9633,7 +9633,7 @@ mod tests {
         let page_hwp_top = assert_basis("samples/쪽기준.hwp", "page", PageBorderBasis::BodyBased);
         assert_basis("samples/쪽기준.hwpx", "page", PageBorderBasis::BodyBased);
         let sample16_top = assert_basis(
-            "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp",
+            "samples/hwp3-sample16-hwp5.hwp",
             "page",
             PageBorderBasis::BodyBased,
         );

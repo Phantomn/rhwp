@@ -2444,10 +2444,9 @@ mod tests {
     }
 
     fn hwp3_converted_flow_formatting_uses_document_resolved_paragraph_box() {
-        let mut core = DocumentCore::from_bytes(include_bytes!(
-            "../../../mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp"
-        ))
-        .expect("load HWP3-converted HWP5 fixture");
+        let mut core =
+            DocumentCore::from_bytes(include_bytes!("../../../samples/hwp3-sample16-hwp5.hwp"))
+                .expect("load HWP3-converted HWP5 fixture");
         assert!(core.document.layout_profile().hwp3_layout());
 
         let document_styles =

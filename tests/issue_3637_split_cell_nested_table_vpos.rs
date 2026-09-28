@@ -48,7 +48,7 @@
 ///
 /// 대한민국 정책브리핑 공개 자료를 HWPX 로 변환한 것이다(원본 `.hwp` 는
 /// `ir_field_sweep` 표본 래칫에 걸린다).
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/press_release_split_cell_nested_table.hwpx";
+const SAMPLE: &str = "samples/issue3637/press_release_split_cell_nested_table.hwpx";
 
 /// 수정 전 최대 초과 287.6px, 수정 후 3.5px — 그 사이.
 const MAX_OVERFLOW_PX: f64 = 30.0;

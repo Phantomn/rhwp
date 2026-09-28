@@ -1,6 +1,6 @@
 //! Issue #1749 v2: 누적좌표 문서라도 다음 문단이 명시적 쪽나누기면 saved bounds 를 신뢰한다.
 //!
-//! Regression shape (mydocs/pr/assets/issue7445/saved_bounds_cumulative_page_break.hwpx):
+//! 회귀 사례 (`samples/task1749/saved_bounds_cumulative_page_break.hwpx`):
 //! - 2쪽 말미 pi=26 은 누적높이 검사 탈락(919.2+36.3 > 930.5px)이지만 저장 bounds
 //!   (vpos 137484 − 2쪽 기준 69310 → bottom ≈ 930.3px ≤ avail)로 2쪽 배치가 정답.
 //! - 이 문서는 누적좌표(쪽 경계에서도 vpos 리셋 없음)인데 다음 문단 pi=27 이 명시적
@@ -14,7 +14,7 @@ use std::path::Path;
 
 use rhwp::model::control::Control;
 
-const HWPX_SAMPLE: &str = "mydocs/pr/assets/issue7445/saved_bounds_cumulative_page_break.hwpx";
+const HWPX_SAMPLE: &str = "samples/task1749/saved_bounds_cumulative_page_break.hwpx";
 const HWP_SAMPLE: &str = "samples/task1749/saved_bounds_cumulative_page_break.hwp";
 
 fn load_sample(sample: &str) -> rhwp::wasm_api::HwpDocument {

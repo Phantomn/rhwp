@@ -77,7 +77,7 @@
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 use rhwp::wasm_api::HwpDocument;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/1480000-201900042-chemical-labeling-standards.hwp";
+const SAMPLE: &str = "samples/issue6782/1480000-201900042-chemical-labeling-standards.hwp";
 
 /// 0-based — 대상 그림이 있는 물리 77쪽(한/글 2020 정본도 같은 인덱스).
 const PAGE_INDEX: u32 = 76;

@@ -197,7 +197,7 @@ fn issue_7095_first_fragment_starting_at_page_top_is_pinned_too() {
     // 본문 아래 1028.01 − 바깥 아래 여백 283HU(3.77) − 100HU(1.33) = 1022.91 이다.
     // 수정 전에는 내용 행 높이(마지막 줄 뒤 줄간격 포함)로 끝나 1028.3, 이어짐 조건으로만
     // 고정하면 1032.1 로 정본 상자를 9px 넘었다.
-    let core = load_sample("mydocs/pr/assets/issue7445/30269_reform_recommendation.hwp");
+    let core = load_sample("samples/issue6023/30269_reform_recommendation.hwp");
     let boxes = tables_of_para(&page_nodes(&core, 9), 136, 1, 1);
     let frag = boxes.first().expect("30269 10쪽 조각 표");
     let bottom = frag.y + frag.height;
@@ -374,7 +374,7 @@ fn fragment_budget_preserves_units_with_visible_and_empty_hosts() {
 fn stored_midpage_cut_keeps_its_last_source_unit() {
     for (source, pages) in [
         ("samples/80168_regulatory_analysis.hwp", 157),
-        ("mydocs/pr/assets/issue7445/rowbreak-problem-pages.hwp", 18),
+        ("samples/rowbreak-problem-pages.hwp", 18),
     ] {
         let bytes = std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(source)).unwrap();
         let core = DocumentCore::from_bytes(&bytes).unwrap();
@@ -570,7 +570,7 @@ fn issue_7095_terminal_fragment_does_not_push_the_next_paragraph_past_its_stored
     // 반례: rowbreak-problem-pages `pi=13` 은 저장 칸 높이가 상자 합이 아니다. 나머지 규칙만
     // 쓰면 끝 조각이 16px 늘어 뒤 문단이 한/글 저장 자리(첫 줄 vpos 21751HU → 본문 위 94.5 +
     // 290.0 = 384.5)를 넘고 문서가 18 → 19쪽이 된다. 다음 문단의 저장 자리가 늘림의 상한이다.
-    let core = load_sample("mydocs/pr/assets/issue7445/rowbreak-problem-pages.hwp");
+    let core = load_sample("samples/rowbreak-problem-pages.hwp");
     let first_line_after_table = column_children(&core, 13)
         .into_iter()
         .skip_while(|(is_table, _, _)| !*is_table)

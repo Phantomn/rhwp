@@ -1,6 +1,6 @@
 //! Issue #5846: 혼재 문단(텍스트+중첩 표) 셀의 컷 조각이 꼬리 행을 반쪽만 담지 않는다.
 //!
-//! `mydocs/pr/assets/issue7445/75544_pii_bunseok.hwpx` 59쪽(0-based 58)의 `pi=527` 은
+//! `samples/task2097/75544_pii_bunseok.hwpx` 59쪽(0-based 58)의 `pi=527` 은
 //! 1×1 바깥 표 → 셀 → 2행 중첩 표 구조다. 컷은 바깥 셀의 유닛 45개까지를 59쪽에
 //! 주고(`end_cut=[45]`), 60쪽이 유닛 45 부터 이어받는다(`start_cut=[45]`).
 //!
@@ -22,7 +22,7 @@ use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 use std::fs;
 use std::path::Path;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/75544_pii_bunseok.hwpx";
+const SAMPLE: &str = "samples/task2097/75544_pii_bunseok.hwpx";
 /// 한글 2020 정답지 쪽수.
 const ORACLE_PAGES: u32 = 66;
 /// 결함 쪽(0-based). 정답지 59쪽.

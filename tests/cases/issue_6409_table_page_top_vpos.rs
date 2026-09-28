@@ -1,6 +1,6 @@
 //! [Issue #6409] 저장 vpos=0 쪽-상단 TAC 표가 앞쪽 leftover 에 끼어
 //! 한글 42쪽 몫 ~200자를 41쪽으로 끌어온다
-//! (`mydocs/pr/assets/issue7445/3249937_asset_management_rules.hwpx`).
+//! (`samples/issue6031/3249937_asset_management_rules.hwpx`).
 //!
 //! 붙임4 표(25×34, 한 줄 vertsize=57204)는 leftover 에 통째로 들어가 41쪽에
 //! 남고, 바로 다음 부동산거래계약 신고서(39×22, treatAsChar, 한 줄
@@ -15,7 +15,7 @@ use std::path::Path;
 
 use rhwp::document_core::DocumentCore;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/3249937_asset_management_rules.hwpx";
+const SAMPLE: &str = "samples/issue6031/3249937_asset_management_rules.hwpx";
 
 #[test]
 fn issue_6409_form_table_starts_on_next_page_not_leftover() {

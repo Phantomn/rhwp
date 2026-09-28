@@ -110,19 +110,10 @@ fn analyze_section(name: &str, raw: &[u8]) {
 #[test]
 fn diag_5files_raw_record_distribution() {
     let files = [
-        (
-            "변환기",
-            "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp",
-        ),
-        (
-            "2010",
-            "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2010.hwp",
-        ),
+        ("변환기", "samples/hwp3-sample16-hwp5.hwp"),
+        ("2010", "samples/hwp3-sample16-hwp5-2010.hwp"),
         ("2018", "samples/hwp3-sample16-hwp5-2018.hwp"),
-        (
-            "2022",
-            "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2022.hwp",
-        ),
+        ("2022", "samples/hwp3-sample16-hwp5-2022.hwp"),
         ("2024", "samples/hwp3-sample16-hwp5-2024.hwp"),
     ];
     for (label, path) in &files {

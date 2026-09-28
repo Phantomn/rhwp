@@ -2,8 +2,7 @@
 
 #[test]
 fn diag_trailing_line_segs() {
-    let bytes =
-        std::fs::read("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2022.hwp").expect("read 2022");
+    let bytes = std::fs::read("samples/hwp3-sample16-hwp5-2022.hwp").expect("read 2022");
     let doc = rhwp::parser::parse_hwp(&bytes).expect("parse");
     let section = &doc.sections[0];
     let para = &section.paragraphs[83];

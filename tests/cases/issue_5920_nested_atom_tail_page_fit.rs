@@ -21,7 +21,7 @@ use std::path::Path;
 
 use rhwp::document_core::DocumentCore;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/press_release_split_cell_nested_table.hwpx";
+const SAMPLE: &str = "samples/issue3637/press_release_split_cell_nested_table.hwpx";
 
 /// 앞 상자 표제 — 정본 8쪽 위쪽.
 const BOX_TITLE: &str = "은행의 위탁보증 포트폴리오 구성";

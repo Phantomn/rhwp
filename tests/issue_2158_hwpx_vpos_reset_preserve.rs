@@ -24,8 +24,8 @@ fn page_count_of(rel: &str) -> u32 {
 
 #[test]
 fn hwp3_sample16_hwpx_matches_hwp5_and_hangul() {
-    let hwpx = page_count_of("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwpx");
-    let hwp5 = page_count_of("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp");
+    let hwpx = page_count_of("samples/hwp3-sample16-hwp5.hwpx");
+    let hwp5 = page_count_of("samples/hwp3-sample16-hwp5.hwp");
     assert_eq!(
         (hwpx, hwp5),
         (64, 64),

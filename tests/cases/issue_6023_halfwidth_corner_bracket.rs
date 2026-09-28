@@ -20,7 +20,7 @@ fn repo_root() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/30269_reform_recommendation.hwp";
+const SAMPLE: &str = "samples/issue6023/30269_reform_recommendation.hwp";
 
 fn render_p1_svg() -> String {
     let out = std::env::temp_dir().join(format!("rhwp_issue_6023_{}", std::process::id()));

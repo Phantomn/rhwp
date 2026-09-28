@@ -96,7 +96,7 @@ fn line_span(doc: &DocumentCore, page: u32, needle: &str) -> Option<(f64, f64)> 
 
 #[test]
 fn use_font_space_line_width_matches_hancom_in_absolute_px() {
-    let doc = open("mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp");
+    let doc = open("samples/hwpctl_API_v2.4.hwp");
     for (page, needle, oracle_ink_px) in [
         (
             14u32,

@@ -72,7 +72,7 @@ fn picture_feedback_keeps_allow_overlap_under_restrict_in_page() {
 /// 도형 — 문서가 저장한 **0** 높이를 되먹여도 그대로다.
 #[test]
 fn shape_feedback_keeps_stored_zero_size() {
-    const SAMPLE: &str = "mydocs/pr/assets/issue7445/30269_reform_recommendation.hwp";
+    const SAMPLE: &str = "samples/issue6023/30269_reform_recommendation.hwp";
     let mut core = load(SAMPLE);
     let before = core
         .get_shape_properties_native(0, 28, 0)
@@ -134,7 +134,7 @@ fn shape_edit_that_drops_a_nonzero_size_to_zero_still_clamps() {
 /// 저장 높이 0인 도형을 실제로 확대했다가 undo 하면 한컴 저장값으로 돌아와야 한다.
 #[test]
 fn shape_resize_undo_restores_stored_zero_height() {
-    const SAMPLE: &str = "mydocs/pr/assets/issue7445/30269_reform_recommendation.hwp";
+    const SAMPLE: &str = "samples/issue6023/30269_reform_recommendation.hwp";
     let mut core = load(SAMPLE);
     let before = core
         .get_shape_properties_native(0, 28, 0)

@@ -5,19 +5,10 @@
 #[test]
 fn diag_2022_vs_others_metadata() {
     let files = [
-        (
-            "변환기",
-            "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp",
-        ),
-        (
-            "2010",
-            "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2010.hwp",
-        ),
+        ("변환기", "samples/hwp3-sample16-hwp5.hwp"),
+        ("2010", "samples/hwp3-sample16-hwp5-2010.hwp"),
         ("2018", "samples/hwp3-sample16-hwp5-2018.hwp"),
-        (
-            "2022",
-            "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2022.hwp",
-        ),
+        ("2022", "samples/hwp3-sample16-hwp5-2022.hwp"),
         ("2024", "samples/hwp3-sample16-hwp5-2024.hwp"),
     ];
     for (label, path) in &files {
@@ -88,11 +79,9 @@ fn diag_2022_vs_others_metadata() {
 #[test]
 fn diag_2022_vs_2010_paragraph_diff() {
     // 2010 vs 2022 paragraph 별 diff (같은 4223 PARA_LINE_SEG 누락이지만 페이지 수 다름)
-    let bytes_a =
-        std::fs::read("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2010.hwp").expect("read 2010");
+    let bytes_a = std::fs::read("samples/hwp3-sample16-hwp5-2010.hwp").expect("read 2010");
     let doc_a = rhwp::parser::parse_hwp(&bytes_a).expect("parse 2010");
-    let bytes_b =
-        std::fs::read("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2022.hwp").expect("read 2022");
+    let bytes_b = std::fs::read("samples/hwp3-sample16-hwp5-2022.hwp").expect("read 2022");
     let doc_b = rhwp::parser::parse_hwp(&bytes_b).expect("parse 2022");
 
     let sa = &doc_a.sections[0];

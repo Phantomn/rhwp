@@ -2,7 +2,7 @@
 //!
 //! `is_halfwidth_cjk_quote` 가 U+300C/U+300D 를 글꼴 무관 반각 오버레이로 처리해
 //! 돋움체(#2020 여권신청서) 는 맞지만, 휴먼명조·HY헤드라인M 에서는 한글이 전폭을
-//! 쓴다. 공개 샘플 `mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwpx` 5쪽
+//! 쓴다. 공개 샘플 `samples/hwp3-sample16-hwp5.hwpx` 5쪽
 //! `가)「국가를당사자로하는계약에관한법률시행령」` (휴먼명조 13pt) 에서 낫표→다음
 //! 한글 간격이 전각(~13px) 이어야 한다. 반각 강제면 ~6.5px 로 붙는다.
 
@@ -13,7 +13,7 @@ use std::path::Path;
 
 use rhwp::wasm_api::HwpDocument;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwpx";
+const SAMPLE: &str = "samples/hwp3-sample16-hwp5.hwpx";
 const PAGE: u32 = 4; // 5쪽
 const NEEDLE: &str = "「국가를당사자";
 

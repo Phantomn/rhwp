@@ -72,8 +72,7 @@ fn convert_hwp_carries_origin_marker_idempotently() {
 /// native HWP5 는 마커가 없어 불변 (is_hwpx_variant=false).
 #[test]
 fn native_hwp_is_not_marked() {
-    let p = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("mydocs/pr/assets/issue7445/rowbreak-problem-pages.hwp");
+    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/rowbreak-problem-pages.hwp");
     let bytes = fs::read(&p).expect("read native");
     let doc = rhwp::parser::parse_hwp(&bytes).expect("parse native");
     assert!(

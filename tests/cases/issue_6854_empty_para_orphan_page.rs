@@ -29,8 +29,7 @@ use std::path::Path;
 use rhwp::document_core::DocumentCore;
 
 /// 양성 ① — 규제영향분석서(HWP5, 2020 저장). engine 2020 정본 18쪽.
-const SAMPLE_HWP: &str =
-    "mydocs/pr/assets/issue7445/70833-electrical-safety-rule-regulatory-analysis.hwp";
+const SAMPLE_HWP: &str = "samples/issue6854/70833-electrical-safety-rule-regulatory-analysis.hwp";
 /// 양성 ② — 인사 규칙 별표(HWPX, 2022 저장). engine 2020 정본 15쪽.
 const SAMPLE_HWPX: &str = "samples/issue6854/22037757-chuncheon-personnel-rule-annex13.hwpx";
 

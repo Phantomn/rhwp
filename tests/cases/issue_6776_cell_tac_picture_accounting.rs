@@ -1,7 +1,7 @@
 //! [#6776] 칸 안 **줄이 0개인 문단의 글자처럼 취급(TAC) 그림**이 `cell_units`
 //! 회계에서 통째로 빠져, 조각이 자기 프레임을 넘어 용지 밖까지 그린다.
 //!
-//! 단독 수정 당시 `mydocs/pr/assets/issue7445/78494-virtual-convergence-industry-decree.hwpx` 19쪽은 바깥
+//! 단독 수정 당시 `samples/issue6776/78494-virtual-convergence-industry-decree.hwpx` 19쪽은 바깥
 //! 7×2 표의 마지막 행 칸에 1×1 중첩 표를 담고, 그 자식 칸(33문단)의 `pi=12`·`pi=23`
 //! 이 **글자 없는 문단에 TAC 그림 하나**씩만 담는다(312.4px · 725.4px).
 //!
@@ -31,7 +31,7 @@ use std::path::Path;
 use rhwp::document_core::DocumentCore;
 
 /// 양성 — 자식 칸이 TAC 그림만 담은 문단을 갖는다.
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/78494-virtual-convergence-industry-decree.hwpx";
+const SAMPLE: &str = "samples/issue6776/78494-virtual-convergence-industry-decree.hwpx";
 /// 음성 대조 — 칸 안 그림이 **어울림(비-TAC)** 이라 회계에 들어가면 안 된다.
 const NEGATIVE: &str = "samples/issue6776/36367506-water-facility-approval.hwpx";
 

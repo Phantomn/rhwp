@@ -1,6 +1,6 @@
 //! [#7203] 자리차지 표의 윗변이 **앵커 문단의 저장 자리**에 놓인다 — 앞 문단 글자를 뚫지 않는다.
 //!
-//! `mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp` 28쪽(0-based 27)의 코드 상자 표는 빈 host 문단
+//! `samples/hwpctl_API_v2.4.hwp` 28쪽(0-based 27)의 코드 상자 표는 빈 host 문단
 //! `pi=574`(저장 `vpos=40693`)에 매달린 `wrap=자리차지 · vert=문단` 표다. 이 쪽의 글줄은
 //! 전부 저장 사다리를 따른다 — 예로 `pi=573` 은 `vpos=38893` → `y=650.84`(±0.1px).
 //! 같은 사다리로 환산하면 host 의 자리는 **674.8px** 이다.
@@ -26,7 +26,7 @@ use std::path::Path;
 
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 
-const FIXTURE: &str = "mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp";
+const FIXTURE: &str = "samples/hwpctl_API_v2.4.hwp";
 /// 한/글 2020 PDF 실측 (가로 괘선, 폭 427.7px).
 const ORACLE_TABLE_TOP: f64 = 671.27;
 /// 수정 전 관측값 — 앵커 저장 자리에서 줄 높이만큼 위.

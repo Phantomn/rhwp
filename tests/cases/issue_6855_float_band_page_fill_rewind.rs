@@ -34,7 +34,7 @@ use std::path::Path;
 
 use rhwp::document_core::DocumentCore;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/1613000-202200037-air-traffic-controller-cbta.hwp";
+const SAMPLE: &str = "samples/issue6764/1613000-202200037-air-traffic-controller-cbta.hwp";
 
 /// 이 문서의 용지 높이(px, 96dpi).
 const PAPER_HEIGHT_PX: f64 = 1122.5;

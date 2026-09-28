@@ -15,8 +15,8 @@ fn collect<'a>(node: &'a RenderNode, nodes: &mut Vec<&'a RenderNode>) {
 
 #[test]
 fn stored_table_picture_table_rows_keep_hancom_positions_and_unique_ownership() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwpx");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/hwp3-sample16-hwp5.hwpx");
     let core = DocumentCore::from_bytes(&std::fs::read(path).unwrap()).unwrap();
     assert_eq!(core.page_count(), 64);
     let page = core.build_page_render_tree(17).unwrap();

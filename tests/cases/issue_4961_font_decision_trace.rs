@@ -339,10 +339,8 @@ fn issue4967_combined_evidence_keeps_unowned_legacy_geometry_unmodelled() {
 
 #[test]
 fn issue4967_combined_evidence_reports_actual_cache_key_rejection() {
-    let core = DocumentCore::from_bytes(include_bytes!(
-        "../../mydocs/pr/assets/issue7445/rowbreak-problem-pages.hwp"
-    ))
-    .expect("public rowbreak fixture parses");
+    let core = DocumentCore::from_bytes(include_bytes!("../../samples/rowbreak-problem-pages.hwp"))
+        .expect("public rowbreak fixture parses");
     let evidence: serde_json::Value = serde_json::from_str(
         &core
             .get_font_layout_evidence_native(0, r#"{"maxCharacters":4096}"#)

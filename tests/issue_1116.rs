@@ -173,7 +173,7 @@ fn attr_f64(attrs: &str, name: &str) -> Option<f64> {
 
 #[test]
 fn sample16_hwp5_toc_leaders_stop_before_page_numbers() {
-    let doc = load_doc("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp");
+    let doc = load_doc("samples/hwp3-sample16-hwp5.hwp");
     let svg = doc.render_page_svg_native(1).expect("render p2");
     let leaders = extract_dotted_horizontal_lines(&svg);
     assert!(
@@ -196,7 +196,7 @@ fn sample16_hwp5_toc_leaders_stop_before_page_numbers() {
 
 #[test]
 fn sample16_hwp5_toc_page_numbers_share_right_edge() {
-    let svg = render_svg("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp", 1);
+    let svg = render_svg("samples/hwp3-sample16-hwp5.hwp", 1);
     let edges = toc_page_number_right_edges(&svg);
     assert!(
         edges.len() >= 20,
@@ -228,7 +228,7 @@ fn sample16_hwp3_toc_page_numbers_share_right_edge() {
 
 #[test]
 fn sample16_hwp5_page3_svg_latin_glyphs_pin_browser_width() {
-    let svg = render_svg("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp", 2);
+    let svg = render_svg("samples/hwp3-sample16-hwp5.hwp", 2);
     let latin_c_attrs = extract_text_attrs(&svg, "C");
     assert!(
         latin_c_attrs.iter().any(|attrs| {
@@ -280,9 +280,7 @@ fn assert_page3_latin_poppy_resolves_to_palatino(rel_path: &str) {
 
 #[test]
 fn sample16_hwp5_2022_page3_latin_font_matches_legacy_hancom_mapping() {
-    assert_page3_latin_poppy_resolves_to_palatino(
-        "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2022.hwp",
-    );
+    assert_page3_latin_poppy_resolves_to_palatino("samples/hwp3-sample16-hwp5-2022.hwp");
 }
 
 #[test]
@@ -292,7 +290,7 @@ fn sample16_hwp3_page3_latin_font_matches_legacy_hancom_mapping() {
 
 #[test]
 fn sample16_hwp5_page3_heading_positions_follow_lineseg_vpos() {
-    let svg = render_svg("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp", 2);
+    let svg = render_svg("samples/hwp3-sample16-hwp5.hwp", 2);
     let twos = extract_text_positions(&svg, "2");
     let threes = extract_text_positions(&svg, "3");
 
@@ -339,7 +337,7 @@ fn sample16_hwp3_page3_heading_positions_follow_hancom_grid() {
 
 #[test]
 fn sample16_hwp5_page3_dump_pages_reports_line_spacing_in_height() {
-    let doc = load_doc("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp");
+    let doc = load_doc("samples/hwp3-sample16-hwp5.hwp");
     let dump = doc.dump_page_items(Some(2));
     let p74 = dump
         .lines()
@@ -360,7 +358,7 @@ fn sample16_hwp5_page3_dump_pages_reports_line_spacing_in_height() {
 
 #[test]
 fn sample16_hwp5_page3_dump_pages_summary_uses_lineseg_spacing() {
-    let doc = load_doc("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp");
+    let doc = load_doc("samples/hwp3-sample16-hwp5.hwp");
     let dump = doc.dump_page_items(Some(2));
     // #1648 수정으로 페이지 하단 빈 문단(pi=87)이 한컴처럼 page3 에 배치(items 19→20).
     // 단, pi=87은 가시 내용이 없는 trailing 빈 문단이므로 시각 사용 높이 used는
@@ -380,7 +378,7 @@ fn sample16_hwp5_page3_dump_pages_summary_uses_lineseg_spacing() {
 
 #[test]
 fn sample16_hwp5_page3_bcp_tail_paragraph_stays_single_visual_line_for_pdf_oracle() {
-    let doc = load_doc("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp");
+    let doc = load_doc("samples/hwp3-sample16-hwp5.hwp");
     let dump = doc.dump_page_items(Some(2));
     let p83 = dump
         .lines()
@@ -400,7 +398,7 @@ fn sample16_hwp5_page3_bcp_tail_paragraph_stays_single_visual_line_for_pdf_oracl
 
 #[test]
 fn sample16_hwp5_2022_page3_bcp_tail_paragraph_folds_orphan_lineseg() {
-    let doc = load_doc("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2022.hwp");
+    let doc = load_doc("samples/hwp3-sample16-hwp5-2022.hwp");
     let dump = doc.dump_page_items(Some(2));
     let p83 = dump
         .lines()
@@ -431,7 +429,7 @@ fn sample16_hwp5_2022_page3_bcp_tail_paragraph_folds_orphan_lineseg() {
 
 #[test]
 fn sample16_hwp5_2022_page3_bcp_tail_glyph_stays_on_hancom_line() {
-    let svg = render_svg("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2022.hwp", 2);
+    let svg = render_svg("samples/hwp3-sample16-hwp5-2022.hwp", 2);
     let tail_glyphs = extract_text_positions(&svg, "립");
 
     let folded_tail = tail_glyphs

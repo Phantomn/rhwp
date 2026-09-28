@@ -7,8 +7,7 @@ use rhwp::document_core::DocumentCore;
 use rhwp::renderer::float_placement::stored_picture_successor_placement;
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 
-const REDUCED: &str =
-    "mydocs/pr/assets/issue7445/1480000-201900042-chemical-labeling-standards.hwp";
+const REDUCED: &str = "samples/issue6782/1480000-201900042-chemical-labeling-standards.hwp";
 const FULL: &str = "samples/issue6782/1480000-201900042-chemical-product-labeling-study.hwp";
 fn bytes(path: &str) -> Vec<u8> {
     std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(path)).unwrap()

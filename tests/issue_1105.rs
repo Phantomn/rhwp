@@ -60,7 +60,7 @@ fn decode_svg_text(text: &str) -> String {
 
 #[test]
 fn task1105_sample16_hwp5_page_break_before_section_4_matches_hancom() {
-    let doc = load_doc("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp");
+    let doc = load_doc("samples/hwp3-sample16-hwp5.hwp");
     assert_eq!(doc.page_count(), 64);
 
     let page20 = doc.dump_page_items(Some(19));
@@ -225,15 +225,13 @@ fn assert_sample16_hwp5_server_requirements_page_matches_hancom(rel_path: &str) 
 
 #[test]
 fn task1105_sample16_hwp5_2010_business_selection_break_matches_hancom() {
-    assert_sample16_hwp5_business_selection_starts_next_page(
-        "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2010.hwp",
-    );
+    assert_sample16_hwp5_business_selection_starts_next_page("samples/hwp3-sample16-hwp5-2010.hwp");
 }
 
 #[test]
 fn task1105_sample16_hwp5_2010_server_requirements_page_matches_hancom() {
     assert_sample16_hwp5_server_requirements_page_matches_hancom(
-        "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2010.hwp",
+        "samples/hwp3-sample16-hwp5-2010.hwp",
     );
 }
 
@@ -251,15 +249,13 @@ fn task1105_sample16_hwp5_2018_server_requirements_page_matches_hancom() {
 
 #[test]
 fn task1105_sample16_hwp5_2022_business_selection_break_matches_hancom() {
-    assert_sample16_hwp5_business_selection_starts_next_page(
-        "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2022.hwp",
-    );
+    assert_sample16_hwp5_business_selection_starts_next_page("samples/hwp3-sample16-hwp5-2022.hwp");
 }
 
 #[test]
 fn task1105_sample16_hwp5_2022_server_requirements_page_matches_hancom() {
     assert_sample16_hwp5_server_requirements_page_matches_hancom(
-        "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2022.hwp",
+        "samples/hwp3-sample16-hwp5-2022.hwp",
     );
 }
 

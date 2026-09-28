@@ -12,7 +12,7 @@ use std::process::Command;
 const HWP3: &str = "samples/hwp3-sample16.hwp";
 const HWP2010: &str = "samples/basic/Hyper(hwp2010).hwp";
 const HWP2018: &str = "samples/hwp3-sample16-hwp5-2018.hwp";
-const HWP2022: &str = "mydocs/pr/assets/issue7445/hwp3-sample16-hwp5-2022.hwp";
+const HWP2022: &str = "samples/hwp3-sample16-hwp5-2022.hwp";
 const HWP2024: &str = "samples/hwp3-sample16-hwp5-2024.hwp";
 const NEW_SAVE_HWP2010: &str = "samples/pr5935/test-2010.hwp";
 const NEW_SAVE_HWP2018: &str = "samples/pr5935/test-2018.hwp";

@@ -2063,7 +2063,7 @@ mod tests {
     /// 수정 후: gap = 20.27 px (PDF ±2 px 정합)
     #[test]
     fn test_521_tac_table_outer_margin_bottom_p2() {
-        let Some(core) = load_document("mydocs/pr/assets/issue7445/exam_eng.hwp") else {
+        let Some(core) = load_document("samples/exam_eng.hwp") else {
             return;
         };
         let svg = core.render_page_svg_native(1).unwrap_or_default();
@@ -2766,11 +2766,11 @@ mod tests {
     /// 수행해서 꼬리말 쪽번호 상자가 "현재쪽\n현재쪽" 을 표시했다
     /// (예: 3페이지에서 "3\n3", 6페이지에서 "6\n6" — "3\n8", "6\n8" 이어야 함).
     ///
-    /// mydocs/pr/assets/issue7445/exam_eng.hwp는 총 8페이지이며 각 페이지 텍스트 말미에
+    /// samples/exam_eng.hwp는 총 8페이지이며 각 페이지 텍스트 말미에
     /// "제 3 교시\n홀수형\n<현재쪽>\n<총쪽수>" 형태의 꼬리말이 들어간다.
     #[test]
     fn test_footer_total_page_field_distinct_from_current_page() {
-        let Some(core) = load_document("mydocs/pr/assets/issue7445/exam_eng.hwp") else {
+        let Some(core) = load_document("samples/exam_eng.hwp") else {
             return;
         };
 

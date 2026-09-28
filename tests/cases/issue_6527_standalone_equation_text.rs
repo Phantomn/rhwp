@@ -44,5 +44,5 @@ fn standalone_equations_are_extracted_once_in_reading_order() {
 
 #[test]
 fn inline_equations_are_extracted_once_in_reading_order() {
-    assert_sample_equations("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwpx", true);
+    assert_sample_equations("samples/hwp3-sample16-hwp5.hwpx", true);
 }

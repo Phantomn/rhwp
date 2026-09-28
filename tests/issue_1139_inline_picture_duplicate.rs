@@ -514,8 +514,7 @@ fn issue_1302_2022_nov_page18_multiline_endnote_continuation_keeps_line_spacing(
 
 #[test]
 fn issue_1139_sample16_page3_page_number_stays_below_bottom_border() {
-    let bytes =
-        std::fs::read("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp").expect("sample16");
+    let bytes = std::fs::read("samples/hwp3-sample16-hwp5.hwp").expect("sample16");
     let doc = HwpDocument::from_bytes(&bytes).expect("parse sample16");
     let svg = doc.render_page_svg_native(2).expect("page 3 svg");
     let (bottom_line, page_number_y) = sample16_page3_bottom_border_and_page_number(&svg);

@@ -7,7 +7,7 @@
 //! 저장 사다리 증인(`native_empty_single_topbottom_table_saved_top`)까지 없으면 그
 //! 스냅 좌표가 곧 표 윗변이 되어 표가 앞 줄 상자 안으로 들어간다.
 //!
-//! 실측 — `mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp` 60쪽(0-기준 59) `pi=1465`:
+//! 실측 — `samples/hwpctl_API_v2.4.hwp` 60쪽(0-기준 59) `pi=1465`:
 //!
 //! ```text
 //!   앞 문단 pi=1464 줄 상자   y=191.73  h=13.33  →  바닥 205.07
@@ -31,7 +31,7 @@
 use rhwp::document_core::DocumentCore;
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp";
+const SAMPLE: &str = "samples/hwpctl_API_v2.4.hwp";
 /// 0-기준 쪽 번호(문서 60쪽).
 const PAGE_INDEX: u32 = 59;
 /// 앞 문단(코드 블록 마지막 줄)의 문단 인덱스.

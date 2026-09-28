@@ -10,7 +10,7 @@ use std::path::Path;
 use rhwp::diagnostics::layout_anomaly::{scan_document, AnomalyOptions};
 use rhwp::document_core::DocumentCore;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/1480000-201900042-chemical-labeling-standards.hwp";
+const SAMPLE: &str = "samples/issue6782/1480000-201900042-chemical-labeling-standards.hwp";
 
 #[test]
 fn issue_7023_corrected_body_footer_does_not_overlap() {

@@ -2,8 +2,7 @@
 
 #[test]
 fn diag_2024_vs_variant_line_segs() {
-    let bytes_v =
-        std::fs::read("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp").expect("read variant");
+    let bytes_v = std::fs::read("samples/hwp3-sample16-hwp5.hwp").expect("read variant");
     let doc_v = rhwp::parser::parse_hwp(&bytes_v).expect("parse variant");
 
     let bytes_24 = std::fs::read("samples/hwp3-sample16-hwp5-2024.hwp").expect("read 2024");

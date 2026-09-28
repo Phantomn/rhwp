@@ -17,7 +17,7 @@ use rhwp::document_core::DocumentCore;
 use rhwp::model::document::HWP5_ORIGIN_HWPX_MARKER_PATH;
 use rhwp::wasm_api::HwpDocument;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/한글문서파일형식_5.0_revision1.3.hwp";
+const SAMPLE: &str = "samples/한글문서파일형식_5.0_revision1.3.hwp";
 const EXPECTED_PAGES: u32 = 69;
 const EXPECTED_SECTIONS: usize = 6;
 const EXPECTED_PARAS: usize = 619;

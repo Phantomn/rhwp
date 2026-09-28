@@ -19,7 +19,7 @@ use std::path::Path;
 
 use rhwp::document_core::DocumentCore;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/exam_eng.hwp";
+const SAMPLE: &str = "samples/exam_eng.hwp";
 /// 7번 문항 줄을 고르는 표식. 번호와 본문이 한 줄에 있다.
 const LINE_PREFIX: &str = "7.";
 const LINE_CONTAINS: &str = "대화를";

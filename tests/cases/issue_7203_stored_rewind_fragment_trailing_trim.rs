@@ -6,7 +6,7 @@
 //!
 //! # 기대값의 출처 — 문서 자신과 정본이 같은 말을 한다
 //!
-//! `mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp` 문단 1274 의 1×1 RowBreak 칸은 셀 줄 사다리가
+//! `samples/hwpctl_API_v2.4.hwp` 문단 1274 의 1×1 RowBreak 칸은 셀 줄 사다리가
 //! `0 · 1600 · 3200` 뒤 `0` 으로 되감긴다(`p[2].ls[1]`). 즉 저장본이 **세 줄 뒤**를
 //! 물리 쪽 경계로 지목한다. 표의 선언 높이는 `4482 HU` 이고, 그 값은 세 줄을 줄간격
 //! 트림과 함께 담은 상자와 정확히 같다.
@@ -50,7 +50,7 @@
 use rhwp::document_core::DocumentCore;
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp";
+const SAMPLE: &str = "samples/hwpctl_API_v2.4.hwp";
 
 /// 본문 바닥 — `bodyArea` y=132.267 + height=876.880 (`dump-pages --json` 실측).
 const BODY_BOTTOM_PX: f64 = 1009.147;

@@ -39,13 +39,13 @@
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 use rhwp::wasm_api::HwpDocument;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp";
+const SAMPLE: &str = "samples/hwpctl_API_v2.4.hwp";
 /// `vertical_offset` 이 걸린 자리차지 표가 있는 문서 — 저장 앵커를 쓰면 안 되는 갈래.
-const OFFSET_SAMPLE: &str = "mydocs/pr/assets/issue7445/rowbreak-problem-pages.hwp";
+const OFFSET_SAMPLE: &str = "samples/rowbreak-problem-pages.hwp";
 
 const HWPUNIT_PER_PX: f64 = 7200.0 / 96.0;
 
-/// `rhwp dump mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp` 의 실측값.
+/// `rhwp dump samples/hwpctl_API_v2.4.hwp` 의 실측값.
 ///
 /// `(0-based 쪽, 문단, 앵커 ls[0] vpos, 위 바깥여백, 정본 PDF 윗변)`
 /// 정본 값은 `pdf/hwpctl_API_v2.4-hwp-2020.pdf` 의 가로 괘선(폭 427.7px)이다.

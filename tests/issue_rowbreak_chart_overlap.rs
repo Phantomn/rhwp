@@ -9,7 +9,7 @@ use std::fs;
 use std::path::Path;
 
 const SAMPLE: &str = "samples/rowbreak-problem-pages.hwpx";
-const HWP_SAMPLE: &str = "mydocs/pr/assets/issue7445/rowbreak-problem-pages.hwp";
+const HWP_SAMPLE: &str = "samples/rowbreak-problem-pages.hwp";
 const PAGE_INDEX: u32 = 1;
 
 fn load_doc(sample: &str) -> rhwp::wasm_api::HwpDocument {

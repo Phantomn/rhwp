@@ -1,6 +1,6 @@
 //! Task #391: 다단 섹션 단 전환 정상화 회귀 테스트.
 //!
-//! `mydocs/pr/assets/issue7445/exam_eng.hwp` (Section-level 2단 다단) 가 #359 merge 직후부터
+//! `samples/exam_eng.hwp` (구역 수준의 2단 다단)가 #359 병합 직후부터
 //! 8 → 11 페이지로 회귀하고 단 채움이 비대칭으로 어그러진 문제를 검증.
 //!
 //! 원인: `src/renderer/typeset.rs` 의 `next_will_vpos_reset` 선제 가드가
@@ -15,7 +15,7 @@ use std::path::Path;
 #[test]
 fn exam_eng_page_count_after_359_fix() {
     let repo_root = env!("CARGO_MANIFEST_DIR");
-    let hwp_path = Path::new(repo_root).join("mydocs/pr/assets/issue7445/exam_eng.hwp");
+    let hwp_path = Path::new(repo_root).join("samples/exam_eng.hwp");
     let bytes =
         fs::read(&hwp_path).unwrap_or_else(|e| panic!("read {}: {}", hwp_path.display(), e));
 

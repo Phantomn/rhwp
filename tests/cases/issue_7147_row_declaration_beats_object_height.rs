@@ -127,14 +127,14 @@ fn the_unshrunk_table_splits_across_the_page_boundary() {
 
 /// 반례 — 개체 높이가 **행 중간**에서 끊기면 조각 경계일 수 없으므로 종전대로 화해한다.
 ///
-/// `mydocs/pr/assets/issue7445/1480000-201900698-native-neartop-reset.hwp` 쪽 53 의 3행 표는
+/// `samples/issue5941/1480000-201900698-native-neartop-reset.hwp` 쪽 53 의 3행 표는
 /// 측정·행 선언이 둘 다 144.7px 로 같지만 개체 높이 130.2px 는 누적 행 경계
 /// `[47.0, 99.4, 144.7]` 어디에도 맞지 않는다. 한/글 정본(전체 205쪽 PDF 55쪽)의
 /// 가로 괘선은 899 / 946 / 998 / 1029px 로 표 높이가 **130px** — 개체 높이 쪽이다.
 /// 이 갈래까지 넓히면 그 표가 14.5px 자라 본문 하단을 9.4px 넘는다.
 #[test]
 fn object_height_that_ends_mid_row_still_reconciles() {
-    const COUNTER: &str = "mydocs/pr/assets/issue7445/1480000-201900698-native-neartop-reset.hwp";
+    const COUNTER: &str = "samples/issue5941/1480000-201900698-native-neartop-reset.hwp";
     const COUNTER_PAGE: u32 = 53;
     const COUNTER_PARA: usize = 303;
     /// 정본 괘선 899..1029px.

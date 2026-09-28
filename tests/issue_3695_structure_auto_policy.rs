@@ -183,7 +183,7 @@ fn auto_pure_clause_document_remains_clause() {
 
 #[test]
 fn real_explicit_outline_document_remains_outline() {
-    let structure = load_auto("mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp");
+    let structure = load_auto("samples/hwpctl_API_v2.4.hwp");
 
     assert_eq!(structure.mode, "outline");
     assert!(structure.node_count > 100, "실제 개요 노드가 사라짐");
@@ -216,7 +216,7 @@ fn real_market_report_with_section_markers_remains_outline() {
 
 #[test]
 fn real_clause_document_with_ambiguous_number_evidence_remains_clause() {
-    let mut document = load_document("mydocs/pr/assets/issue7445/hwp3-sample16-hwp5.hwp");
+    let mut document = load_document("samples/hwp3-sample16-hwp5.hwp");
     let number_shape_id = document.doc_info.para_shapes.len() as u16;
     document.doc_info.para_shapes.push(ParaShape {
         head_type: HeadType::Number,

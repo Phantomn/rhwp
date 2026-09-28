@@ -32,7 +32,7 @@ use std::path::Path;
 
 use rhwp::document_core::DocumentCore;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/30269-anticorruption-recommendation-toc.hwp";
+const SAMPLE: &str = "samples/issue6844/30269-anticorruption-recommendation-toc.hwp";
 /// 목차가 있는 쪽(0 기준).
 const TOC_PAGE: u32 = 3;
 

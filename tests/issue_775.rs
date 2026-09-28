@@ -1,4 +1,4 @@
-//! Issue #775: Task #703 회귀 — `mydocs/pr/assets/issue7445/exam_eng.hwp` 4페이지 27번 보기 그림 (1×1 InFrontOfText 표)
+//! Issue #775: Task #703 회귀 — `samples/exam_eng.hwp` 4페이지 27번 보기 그림 (1×1 InFrontOfText 표)
 //! 이 다단(2단) 단 1 (우측 컬럼) 상단(정상 y≈277.08 px)에서 단 1 중반(현재 y≈723.69 px)으로
 //! 약 +446.6 px 밀리는 회귀.
 //!
@@ -19,7 +19,7 @@ use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 use std::fs;
 use std::path::Path;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/exam_eng.hwp";
+const SAMPLE: &str = "samples/exam_eng.hwp";
 const TARGET_PAGE: u32 = 3; // 0-indexed: page 4
 
 /// para_index/control_index 일치하는 첫 Table 노드의 bbox 를 (y_top, y_bottom) 으로 반환.

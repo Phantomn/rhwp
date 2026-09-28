@@ -3,7 +3,7 @@
 //!
 //! 표적 문서(2386771 심사서식)는 코퍼스 파일이라 저장소에 없다. 같은 형상 —
 //! TAC 표가 내용+여백 합을 선언 높이로 균일 축소해 마지막 글줄이 clip 되는
-//! 경우 — 를 `mydocs/pr/assets/issue7445/exam_eng.hwp` 6쪽 선택지 표로 고정한다.
+//! 경우 — 를 `samples/exam_eng.hwp` 6쪽 선택지 표로 고정한다.
 //!
 //! `pi=257` 5×13 TAC 표 r0c0 `①`:
 //! - 선언 `h=1191 HU` = 15.88px, 줄 `lh=1148 HU` = 15.31px, 상하 여백 `141+141`.
@@ -15,7 +15,7 @@
 use std::fs;
 use std::path::Path;
 
-const SAMPLE: &str = "mydocs/pr/assets/issue7445/exam_eng.hwp";
+const SAMPLE: &str = "samples/exam_eng.hwp";
 const PAGE: u32 = 5; // 6쪽 (0-based)
 
 fn find_choice_cell<'a>(node: &'a serde_json::Value, mark: &str) -> Option<&'a serde_json::Value> {

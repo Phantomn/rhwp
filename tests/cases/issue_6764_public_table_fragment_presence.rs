@@ -43,7 +43,7 @@ fn visible_text(node: &Value, text: &mut String) {
 #[test]
 fn repaired_public_table_keeps_its_leading_rows_inside_the_paper() {
     let sample = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("mydocs/pr/assets/issue7445/1613000-202200037-air-traffic-controller-cbta.hwp");
+        .join("samples/issue6764/1613000-202200037-air-traffic-controller-cbta.hwp");
     assert!(
         sample.is_file(),
         "the public regression fixture is required"
