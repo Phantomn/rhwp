@@ -2005,6 +2005,14 @@
       "source_units": "4PASS",
       "evidence": "../issue7445/normal_reader_scope_restore_validation.json",
       "limits": "생산/함수/기대값 변경 없음. 실제 실패 개별 처리와 최종 재실행은 별도."
+    },
+    "exam_eng_6030": {
+      "stage": 113,
+      "code_commit": "0d1ca6970444f0b05ea95cd68ce74b0bf398dace",
+      "actual_failed_function_only": "issue_6030_exam_eng_choice_last_line_not_clipped",
+      "evidence": "../issue7445/exam_eng_6030_blocking_scope_validation.json",
+      "kept": "다른정상함수/source-unit/왕복/원문PDF/corpus 유지",
+      "remaining_restored_dedicated": 14
     }
   }
 }

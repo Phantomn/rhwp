@@ -278,3 +278,11 @@ venv/bin/python scripts/visual_sweep.py \
 ## 보정112: 정상 검사는 samples 원문을 소비
 
 보정69 이후 복원 원문22개는 증거 사본과 동일 바이트입니다. 정상76파일/135경로를 canonical samples로 복원했고 기존 집중19개와 소스 내부4개 및 필수 lint/정책은 통과했습니다. [해시·소비 경로·검증](normal_reader_scope_restore_validation.json). 과거 증거 사본은 보존하며, 이 복원을 전체 회귀 통과로 세지 않습니다.
+
+## 추가: 영어시험 #6030 실제 차단 한 함수만 보류
+
+[등록·범위정정](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870452250), [명령·증거·유지검사](exam_eng_6030_blocking_scope_validation.json). 전체8쪽최저48.54225%,영향6쪽51.55944%인동일후보에서실패한한함수만보류했습니다. 기존문서전체제외기록은현재범위가아니며다른영어시험검사·원문·PDF·정상corpus는유지합니다. 유지8개와소스내부2개PASS,필수lint/정책exit0. 원문개선/전체검증완료아닙니다.
+
+![영어시험6쪽review](exam_eng_native_review_006.png)
+
+![영어시험6쪽overlay](exam_eng_native_overlay_006.png)

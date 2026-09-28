@@ -2256,3 +2256,9 @@ HWP 대응본과 구분해 동일 HWPX/기존 정상 한컴 PDF18쪽의 해시�
 사용자께서 대상 PR은 #7382로 확인하셨습니다. 보정110에서 복원한 samples 원문22개와 과거 증거 사본의 동일 바이트를 확인했습니다. 정상 검사가 향후 개선 원문을 소비하도록76개 파일의135개 경로를 samples로 복원했습니다. src3개는 cfg(test) 내부이고 함수·기대값·공차·생산 동작은 유지했습니다. 동적 경로3개는 root.join의 전체 상대경로 소비를 대조했습니다. 이번 소개 주석은 한국어로 정리했습니다.
 
 코드 `f48fa6d88d40fbf8fe39b5f76d795653ce48216b`, [원문·변경 전후 소스 해시·경로·명령·결과](../assets/issue7445/normal_reader_scope_restore_validation.json). 기존 집중19PASS/1082SKIP, 소스 내부4PASS/4064SKIP, fmt·Clippy3종·workspace build·고정base manifest/unit 정책 모두exit0입니다. 이전 미달 증거 사본과 사용자가 별도로 제외한 거대 입력은 유지합니다. 개별15실패 및 다른 corpus 원인·최종37개별/전체검증·PR준비는 미완료입니다.
+
+## 보정113 사전 분석·결과 — 영어시험 실제 차단 한 함수만 보류
+
+복원13번 #6030 함수를 현재경로에서 단독1FAIL(셀높이15.9px,기존기대18.5px이상)로재현했습니다. 동일원문/PDF/생산Native binary 및 보정69대비빈src diff로 부정시각증거를재사용했습니다. 전체8쪽최저48.54225%,영향6쪽51.55944%이며6쪽review/standalone overlay에서지시문·상자·본문·선택지위치차이를직접재확인했습니다. 기존19.07px가한컴정답이라는독립근거나 clipping 개선은단정하지않습니다.
+
+[#7445범위정정](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5870452250)뒤유일실패함수/전용helper만보류했습니다. 다른정상함수와source-unit/왕복·원문/PDF·renderer/text/oracle/matrix/공차유지,새함수/생산변경없음. 코드 `0d1ca6970444f0b05ea95cd68ce74b0bf398dace`, [검사범위·해시·명령·결과](../assets/issue7445/exam_eng_6030_blocking_scope_validation.json). 유지8PASS/1296SKIP,source-unit2PASS/4066SKIP,필수lint/정책exit0. upstream은Studio변경만으로 `0e8fd49fb868da0d47ac1294dcbbda81f0211233`로전진해이번정책은gates에기록한새base를사용했습니다. 실제15미해결중1보류/14대기이며다른corpus/최종전체검증/PR준비미완료입니다.
