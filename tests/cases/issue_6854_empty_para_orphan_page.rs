@@ -1,3 +1,6 @@
+//! 현재는 춘천 인사 규칙 HWPX 회귀만 유지한다. 아래 설명은 최초 수정의 역사적 근거다.
+//! 70833 HWP는 전체 피델리티 미달로 #7445에 원문을 보존하고 해당 회귀를 제거했다.
+//!
 //! [#6854] 잉크 없는 빈 문단 하나가 쪽을 통째로 차지해 **꼬리말만 있는 빈 쪽**이 생기고,
 //! 그 뒤의 모든 쪽이 한 칸씩 밀린다.
 //!
@@ -28,8 +31,6 @@ use std::path::Path;
 
 use rhwp::document_core::DocumentCore;
 
-/// 양성 ① — 규제영향분석서(HWP5, 2020 저장). engine 2020 정본 18쪽.
-const SAMPLE_HWP: &str = "samples/issue6854/70833-electrical-safety-rule-regulatory-analysis.hwp";
 /// 양성 ② — 인사 규칙 별표(HWPX, 2022 저장). engine 2020 정본 15쪽.
 const SAMPLE_HWPX: &str = "samples/issue6854/22037757-chuncheon-personnel-rule-annex13.hwpx";
 
@@ -68,28 +69,6 @@ fn pages_without_body_text(core: &DocumentCore) -> Vec<u32> {
             text.chars().all(|c| c.is_ascii_digit()) && text.chars().count() <= 3
         })
         .collect()
-}
-
-#[test]
-fn issue_6854_hwp_sample_has_no_body_less_page() {
-    let core = open(SAMPLE_HWP);
-    let orphans = pages_without_body_text(&core);
-    assert!(
-        orphans.is_empty(),
-        "잉크 없는 빈 문단이 쪽을 통째로 가지면 안 된다 — 수정 전 0기준 13(14쪽)이 \
-         꼬리말 `- 14 -` 만 담았다. 실측 {orphans:?}"
-    );
-}
-
-#[test]
-fn issue_6854_hwp_sample_matches_the_2020_oracle_page_count() {
-    let core = open(SAMPLE_HWP);
-    assert_eq!(
-        core.page_count(),
-        18,
-        "engine 2020 정본과 같은 쪽수여야 한다 — 고아 쪽이 살아 있으면 19쪽 \
-         (pdf/70833-electrical-safety-rule-regulatory-analysis-2020.pdf)"
-    );
 }
 
 #[test]
