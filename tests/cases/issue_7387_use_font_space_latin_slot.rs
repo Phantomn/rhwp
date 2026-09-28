@@ -31,6 +31,10 @@
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 use rhwp::DocumentCore;
 
+/// 정본 PDF 의 쪽 너비(595.0pt)를 96dpi px 로 환산한 값. 기대값을 rhwp 쪽 상자에 맞춘다.
+const ORACLE_PAGE_PX: f64 = 595.0 * 96.0 / 72.0;
+const TOLERANCE_PX: f64 = 8.0;
+
 struct Run {
     text: String,
     x: f64,
@@ -55,7 +59,7 @@ fn collect(node: &RenderNode, out: &mut Vec<Run>) {
 }
 
 fn open(name: &str) -> DocumentCore {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("samples/{name}"));
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(name);
     DocumentCore::from_bytes(&std::fs::read(path).expect("공개 회귀 문서")).expect("문서 파싱")
 }
 
@@ -90,6 +94,37 @@ fn line_span(doc: &DocumentCore, page: u32, needle: &str) -> Option<(f64, f64)> 
     None
 }
 
+#[test]
+fn use_font_space_line_width_matches_hancom_in_absolute_px() {
+    let doc = open("mydocs/pr/assets/issue7445/hwpctl_API_v2.4.hwp");
+    for (page, needle, oracle_ink_px) in [
+        (
+            14u32,
+            "되고,대화상자가닫힌후에는사용자가지정한값들이담겨돌아온다.",
+            416.66_f64,
+        ),
+        (
+            49,
+            "option:다음과같은옵션을지정할수있다.0을지정하면모두off이다.",
+            430.42,
+        ),
+        (88, "ToolBarID:미리정의된툴바의이름이올수있다.", 302.42),
+    ] {
+        let (span, page_px) =
+            line_span(&doc, page, needle).unwrap_or_else(|| panic!("{page}쪽의 `{needle}` 줄"));
+        // 정본 쪽 상자에 맞춰 환산한다. 두 쪽 너비는 0.05% 안이라 보정은 미미하지만
+        // 기대값이 어느 좌표계의 값인지 남겨 둔다.
+        let expected = oracle_ink_px * page_px / ORACLE_PAGE_PX;
+        assert!(
+            (span - expected).abs() <= TOLERANCE_PX,
+            "{page}쪽 `{needle}` 줄 점유폭 {span:.2}px 이 정본 {expected:.2}px 에서 \
+             {:.2}px 벗어났다(허용 {TOLERANCE_PX}px). useFontSpace 를 무시하고 공백을 \
+             반각으로 전진시키면 공백마다 넓어진다.",
+            span - expected,
+        );
+    }
+}
+
 /// 반례 가드 — 규칙은 상수가 아니라 **영문 슬롯 글꼴의 값**이다.
 ///
 /// `1382000_domestic_violence_survey.hwp` 의 charPr 26 은 `useFontSpace="1"` 인데
@@ -103,7 +138,7 @@ fn line_span(doc: &DocumentCore, page: u32, needle: &str) -> Option<(f64, f64)> 
 /// 아래 구간을 벗어난다.
 #[test]
 fn latin_slot_with_half_em_space_keeps_half_width() {
-    let doc = open("task2430/1382000_domestic_violence_survey.hwp");
+    let doc = open("samples/task2430/1382000_domestic_violence_survey.hwp");
     // 줄 앞의 `7.` 은 문단 자동 번호라 별도 run 이다. 줄 전체를 짝짓는다.
     let needle = "7.만일이연구에참여하지않는다면불이익이있습니까?";
     let (span, _) = line_span(&doc, 17, needle).expect("17쪽의 7번 문항 줄");

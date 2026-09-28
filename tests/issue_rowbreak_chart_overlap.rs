@@ -1,13 +1,15 @@
-//! `samples/rowbreak-problem-pages.hwpx`의 회귀 검사.
+//! Regression guards for `mydocs/pr/assets/issue7445/rowbreak-problem-pages.hwpx`.
 //!
-//! 2쪽의 첫 어울림 표(`pi=5 ci=0`)는 앞의 `<민간 SaaS 연계공통기반 운영체계>`
-//! 제목 아래에서 시작해야 한다. 그렇지 않으면 표 테두리와 그림이 제목 뒤에 겹쳐 그려진다.
+//! The first chart-like TAC table on page 2 (`pi=5 ci=0`) must start below the
+//! preceding `<민간 SaaS 연계공통기반 운영체계>` title line. Otherwise the chart
+//! border and image are painted under that title text.
 
 use rhwp::renderer::render_tree::{BoundingBox, RenderNode, RenderNodeType};
 use std::fs;
 use std::path::Path;
 
-const SAMPLE: &str = "samples/rowbreak-problem-pages.hwpx";
+const SAMPLE: &str = "mydocs/pr/assets/issue7445/rowbreak-problem-pages.hwpx";
+const HWP_SAMPLE: &str = "mydocs/pr/assets/issue7445/rowbreak-problem-pages.hwp";
 const PAGE_INDEX: u32 = 1;
 
 fn load_doc(sample: &str) -> rhwp::wasm_api::HwpDocument {
@@ -181,8 +183,7 @@ fn rowbreak_page13_textbox_shapes_cover_their_text() {
 
 #[test]
 fn rowbreak_page13_preserves_linear_empty_spacer_in_excerpt_table() {
-    {
-        let sample = SAMPLE;
+    for sample in [SAMPLE, HWP_SAMPLE] {
         let doc = load_doc(sample);
         let tree = doc
             .build_page_render_tree(12)
@@ -277,8 +278,7 @@ fn rowbreak_page18_does_not_emit_tiny_empty_table_continuation() {
 
 #[test]
 fn rowbreak_final_pages_match_hancom_pdf_page_count() {
-    {
-        let sample = SAMPLE;
+    for sample in [SAMPLE, HWP_SAMPLE] {
         let doc = load_doc(sample);
         assert_eq!(
             doc.page_count(),
@@ -314,8 +314,7 @@ fn rowbreak_page17_keeps_final_database_table_tail_like_hancom_pdf() {
 
 #[test]
 fn rowbreak_page17_keeps_database_separation_line_before_example_box() {
-    {
-        let sample = SAMPLE;
+    for sample in [SAMPLE, HWP_SAMPLE] {
         let doc = load_doc(sample);
         let page17 = doc
             .build_page_render_tree(16)
@@ -650,6 +649,68 @@ fn rowbreak_page12_reference_text_stays_inside_body() {
     assert!(
         text_bottom <= body_bottom + 0.5,
         "page 12 text is clipped by the Body clip: text_bottom={text_bottom:.2}, body_bottom={body_bottom:.2}"
+    );
+}
+
+#[test]
+fn rowbreak_hwp_page8_keeps_continued_nested_reference_line() {
+    let doc = load_doc(HWP_SAMPLE);
+    let page8 = doc
+        .build_page_render_tree(7)
+        .unwrap_or_else(|e| panic!("render HWP page 8: {e}"));
+
+    let cells = collect_table_cells(&page8.root, 21, 0);
+    let row26_detail = cells
+        .iter()
+        .find(|cell| matches!(&cell.node_type, RenderNodeType::TableCell(c) if c.row == 3 && c.col == 1))
+        .expect("HWP page 8 row 26 detail cell should render");
+    let line = text_line_bbox_containing(row26_detail, "매개하는 자를")
+        .expect("HWP page 8 should keep the first continued nested reference line");
+    let following = text_line_bbox_containing(row26_detail, "과학기술정보통신부장관")
+        .expect("HWP page 8 should render the paragraph after the continued nested reference");
+    let nested_table =
+        first_nested_table_bbox(row26_detail).expect("HWP page 8 continued nested table bbox");
+    let cell_bottom = row26_detail.bbox.y + row26_detail.bbox.height;
+    let line_bottom = line.y + line.height;
+    let nested_bottom = nested_table.y + nested_table.height;
+
+    assert!(
+        line.y >= row26_detail.bbox.y - 0.5,
+        "HWP page 8 continued line is clipped above the cell: line_top={:.2}, cell_top={:.2}",
+        line.y,
+        row26_detail.bbox.y
+    );
+    assert!(
+        line_bottom <= cell_bottom + 0.5,
+        "HWP page 8 continued line is clipped below the cell: line_bottom={:.2}, cell_bottom={cell_bottom:.2}",
+        line_bottom
+    );
+    assert!(
+        following.y >= line_bottom - 0.5,
+        "HWP page 8 continued line overlaps the following paragraph: line_bottom={line_bottom:.2}, following_top={:.2}",
+        following.y
+    );
+    assert!(
+        nested_bottom <= following.y + 0.5,
+        "HWP page 8 continued nested table border includes the following paragraph: nested_bottom={nested_bottom:.2}, following_top={:.2}",
+        following.y
+    );
+}
+
+#[test]
+fn rowbreak_hwp_page12_reference_text_stays_inside_body() {
+    let doc = load_doc(HWP_SAMPLE);
+    let page12 = doc
+        .build_page_render_tree(11)
+        .unwrap_or_else(|e| panic!("render HWP page 12: {e}"));
+    let body = find_body_node(&page12.root).expect("HWP page 12 body should render");
+    let body_bottom = body.bbox.y + body.bbox.height;
+    let text_bottom =
+        max_text_line_bottom(body).expect("HWP page 12 body should contain visible text lines");
+
+    assert!(
+        text_bottom <= body_bottom + 0.5,
+        "HWP page 12 text is clipped by the Body clip: text_bottom={text_bottom:.2}, body_bottom={body_bottom:.2}"
     );
 }
 

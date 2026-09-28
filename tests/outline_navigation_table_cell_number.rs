@@ -1,13 +1,49 @@
-//! 개요 탐색의 번호·제목·수준 질의 계약.
+//! 개요 탐색(`getOutlineNavigation`) 회귀 가드 — 표 셀 번호 문단이 지나간 뒤의 번호.
 //!
-//! #7445로 이관한 두 합성 입력의 저장 의미만 확인한다.
-//! 기존 함수 이름은 유지하지만 페이지·SVG 대조는 제거했으며,
-//! 이 계약의 통과를 최종 렌더링 승인으로 사용하지 않는다.
+//! PR #4093 리뷰 지적: 탐색 질의가 최상위 `section.paragraphs` 만 훑으면 표 셀의
+//! `NUMBER` 문단이 렌더러 번호 상태에는 반영되고 질의 상태에는 반영되지 않는다.
+//! `앞 개요 1. → 표 셀 번호 2. → 뒤 개요 3.` 문서에서 렌더러는 `3.` 을 그리는데
+//! 질의는 `2.` 를 돌려줬다.
+//!
+//! 이 테스트는 같은 fixture 한 개로 두 경로를 맞대 본다 — 렌더된 SVG 텍스트(화면에
+//! 실제로 그려진 번호)와 탐색 질의의 번호가 같아야 한다. fixture 는
+//! `scripts/generate_outline_navigation_fixture.py` 가 만든다.
 
 use rhwp::wasm_api::HwpDocument;
 
 const FIXTURE: &str = "mydocs/pr/assets/issue7445/outline_navigation_table_cell_number.hwpx";
 const DEMO_FIXTURE: &str = "mydocs/pr/assets/issue7445/outline_navigation_panel_demo.hwpx";
+
+/// SVG `<text>` 내용만 이어 붙이고 공백을 지운 문자열.
+fn page_text(doc: &HwpDocument, page: u32) -> String {
+    let svg = doc.render_page_svg(page).unwrap();
+    let mut out = String::new();
+    let mut rest = svg.as_str();
+    while let Some(start) = rest.find("<text") {
+        let Some(open_end) = rest[start..].find('>') else {
+            break;
+        };
+        let after = &rest[start + open_end + 1..];
+        let Some(close) = after.find("</text>") else {
+            break;
+        };
+        out.push_str(&after[..close]);
+        rest = &after[close..];
+    }
+    out.chars().filter(|c| !c.is_whitespace()).collect()
+}
+
+/// 개요 항목의 쪽 번호만.
+fn entries_pages(doc: &HwpDocument) -> Vec<u32> {
+    let json: serde_json::Value =
+        serde_json::from_str(&doc.get_outline_navigation().unwrap()).expect("개요 탐색 JSON");
+    json["outline"]
+        .as_array()
+        .expect("outline 배열")
+        .iter()
+        .map(|item| item["page"].as_u64().unwrap_or_default() as u32)
+        .collect()
+}
 
 fn outline_entries(doc: &HwpDocument) -> Vec<(String, String, u64)> {
     let json: serde_json::Value =
@@ -48,15 +84,35 @@ fn outline_numbers_match_rendered_numbers_across_table_cell_number() {
             ("3.".to_owned(), "요구사항".to_owned(), 1),
         ],
     );
+
+    // 화면 대조 — 렌더러가 그린 번호와 같은지. 표 셀 문단을 건너뛰는 구현은 여기서
+    // 질의만 2. 가 되어 두 값이 어긋난다.
+    let rendered = page_text(&doc, 0);
+    assert!(
+        rendered.contains("3.요구사항"),
+        "렌더된 뒤 개요가 3. 이 아니다: {rendered}"
+    );
+    assert!(
+        !rendered.contains("2.요구사항"),
+        "렌더된 뒤 개요가 2. 로 그려졌다: {rendered}"
+    );
+    assert!(
+        rendered.contains("1.개요"),
+        "렌더된 앞 개요가 1. 이 아니다: {rendered}"
+    );
 }
 
-/// #7445로 이관한 데모의 개요 번호·제목·수준 질의 계약만 유지한다.
+/// 패널 데모 fixture — 3수준 계층 15개가 3쪽에 걸쳐 있고, 가운데에 같은 표 셀 경계가 있다.
 ///
-/// 기존 함수 이름은 유지하지만 쪽 번호·SVG 대조는 피델리티 재구축 전까지 제외한다.
+/// 실제 문서 모양에서 패널이 보여줄 값을 통째로 고정한다. 손으로 눌러 볼 때 기대치를
+/// 이 목록으로 확인할 수 있고(`samples/pr4093/README.md`), 수준·쪽 계산이 틀어지면
+/// 여기서 잡힌다.
 #[test]
 fn panel_demo_outline_matches_rendered_document() {
     let bytes = std::fs::read(DEMO_FIXTURE).unwrap();
     let doc = HwpDocument::from_bytes(&bytes).unwrap();
+
+    assert_eq!(doc.page_count(), 3, "데모 fixture 는 3쪽이어야 한다");
 
     let entries = outline_entries(&doc);
     let shape: Vec<(&str, &str, u64)> = entries
@@ -84,5 +140,20 @@ fn panel_demo_outline_matches_rendered_document() {
             ("가.", "시행일", 2),
             ("나.", "경과 조치", 2),
         ],
+    );
+
+    // 이동 대상 쪽도 함께 고정한다 — 패널에서 누르면 이 쪽으로 스크롤한다.
+    let pages: Vec<u32> = entries_pages(&doc);
+    assert_eq!(pages, vec![1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3]);
+
+    // 화면 대조 — 표 셀 경계를 지난 뒤 개요가 렌더러와 같은 5. 인지.
+    let page3 = page_text(&doc, 2);
+    assert!(
+        page3.contains("5.부칙"),
+        "렌더된 부칙이 5. 가 아니다: {page3}"
+    );
+    assert!(
+        !page3.contains("4.부칙"),
+        "렌더된 부칙이 4. 로 그려졌다: {page3}"
     );
 }

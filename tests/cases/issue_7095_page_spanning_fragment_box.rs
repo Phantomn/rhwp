@@ -176,6 +176,44 @@ fn load_sample(rel: &str) -> DocumentCore {
     DocumentCore::from_bytes(&std::fs::read(path).expect("read sample")).expect("open")
 }
 
+/// `para_index` 가 같은 표 노드의 상자들.
+fn tables_of_para(nodes: &[RenderNode], para: usize, rows: u16, cols: u16) -> Vec<BoundingBox> {
+    nodes
+        .iter()
+        .filter_map(|n| match &n.node_type {
+            RenderNodeType::Table(t)
+                if t.para_index == Some(para) && t.row_count == rows && t.col_count == cols =>
+            {
+                Some(n.bbox)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn issue_7095_first_fragment_starting_at_page_top_is_pinned_too() {
+    // 30269 10쪽은 표(pi136)의 **첫** 조각인데 쪽 상단에서 시작한다. 정본 상자 아래는
+    // 본문 아래 1028.01 − 바깥 아래 여백 283HU(3.77) − 100HU(1.33) = 1022.91 이다.
+    // 수정 전에는 내용 행 높이(마지막 줄 뒤 줄간격 포함)로 끝나 1028.3, 이어짐 조건으로만
+    // 고정하면 1032.1 로 정본 상자를 9px 넘었다.
+    let core = load_sample("mydocs/pr/assets/issue7445/30269_reform_recommendation.hwp");
+    let boxes = tables_of_para(&page_nodes(&core, 9), 136, 1, 1);
+    let frag = boxes.first().expect("30269 10쪽 조각 표");
+    let bottom = frag.y + frag.height;
+    assert!(
+        (frag.y - 98.27).abs() < 1.0 && (bottom - 1022.91).abs() < 1.0,
+        "#7095: 30269 10쪽 조각 상자는 위 98.27 · 아래 1022.91 이어야 한다: y={:.2} bottom={:.2}",
+        frag.y,
+        bottom
+    );
+    assert_eq!(
+        core.page_count(),
+        22,
+        "#7095: 30269 쪽수는 정본과 같은 22 여야 한다"
+    );
+}
+
 /// Edited IR flow contract, separate from the unmodified Hancom fixtures above.
 /// Page height is varied across a row-fitting boundary; every numbered unit must
 /// survive once inside its own fragment and following text must remain after it.
@@ -329,12 +367,15 @@ fn fragment_budget_preserves_units_with_visible_and_empty_hosts() {
     }
 }
 
-/// 저장된 쪽 중간 컷의 전진량에는 끝의 빈 구간이 포함되므로 물리 테두리 높이와 다르다.
-/// 독립 기준 PDF는157쪽이며, 안쪽 여백을 다시 빼면158쪽으로 늘어난다.
+/// Stored mid-page cut advance includes a trailing blank interval. It is not
+/// interchangeable with the physical border height. Independent committed PDFs
+/// have 157 and 18 pages; subtracting the inset again produces 158 and 19.
 #[test]
 fn stored_midpage_cut_keeps_its_last_source_unit() {
-    {
-        let (source, pages) = ("samples/80168_regulatory_analysis.hwp", 157);
+    for (source, pages) in [
+        ("samples/80168_regulatory_analysis.hwp", 157),
+        ("mydocs/pr/assets/issue7445/rowbreak-problem-pages.hwp", 18),
+    ] {
         let bytes = std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(source)).unwrap();
         let core = DocumentCore::from_bytes(&bytes).unwrap();
         assert_eq!(
@@ -521,5 +562,28 @@ fn issue_7095_terminal_fragment_box_takes_the_stored_cell_height_remainder() {
     assert!(
         (bottom - 923.87).abs() < 1.0,
         "#7095: 1382000 30쪽 끝 조각 상자 아래는 정본 923.87 이어야 한다: {bottom:.2}"
+    );
+}
+
+#[test]
+fn issue_7095_terminal_fragment_does_not_push_the_next_paragraph_past_its_stored_top() {
+    // 반례: rowbreak-problem-pages `pi=13` 은 저장 칸 높이가 상자 합이 아니다. 나머지 규칙만
+    // 쓰면 끝 조각이 16px 늘어 뒤 문단이 한/글 저장 자리(첫 줄 vpos 21751HU → 본문 위 94.5 +
+    // 290.0 = 384.5)를 넘고 문서가 18 → 19쪽이 된다. 다음 문단의 저장 자리가 늘림의 상한이다.
+    let core = load_sample("mydocs/pr/assets/issue7445/rowbreak-problem-pages.hwp");
+    let first_line_after_table = column_children(&core, 13)
+        .into_iter()
+        .skip_while(|(is_table, _, _)| !*is_table)
+        .find(|(is_table, _, _)| !*is_table)
+        .map(|(_, top, _)| top)
+        .expect("14쪽 끝 조각 뒤 문단");
+    assert!(
+        (first_line_after_table - 384.5).abs() < 1.5,
+        "#7095: 끝 조각 뒤 문단은 한/글 저장 자리 384.5 에 있어야 한다: {first_line_after_table:.2}"
+    );
+    assert_eq!(
+        core.page_count(),
+        18,
+        "#7095: rowbreak-problem-pages 는 한/글과 같은 18쪽"
     );
 }

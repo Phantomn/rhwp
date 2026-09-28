@@ -337,6 +337,28 @@ fn issue4967_combined_evidence_keeps_unowned_legacy_geometry_unmodelled() {
     }));
 }
 
+#[test]
+fn issue4967_combined_evidence_reports_actual_cache_key_rejection() {
+    let core = DocumentCore::from_bytes(include_bytes!(
+        "../../mydocs/pr/assets/issue7445/rowbreak-problem-pages.hwp"
+    ))
+    .expect("public rowbreak fixture parses");
+    let evidence: serde_json::Value = serde_json::from_str(
+        &core
+            .get_font_layout_evidence_native(0, r#"{"maxCharacters":4096}"#)
+            .expect("same-snapshot rowbreak evidence"),
+    )
+    .expect("rowbreak evidence JSON");
+    assert!(evidence["lines"]
+        .as_array()
+        .expect("line evidence")
+        .iter()
+        .any(|line| {
+            line["storedRow"]["disposition"] == "rejected"
+                && line["storedRow"]["reason"] == "cacheKeyRejectedOrStale"
+        }));
+}
+
 #[cfg(all(not(target_arch = "wasm32"), feature = "native-skia"))]
 #[test]
 fn standalone_native_trace_requires_a_prepared_renderer_snapshot() {

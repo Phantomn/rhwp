@@ -124,3 +124,46 @@ fn the_unshrunk_table_splits_across_the_page_boundary() {
         next.len()
     );
 }
+
+/// 반례 — 개체 높이가 **행 중간**에서 끊기면 조각 경계일 수 없으므로 종전대로 화해한다.
+///
+/// `mydocs/pr/assets/issue7445/1480000-201900698-native-neartop-reset.hwp` 쪽 53 의 3행 표는
+/// 측정·행 선언이 둘 다 144.7px 로 같지만 개체 높이 130.2px 는 누적 행 경계
+/// `[47.0, 99.4, 144.7]` 어디에도 맞지 않는다. 한/글 정본(전체 205쪽 PDF 55쪽)의
+/// 가로 괘선은 899 / 946 / 998 / 1029px 로 표 높이가 **130px** — 개체 높이 쪽이다.
+/// 이 갈래까지 넓히면 그 표가 14.5px 자라 본문 하단을 9.4px 넘는다.
+#[test]
+fn object_height_that_ends_mid_row_still_reconciles() {
+    const COUNTER: &str = "mydocs/pr/assets/issue7445/1480000-201900698-native-neartop-reset.hwp";
+    const COUNTER_PAGE: u32 = 53;
+    const COUNTER_PARA: usize = 303;
+    /// 정본 괘선 899..1029px.
+    const ORACLE_TABLE_PX: f64 = 130.0;
+
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(COUNTER);
+    let bytes = std::fs::read(&path).expect("반례 재현물 읽기");
+    let doc = DocumentCore::from_bytes(&bytes).expect("반례 문서 로드");
+    let tree = doc
+        .build_page_render_tree(COUNTER_PAGE)
+        .expect("반례 쪽 렌더 트리");
+
+    fn find(node: &RenderNode, out: &mut Option<(f64, f64)>) {
+        if let RenderNodeType::Table(t) = &node.node_type {
+            if t.para_index == Some(COUNTER_PARA) {
+                *out = Some((node.bbox.y, node.bbox.height));
+            }
+        }
+        for child in &node.children {
+            find(child, out);
+        }
+    }
+    let mut found = None;
+    find(&tree.root, &mut found);
+    let (top, height) = found.expect("반례 표를 찾지 못했다 — 시험 설정 오류");
+
+    assert!(
+        (height - ORACLE_TABLE_PX).abs() <= 1.5,
+        "개체 높이가 행 중간에서 끊기는 표까지 화해를 건너뛰면 안 된다 — 정본은 이 표를 \
+         {ORACLE_TABLE_PX}px 로 그린다. 실제={height:.1}px (상단 {top:.1})"
+    );
+}
