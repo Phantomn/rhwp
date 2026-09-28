@@ -1,4 +1,4 @@
-//! Intact row groups, not cell-internal rowspan cuts. Synthetic HWPX contracts:
+//! Row-boundary rowspan continuation, not cell-internal content cuts. Synthetic contracts:
 //! 18px line pitch, explicit row minima, shared edges and complete source owners.
 //! These are geometry invariants, not a Hancom-output fidelity claim.
 use rhwp::model::{
@@ -50,7 +50,7 @@ fn table(rows: u16, columns: u16, cells: Vec<Cell>) -> Table {
         row_count: rows,
         col_count: columns,
         cells,
-        page_break: TablePageBreak::RowBreak,
+        page_break: TablePageBreak::CellBreak, // HWPX TABLE: whole-cell row cuts.
         common: CommonObjAttr {
             text_wrap: TextWrap::TopAndBottom,
             vert_rel_to: VertRelTo::Para,
@@ -175,76 +175,53 @@ fn check_boxes(page: &Value, expected: &[[f64; 4]]) {
     }
 }
 #[test]
-fn connected_spans_defer_together_preserving_owners_and_final_boxes() {
+fn connected_spans_cut_at_rows_preserving_owners_and_final_boxes() {
     let mut t = groups();
     t.cells.reverse();
     let pages = run("rowspan-groups", t, 108.0);
-    assert_eq!(pages.len(), 3);
-    assert_eq!(texts(&pages[0]), ["prefix"]);
-    assert_eq!(texts(&pages[1]), ["A", "B", "C", "D", "E", "F"]);
-    assert_eq!(texts(&pages[2]), ["after"]);
-    for (page, height) in pages.iter().zip([18.0, 108.0, 18.0]) {
-        let tables = collect(&page["render_tree"]["root"], "Table");
-        assert_eq!(tables.len(), 1);
-        assert_eq!(
-            tables[0]["bbox"],
-            json!({"x":20.0,"y":30.0,"width":180.0,"height":height})
-        );
-    }
-    assert_eq!(boxes(&pages[0]), [[20.0, 30.0, 180.0, 18.0]]);
+    // Source minima:18 +36 +36 fit; the next36px row does not.
+    // The continued span closes at the108px frame, adding18px to the
+    // last physical row, including other cells ending on that same edge.
+    assert_eq!(pages.len(), 2);
+    assert_eq!(texts(&pages[0]), ["prefix", "A", "B", "C", "D"]);
+    assert_eq!(texts(&pages[1]), ["E", "F", "after"]);
+    check_boxes(
+        &pages[0],
+        &[
+            [20.0, 30.0, 180.0, 18.0],
+            [20.0, 48.0, 60.0, 90.0],
+            [80.0, 48.0, 120.0, 36.0],
+            [80.0, 84.0, 60.0, 54.0],
+            [140.0, 84.0, 60.0, 54.0],
+        ],
+    );
     check_boxes(
         &pages[1],
         &[
-            [20.0, 30.0, 60.0, 72.0],
-            [80.0, 30.0, 120.0, 36.0],
-            [80.0, 66.0, 60.0, 72.0],
-            [140.0, 66.0, 60.0, 36.0],
-            [20.0, 102.0, 60.0, 36.0],
-            [140.0, 102.0, 60.0, 36.0],
+            [80.0, 30.0, 60.0, 36.0], // source row2/col1, continued physical row3
+            [20.0, 30.0, 60.0, 36.0],
+            [140.0, 30.0, 60.0, 36.0],
+            [20.0, 66.0, 180.0, 18.0],
         ],
     );
-    assert_eq!(boxes(&pages[2]), [[20.0, 30.0, 180.0, 18.0]]);
-    let cells = collect(&pages[1]["render_tree"]["root"], "TableCell");
-    assert_eq!(
-        cells
-            .iter()
-            .map(|c| {
-                let a = &c["node_type"]["TableCell"];
-                (
-                    a["row"].as_u64().unwrap(),
-                    a["col"].as_u64().unwrap(),
-                    a["row_span"].as_u64().unwrap(),
-                )
-            })
-            .collect::<Vec<_>>(),
-        [
-            (1, 0, 2),
-            (1, 1, 1),
-            (2, 1, 2),
-            (2, 2, 1),
-            (3, 0, 1),
-            (3, 2, 1)
-        ]
-    );
-    let edges: Vec<_> = collect(&pages[1]["render_tree"]["root"], "Line")
-        .iter()
-        .map(|n| ["x1", "y1", "x2", "y2"].map(|k| n["node_type"]["Line"][k].as_f64().unwrap()))
-        .collect();
-    assert_eq!(
-        edges,
-        vec![
-            [20.0, 30.0, 20.0, 138.0],
-            [80.0, 30.0, 80.0, 138.0],
-            [140.0, 66.0, 140.0, 138.0],
-            [200.0, 30.0, 200.0, 138.0],
-            [20.0, 30.0, 200.0, 30.0],
-            [80.0, 66.0, 200.0, 66.0],
-            [20.0, 102.0, 80.0, 102.0],
-            [140.0, 102.0, 200.0, 102.0],
-            [20.0, 138.0, 200.0, 138.0],
-        ]
-    );
+    let continued = collect(&pages[1]["render_tree"]["root"], "TableCell")[0];
+    assert_eq!(continued["node_type"]["TableCell"]["row"], 2);
+    assert_eq!(continued["node_type"]["TableCell"]["row_span"], 2);
+    assert!(collect(continued, "TextLine").is_empty());
+    // The covered row is not rendered twice and all border endpoints remain
+    // within the physical fragment, including its repeated top closure.
+    for (page, h) in pages.iter().zip([108.0, 54.0]) {
+        let table = collect(&page["render_tree"]["root"], "Table")[0];
+        assert_eq!(table["bbox"]["height"], h);
+        for edge in collect(table, "Line") {
+            for key in ["y1", "y2"] {
+                let y = edge["node_type"]["Line"][key].as_f64().unwrap();
+                assert!((30.0..=30.0 + h).contains(&y));
+            }
+        }
+    }
 }
+
 #[test]
 fn whole_table_and_repeated_prefix_consume_complete_groups() {
     let mut t = groups();
@@ -313,42 +290,46 @@ fn alignment_uses_entire_span_with_padding_once() {
     );
 }
 #[test]
-fn nested_groups_preserve_child_origin_host_and_end() {
+fn nested_row_cuts_preserve_child_origin_host_and_end() {
     let mut outer = table(1, 3, vec![cell(0, 0, 1, 3, 0, "")]);
-    outer.page_break = TablePageBreak::CellBreak;
+    outer.page_break = TablePageBreak::RowBreak;
     outer.cells[0].paragraphs = vec![host("host", groups()), para("tail")];
     let pages = run("rowspan-nested", outer, 108.0);
-    assert_eq!(pages.len(), 3);
-    assert_eq!(texts(&pages[0]), ["prefix"]);
-    assert_eq!(texts(&pages[1]), ["A", "B", "C", "D", "E", "F"]);
-    assert_eq!(texts(&pages[2]), ["after", "host", "tail"]);
+    assert_eq!(pages.len(), 2);
+    assert_eq!(texts(&pages[0]), ["prefix", "A", "B", "C", "D"]);
+    assert_eq!(texts(&pages[1]), ["E", "F", "after", "host", "tail"]);
     assert_eq!(
-        boxes(&pages[2]),
-        [[20.0, 30.0, 180.0, 54.0], [20.0, 30.0, 180.0, 18.0]]
-    );
-    assert_eq!(
-        collect(&pages[2]["render_tree"]["root"], "TextLine")
+        collect(&pages[1]["render_tree"]["root"], "TextLine")
             .iter()
             .map(|n| n["bbox"]["y"].as_f64().unwrap())
             .collect::<Vec<_>>(),
-        [30.0, 48.0, 66.0]
+        [30.0, 30.0, 66.0, 84.0, 102.0]
     );
+    assert_eq!(boxes(&pages[1])[0], [20.0, 30.0, 180.0, 90.0]);
 }
+
 #[test]
-fn insufficient_group_budget_does_not_commit_header_or_partial_cell() {
+fn insufficient_first_content_budget_does_not_commit_header_or_partial_cell() {
     let mut t = groups();
     t.repeat_header = true;
     t.cells[0].is_header = true;
-    let (bytes, options) = source(t, 125.0);
+    let (bytes, options) = source(t, 53.0); // header18 + first complete row36
     let mut s = TablePreviewExportSession::from_bytes(&bytes, &options.to_string()).unwrap();
     for _ in 0..2 {
         let error = s.next_page_json().unwrap_err().to_string();
         assert!(
-            error.contains("DoesNotFit") && error.contains("126"),
+            error.contains("DoesNotFit") && error.contains("54"),
             "{error}"
         );
         assert_eq!(s.emitted_pages(), 0);
     }
+    let mut t = groups();
+    t.repeat_header = true;
+    t.cells[0].is_header = true;
+    let p = run("rowspan-header-cut", t, 125.0);
+    assert_eq!(p.len(), 2);
+    assert_eq!(texts(&p[0]), ["prefix", "A", "B", "C", "D"]);
+    assert_eq!(texts(&p[1]), ["prefix", "E", "F", "after"]);
 }
 
 #[test]
@@ -428,19 +409,52 @@ fn nested_table_inside_spanning_cell_uses_full_alignment_box_once() {
 }
 
 #[test]
-fn failed_later_group_does_not_repeat_already_consumed_prefix() {
-    let (bytes, options) = source(groups(), 107.5);
+fn failed_later_content_does_not_repeat_already_consumed_prefix() {
+    let mut t = groups();
+    // A three-line physical block needs54px even when only the36px first
+    // row is accepted. A53px frame must not accept then enlarge it in paint.
+    t.cells[1].paragraphs = vec![para("A1"), para("A2"), para("A3")];
+    let (bytes, options) = source(t, 53.0);
     let mut s = TablePreviewExportSession::from_bytes(&bytes, &options.to_string()).unwrap();
-    let first: Value = serde_json::from_str(&s.next_page_json().unwrap().unwrap()).unwrap();
-    assert_eq!(texts(&first), ["prefix"]);
+    let p: Value = serde_json::from_str(&s.next_page_json().unwrap().unwrap()).unwrap();
+    assert_eq!(texts(&p), ["prefix"]);
     for _ in 0..2 {
         let error = s.next_page_json().unwrap_err().to_string();
         assert!(
-            error.contains("DoesNotFit") && error.contains("108"),
+            error.contains("DoesNotFit") && error.contains("54"),
             "{error}"
         );
         assert_eq!(s.emitted_pages(), 1);
     }
+}
+
+#[test]
+fn first_span_fragment_reserves_complete_content_before_accepting_short_row() {
+    let mut t = groups();
+    t.cells[1].paragraphs = vec![para("A1"), para("A2"), para("A3")];
+    let pages = run("rowspan-content-reservation", t, 54.0);
+    assert_eq!(texts(&pages[0]), ["prefix"]);
+    assert_eq!(texts(&pages[1]), ["A1", "A2", "A3", "B"]);
+    let all: Vec<_> = pages.iter().flat_map(texts).collect();
+    assert_eq!(
+        all,
+        ["prefix", "A1", "A2", "A3", "B", "C", "D", "E", "F", "after"]
+    );
+    let cells = collect(&pages[1]["render_tree"]["root"], "TableCell");
+    let a = cells
+        .iter()
+        .find(|c| c["node_type"]["TableCell"]["col"] == 0)
+        .unwrap();
+    assert_eq!(a["bbox"]["height"], 54.0);
+    let lines = collect(a, "TextLine");
+    assert_eq!(lines.len(), 3);
+    assert_eq!(lines[0]["bbox"]["y"], 30.0);
+    assert_eq!(
+        lines[2]["bbox"]["y"].as_f64().unwrap() + lines[2]["bbox"]["height"].as_f64().unwrap(),
+        //12px visible line +6px trailing gap per paragraph: the last visible
+        // line ends at78, but its trailing6px still occupies the54px fragment.
+        78.0
+    );
 }
 
 #[test]
@@ -482,15 +496,71 @@ fn original_6923_has_observed_span_heights_not_invented_equal_rows() {
     // Observation of unmodified source geometry only: pictures, section controls
     // and other unresolved source rules still prevent full V2 document admission.
 }
+
 #[test]
-fn ambiguous_heights_internal_cuts_and_invalid_topology_are_rejected() {
-    for kind in 0..7 {
+fn multiple_spans_carry_blank_physical_rows_and_align_content_once() {
+    let mut t = table(
+        3,
+        3,
+        vec![
+            cell(0, 0, 3, 1, 8100, "center"),
+            cell(0, 1, 3, 1, 8100, "bottom"),
+            cell(0, 2, 1, 1, 2700, "first"),
+            cell(1, 2, 1, 1, 2700, "second"),
+            cell(2, 2, 1, 1, 2700, "last"),
+        ],
+    );
+    t.cells[0].vertical_align = VerticalAlign::Center;
+    t.cells[1].vertical_align = VerticalAlign::Bottom;
+    let p = run("span-three-fragments", t, 36.0);
+    assert_eq!(p.len(), 3);
+    assert_eq!(texts(&p[0]), ["center", "bottom", "first"]);
+    assert_eq!(texts(&p[1]), ["second"]);
+    assert_eq!(texts(&p[2]), ["last"]);
+    let lines = collect(&p[0]["render_tree"]["root"], "TextLine");
+    // 18px content in36px first fragment: center9px, bottom18px.
+    assert_eq!(
+        lines
+            .iter()
+            .map(|n| n["bbox"]["y"].as_f64().unwrap())
+            .collect::<Vec<_>>(),
+        [39.0, 48.0, 30.0]
+    );
+    for page in &p {
+        check_boxes(
+            page,
+            &[
+                [20.0, 30.0, 60.0, 36.0],
+                [80.0, 30.0, 60.0, 36.0],
+                [140.0, 30.0, 60.0, 36.0],
+            ],
+        );
+        let cells = collect(&page["render_tree"]["root"], "TableCell");
+        assert_eq!(cells[0]["node_type"]["TableCell"]["row"], 0);
+        assert_eq!(cells[1]["node_type"]["TableCell"]["row_span"], 3);
+        let edges = collect(&page["render_tree"]["root"], "Line");
+        assert!(edges
+            .iter()
+            .any(|e| e["node_type"]["Line"]["y1"] == 66.0 && e["node_type"]["Line"]["y2"] == 66.0));
+    }
+}
+
+#[test]
+fn never_keeps_spans_atomic_even_when_their_content_fits_a_smaller_fragment() {
+    let mut t = groups();
+    t.page_break = TablePageBreak::None;
+    let (bytes, options) = source(t, 143.0);
+    let mut s = TablePreviewExportSession::from_bytes(&bytes, &options.to_string()).unwrap();
+    for _ in 0..2 {
+        assert!(s.next_page_json().unwrap_err().to_string().contains("144"));
+        assert_eq!(s.emitted_pages(), 0);
+    }
+}
+#[test]
+fn ambiguous_heights_and_invalid_topology_are_rejected() {
+    for kind in 1..7 {
         let mut t = groups();
         let expected = match kind {
-            0 => {
-                t.page_break = TablePageBreak::CellBreak;
-                "rowspan cell-internal cuts"
-            }
             1 => {
                 t.cells[1].height = 10000;
                 "rowspan height needs redistribution"

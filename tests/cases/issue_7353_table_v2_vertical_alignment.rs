@@ -50,7 +50,7 @@ fn table(rows: u16, columns: u16, cells: Vec<Cell>) -> Table {
         row_count: rows,
         col_count: columns,
         cells,
-        page_break: TablePageBreak::RowBreak,
+        page_break: TablePageBreak::CellBreak, // Whole-cell budget, not internal line cuts.
         padding: Padding {
             top: 450,
             bottom: 900,
@@ -258,7 +258,7 @@ fn child_row_alignment_survives_parent_cell_continuation() {
     child.cells[1].height = 5400;
     child.common.horz_align = HorzAlign::Right;
     let mut root = table(1, 2, vec![cell(0, 0, 2, VerticalAlign::Top, &[])]);
-    root.page_break = TablePageBreak::CellBreak;
+    root.page_break = TablePageBreak::RowBreak;
     root.padding = Padding {
         left: 750,
         right: 2250,
@@ -326,21 +326,60 @@ fn content_expansion_and_individual_padding_do_not_create_negative_slack() {
     }
 }
 #[test]
-fn split_cell_vertical_alignment_is_rejected_including_nested_input() {
+fn split_permission_preserves_intact_alignment_including_nested_input() {
     for align in [VerticalAlign::Center, VerticalAlign::Bottom] {
-        for nested in [false, true] {
+        for (policy, nested) in [
+            (TablePageBreak::RowBreak, false),
+            (TablePageBreak::RowBreak, true),
+            (TablePageBreak::CellBreak, false),
+            (TablePageBreak::CellBreak, true),
+        ] {
             let mut t = table(1, 1, vec![cell(0, 0, 1, align, &["A"])]);
-            t.page_break = TablePageBreak::CellBreak;
+            t.page_break = policy;
+            t.cells[0].height = 6750; // 90px, including 6/12px padding.
             if nested {
                 let mut outer = table(1, 2, vec![cell(0, 0, 2, VerticalAlign::Top, &[])]);
                 outer.cells[0].paragraphs = vec![host("host", t)];
                 t = outer;
             }
-            let (bytes, options) = source(t, 90.0);
-            let error = TablePreviewExportSession::from_bytes(&bytes, &options.to_string())
-                .err()
-                .expect("no silent fallback");
-            assert!(format!("{error:?}").contains("Unsupported"));
+            let pages = run("intact-alignment", t, 300.0);
+            assert_eq!(pages.len(), 1);
+            let root = &pages[0]["render_tree"]["root"];
+            let cells = collect(root, "TableCell");
+            let target = cells.last().unwrap();
+            let lines = collect(target, "TextLine");
+            assert_eq!(lines.len(), 1);
+            // 90 - padding18 - line18 =54px slack, independent of policy.
+            let expected = 6.0
+                + if align == VerticalAlign::Center {
+                    27.0
+                } else {
+                    54.0
+                };
+            assert_eq!(
+                lines[0]["bbox"]["y"].as_f64().unwrap() - target["bbox"]["y"].as_f64().unwrap(),
+                expected
+            );
+        }
+    }
+}
+
+#[test]
+fn unresolved_aligned_internal_cut_does_not_commit_a_prefix() {
+    for align in [VerticalAlign::Center, VerticalAlign::Bottom] {
+        let mut t = table(1, 1, vec![cell(0, 0, 1, align, &["A", "B"])]);
+        t.page_break = TablePageBreak::RowBreak;
+        t.cells[0].height = 6750;
+        let (bytes, options) = source(t, 36.0);
+        let mut session =
+            TablePreviewExportSession::from_bytes(&bytes, &options.to_string()).unwrap();
+        for _ in 0..2 {
+            assert!(session
+                .next_page_json()
+                .unwrap_err()
+                .to_string()
+                .contains("DoesNotFit"));
+            assert_eq!(session.emitted_pages(), 0);
         }
     }
 }

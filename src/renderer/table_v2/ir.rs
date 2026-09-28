@@ -28,6 +28,7 @@ pub enum ParagraphItem {
         host: Rect,
         host_advance: f64,
         x: f64,
+        offset_y: f64,
         top: f64,
         bottom: f64,
     },
@@ -60,11 +61,111 @@ pub enum ParagraphItem {
 /// The text adapter qualifies plain stored text and control-only stored TAC rows;
 /// other stored ownership and general inline recomposition remain unsupported.
 pub trait CellParagraphComposer {
+    /// Cell wrapping is a composition policy, not a grid property to ignore.
+    /// Custom composers must opt in to non-default policies explicitly.
+    fn compose_with_cell_wrap(
+        &self,
+        paragraph: &Paragraph,
+        width: f64,
+        single_column: bool,
+        line_wrap: u8,
+    ) -> Result<Vec<ParagraphItem>, GeometryError> {
+        if line_wrap != 0 {
+            return Err(GeometryError::Unsupported("cell line wrap policy"));
+        }
+        self.compose_in_cell(paragraph, width, single_column)
+    }
+
+    /// Candidate transitions owned by the preceding exclusion host. Only the
+    /// stored composer supplies these; binding still verifies the child cuts.
+    fn stored_child_frame_tails(
+        &self,
+        _paragraphs: &[Paragraph],
+    ) -> Result<Vec<(usize, f64)>, GeometryError> {
+        Ok(Vec::new())
+    }
+
+    /// The adapter qualifies a cell-local single column once for its story.
+    /// It remains the reference of later anchored objects, independently of
+    /// those paragraphs' text margins. Custom composers may ignore this frame.
+    fn compose_in_cell(
+        &self,
+        paragraph: &Paragraph,
+        width: f64,
+        _single_column: bool,
+    ) -> Result<Vec<ParagraphItem>, GeometryError> {
+        self.compose(paragraph, width)
+    }
+
+    /// Source cuts qualified against the same styles used by composition.
+    /// A custom/fresh composer must not inherit stale page-frame boundaries.
+    fn stored_frame_starts(
+        &self,
+        _paragraphs: &[Paragraph],
+    ) -> Result<Vec<(usize, usize)>, GeometryError> {
+        Ok(Vec::new())
+    }
+
     fn compose(
         &self,
         paragraph: &Paragraph,
         width: f64,
     ) -> Result<Vec<ParagraphItem>, GeometryError>;
+}
+
+// A cell starts a new local story. Its initial normal one-column declaration
+// establishes that same lane; MultiColumn is not a request for a new page.
+// Other zones require an actual column-flow implementation. Keep the source
+// slot intact so the nested table and text retain their original UTF-16 owners.
+pub(super) fn initial_cell_column(para: &Paragraph, pi: usize) -> Result<bool, GeometryError> {
+    let count = para
+        .controls
+        .iter()
+        .filter(|c| matches!(c, Control::ColumnDef(_)))
+        .count();
+    if count == 0 {
+        return Ok(false);
+    }
+    let Some(Control::ColumnDef(cd)) = para.controls.first() else {
+        return Err(GeometryError::Unsupported(
+            "noninitial cell column definition",
+        ));
+    };
+    if pi != 0
+        || count != 1
+        || !matches!(
+            para.column_type,
+            ColumnBreakType::None | ColumnBreakType::MultiColumn
+        )
+        || cd.column_type != crate::model::page::ColumnType::Normal
+        || cd.column_count != 1
+        || !cd.same_width
+        || cd.spacing != 0
+        || !cd.widths.is_empty()
+        || !cd.gaps.is_empty()
+        || cd.separator_type != 0
+        || para.control_utf16_positions().first().copied() != Some(0)
+    {
+        return Err(GeometryError::Unsupported(
+            "noninitial or multi-lane cell column definition",
+        ));
+    }
+    Ok(true)
+}
+
+// The historical IR variant names are not pagination algorithms. HWP5 value2
+// (RowBreak, HWPX CELL, UI "나눔") breaks at composed lines; value1
+// (CellBreak, HWPX TABLE, UI "셀 단위로 나눔") moves the complete cell.
+// Keep this translation shared with paint admission rather than matching enum
+// names independently in each consumer. The parser/writer values stay intact.
+impl From<TablePageBreak> for SplitPolicy {
+    fn from(value: TablePageBreak) -> Self {
+        match value {
+            TablePageBreak::None => Self::Never,
+            TablePageBreak::RowBreak => Self::WithinCells,
+            TablePageBreak::CellBreak => Self::BetweenRows,
+        }
+    }
 }
 
 impl TableContentPlan {
@@ -154,8 +255,8 @@ fn bind_table(
     }
     let mut resolved = super::grid::resolve(table, scale)?;
     for cell in &table.cells {
-        if cell.text_direction != 0 || cell.line_wrap != 0 {
-            return Err(GeometryError::Unsupported("cell direction or line wrap"));
+        if cell.text_direction != 0 {
+            return Err(GeometryError::Unsupported("cell text direction"));
         }
     }
     // The preview admits only whole, contiguous leading header rows. Partial
@@ -210,16 +311,46 @@ fn bind_table(
                 scale,
             )?;
             resolved.tracks[r][c].text_width = text_width;
+            let stored_frames = composer.stored_frame_starts(&cell.paragraphs)?;
+            let child_tails = composer.stored_child_frame_tails(&cell.paragraphs)?;
+            let single_column = cell
+                .paragraphs
+                .first()
+                .map(|p| initial_cell_column(p, 0))
+                .transpose()?
+                .unwrap_or(false);
             let mut blocks = Vec::new();
             for (pi, para) in cell.paragraphs.iter().enumerate() {
+                let initial_column = initial_cell_column(para, pi)?;
+                let local;
+                let para = if initial_column {
+                    local = {
+                        let mut p = para.clone();
+                        p.column_type = ColumnBreakType::None;
+                        p
+                    };
+                    &local
+                } else {
+                    para
+                };
+                if stored_frames.contains(&(pi, 0)) {
+                    blocks.push(FlowBlock::StoredFrameStart);
+                }
                 if para.column_type != ColumnBreakType::None {
                     return Err(GeometryError::Unsupported(
                         "explicit paragraph page/column break",
                     ));
                 }
-                let stored_fields = super::fields::stored_formula_result(para)?;
+                let stored_fields = super::fields::stored_result(para)?;
+                let page_number = super::page_number::cell_declaration(para)?;
+                let tac_fields = super::fields::stored_tac_prefix(para);
                 for ctrl in &para.controls {
-                    if matches!(ctrl, Control::Picture(_)) || stored_fields {
+                    if matches!(ctrl, Control::Picture(_))
+                        || (page_number && matches!(ctrl, Control::PageNumberPos(_)))
+                        || (initial_column && matches!(ctrl, Control::ColumnDef(_)))
+                        || stored_fields
+                        || (tac_fields && matches!(ctrl, Control::Field(_)))
+                    {
                         continue;
                     }
                     let Control::Table(child) = ctrl else {
@@ -234,12 +365,46 @@ fn bind_table(
                 }
                 // Qualified fields are source markers replayed by the text
                 // composer, not table owners awaiting a geometry item.
-                let mut seen = vec![stored_fields; para.controls.len()];
-                for item in super::paragraph_end::into_flow_items_at_end(
-                    composer.compose(para, text_width.unwrap_or(inner_width))?,
-                    policy,
-                    pi + 1 == cell.paragraphs.len(),
-                ) {
+                let mut seen = vec![stored_fields || page_number; para.controls.len()];
+                if tac_fields {
+                    for (ci, control) in para.controls.iter().enumerate() {
+                        if matches!(control, Control::Field(_)) {
+                            seen[ci] = true;
+                        }
+                    }
+                }
+                if initial_column {
+                    seen[0] = true;
+                }
+                let line_starts: Vec<_> = stored_frames
+                    .iter()
+                    .filter_map(|&(p, l)| (p == pi && l > 0).then_some(l))
+                    .collect();
+                let continuous;
+                let text_para = if line_starts.is_empty() {
+                    para
+                } else {
+                    continuous = super::stored_text::continuous_paragraph(para, &line_starts)?;
+                    &continuous
+                };
+                let items = composer.compose_with_cell_wrap(
+                    text_para,
+                    text_width.unwrap_or(inner_width),
+                    single_column,
+                    cell.line_wrap,
+                )?;
+                let items = if stored_frames.contains(&(pi + 1, 0)) {
+                    // Keep the ending typed until the actual fit query knows
+                    // whether this frame is split or placed intact.
+                    items
+                } else {
+                    super::paragraph_end::into_flow_items_at_end(
+                        items,
+                        policy,
+                        pi + 1 == cell.paragraphs.len(),
+                    )
+                };
+                for item in items {
                     match item {
                         ParagraphItem::PositionedTable {
                             control: ci,
@@ -256,9 +421,10 @@ fn bind_table(
                                 return Err(GeometryError::Unsupported("non-table anchor slot"));
                             };
                             let plan = bind_table(child, scale, composer, depth + 1, policy)?;
-                            if x + plan.width + f64::from(child.common.margin.right) * scale
-                                > inner_width
-                            {
+                            // TopAndBottom already excludes the whole text lane.
+                            // Its right avoidance margin is not extra table ink:
+                            // require the positioned border box to fit the cell.
+                            if x + plan.width > inner_width {
                                 return Err(GeometryError::ContentWidth {
                                     row: r,
                                     column: resolved.tracks[r][c].column,
@@ -272,6 +438,8 @@ fn bind_table(
                                 host: None,
                                 host_advance: 0.0,
                                 offset_x: x,
+                                offset_y: 0.0,
+                                available_width: plan.width,
                                 top,
                                 bottom,
                                 plan: Arc::new(plan),
@@ -284,6 +452,7 @@ fn bind_table(
                             host,
                             host_advance,
                             x,
+                            offset_y,
                             top,
                             bottom,
                         } => {
@@ -295,10 +464,15 @@ fn bind_table(
                             let Control::Table(child) = &para.controls[ci] else {
                                 return Err(GeometryError::Unsupported("non-table anchor slot"));
                             };
-                            let plan = bind_table(child, scale, composer, depth + 1, policy)?;
-                            if x + plan.width + f64::from(child.common.margin.right) * scale
-                                > inner_width
-                            {
+                            let mut plan = bind_table(child, scale, composer, depth + 1, policy)?;
+                            if let Some((_, tail)) = child_tails.iter().find(|(p, _)| *p == pi) {
+                                super::stored_child::qualify(
+                                    &mut plan, child, scale, *tail, top, bottom,
+                                )?;
+                            }
+                            // As above, side clearance does not enlarge the
+                            // physical table when the whole lane is excluded.
+                            if x + plan.width > inner_width {
                                 return Err(GeometryError::ContentWidth {
                                     row: r,
                                     column: resolved.tracks[r][c].column,
@@ -318,6 +492,8 @@ fn bind_table(
                                 }),
                                 host_advance,
                                 offset_x: x,
+                                offset_y,
+                                available_width: plan.width,
                                 top,
                                 bottom,
                                 plan: Arc::new(plan),
@@ -355,25 +531,50 @@ fn bind_table(
                             });
                         }
                         ParagraphItem::Space(h) => blocks.push(FlowBlock::Space(h)),
-                        ParagraphItem::End(_) => unreachable!("paragraph end already lowered"),
+                        ParagraphItem::End(end) => blocks.extend(end.into_stored_frame_tail()),
                         ParagraphItem::Lines {
                             height,
                             advance,
                             lines,
-                        } => blocks.push(FlowBlock::Lines {
-                            height,
-                            advance,
-                            lines: lines
-                                .into_iter()
-                                .map(|(line, bounds)| LineBox {
-                                    owner: LineOwner {
-                                        paragraph: pi,
-                                        line,
-                                    },
-                                    bounds,
-                                })
-                                .collect(),
-                        }),
+                        } => {
+                            if lines.iter().any(|(li, _)| line_starts.contains(li)) {
+                                if lines.len() != 1 {
+                                    return Err(GeometryError::Unsupported(
+                                        "stored frame inside atomic row",
+                                    ));
+                                }
+                                // The producer's interline band remains part of
+                                // intact/Never flow, but not the split-frame end.
+                                // It is not an authored empty line or paragraph.
+                                let mut spaces = Vec::new();
+                                while let Some(FlowBlock::Space(_)) = blocks.last() {
+                                    let Some(FlowBlock::Space(h)) = blocks.pop() else {
+                                        unreachable!()
+                                    };
+                                    spaces.push(h);
+                                }
+                                spaces.reverse();
+                                blocks.push(FlowBlock::StoredFrameTail {
+                                    spaces,
+                                    paragraph_after: 0.0,
+                                });
+                                blocks.push(FlowBlock::StoredFrameStart);
+                            }
+                            blocks.push(FlowBlock::Lines {
+                                height,
+                                advance,
+                                lines: lines
+                                    .into_iter()
+                                    .map(|(line, bounds)| LineBox {
+                                        owner: LineOwner {
+                                            paragraph: pi,
+                                            line,
+                                        },
+                                        bounds,
+                                    })
+                                    .collect(),
+                            });
+                        }
                         ParagraphItem::TableControl(ci) => {
                             if seen.get(ci).copied() != Some(false) {
                                 return Err(GeometryError::Unsupported(
@@ -444,7 +645,7 @@ fn bind_table(
                                 seen[ci] = true;
                             }
                             blocks.push(FlowBlock::InlineTables {
-                                height,
+                                height: super::tac::bound_height(height, &bound),
                                 advance,
                                 tables: bound,
                                 lines: lines
@@ -474,11 +675,7 @@ fn bind_table(
         }
         rows.push(FlowRowInput { cells });
     }
-    let policy = match table.page_break {
-        TablePageBreak::None => SplitPolicy::Never,
-        TablePageBreak::RowBreak => SplitPolicy::BetweenRows,
-        TablePageBreak::CellBreak => SplitPolicy::WithinCells,
-    };
+    let policy = SplitPolicy::from(table.page_break);
     let mut plan =
         TableContentPlan::from_grid_rows(resolved.tracks, resolved.width, rows, 0.0, policy)?;
     plan.header_rows = header_rows;

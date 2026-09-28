@@ -1,0 +1,72 @@
+{
+  "engine": "2020",
+  "hancom_version": "11.0.0.9136",
+  "cases": [
+    {
+      "name": "b20f0",
+      "job_id": "99f411cf-e18f-465d-a80e-fcd016adf6fd",
+      "input_sha256": "4a6f6b71b396a4283e55e41dfd6f34c3707d1deca11df05c522de9ac12b28627",
+      "pdf_sha256": "90f6f3c077d47045e1c46a24819ce4f882848a802b2d36340ce43e4c4ddd42d5"
+    },
+    {
+      "name": "b20f1",
+      "job_id": "65e68459-1dc6-407e-8b78-cc178a58ef3f",
+      "input_sha256": "72cb882351bc8e638c11276058abb20fe916a0509733e12d850d2395d635bf00",
+      "pdf_sha256": "40c844ffa57804dc5dd7b3ec1d9d37aac8d40afd72b975bca607906d1313a9d6"
+    },
+    {
+      "name": "b20f2",
+      "job_id": "a0efdc1e-ea30-4762-ac14-87559e2bc388",
+      "input_sha256": "966fe207b02e119730a0e12e2f9f44144fbdde75c072dafbd6983ce00dd3b739",
+      "pdf_sha256": "038dc3afb4e8b665e729e649af3313198a9b114c2434f0a7ed7bd7b72c52bfda"
+    },
+    {
+      "name": "b20f5",
+      "job_id": "0a2c8888-3f76-4a0d-ad5d-7182124657e8",
+      "input_sha256": "233e74a2ecbb71724666336897d92d01c0c9f14b962ed1d9194edefc3eb0b780",
+      "pdf_sha256": "2d3a384e7c2d61a687b4fba413aaf8535da7c8e1ccfa89a3770b33cf05f27ac6"
+    },
+    {
+      "name": "b20f10",
+      "job_id": "45939fb3-1d2d-4f36-9583-eb71f12a440a",
+      "input_sha256": "abb1571925c22e76e79f095db3d51c22590b83f46b3ba60bad802b17a47962fc",
+      "pdf_sha256": "20e6291214d32cbdb0ccce8133efdeb48d640ba978b1367774854b90cb52cee3"
+    },
+    {
+      "name": "b20f15",
+      "job_id": "6288c3be-ce85-4900-b930-468f8c79af6d",
+      "input_sha256": "78e9d681168d5330a2e52815a059a7c4bad9647f751d7d0bc0baf7381f31845b",
+      "pdf_sha256": "d9f3a34f2aa1da9078823160a07cd04057564a84c7a4df7692ad0c413b5882b5"
+    },
+    {
+      "name": "b10f5",
+      "job_id": "6df2dc72-35f5-4c97-8dac-9fe359ebe8cf",
+      "input_sha256": "e6892215eced5361b598a407ecb0aad31bd674557c2f41f5a714ba2472e9fe01",
+      "pdf_sha256": "1718ac4c7245889bcdb26ef38ac9b10c55d4969f1c26ff28935665336c6ace0c"
+    },
+    {
+      "name": "b20f0body",
+      "job_id": "ed0ea329-e2f1-4bfa-8d36-4d6b2ce46dd2",
+      "input_sha256": "4252690922204224aee1b8655964571a5326d4fccddd58803512bbd4d2111bc9",
+      "pdf_sha256": "31c52cf556c884921453bcda93e4b8fe191e46614d53074f64ccbfd49129ca51"
+    },
+    {
+      "name": "b15f10body",
+      "job_id": "d93bfc33-9ba8-4460-9bc4-bf4ba6fb1428",
+      "input_sha256": "f2c1402e4262c3b67faa9082971d99cb8847662f5cd8e8cec94ba8c25372e2c1",
+      "pdf_sha256": "bc376dcec95f27b0945e87b627080ce67415cf432e0ad5e1dd0840bd28838675"
+    },
+    {
+      "name": "b20f1hu",
+      "job_id": "d5213f19-a2dd-4f33-86bd-12a19d5c318a",
+      "input_sha256": "8d1896ecc091ad84e51f056f18fb5a54327b3c95cc50d30775d5248fb1210d56",
+      "pdf_sha256": "e1cea34c42b6e880178871bca65933899ff92dceca07227906aa326b954bdb54"
+    },
+    {
+      "name": "b0f0",
+      "job_id": "3e457b03-47b9-438a-a514-9ec62dc42b71",
+      "input_sha256": "79cbf2beba62cb10ae50a0f8a68c492e43003ebdd9b5186101ff8ee5b6be7a13",
+      "pdf_sha256": "1c4a8d002be52211cd2eecd972c7be1d397843672f84a9eedd3daeb90008c677"
+    }
+  ]
+}

@@ -1949,8 +1949,8 @@ impl Paragraph {
             .char_offsets
             .last()
             .zip(text_chars.last())
-            .map(|(offset, ch)| *offset + ch.len_utf16() as u32)
-            .unwrap_or_else(|| text_chars.iter().map(|ch| ch.len_utf16() as u32).sum());
+            .map(|(offset, ch)| *offset + Self::char_stream_len(*ch))
+            .unwrap_or_else(|| text_chars.iter().map(|ch| Self::char_stream_len(*ch)).sum());
         let mut raw_positions = vec![text_end; text_positions.len()];
 
         let mut group_start = 0;
@@ -1970,7 +1970,7 @@ impl Paragraph {
                     let previous_end = text_position
                         .checked_sub(1)
                         .and_then(|i| self.char_offsets.get(i).zip(text_chars.get(i)))
-                        .map_or(0, |(start, ch)| *start + ch.len_utf16() as u32);
+                        .map_or(0, |(start, ch)| *start + Self::char_stream_len(*ch));
                     // Some inputs retain a one-unit visible object marker rather
                     // than an eight-unit gap. Its own source offset is the anchor.
                     if count == 1

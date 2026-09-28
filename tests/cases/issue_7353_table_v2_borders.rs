@@ -555,6 +555,291 @@ fn direct(
 }
 
 #[test]
+fn isolated_thin_thick_edges_use_table_pens_and_keep_cell_geometry() {
+    // Normal Hancom borders-2020.pdf: 0.7mm pens 4/9 at 600dpi,
+    // centres -6/+4 from the cell edge. Thin is above/left on BOTH sides.
+    for dpi in [96., 192.] {
+        for side in 0..4 {
+            let mut d = doc(grid(1));
+            for edge in &mut d.doc_info.border_fills[0].borders {
+                edge.line_type = BorderLineType::None;
+            }
+            let plain = direct(&d, dpi).unwrap().next_page().unwrap().unwrap();
+            let plain = serde_json::to_value(&plain.tree).unwrap();
+            d.doc_info.border_fills[0].borders[side] = BorderLine {
+                line_type: BorderLineType::ThinThickDouble,
+                width: 9,
+                color: 0x332211,
+            };
+            let page = direct(&d, dpi).unwrap().next_page().unwrap().unwrap();
+            let tree = serde_json::to_value(&page.tree).unwrap();
+            let cells = collect(&tree["root"], "TableCell");
+            assert_eq!(
+                cells[0]["bbox"],
+                collect(&plain["root"], "TableCell")[0]["bbox"]
+            );
+            assert_eq!(
+                collect(&tree["root"], "TextLine"),
+                collect(&plain["root"], "TextLine")
+            );
+            let b = &cells[0]["bbox"];
+            let x = b["x"].as_f64().unwrap();
+            let y = b["y"].as_f64().unwrap();
+            let right = x + b["width"].as_f64().unwrap();
+            let bottom = y + b["height"].as_f64().unwrap();
+            let lines = collect(&tree["root"], "Line");
+            assert_eq!(lines.len(), 2);
+            for (line, (pen, offset)) in lines.iter().zip([(4., -6.), (9., 4.)]) {
+                near(
+                    line["node_type"]["Line"]["style"]["width"]
+                        .as_f64()
+                        .unwrap(),
+                    pen * dpi / 600.,
+                );
+                let at = [x, right, y, bottom][side] + offset * dpi / 600.;
+                let expected = if side < 2 {
+                    [at, y, at, bottom]
+                } else {
+                    [x, at, right, at]
+                };
+                for (actual, expected) in coords(line).into_iter().zip(expected) {
+                    near(actual, expected);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn thin_thick_catalog_matches_independent_pdf_strokes() {
+    // catalog-2020.pdf trace, widths/offsets in 600dpi units. The input was
+    // normally saved by Hancom; these are not values queried from our helper.
+    let catalog = [
+        (0., 2., 0.),
+        (1., 3., -2.),
+        (1., 3., -2.),
+        (1., 3., -2.),
+        (1., 4., -3.),
+        (1., 5., -3.),
+        (2., 5., -3.),
+        (3., 6., -5.),
+        (3., 8., -6.),
+        (4., 9., -6.),
+        (6., 12., -9.),
+        (8., 19., -13.),
+        (11., 25., -18.),
+        (17., 37., -27.),
+        (23., 49., -36.),
+        (29., 60., -45.),
+    ];
+    for dpi in [96., 192.] {
+        for (width, (thin, thick, offset)) in catalog.into_iter().enumerate() {
+            let mut d = doc(grid(1));
+            for e in &mut d.doc_info.border_fills[0].borders {
+                e.line_type = BorderLineType::None;
+            }
+            d.doc_info.border_fills[0].borders[3] = BorderLine {
+                line_type: BorderLineType::ThinThickDouble,
+                width: width as u8,
+                color: 0,
+            };
+            let p = direct(&d, dpi).unwrap().next_page().unwrap().unwrap();
+            let tree = serde_json::to_value(&p.tree).unwrap();
+            let b = &collect(&tree["root"], "TableCell")[0]["bbox"];
+            let bottom = b["y"].as_f64().unwrap() + b["height"].as_f64().unwrap();
+            let lines = collect(&tree["root"], "Line");
+            assert_eq!(lines.len(), if width == 0 { 1 } else { 2 });
+            let expected = [(thin, offset), (thick, thin)]
+                .into_iter()
+                .filter(|(w, _)| *w > 0.);
+            for (line, (pen, offset)) in lines.iter().zip(expected) {
+                near(
+                    line["node_type"]["Line"]["style"]["width"]
+                        .as_f64()
+                        .unwrap(),
+                    pen * dpi / 600.,
+                );
+                near(coords(line)[1], bottom + offset * dpi / 600.);
+                near(
+                    line["bbox"]["y"].as_f64().unwrap(),
+                    bottom + (offset - pen / 2.) * dpi / 600.,
+                );
+                near(line["bbox"]["height"].as_f64().unwrap(), pen * dpi / 600.);
+            }
+        }
+    }
+}
+
+#[test]
+fn thin_thick_fragment_edges_preserve_headers_nested_content_and_following_text() {
+    for nested in [false, true] {
+        let t = if nested {
+            let mut parent = grid(1);
+            parent.repeat_header = false;
+            parent.page_break = TablePageBreak::CellBreak;
+            parent.cells[0].is_header = false;
+            parent.cells[0].border_fill_id = 0;
+            parent.cells[0].paragraphs = vec![host("host", grid(3)), para("after")];
+            parent
+        } else {
+            grid(3)
+        };
+        let mut d = doc(t);
+        for e in &mut d.doc_info.border_fills[0].borders {
+            e.line_type = BorderLineType::None;
+        }
+        d.doc_info.border_fills[0].borders[3].line_type = BorderLineType::Solid;
+        let baseline = pages("thin-thick-solid-control", &d);
+        d.doc_info.border_fills[0].borders[3].line_type = BorderLineType::ThinThickDouble;
+        let actual = pages("thin-thick-fragments", &d);
+        assert!(actual.len() > 1, "exercise actual continuation");
+        assert_eq!(actual.len(), baseline.len());
+        for (a, b) in actual.iter().zip(&baseline) {
+            for kind in ["Table", "TableCell", "TextLine", "TextRun"] {
+                let boxes = |p: &Value| {
+                    collect(root(p), kind)
+                        .iter()
+                        .map(|n| n["bbox"].clone())
+                        .collect::<Vec<_>>()
+                };
+                assert_eq!(boxes(a), boxes(b), "{kind}");
+            }
+            let text = |p: &Value| {
+                collect(root(p), "TextRun")
+                    .iter()
+                    .map(|n| n["node_type"]["TextRun"]["text"].clone())
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(text(a), text(b));
+            let solid = collect(root(b), "Line");
+            let strokes = collect(root(a), "Line");
+            assert_eq!(strokes.len(), solid.len() * 2);
+            for (pair, s) in strokes.chunks_exact(2).zip(solid) {
+                let c = coords(s);
+                for (line, (width, offset)) in pair.iter().zip([(3., -5.), (6., 3.)]) {
+                    let actual = coords(line);
+                    near(actual[0], c[0]);
+                    near(actual[2], c[2]);
+                    near(actual[1], c[1] + offset * 96. / 600.);
+                    near(actual[3], c[3] + offset * 96. / 600.);
+                    near(
+                        line["node_type"]["Line"]["style"]["width"]
+                            .as_f64()
+                            .unwrap(),
+                        width * 96. / 600.,
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn thin_thick_junctions_and_zones_remain_explicit_and_retryable() {
+    for crossing in [false, true] {
+        let mut d = doc(grid(if crossing { 2 } else { 1 }));
+        let e = &mut d.doc_info.border_fills[0].borders;
+        for line in &mut *e {
+            line.line_type = BorderLineType::None;
+        }
+        e[3].line_type = BorderLineType::ThinThickDouble;
+        e[0].line_type = BorderLineType::Solid;
+        let mut s = direct(&d, 96.).unwrap();
+        for _ in 0..2 {
+            assert!(s
+                .next_page()
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("thin-thick border junction"));
+            assert_eq!(s.emitted_pages(), 0);
+        }
+    }
+    let mut t = grid(1);
+    t.zones.push(rhwp::model::table::TableZone {
+        start_row: 0,
+        end_row: 0,
+        start_col: 0,
+        end_col: 0,
+        border_fill_id: 1,
+    });
+    let mut d = doc(t);
+    for e in &mut d.doc_info.border_fills[0].borders {
+        e.line_type = BorderLineType::None;
+    }
+    d.doc_info.border_fills[0].borders[3].line_type = BorderLineType::ThinThickDouble;
+    assert!(direct(&d, 96.)
+        .err()
+        .unwrap()
+        .to_string()
+        .contains("double zone perimeter"));
+}
+
+#[test]
+fn normal_saved_thin_thick_borders_preserve_four_directions_and_following_content() {
+    let data = include_bytes!("../fixtures/issue7353_thin_thick_review/borders-saved.hwp");
+    let parsed = rhwp::parse_document(data).unwrap();
+    let hwpx = rhwp::serializer::serialize_hwpx(&parsed).unwrap();
+    for input in [data.as_slice(), hwpx.as_slice()] {
+        let mut s = rhwp::renderer::table_v2::DocumentV2Session::from_bytes(
+            input,
+            r#"{"dpi":96,"max_pages":10,"cell_end_policy":"omit_final_paragraph_gap"}"#,
+        )
+        .unwrap();
+        let p: Value = serde_json::from_str(&s.next_page_json().unwrap().unwrap()).unwrap();
+        let cells = collect(root(&p), "TableCell");
+        assert_eq!(cells.len(), 9);
+        // Normal PDF: parent + eight children, five bottom widths then
+        // top/left/right width9. No reciprocal flip on bottom/right edges.
+        let specs = [
+            (3, vec![(2., 0.)]),
+            (3, vec![(1., -2.), (3., 1.)]),
+            (3, vec![(3., -5.), (6., 3.)]),
+            (3, vec![(4., -6.), (9., 4.)]),
+            (3, vec![(8., -13.), (19., 8.)]),
+            (2, vec![(4., -6.), (9., 4.)]),
+            (0, vec![(4., -6.), (9., 4.)]),
+            (1, vec![(4., -6.), (9., 4.)]),
+        ];
+        let tables = collect(root(&p), "Table");
+        for ((cell, table), (side, pens)) in cells[1..].iter().zip(&tables[1..]).zip(specs) {
+            let b = &cell["bbox"];
+            let x = b["x"].as_f64().unwrap();
+            let y = b["y"].as_f64().unwrap();
+            let w = b["width"].as_f64().unwrap();
+            let h = b["height"].as_f64().unwrap();
+            let strokes = collect(table, "Line");
+            assert_eq!(strokes.len(), pens.len());
+            for (line, (width, offset)) in strokes.iter().zip(pens) {
+                let c = coords(line);
+                near(
+                    line["node_type"]["Line"]["style"]["width"]
+                        .as_f64()
+                        .unwrap(),
+                    width * 96. / 600.,
+                );
+                let at = [x, x + w, y, y + h][side] + offset * 96. / 600.;
+                near(if side < 2 { c[0] } else { c[1] }, at);
+            }
+        }
+        let text = collect(root(&p), "TextRun");
+        assert!(text
+            .iter()
+            .any(|n| n["node_type"]["TextRun"]["text"] == "CELL AFTER"));
+        let after = text
+            .iter()
+            .find(|n| n["node_type"]["TextRun"]["text"] == "AFTER PARENT TABLE")
+            .unwrap();
+        let parent = &cells[0]["bbox"];
+        assert!(
+            after["bbox"]["y"].as_f64().unwrap()
+                >= parent["y"].as_f64().unwrap() + parent["height"].as_f64().unwrap()
+        );
+        assert!(s.next_page_json().unwrap().is_none());
+    }
+}
+
+#[test]
 fn all_sixteen_widths_follow_independent_hancom_600dpi_grid_at_two_dpis() {
     // samples/issue6913/README.md: independent engine PDF stroke measurements.
     let grid_units = [
@@ -771,6 +1056,171 @@ fn double_repeated_header_keeps_the_same_fragments_as_solid() {
 }
 
 #[test]
+fn normal_saved_mixed_inner_junctions_stop_at_solid_ink_and_preserve_content() {
+    // Independently normal-saved Hancom references: 0.5mm double pens are
+    // 0.36pt each with 1.08pt centre distance. Solid 0.12/0.5mm = 0.36/1.44pt.
+    // Their T/cross junctions have uninterrupted solids and no exposed double
+    // ink inside that solid band. See the fixture README for vector evidence.
+    for (name, horizontal, solid_width) in [
+        ("vertical-inner", false, 0.48),
+        ("horizontal-inner", true, 1.92),
+    ] {
+        let data = std::fs::read(format!(
+            "{}/tests/fixtures/issue7353/mixed-borders/{name}-saved.hwp",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap();
+        let mut s = rhwp::renderer::table_v2::DocumentV2Session::from_bytes(
+            &data,
+            r#"{"dpi":96,"max_pages":10,"cell_end_policy":"omit_final_paragraph_gap"}"#,
+        )
+        .unwrap();
+        let p: Value = serde_json::from_str(&s.next_page_json().unwrap().unwrap()).unwrap();
+        assert!(s.next_page_json().unwrap().is_none());
+        let tables = collect(root(&p), "Table");
+        assert_eq!(tables.len(), 2);
+        let child = tables[1];
+        let b = &child["bbox"];
+        near(b["width"].as_f64().unwrap(), 30000. / 75.);
+        near(b["height"].as_f64().unwrap(), 8000. / 75.);
+        let x = b["x"].as_f64().unwrap();
+        let y = b["y"].as_f64().unwrap();
+        // Physical frame from the independent PDF, not a pre-change V2 golden.
+        assert!((x - 68.123 * 4. / 3.).abs() < 0.5);
+        assert!((y - (841. - 765.962) * 4. / 3.).abs() < 0.5);
+        let (along, across, step, length) = if horizontal {
+            (x, y + 4000. / 75., 15000. / 75., 8000. / 75.)
+        } else {
+            (y, x + 15000. / 75., 4000. / 75., 30000. / 75.)
+        };
+        let lines = collect(child, "Line");
+        assert_eq!(lines.len(), 9, "four pens and five distinct solid edges");
+        let double: Vec<_> = lines
+            .iter()
+            .filter(|n| {
+                let c = coords(n);
+                if horizontal {
+                    c[1] == c[3] && (c[1] - across).abs() < 1.
+                } else {
+                    c[0] == c[2] && (c[0] - across).abs() < 1.
+                }
+            })
+            .collect();
+        assert_eq!(double.len(), 4);
+        for half in 0..2 {
+            for offset in [-0.72, 0.72] {
+                let expected = [
+                    along + f64::from(half) * step + solid_width / 2.,
+                    along + f64::from(half + 1) * step - solid_width / 2.,
+                ];
+                assert!(double.iter().any(|n| {
+                    let c = coords(n);
+                    let (a, b, at) = if horizontal {
+                        (c[0], c[2], c[1])
+                    } else {
+                        (c[1], c[3], c[0])
+                    };
+                    (a - expected[0]).abs() < 1e-9
+                        && (b - expected[1]).abs() < 1e-9
+                        && (at - across - offset).abs() < 1e-9
+                        && (n["node_type"]["Line"]["style"]["width"].as_f64().unwrap() - 0.48).abs()
+                            < 1e-9
+                }));
+            }
+        }
+        // Each intersecting solid stays whole across the double's white gap.
+        for i in 0..3 {
+            assert!(lines.iter().any(|n| {
+                let c = coords(n);
+                let (a, b, at) = if horizontal {
+                    (c[1], c[3], c[0])
+                } else {
+                    (c[0], c[2], c[1])
+                };
+                (at - along - f64::from(i) * step).abs() < 1e-9
+                    && (a - (across - length / 2.)).abs() < 1e-9
+                    && (b - (across + length / 2.)).abs() < 1e-9
+            }));
+        }
+        let text = collect(root(&p), "TextRun");
+        for label in ["R0 C0", "R0 C1", "R1 C0", "R1 C1", "AFTER CELL"] {
+            assert_eq!(
+                text.iter()
+                    .filter(|n| n["node_type"]["TextRun"]["text"]
+                        .as_str()
+                        .unwrap()
+                        .contains(label))
+                    .count(),
+                1
+            );
+        }
+        let last = collect(root(&p), "TextLine").pop().unwrap();
+        assert!(
+            last["bbox"]["y"].as_f64().unwrap()
+                > tables[0]["bbox"]["y"].as_f64().unwrap()
+                    + tables[0]["bbox"]["height"].as_f64().unwrap()
+        );
+    }
+}
+
+#[test]
+fn mixed_inner_repeated_header_keeps_fragments_and_color_conflicts_reject() {
+    let mut d = doc(grid(3));
+    let control = pages("mixed-header-control", &d);
+    for side in [1, 0] {
+        let mut b = border();
+        b.borders[side].line_type = BorderLineType::Double;
+        d.doc_info.border_fills.push(b);
+    }
+    let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+        panic!()
+    };
+    for cell in &mut t.cells {
+        if cell.row > 0 {
+            cell.border_fill_id = 2 + cell.col;
+        }
+    }
+    let mixed = pages("mixed-header", &d);
+    assert_eq!(mixed.len(), control.len());
+    assert!(mixed.len() > 1);
+    for (a, b) in control.iter().zip(&mixed) {
+        for kind in ["Table", "TableCell", "TextLine", "TextRun"] {
+            let geometry = |p: &Value| {
+                collect(root(p), kind)
+                    .into_iter()
+                    .map(|n| {
+                        let mut node = n["node_type"].clone();
+                        if let Some(cell) = node.get_mut("TableCell") {
+                            cell.as_object_mut().unwrap().remove("border_fill_id");
+                        }
+                        (n["bbox"].clone(), node)
+                    })
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(geometry(a), geometry(b));
+        }
+    }
+    // Both incident solids agree with each other but not with the double's
+    // color: this must NOT enter the new same-color internal-junction rule.
+    for b in &mut d.doc_info.border_fills {
+        for e in &mut b.borders {
+            if e.line_type == BorderLineType::Solid {
+                e.color = 0x998877;
+            }
+        }
+    }
+    let mut s = direct(&d, 96.).unwrap();
+    for _ in 0..2 {
+        assert!(s
+            .next_page()
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("mixed double-border junction"));
+    }
+}
+
+#[test]
 fn double_mixed_junctions_and_zone_perimeters_remain_explicit() {
     for variant in 0..3 {
         let mut t = grid(1);
@@ -934,7 +1384,7 @@ fn unsupported_complex_edges_are_explicit_even_when_geometry_fits() {
     t.page_break = TablePageBreak::RowBreak;
     for edge in [
         BorderLine {
-            line_type: BorderLineType::Dash,
+            line_type: BorderLineType::DashDot,
             width: 7,
             color: 0,
         },
@@ -966,6 +1416,188 @@ fn unsupported_complex_edges_are_explicit_even_when_geometry_fits() {
             .unwrap()
             .to_string()
             .contains("Unsupported"));
+    }
+}
+
+#[test]
+fn dash_fragment_edges_preserve_headers_nested_content_and_geometry() {
+    patterned_fragment_edges_preserve_geometry(BorderLineType::Dash, "dash-fragments", 3.2);
+}
+
+#[test]
+fn dot_fragment_edges_preserve_headers_nested_content_and_geometry() {
+    // Width index1: four printer units at600dpi, independently observed in
+    // issue7353_inline_bounds_review/dot-2020.pdf (0.64px at96dpi).
+    patterned_fragment_edges_preserve_geometry(BorderLineType::Dot, "dot-fragments", 0.64);
+}
+
+fn patterned_fragment_edges_preserve_geometry(kind: BorderLineType, label: &str, max_len: f64) {
+    for nested in [false, true] {
+        let t = if nested {
+            let mut parent = grid(1);
+            parent.repeat_header = false;
+            parent.page_break = TablePageBreak::CellBreak;
+            parent.cells[0].is_header = false;
+            parent.cells[0].border_fill_id = 0;
+            parent.cells[0].paragraphs = vec![host("host", grid(3)), para("after")];
+            parent
+        } else {
+            grid(3)
+        };
+        let mut d = doc(t);
+        let baseline = pages(&format!("{label}-solid-control"), &d);
+        for e in &mut d.doc_info.border_fills[0].borders {
+            e.line_type = kind;
+            e.width = 1;
+        }
+        let actual = pages(label, &d);
+        assert_eq!(actual.len(), baseline.len());
+        for (a, b) in actual.iter().zip(&baseline) {
+            for kind in ["Table", "TableCell", "TextLine", "TextRun"] {
+                let boxes = |p: &Value| {
+                    collect(root(p), kind)
+                        .iter()
+                        .map(|n| n["bbox"].clone())
+                        .collect::<Vec<_>>()
+                };
+                assert_eq!(boxes(a), boxes(b), "{kind}");
+            }
+            let text = |p: &Value| {
+                collect(root(p), "TextRun")
+                    .iter()
+                    .map(|n| n["node_type"]["TextRun"]["text"].clone())
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(text(a), text(b));
+            let strokes = collect(root(a), "Line");
+            let mut keys = std::collections::BTreeSet::new();
+            for n in strokes {
+                let c = coords(n);
+                assert!(keys.insert(c.map(f64::to_bits)), "duplicate stroke");
+                let len = (c[2] - c[0]).abs() + (c[3] - c[1]).abs();
+                assert!(len > 0. && len <= max_len + 1e-9);
+                near(
+                    n["node_type"]["Line"]["style"]["width"].as_f64().unwrap(),
+                    0.48,
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn dash_shared_conflicts_and_zone_admission_remain_explicit() {
+    for (other_type, other_width, other_color) in [
+        (BorderLineType::Dash, 7, 0x332211),
+        (BorderLineType::Solid, 1, 0x332211),
+        (BorderLineType::Dash, 1, 0),
+    ] {
+        let mut d = doc(one_row());
+        for e in &mut d.doc_info.border_fills[0].borders {
+            e.line_type = BorderLineType::Dash;
+            e.width = 1;
+        }
+        let mut other = d.doc_info.border_fills[0].clone();
+        other.borders[0] = BorderLine {
+            line_type: other_type,
+            width: other_width,
+            color: other_color,
+        };
+        d.doc_info.border_fills.push(other);
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            unreachable!()
+        };
+        t.cells[1].border_fill_id = 2;
+        let mut s = direct(&d, 96.).unwrap();
+        let before = s.emitted_pages();
+        assert!(s.next_page().is_err());
+        assert_eq!(s.emitted_pages(), before);
+    }
+    let mut d = doc(grid(2));
+    for e in &mut d.doc_info.border_fills[0].borders {
+        e.line_type = BorderLineType::Dash;
+    }
+    let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+        unreachable!()
+    };
+    t.zones.push(rhwp::model::table::TableZone {
+        start_row: 0,
+        end_row: 1,
+        start_col: 0,
+        end_col: 1,
+        border_fill_id: 1,
+    });
+    assert!(direct(&d, 96.)
+        .err()
+        .unwrap()
+        .to_string()
+        .contains("dash zone"));
+}
+
+#[test]
+fn all_dash_pens_use_independent_catalog_lengths_at_two_dpis() {
+    // Independent PDF pen-catalog-2020.pdf, horizontal+vertical trace, in
+    // 600dpi pen units; these are not values read back from the implementation.
+    let catalog = [
+        (17., 9.),
+        (20., 12.),
+        (26., 14.),
+        (34., 21.),
+        (43., 27.),
+        (52., 29.),
+        (69., 42.),
+        (86., 51.),
+        (104., 62.),
+        (121., 72.),
+        (173., 105.),
+        (259., 156.),
+        (347., 206.),
+        (520., 311.),
+        (693., 417.),
+        (866., 519.),
+    ];
+    for dpi in [96., 192.] {
+        for (width, (on, off)) in catalog.into_iter().enumerate() {
+            let mut t = grid(1);
+            t.repeat_header = false;
+            t.cells[0].is_header = false;
+            let mut d = doc(t);
+            for e in &mut d.doc_info.border_fills[0].borders {
+                e.line_type = BorderLineType::Dash;
+                e.width = width as u8;
+            }
+            let page = direct(&d, dpi).unwrap().next_page().unwrap().unwrap();
+            let tree = serde_json::to_value(&page.tree).unwrap();
+            let cell = collect(&tree["root"], "TableCell")[0];
+            let x = cell["bbox"]["x"].as_f64().unwrap();
+            let y = cell["bbox"]["y"].as_f64().unwrap();
+            let w = cell["bbox"]["width"].as_f64().unwrap();
+            let h = cell["bbox"]["height"].as_f64().unwrap();
+            let lines = collect(&tree["root"], "Line");
+            for horizontal in [true, false] {
+                let segments: Vec<_> = lines
+                    .iter()
+                    .map(|n| coords(n))
+                    .filter(|c| {
+                        if horizontal {
+                            c[1] == y && c[3] == y
+                        } else {
+                            c[0] == x && c[2] == x
+                        }
+                    })
+                    .collect();
+                let length = if horizontal { w } else { h };
+                let start = if horizontal { x } else { y };
+                let step = (on + off) * dpi / 600.;
+                assert_eq!(segments.len(), (length / step).ceil() as usize);
+                for (i, c) in segments.iter().enumerate() {
+                    let a = if horizontal { c[0] } else { c[1] };
+                    let b = if horizontal { c[2] } else { c[3] };
+                    near(a, start + i as f64 * step);
+                    near(b, (a + on * dpi / 600.).min(start + length));
+                }
+            }
+        }
     }
 }
 

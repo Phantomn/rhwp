@@ -1,10 +1,12 @@
-//! Solid/double edges of accepted table/cell fragments, including cell-internal cuts.
+//! Solid/double/dash edges of accepted table/cell fragments, including internal cuts.
 //! Each physical fragment uses its source cell's four edges (None stays absent).
 //! Explicit cell borderFill owns its edges, including None, over table outlines.
 //! Qualified solid zone perimeters override cell edges.
 use std::collections::{BTreeMap, BTreeSet};
 
+mod dash;
 mod double;
+mod thin_thick;
 
 use super::{GeometryError, TablePlacement};
 use crate::{
@@ -85,7 +87,7 @@ impl CellBorders {
         let visible_rows: BTreeSet<_> = placement
             .cells
             .iter()
-            .flat_map(|cell| cell.row..cell.row + cell.row_span)
+            .flat_map(|cell| cell.visible_rows.clone())
             .collect();
         for (slot, row) in visible_rows.into_iter().enumerate() {
             slots.insert(row, slot);
@@ -99,17 +101,17 @@ impl CellBorders {
                     "zero-height row in bordered table",
                 ));
             }
-            let slot = slots[&cell.row];
+            let slot = slots[&cell.visible_rows.start];
             xs.insert(cell.column, cell.bounds.x);
             ys.insert(slot, cell.bounds.y);
         }
         for cell in &placement.cells {
-            let slot = slots[&cell.row];
+            let slot = slots[&cell.visible_rows.start];
             // A shared boundary uses its observed start, not an independently
             // rounded prior start+width. Unobserved interior columns stay absent.
             xs.entry(cell.column + cell.column_span)
                 .or_insert(cell.bounds.x + cell.bounds.width);
-            ys.entry(slot + cell.row_span)
+            ys.entry(slot + cell.visible_rows.len())
                 .or_insert(cell.bounds.y + cell.bounds.height);
         }
         // (horizontal, boundary index) -> intervals in the other topology axis.
@@ -118,8 +120,8 @@ impl CellBorders {
             let Some(edges) = self.cells.get(&(cell.row, cell.column)) else {
                 continue;
             };
-            let row = slots[&cell.row];
-            let row_end = row + cell.row_span;
+            let row = slots[&cell.visible_rows.start];
+            let row_end = row + cell.visible_rows.len();
             let end = cell.column + cell.column_span;
             for (horizontal, boundary, start, stop, style) in [
                 (false, cell.column, row, row_end, edges[0]),
@@ -158,12 +160,12 @@ impl CellBorders {
                 if self.cells.contains_key(&(cell.row, cell.column)) {
                     continue;
                 }
-                let row = slots[&cell.row];
+                let row = slots[&cell.visible_rows.start];
                 let on_outline = [
                     cell.column == 0,
                     cell.column + cell.column_span == last_column,
                     row == 0,
-                    row + cell.row_span == last_row,
+                    row + cell.visible_rows.len() == last_row,
                 ];
                 if on_outline
                     .iter()
@@ -240,9 +242,13 @@ impl CellBorders {
         }
         let mut nodes = Vec::new();
         double::append(&edges, &xs, &ys, self.dpi, &mut nodes)?;
+        thin_thick::append(&edges, &xs, &ys, self.dpi, &mut nodes)?;
         for ((horizontal, boundary), spans) in edges {
             for span in spans {
-                if span.style.line_type == BorderLineType::Double {
+                if matches!(
+                    span.style.line_type,
+                    BorderLineType::Double | BorderLineType::ThinThickDouble
+                ) {
                     continue;
                 }
                 let (x1, y1, x2, y2) = if horizontal {
@@ -250,6 +256,13 @@ impl CellBorders {
                 } else {
                     (xs[&boundary], ys[&span.start], xs[&boundary], ys[&span.end])
                 };
+                if matches!(
+                    span.style.line_type,
+                    BorderLineType::Dash | BorderLineType::Dot
+                ) {
+                    dash::append([x1, y1, x2, y2], span.style, self.dpi, &mut nodes)?;
+                    continue;
+                }
                 let line = LineNode::new(
                     x1,
                     y1,
@@ -289,7 +302,11 @@ pub(super) fn resolve_edges(
     for edge in &style.borders {
         match edge.line_type {
             BorderLineType::None => {}
-            BorderLineType::Solid | BorderLineType::Double
+            BorderLineType::Solid
+            | BorderLineType::Double
+            | BorderLineType::Dash
+            | BorderLineType::Dot
+            | BorderLineType::ThinThickDouble
                 if usize::from(edge.width) < BORDER_WIDTHS.len() && edge.color >> 24 == 0 =>
             {
                 visible = true

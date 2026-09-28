@@ -34,7 +34,7 @@ fn table(rows: &[&[&str]], headers: usize) -> Table {
         row_count: rows.len() as u16,
         col_count: 1,
         repeat_header: headers > 0,
-        page_break: TablePageBreak::CellBreak,
+        page_break: TablePageBreak::RowBreak,
         common: CommonObjAttr {
             text_wrap: TextWrap::TopAndBottom,
             vert_rel_to: VertRelTo::Para,
@@ -206,7 +206,7 @@ fn header_only_fit_is_nonfit_and_retry_does_not_consume_body() {
 #[test]
 fn multirow_prefix_is_atomic_and_between_rows_budget_includes_it() {
     let mut t = table(&[&["H1"], &["H2"], &["A"], &["B"]], 2);
-    t.page_break = TablePageBreak::RowBreak;
+    t.page_break = TablePageBreak::CellBreak;
     let d = doc(t);
     let mut s = session(&d, 53.0).unwrap();
     assert!(matches!(

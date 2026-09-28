@@ -2,7 +2,7 @@
 //! DocumentCore engine switch. No Legacy measurements, caches or fallback.
 use crate::{
     model::{control::Control, document::Document},
-    renderer::{render_tree::PageRenderTree, style_resolver::resolve_styles_for_document},
+    renderer::render_tree::PageRenderTree,
 };
 
 use super::{
@@ -197,7 +197,7 @@ impl TablePreviewSession {
             return Err(TablePreviewError::InvalidSelection(selection));
         };
         super::decoration::validate_source(table, &document.doc_info)?;
-        let styles = resolve_styles_for_document(document, dpi);
+        let styles = super::source_units::resolve(document, dpi)?;
         let prepared = PreparedTextTable::prepare_with_end_policy(
             table,
             &styles,
@@ -235,7 +235,10 @@ impl TablePreviewSession {
             let page_index =
                 u32::try_from(index).map_err(|_| TablePreviewError::PageIndexOverflow)?;
             let area = self.pages.area(index);
-            match self.cursor.fit(area)? {
+            match self
+                .cursor
+                .fit_with_page_height(area, Some(self.pages.body.height))?
+            {
                 TextFragmentFit::Placed(fragment) => {
                     let mut tree =
                         PageRenderTree::new(page_index, self.pages.width, self.pages.height);

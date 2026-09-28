@@ -32,7 +32,7 @@ fn table() -> Table {
         row_count: 3,
         col_count: 2,
         repeat_header: true,
-        page_break: TablePageBreak::CellBreak,
+        page_break: TablePageBreak::RowBreak,
         common: CommonObjAttr {
             text_wrap: TextWrap::TopAndBottom,
             horz_rel_to: HorzRelTo::Para,
@@ -233,6 +233,173 @@ fn picture_document(alignment: rhwp::model::style::Alignment, separate: bool) ->
 }
 
 #[test]
+fn initial_cell_column_preserves_picture_slots_rows_and_following_flow() {
+    use rhwp::model::{page::ColumnDef, style::Alignment};
+    for separate in [false, true] {
+        let mut d = picture_document(Alignment::Center, separate);
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            panic!()
+        };
+        t.cells[0].paragraphs.remove(0); // The picture starts the local story.
+        let bytes = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+        let config = options(&bytes);
+        let expected = drain(&mut open(&bytes, &config));
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            panic!()
+        };
+        let p = &mut t.cells[0].paragraphs[0];
+        p.controls.insert(
+            0,
+            Control::ColumnDef(ColumnDef {
+                column_count: 1,
+                same_width: true,
+                ..Default::default()
+            }),
+        );
+        p.char_count += 8;
+        for seg in p.line_segs.iter_mut().skip(1) {
+            seg.text_start += 8;
+        }
+        let bytes = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+        let actual = drain(&mut open(&bytes, &config));
+        // An initial one-column declaration does not add geometry or remove
+        // either object. The second row remains owned by its shifted slot.
+        assert_eq!(actual, expected);
+        let images: Vec<_> = actual.iter().flat_map(|p| collect(p, "Image")).collect();
+        assert_eq!(images.len(), 2);
+        for image in images {
+            assert_eq!(image["bbox"]["width"], 40.0); // 3000 HU at 96 dpi
+            assert_eq!(image["bbox"]["height"], 24.0); // 1800 HU at 96 dpi
+        }
+        assert_eq!(
+            actual
+                .iter()
+                .flat_map(labels)
+                .filter(|s| *s == "after")
+                .count(),
+            1
+        );
+        // Multi-column stories still require real column flow; a picture is
+        // not permission to bypass the upstream structural validation.
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            panic!()
+        };
+        let Control::ColumnDef(cd) = &mut t.cells[0].paragraphs[0].controls[0] else {
+            panic!()
+        };
+        cd.column_count = 2;
+        let bytes = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+        let err = TablePreviewExportSession::from_bytes(&bytes, &config.to_string())
+            .err()
+            .unwrap();
+        assert!(format!("{err:?}").contains("multi-lane cell column definition"));
+    }
+}
+
+#[test]
+fn hancom_saved_cell_column_picture_keeps_geometry_and_ancestor_flow() {
+    use rhwp::renderer::table_v2::DocumentV2Session;
+    let saved = include_bytes!("../fixtures/issue7353_column_picture_review/picture-saved.hwp");
+    let parsed = rhwp::parse_document(saved).unwrap();
+    let parent = parsed.sections[0].paragraphs[0]
+        .controls
+        .iter()
+        .find_map(|c| {
+            if let Control::Table(t) = c {
+                Some(t)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let child = parent.cells[0].paragraphs[1]
+        .controls
+        .iter()
+        .find_map(|c| {
+            if let Control::Table(t) = c {
+                Some(t)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let carrier = &child.cells[0].paragraphs[0];
+    assert!(matches!(
+        carrier.controls.as_slice(),
+        [Control::ColumnDef(_), Control::Picture(_)]
+    ));
+    assert_eq!(carrier.char_count, 17);
+    assert_eq!(carrier.line_segs[0].line_height, 7087);
+    let hwpx = rhwp::serializer::hwpx::serialize_hwpx(&parsed).unwrap();
+    for data in [saved.as_slice(), hwpx.as_slice()] {
+        for dpi in [96.0, 144.0] {
+            let scale = dpi / 7200.0;
+            let near = |a: f64, b: f64| assert!((a - b).abs() < 1e-7, "{a} != {b}");
+            let mut s = DocumentV2Session::from_bytes(
+                data,
+                &json!({
+                    "dpi":dpi,"max_pages":10,"cell_end_policy":"omit_final_paragraph_gap"
+                })
+                .to_string(),
+            )
+            .unwrap();
+            let page: Value = serde_json::from_str(&s.next_page_json().unwrap().unwrap()).unwrap();
+            assert!(s.next_page_json().unwrap().is_none());
+            assert!(s.next_page_json().unwrap().is_none());
+            let tables = collect(&page, "Table");
+            assert_eq!(tables.len(), 2);
+            // Independent source rectangles and saved carrier: parent8787,
+            // inset283 + preceding1760; the column slot has no visible width.
+            for (table, expected) in tables.iter().zip([
+                [3969.0, 8787.0, 32000.0, 24000.0],
+                [7968.0, 10830.0, 24000.0, 10000.0],
+            ]) {
+                for (key, hu) in ["x", "y", "width", "height"].into_iter().zip(expected) {
+                    near(table["bbox"][key].as_f64().unwrap(), hu * scale);
+                }
+            }
+            let images = collect(&page, "Image");
+            assert_eq!(images.len(), 1);
+            let image = images[0];
+            // 23432HU inner lane, centered7087HU object, at child top +283HU.
+            for (key, hu) in [
+                ("x", 7968.0 + 283.0 + (23432.0 - 7087.0) / 2.0),
+                ("y", 11113.0),
+                ("width", 7087.0),
+                ("height", 7087.0),
+            ] {
+                near(image["bbox"][key].as_f64().unwrap(), hu * scale);
+            }
+            // Hancom PDF's image stripes have union164.076/111.060/70.712/
+            // 70.762pt; printer transform (.119851,.119935) is independent.
+            for (key, factor, pt) in [
+                ("x", 0.119851 / 0.12, 164.076),
+                ("y", 0.119935 / 0.12, 111.060),
+                ("width", 0.119851 / 0.12, 70.712),
+                ("height", 0.119935 / 0.12, 70.762),
+            ] {
+                assert!(
+                    (image["bbox"][key].as_f64().unwrap() * 72.0 / dpi * factor - pt).abs() < 0.25
+                );
+            }
+            for (text, hu) in [
+                ("CELL BEFORE", 9070.0),
+                ("CELL AFTER", 21490.0),
+                ("AFTER PARENT TABLE", 33354.0),
+            ] {
+                let runs: Vec<_> = collect(&page, "TextRun")
+                    .into_iter()
+                    .filter(|n| n["node_type"]["TextRun"]["text"] == text)
+                    .collect();
+                assert_eq!(runs.len(), 1);
+                near(runs[0]["bbox"]["y"].as_f64().unwrap(), hu * scale);
+            }
+            assert!(page["svg"].as_str().unwrap().contains("data:image/"));
+        }
+    }
+}
+
+#[test]
 fn unpainted_picture_carrier_preserves_images_cuts_and_following_text() {
     for separate in [false, true] {
         let mut d = picture_document(rhwp::model::style::Alignment::Center, separate);
@@ -264,6 +431,300 @@ fn unpainted_picture_carrier_preserves_images_cuts_and_following_text() {
         d.doc_info.para_shapes[1].border_fill_id = reference + 1;
         let input = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
         assert!(TablePreviewExportSession::from_bytes(&input, &config.to_string()).is_err());
+    }
+}
+
+#[test]
+fn picture_carrier_space_only_first_row_is_not_erased_at_page_boundary() {
+    let mut d = picture_document(rhwp::model::style::Alignment::Left, false);
+    let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+        panic!()
+    };
+    let p = &mut t.cells[0].paragraphs[1];
+    p.text = " ".into();
+    p.char_offsets = vec![0];
+    p.char_count = 18;
+    let mut image_row = p.line_segs[0].clone();
+    image_row.text_start = 1;
+    image_row.vertical_pos += 1350;
+    p.line_segs[0].line_height = 900;
+    p.line_segs[0].text_height = 900;
+    p.line_segs[0].baseline_distance = 765;
+    p.line_segs.push(image_row);
+    let data = rhwp::serializer::serialize_hwpx(&d).unwrap();
+    let mut config = options(&data);
+    config["pages"]["body"]["height"] = json!(30);
+    let pages = drain(&mut open(&data, &config));
+    assert!(collect(&pages[0], "Image").is_empty());
+    let spaces: Vec<_> = collect(&pages[0], "TextRun")
+        .into_iter()
+        .filter(|n| n["node_type"]["TextRun"]["text"] == " ")
+        .collect();
+    assert_eq!(spaces.len(), 1);
+    assert_eq!(spaces[0]["bbox"]["y"], 48.);
+    assert_eq!(spaces[0]["bbox"]["height"], 12.);
+    let images = collect(&pages[1], "Image");
+    assert_eq!(images.len(), 2);
+    assert_eq!(images[0]["bbox"]["y"], 36.);
+    assert_eq!(
+        pages
+            .iter()
+            .map(|p| collect(p, "Image").len())
+            .sum::<usize>(),
+        2
+    );
+    assert_eq!(
+        pages
+            .iter()
+            .flat_map(labels)
+            .filter(|s| *s == "after")
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn normal_saved_unequal_pictures_and_tab_preserve_nested_frames() {
+    use rhwp::renderer::table_v2::DocumentV2Session;
+    let source = include_bytes!("../fixtures/issue7353_picture_space_review/picture-saved.hwp");
+    let doc = rhwp::parse_document(source).unwrap();
+    let hwpx = rhwp::serializer::serialize_hwpx(&doc).unwrap();
+    for bytes in [source.as_slice(), hwpx.as_slice()] {
+        let mut s = DocumentV2Session::from_bytes(
+            bytes,
+            r#"{"dpi":96,"max_pages":10,"cell_end_policy":"omit_final_paragraph_gap"}"#,
+        )
+        .unwrap();
+        let page: Value = serde_json::from_str(&s.next_page_json().unwrap().unwrap()).unwrap();
+        assert!(s.next_page_json().unwrap().is_none());
+        let near = |a: f64, b: f64| assert!((a - b).abs() < 1e-8, "{a} != {b}");
+        let images = collect(&page, "Image");
+        assert_eq!(images.len(), 2);
+        // Independent saved geometry: child x7968 + pad283; sw23432;
+        // objects7087,4000 with a resolved913HU tab => centered offset5716.
+        // Common TAC baseline gives second top .85*(7087-4000)=2623.95HU.
+        for (n, x, y, side) in [
+            (images[0], 13967., 11113., 7087.),
+            (images[1], 21967., 13736.95, 4000.),
+        ] {
+            for (key, value) in [("x", x), ("y", y), ("width", side), ("height", side)] {
+                near(n["bbox"][key].as_f64().unwrap(), value / 75.);
+            }
+        }
+        let cells = collect(&page, "TableCell");
+        assert_eq!(cells.len(), 2);
+        for (n, x, y, w, h) in [
+            (cells[0], 3969., 8787., 32000., 24000.),
+            (cells[1], 7968., 10830., 24000., 10000.),
+        ] {
+            for (key, value) in [("x", x), ("y", y), ("width", w), ("height", h)] {
+                near(n["bbox"][key].as_f64().unwrap(), value / 75.);
+            }
+        }
+        for (text, y) in [
+            ("CELL BEFORE", 9070.),
+            ("CELL AFTER", 21490.),
+            ("AFTER PARENT TABLE", 33354.),
+        ] {
+            let nodes: Vec<_> = collect(&page, "TextRun")
+                .into_iter()
+                .filter(|n| n["node_type"]["TextRun"]["text"] == text)
+                .collect();
+            assert_eq!(nodes.len(), 1);
+            near(nodes[0]["bbox"]["y"].as_f64().unwrap(), y / 75.);
+        }
+    }
+}
+
+#[test]
+fn unequal_stored_pictures_keep_tab_order_baseline_and_atomic_fit() {
+    use rhwp::model::style::Alignment;
+    let near = |a: f64, b: f64| assert!((a - b).abs() < 1e-8, "{a} != {b}");
+    for (alignment, first_x) in [
+        (Alignment::Left, 30.),
+        (Alignment::Center, 65.),
+        (Alignment::Right, 100.),
+    ] {
+        let mut d = picture_document(alignment, false);
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            panic!()
+        };
+        let p = &mut t.cells[0].paragraphs[1];
+        p.text = "\t".into();
+        p.char_offsets = vec![8];
+        p.char_count = 25;
+        p.tab_extended = vec![[1500, 0, 0x100, 32, 32, 32, 9]];
+        p.line_segs[0].baseline_distance = 1530;
+        let Control::Picture(pic) = &mut p.controls[1] else {
+            panic!()
+        };
+        pic.common.height = 1200;
+        pic.shape_attr.current_height = 1200;
+        let data = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+        let mut config = options(&data);
+        for (budget, image_page, top) in [(42, 0, 48.), (41, 1, 30.)] {
+            config["pages"]["body"]["height"] = json!(budget);
+            let pages = drain(&mut open(&data, &config));
+            let images = collect(&pages[image_page], "Image");
+            assert_eq!(images.len(), 2);
+            for (image, x, y, h) in [
+                (images[0], first_x, top, 24.),
+                (images[1], first_x + 60., top + 6.8, 16.),
+            ] {
+                near(image["bbox"]["x"].as_f64().unwrap(), x);
+                near(image["bbox"]["y"].as_f64().unwrap(), y);
+                near(image["bbox"]["height"].as_f64().unwrap(), h);
+            }
+            let tabs: Vec<_> = collect(&pages[image_page], "TextRun")
+                .into_iter()
+                .filter(|r| r["node_type"]["TextRun"]["text"] == "\t")
+                .collect();
+            assert_eq!(tabs.len(), 1);
+            near(tabs[0]["bbox"]["x"].as_f64().unwrap(), first_x + 40.);
+            near(tabs[0]["bbox"]["width"].as_f64().unwrap(), 20.);
+            near(tabs[0]["bbox"]["height"].as_f64().unwrap(), 24.);
+            assert_eq!(
+                pages
+                    .iter()
+                    .map(|p| collect(p, "Image").len())
+                    .sum::<usize>(),
+                2
+            );
+            assert_eq!(
+                pages
+                    .iter()
+                    .flat_map(labels)
+                    .filter(|s| *s == "after")
+                    .count(),
+                1
+            );
+            if budget == 41 {
+                assert!(collect(&pages[0], "Image").is_empty());
+            }
+        }
+    }
+}
+
+#[test]
+fn empty_picture_reference_preserves_frame_row_and_following_content() {
+    // #1567 preserves ID0 as an explicit empty reference. #2225 defines its
+    // print contract: no ink, but the full object frame participates in flow.
+    let mut d = picture_document(rhwp::model::style::Alignment::Center, false);
+    let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+        panic!()
+    };
+    let Control::Picture(pic) = &mut t.cells[0].paragraphs[1].controls[0] else {
+        panic!()
+    };
+    pic.image_attr.bin_data_id = 0;
+    pic.shape_attr.offset_x = 3745;
+    pic.shape_attr.offset_y = -1509;
+    let data = rhwp::serializer::serialize_hwpx(&d).unwrap();
+    let mut config = options(&data);
+    for (budget, page_index, top) in [(42, 0, 48.0), (41, 1, 30.0)] {
+        config["pages"]["body"]["height"] = json!(budget);
+        let pages = drain(&mut open(&data, &config));
+        let frames = collect(&pages[page_index], "Placeholder");
+        assert_eq!(frames.len(), 1);
+        assert_eq!(
+            frames[0]["node_type"]["Placeholder"]["kind"],
+            "MissingPicture"
+        );
+        let near = |a: f64, b: f64| assert!((a - b).abs() < 1e-8, "{a} != {b}");
+        for (key, value) in [("x", 75.), ("y", top), ("width", 40.), ("height", 24.)] {
+            near(frames[0]["bbox"][key].as_f64().unwrap(), value);
+        }
+        let images = collect(&pages[page_index], "Image");
+        assert_eq!(images.len(), 1);
+        let svg = pages[page_index]["svg"].as_str().unwrap();
+        assert_eq!(svg.matches("<image").count(), 1);
+        assert!(
+            !svg.contains("#999999"),
+            "print must not draw the empty frame"
+        );
+        near(images[0]["bbox"]["x"].as_f64().unwrap(), 115.);
+        near(images[0]["bbox"]["y"].as_f64().unwrap(), top);
+        assert_eq!(
+            pages
+                .iter()
+                .flat_map(labels)
+                .filter(|s| *s == "after")
+                .count(),
+            1
+        );
+        assert_eq!(
+            pages
+                .iter()
+                .map(|p| collect(p, "Placeholder").len())
+                .sum::<usize>(),
+            1
+        );
+        if budget == 41 {
+            assert!(collect(&pages[0], "Placeholder").is_empty());
+            assert!(collect(&pages[0], "Image").is_empty());
+        }
+    }
+}
+
+#[test]
+fn normal_saved_empty_picture_keeps_sibling_baseline_and_nested_frames() {
+    use rhwp::renderer::table_v2::DocumentV2Session;
+    let input = include_bytes!("../fixtures/issue7353_missing_picture_review/picture-saved.hwp");
+    let doc = rhwp::parse_document(input).unwrap();
+    let hwpx = rhwp::serializer::serialize_hwpx(&doc).unwrap();
+    for bytes in [input.as_slice(), hwpx.as_slice()] {
+        let mut s = DocumentV2Session::from_bytes(
+            bytes,
+            r#"{"dpi":96,"max_pages":10,"cell_end_policy":"omit_final_paragraph_gap"}"#,
+        )
+        .unwrap();
+        let page: Value = serde_json::from_str(&s.next_page_json().unwrap().unwrap()).unwrap();
+        assert!(s.next_page_json().unwrap().is_none());
+        let frames = collect(&page, "Placeholder");
+        let images = collect(&page, "Image");
+        assert_eq!(frames.len(), 1);
+        assert_eq!(images.len(), 1);
+        assert_eq!(
+            frames[0]["node_type"]["Placeholder"]["kind"],
+            "MissingPicture"
+        );
+        let near = |a: f64, b: f64| assert!((a - b).abs() < 1e-8, "{a} != {b}");
+        // Same normal-save geometry as the two-image specimen. Omitting the
+        // first image reference must not shift the second object to the left,
+        // change the row baseline, shrink the child or move following text.
+        for (node, x, y, side) in [
+            (frames[0], 13967., 11113., 7087.),
+            (images[0], 21967., 13736.95, 4000.),
+        ] {
+            for (key, value) in [("x", x), ("y", y), ("width", side), ("height", side)] {
+                near(node["bbox"][key].as_f64().unwrap(), value / 75.);
+            }
+        }
+        let cells = collect(&page, "TableCell");
+        assert_eq!(cells.len(), 2);
+        for (node, x, y, w, h) in [
+            (cells[0], 3969., 8787., 32000., 24000.),
+            (cells[1], 7968., 10830., 24000., 10000.),
+        ] {
+            for (key, value) in [("x", x), ("y", y), ("width", w), ("height", h)] {
+                near(node["bbox"][key].as_f64().unwrap(), value / 75.);
+            }
+        }
+        for (text, y) in [
+            ("CELL BEFORE", 9070.),
+            ("CELL AFTER", 21490.),
+            ("AFTER PARENT TABLE", 33354.),
+        ] {
+            let nodes: Vec<_> = collect(&page, "TextRun")
+                .into_iter()
+                .filter(|n| n["node_type"]["TextRun"]["text"] == text)
+                .collect();
+            assert_eq!(nodes.len(), 1);
+            near(nodes[0]["bbox"]["y"].as_f64().unwrap(), y / 75.);
+        }
+        let svg = page["svg"].as_str().unwrap();
+        assert_eq!(svg.matches("<image").count(), 1);
+        assert!(!svg.contains("#999999"));
     }
 }
 
@@ -435,9 +896,126 @@ fn stored_picture_margins_crop_and_document_resources_are_preserved() {
 }
 
 #[test]
+fn ungrouped_picture_local_offsets_do_not_move_the_line_owned_frame() {
+    // HWP 5.0 Table 83 defines these as offsets within the owning group,
+    // not paragraph/page coordinates. No group exists in this fixture.
+    // The independent line boxes in the preceding test fix image origins,
+    // pagination, ancestor frames, and the following paragraph positions.
+    for separate_rows in [false, true] {
+        let mut d = picture_document(rhwp::model::style::Alignment::Center, separate_rows);
+        let original = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            panic!()
+        };
+        for (i, control) in t.cells[0].paragraphs[1].controls.iter_mut().enumerate() {
+            if let Control::Picture(pic) = control {
+                pic.shape_attr.offset_x = if i == 0 { 320 } else { -12000 };
+                pic.shape_attr.offset_y = if i == 0 { -700 } else { 16000 };
+            }
+        }
+        let changed = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+        let parsed = rhwp::parse_document(&changed).unwrap();
+        let table = parsed.sections[0].paragraphs[0]
+            .controls
+            .iter()
+            .find_map(|c| {
+                if let Control::Table(t) = c {
+                    Some(t)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let Control::Picture(pic) = &table.cells[0].paragraphs[1].controls[0] else {
+            panic!()
+        };
+        assert_eq!(
+            (
+                pic.shape_attr.group_level,
+                pic.shape_attr.offset_x,
+                pic.shape_attr.offset_y
+            ),
+            (0, 320, -700)
+        );
+        for height in [41, 42] {
+            let mut config = options(&original);
+            config["pages"]["body"]["height"] = json!(height);
+            let expected = drain(&mut open(&original, &config));
+            let actual = drain(&mut open(&changed, &config));
+            assert_eq!(actual, expected, "rows={separate_rows}, height={height}");
+            capture(
+                &format!("picture-local-offset-{separate_rows}-{height}"),
+                &changed,
+                &config,
+                &actual,
+            );
+        }
+    }
+}
+
+#[test]
+fn normal_saved_ungrouped_pictures_keep_frames_with_group_local_offsets() {
+    use rhwp::renderer::table_v2::DocumentV2Session;
+    fn offset_pictures(p: &mut Paragraph) {
+        for c in &mut p.controls {
+            match c {
+                Control::Picture(pic) => {
+                    assert_eq!(pic.shape_attr.group_level, 0);
+                    pic.shape_attr.offset_x = 320;
+                    pic.shape_attr.offset_y = -700;
+                }
+                Control::Table(t) => {
+                    for cell in &mut t.cells {
+                        for p in &mut cell.paragraphs {
+                            offset_pictures(p);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let source = include_bytes!("../fixtures/issue7353_picture_space_review/picture-saved.hwp");
+    let mut d = rhwp::parse_document(source).unwrap();
+    // Serialize both sides alike: HWPX canonicalizes reserved tab words.
+    // That unrelated source representation change is not an offset effect.
+    let unchanged = rhwp::serializer::serialize_hwpx(&d).unwrap();
+    for section in &mut d.sections {
+        for p in &mut section.paragraphs {
+            offset_pictures(p);
+        }
+    }
+    let changed = rhwp::serializer::serialize_hwpx(&d).unwrap();
+    let config = r#"{"dpi":96,"max_pages":10,"cell_end_policy":"omit_final_paragraph_gap"}"#;
+    let mut original = DocumentV2Session::from_bytes(&unchanged, config).unwrap();
+    let expected = original.next_page_json().unwrap().unwrap();
+    assert!(original.next_page_json().unwrap().is_none());
+    let mut modified = DocumentV2Session::from_bytes(&changed, config).unwrap();
+    let actual = modified.next_page_json().unwrap().unwrap();
+    assert!(modified.next_page_json().unwrap().is_none());
+    assert_eq!(actual, expected);
+    // Modified metadata is a specification-based invariance test, not a
+    // separately Hancom-saved fixture or a new independent reference PDF.
+    if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(format!("{dir}/visible-local-offset.hwpx"), changed).unwrap();
+        std::fs::write(
+            format!("{dir}/visible-original.native.json"),
+            format!("[{expected}]"),
+        )
+        .unwrap();
+        std::fs::write(
+            format!("{dir}/visible-local-offset.native.json"),
+            format!("[{actual}]"),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
 fn stored_picture_rejects_missing_resource_effects_and_ambiguous_streams() {
     use rhwp::renderer::table_v2::{Rect, TablePreviewPages, TablePreviewSession, TableSelection};
-    for variant in 0..12 {
+    for variant in 0..17 {
         let mut d = picture_document(rhwp::model::style::Alignment::Center, false);
         let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
             panic!()
@@ -451,7 +1029,12 @@ fn stored_picture_rejects_missing_resource_effects_and_ambiguous_streams() {
             1 => pic.common.treat_as_char = false,
             2 => pic.shape_attr.rotation_angle = 90,
             3 => pic.image_attr.brightness = 30,
-            4 => pic.common.height -= 1,
+            // An unequal smaller sibling is valid; a row shorter than the
+            // largest object's occupied box is not.
+            4 => {
+                p.line_segs[0].line_height -= 1;
+                p.line_segs[0].baseline_distance = 1530;
+            }
             5 => {
                 p.text = "X".into();
                 p.char_offsets = vec![16];
@@ -462,7 +1045,29 @@ fn stored_picture_rejects_missing_resource_effects_and_ambiguous_streams() {
             8 => pic.shape_attr.render_tx = 1.0,
             9 => pic.shape_attr.render_sx = f64::NAN,
             10 => pic.shape_attr.render_sy = -1.0,
-            _ => pic.crop.right = -1,
+            11 => pic.crop.right = -1,
+            // The empty-reference path must not weaken ordinary image
+            // transforms, group geometry, or external-resource validation.
+            12 => {
+                pic.shape_attr.group_level = 1;
+                pic.shape_attr.offset_x = 1;
+            }
+            13 => {
+                pic.image_attr.bin_data_id = 0;
+                pic.shape_attr.rotation_angle = 90;
+            }
+            14 => {
+                pic.image_attr.bin_data_id = 0;
+                pic.image_attr.external_path = Some("missing.png".into());
+            }
+            15 => {
+                pic.image_attr.bin_data_id = 0;
+                pic.shape_attr.group_level = 1;
+            }
+            _ => {
+                pic.image_attr.bin_data_id = 0;
+                pic.shape_attr.render_tx = 1.;
+            }
         }
         // A serializer may omit a picture with an unresolved resource. Inspect
         // the actual malformed source instead of testing that lossy derivative.
@@ -1244,7 +1849,7 @@ fn unsupported_or_missing_decoration_is_not_silently_dropped() {
     let base = colored_document(t);
     // Intact-cell gradients are supported, not silently restarted across cuts.
     // Use source IR here so a serializer cannot normalize malformed stops.
-    for index in 0..11 {
+    for index in 1..11 {
         let mut d = base.clone();
         let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
             unreachable!()
@@ -1264,7 +1869,6 @@ fn unsupported_or_missing_decoration_is_not_silently_dropped() {
         };
         let g = b.fill.gradient.as_mut().unwrap();
         match index {
-            0 => t.page_break = TablePageBreak::CellBreak,
             1 => t.border_fill_id = 1, // row-split table frame is not intact
             2 => g.gradient_type = 2,
             3 => g.colors.clear(),
@@ -1286,13 +1890,47 @@ fn unsupported_or_missing_decoration_is_not_silently_dropped() {
             "gradient rejection {index}"
         );
     }
+    // Split permission alone must not reject an intact gradient cell. Reject
+    // at the actual partial placement boundary, with no page publication.
+    let mut d = base.clone();
+    let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+        unreachable!()
+    };
+    t.page_break = TablePageBreak::RowBreak;
+    t.repeat_header = false;
+    t.row_count = 1;
+    t.cells.truncate(1);
+    t.cells[0].is_header = false;
+    t.cells[0].paragraphs = vec![paragraph("A"), paragraph("B"), paragraph("C")];
+    d.doc_info.border_fills[0].fill = Fill {
+        fill_type: FillType::Gradient,
+        gradient: Some(rhwp::model::style::GradientFill {
+            gradient_type: 1,
+            angle: 90,
+            colors: vec![0, 0xFFFFFF],
+            step_center: 50,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let mut session = open_document(&d).unwrap();
+    for _ in 0..2 {
+        assert!(matches!(
+            session.next_page(),
+            Err(TablePreviewError::Geometry(GeometryError::Unsupported(
+                "V2 split gradient background"
+            )))
+        ));
+        assert_eq!(session.emitted_pages(), 0);
+    }
     // Source checks precede lossy resolved-style conversion, including malformed complex fills.
     for index in 0..8 {
         let mut d = base.clone();
         let b = &mut d.doc_info.border_fills[0];
         match index {
-            // Solid CellBreak edges are now supported; dashed edges are not.
-            0 => b.borders[0].line_type = BorderLineType::Dash,
+            // Dash is already qualified by the border fragment/catalog tests.
+            // DashDot remains unsupported; do not use an admitted Dot pen here.
+            0 => b.borders[0].line_type = BorderLineType::DashDot,
             1 => b.fill.alpha = 127,
             2 => b.fill.fill_type = FillType::Gradient,
             3 => b.fill.fill_type = FillType::Image,
@@ -1316,7 +1954,7 @@ fn unsupported_or_missing_decoration_is_not_silently_dropped() {
             if index == 0 {
                 assert_eq!(
                     parsed.doc_info.border_fills[0].borders[0].line_type,
-                    BorderLineType::Dash
+                    BorderLineType::DashDot
                 );
             } else {
                 assert_eq!(

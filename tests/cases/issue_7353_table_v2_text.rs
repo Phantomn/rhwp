@@ -26,6 +26,115 @@ fn styles() -> ResolvedStyleSet {
 }
 
 #[test]
+fn kept_cell_paragraph_uses_complete_group_height_and_actual_line_offsets() {
+    // HU=px. Three saved 12px boxes at 0,18,36 require48px, not the
+    // last line's12px nor their54px following-line advance.
+    let mut t = table(&["PREFIX", "A\n\nB", "AFTER"]);
+    t.padding = Padding::default();
+    let p = &mut t.cells[0].paragraphs[1];
+    p.para_shape_id = 1;
+    p.line_segs = [0, 2, 3]
+        .into_iter()
+        .enumerate()
+        .map(|(i, start)| LineSeg {
+            text_start: start,
+            vertical_pos: i as i32 * 18,
+            line_height: 12,
+            text_height: 12,
+            baseline_distance: 10,
+            line_spacing: 6,
+            segment_width: 212,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            ..Default::default()
+        })
+        .collect();
+    let mut s = styles();
+    s.para_styles.push(ResolvedParaStyle {
+        keep_lines: true,
+        ..s.para_styles[0].clone()
+    });
+    let prepared = PreparedTextTable::prepare_with_end_policy(
+        &t,
+        &s,
+        7200.0,
+        &[],
+        CellEndPolicy::OmitFinalParagraphGap,
+    )
+    .unwrap();
+    let first = placed(&prepared.start(), 18.0 + 47.0);
+    assert_eq!(
+        render(&first).1.iter().map(text).collect::<Vec<_>>(),
+        ["PREFIX"]
+    );
+    let second = placed(&first.continuation(), 48.0);
+    let (tree, rows) = render(&second);
+    assert_eq!(rows.iter().map(text).collect::<Vec<_>>(), ["A", "", "B"]);
+    for (i, row) in rows.iter().enumerate() {
+        assert_eq!(row.bbox.y, 30.0 + i as f64 * 18.0);
+        assert_eq!(row.bbox.height, 12.0);
+    }
+    assert_eq!(tree.root.children[0].bbox.height, 48.0);
+    let third = placed(&second.continuation(), 100.0);
+    assert_eq!(
+        render(&third).1.iter().map(text).collect::<Vec<_>>(),
+        ["AFTER"]
+    );
+    assert!(matches!(
+        third.continuation().fit(area(100.0)).unwrap(),
+        TextFragmentFit::Complete
+    ));
+    let exact = placed(&prepared.start(), 18.0 + 48.0);
+    assert_eq!(
+        render(&exact).1.iter().map(text).collect::<Vec<_>>(),
+        ["PREFIX", "A", "", "B"]
+    );
+}
+
+#[test]
+fn kept_overlapping_rows_and_paragraph_spacing_preserve_intact_paint() {
+    let mut t = table(&["AB", "C"]);
+    t.padding = Padding::default();
+    t.cells[0].paragraphs[0].para_shape_id = 1;
+    t.cells[0].paragraphs[0].line_segs = (0..2)
+        .map(|i| LineSeg {
+            text_start: i,
+            vertical_pos: i as i32 * 6,
+            line_height: 12,
+            text_height: 12,
+            baseline_distance: 10,
+            line_spacing: -6,
+            segment_width: 212,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            ..Default::default()
+        })
+        .collect();
+    let mut s = styles();
+    s.para_styles.push(ResolvedParaStyle {
+        spacing_before: 3.0,
+        spacing_after: 4.0,
+        ..s.para_styles[0].clone()
+    });
+    let normal = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+    let normal = render(&placed(&normal.start(), 100.0)).0;
+    s.para_styles[1].keep_lines = true;
+    let kept = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+    assert!(matches!(
+        kept.start().fit(area(20.0)).unwrap(),
+        TextFragmentFit::DoesNotFit { .. }
+    ));
+    let boundary = placed(&kept.start(), 21.0);
+    let (_, rows) = render(&boundary);
+    assert_eq!(rows.iter().map(text).collect::<Vec<_>>(), ["A", "B"]);
+    assert_eq!(rows[0].bbox.y, 33.0);
+    assert_eq!(rows[1].bbox.y, 39.0);
+    let actual = render(&placed(&kept.start(), 100.0)).0;
+    assert_eq!(
+        serde_json::to_value(normal).unwrap(),
+        serde_json::to_value(actual).unwrap()
+    );
+}
+
+#[test]
 fn blank_stored_row_consumes_once_when_following_inline_table_defers() {
     use rhwp::{model::control::Control, renderer::style_resolver::resolve_styles};
     let d = rhwp::parse_document(include_bytes!(
@@ -42,7 +151,7 @@ fn blank_stored_row_consumes_once_when_following_inline_table_defers() {
     };
     let mut t = t.clone();
     // Synthetic budget boundary using the independent saved row boxes.
-    t.page_break = TablePageBreak::CellBreak;
+    t.page_break = TablePageBreak::RowBreak;
     let s = resolve_styles(&d.doc_info, 96.0);
     let p = PreparedTextTable::prepare_with_end_policy(
         &t,
@@ -140,7 +249,7 @@ fn table(texts: &[&str]) -> Table {
     Table {
         row_count: 1,
         col_count: 1,
-        page_break: TablePageBreak::CellBreak,
+        page_break: TablePageBreak::RowBreak,
         padding: Padding {
             left: 5,
             right: 7,
@@ -461,6 +570,60 @@ fn text(line: &RenderNode) -> String {
 }
 
 #[test]
+fn right_and_center_alignment_use_exact_style_owned_suffix_advances() {
+    use rhwp::model::style::Alignment;
+    use rhwp::renderer::layout::{EmbeddedTextMeasurer, TextMeasurer};
+    for alignment in [Alignment::Right, Alignment::Center] {
+        for split_suffix in [false, true] {
+            for font_size in [11.3, 14.666666666666666, 20.0] {
+                let mut t = table(&["A B  "]);
+                let mut s = styles();
+                s.para_styles[0].alignment = alignment;
+                s.char_styles[0].font_size = font_size;
+                s.char_styles[0].letter_spacing = font_size * 0.25;
+                s.char_styles.push(s.char_styles[0].clone());
+                s.char_styles[1].font_size = font_size * 0.8;
+                if split_suffix {
+                    t.cells[0].paragraphs[0].char_shapes.push(CharShapeRef {
+                        start_pos: 4,
+                        char_shape_id: 1,
+                    });
+                }
+                let prepared = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+                let TextFragmentFit::Placed(part) = prepared.start().fit(area(100.0)).unwrap()
+                else {
+                    panic!()
+                };
+                let (_, lines) = render(&part);
+                assert_eq!(lines.len(), 1);
+                let line = &lines[0];
+                assert_eq!(text(line), "A B  ");
+                let first = &line.children[0];
+                let RenderNodeType::TextRun(run) = &first.node_type else {
+                    panic!()
+                };
+                let positions = EmbeddedTextMeasurer.compute_char_positions(&run.text, &run.style);
+                let visible_end = first.bbox.x + positions[3];
+                let expected = if alignment == Alignment::Right {
+                    line.bbox.x + line.bbox.width
+                } else {
+                    line.bbox.x + line.bbox.width / 2.0
+                };
+                let actual = if alignment == Alignment::Right {
+                    visible_end
+                } else {
+                    (first.bbox.x + visible_end) / 2.0
+                };
+                assert!(
+                    (actual - expected).abs() < 1e-7,
+                    "{alignment:?}/{font_size}/{split_suffix}: {actual} vs {expected}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn center_reference_is_not_a_generic_baseline_clamp() {
     use rhwp::renderer::style_resolver::ParagraphVerticalAlignment;
     let mut t = table(&["AB"]);
@@ -501,7 +664,7 @@ fn center_reference_is_not_a_generic_baseline_clamp() {
 }
 
 #[test]
-fn center_fresh_uniform_em_matches_baseline_but_mixed_em_remains_explicit() {
+fn center_fresh_uniform_em_matches_baseline_and_scripts_remain_explicit() {
     use rhwp::renderer::style_resolver::ParagraphVerticalAlignment;
     let mut t = table(&["AB"]);
     let mut s = styles();
@@ -520,6 +683,7 @@ fn center_fresh_uniform_em_matches_baseline_but_mixed_em_remains_explicit() {
     );
     s.char_styles.push(ResolvedCharStyle {
         font_size: 8.0,
+        superscript: true,
         ..Default::default()
     });
     t.cells[0].paragraphs[0].char_shapes.push(CharShapeRef {
@@ -528,8 +692,98 @@ fn center_fresh_uniform_em_matches_baseline_but_mixed_em_remains_explicit() {
     });
     assert!(matches!(
         PreparedTextTable::prepare(&t, &s, 7200.0),
-        Err(GeometryError::Unsupported("mixed-em CENTER text"))
+        Err(GeometryError::Unsupported("scripted CENTER text"))
     ));
+}
+
+#[test]
+fn mixed_center_runs_share_em_center_in_stored_and_fresh_cell_fragments() {
+    use rhwp::renderer::style_resolver::ParagraphVerticalAlignment;
+    // Independent CENTER invariant: each run's em center is the line's em
+    // center. At HU=px, 12HU has nominal baseline10, 8HU baseline7.
+    // Thus run baselines must be10 and9, not both10 (BASELINE alignment).
+    for stored in [false, true] {
+        for reverse in [false, true] {
+            let mut t = table(&["AB", "AFTER"]);
+            t.padding = Padding::default();
+            let mut s = styles();
+            s.para_styles[0].vertical_alignment = ParagraphVerticalAlignment::Center;
+            s.char_styles.push(ResolvedCharStyle {
+                font_size: 8.0,
+                ..Default::default()
+            });
+            let p = &mut t.cells[0].paragraphs[0];
+            p.char_shapes = vec![
+                CharShapeRef {
+                    start_pos: 0,
+                    char_shape_id: u32::from(reverse),
+                },
+                CharShapeRef {
+                    start_pos: 1,
+                    char_shape_id: u32::from(!reverse),
+                },
+            ];
+            if stored {
+                p.line_segs = vec![LineSeg {
+                    line_height: 12,
+                    text_height: 12,
+                    baseline_distance: 6,
+                    line_spacing: 6,
+                    segment_width: 212,
+                    tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+                    ..Default::default()
+                }];
+            }
+            let prepared = PreparedTextTable::prepare_with_end_policy(
+                &t,
+                &s,
+                7200.0,
+                &[],
+                CellEndPolicy::OmitFinalParagraphGap,
+            )
+            .unwrap();
+            assert!(matches!(
+                prepared.start().fit(area(11.0)).unwrap(),
+                TextFragmentFit::DoesNotFit { .. }
+            ));
+            let first = placed(&prepared.start(), 12.0);
+            let (tree, lines) = render(&first);
+            assert_eq!(lines.len(), 1);
+            assert_eq!(text(&lines[0]), "AB");
+            assert_eq!(tree.root.children[0].bbox.height, 12.0);
+            assert_eq!(lines[0].bbox.height, 12.0);
+            for node in &lines[0].children {
+                let RenderNodeType::TextRun(run) = &node.node_type else {
+                    panic!()
+                };
+                let own_baseline = if run.style.font_size == 12.0 {
+                    10.0
+                } else {
+                    7.0
+                };
+                let em_center =
+                    node.bbox.y + run.baseline - own_baseline + run.style.font_size / 2.0;
+                assert_eq!(em_center, lines[0].bbox.y + 6.0);
+                assert_eq!(
+                    run.baseline,
+                    if run.style.font_size == 12.0 {
+                        10.0
+                    } else {
+                        9.0
+                    }
+                );
+            }
+            let next = placed(&first.continuation(), 100.0);
+            assert_eq!(
+                render(&next).1.iter().map(text).collect::<Vec<_>>(),
+                ["AFTER"]
+            );
+            assert!(matches!(
+                next.continuation().fit(area(100.0)).unwrap(),
+                TextFragmentFit::Complete
+            ));
+        }
+    }
 }
 
 #[test]
@@ -1149,7 +1403,7 @@ fn original_6923_justified_nested_cell_keeps_both_saved_rows() {
     let t = Table {
         row_count: 1,
         col_count: 1,
-        page_break: TablePageBreak::CellBreak,
+        page_break: TablePageBreak::RowBreak,
         cells: vec![Cell {
             width: 23175,
             row_span: 1,
@@ -1269,6 +1523,177 @@ fn justified_stored_rows_use_exact_style_owned_trailing_space_width() {
             use rhwp::renderer::layout::{EmbeddedTextMeasurer, TextMeasurer};
             let positions = EmbeddedTextMeasurer.compute_char_positions(&run.text, &run.style);
             assert!((first.bbox.x + positions[5] - (lines[0].bbox.x + 200.0)).abs() < 1e-7);
+        }
+    }
+}
+
+#[test]
+fn distributed_terminal_gap_is_not_glyph_occupancy() {
+    use rhwp::model::style::{Alignment, UnderlineType};
+    use rhwp::renderer::layout::{EmbeddedTextMeasurer, TextMeasurer};
+    for split_run in [false, true] {
+        let mut t = table(&["12573", "after"]);
+        let p = &mut t.cells[0].paragraphs[0];
+        p.line_segs = vec![LineSeg {
+            line_height: 12,
+            text_height: 12,
+            baseline_distance: 10,
+            line_spacing: 6,
+            segment_width: 200,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            ..Default::default()
+        }];
+        let mut s = styles();
+        s.para_styles[0].alignment = Alignment::Distribute;
+        s.char_styles.push(s.char_styles[0].clone());
+        if split_run {
+            p.char_shapes.push(CharShapeRef {
+                start_pos: 2,
+                char_shape_id: 1,
+            });
+        }
+        let prepared = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+        let (page, lines) = render(&placed(&prepared.start(), 43.0));
+        assert_eq!(lines.len(), 2);
+        assert_eq!(text(&lines[0]), "12573");
+        assert_eq!(text(&lines[1]), "after");
+        assert_eq!(lines[0].bbox.width, 200.0);
+        assert_eq!(lines[1].bbox.y - lines[0].bbox.y, 18.0);
+        let last = lines[0].children.last().unwrap();
+        let RenderNodeType::TextRun(run) = &last.node_type else {
+            panic!()
+        };
+        assert!(run.style.extra_char_spacing > 0.0);
+        let positions = EmbeddedTextMeasurer.compute_char_positions(&run.text, &run.style);
+        // DIStribute independently defines N-1 gaps; there is no painted gap
+        // after the final glyph, although the caret advance retains that slot.
+        let right = lines[0].bbox.x + 200.0;
+        assert!(
+            (last.bbox.x + positions.last().unwrap() - run.style.extra_char_spacing - right).abs()
+                < 1e-7
+        );
+        assert!(last.bbox.x + last.bbox.width > right);
+        let mut svg = SvgRenderer::new();
+        svg.render_tree(&page);
+        let xml = roxmltree::Document::parse(svg.output()).unwrap();
+        let glyph = xml
+            .descendants()
+            .find(|n| n.has_tag_name("text") && n.text() == Some("3"))
+            .unwrap();
+        let painted_right = glyph.attribute("x").unwrap().parse::<f64>().unwrap()
+            + glyph
+                .attribute("textLength")
+                .unwrap()
+                .parse::<f64>()
+                .unwrap();
+        assert!(
+            (painted_right - right).abs() < 0.001,
+            "actual SVG right edge"
+        );
+        // Decoration paints the advance, so it must not use a glyph-only bound.
+        let mut decorated = s.clone();
+        for font in &mut decorated.char_styles {
+            font.underline = UnderlineType::Bottom;
+        }
+        assert!(PreparedTextTable::prepare(&t, &decorated, 7200.0).is_err());
+    }
+}
+
+#[test]
+fn distributed_saved_suffix_spaces_keep_glyph_edges_and_following_rows() {
+    use rhwp::model::style::{Alignment, UnderlineType};
+    for hard in [false, true] {
+        for split in [false, true] {
+            let input = if hard { "12573 \nafter" } else { "12573 after" };
+            let mut t = table(&[input, "following"]);
+            let p = &mut t.cells[0].paragraphs[0];
+            p.char_count += 1;
+            p.line_segs = [0, if hard { 7 } else { 6 }]
+                .into_iter()
+                .enumerate()
+                .map(|(i, start)| LineSeg {
+                    text_start: start,
+                    vertical_pos: i as i32 * 18,
+                    line_height: 12,
+                    text_height: 12,
+                    baseline_distance: 10,
+                    line_spacing: 6,
+                    segment_width: 200,
+                    tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+                    ..Default::default()
+                })
+                .collect();
+            let mut s = styles();
+            s.para_styles[0].alignment = Alignment::Distribute;
+            s.char_styles.push(s.char_styles[0].clone());
+            if split {
+                p.char_shapes.extend([
+                    CharShapeRef {
+                        start_pos: 2,
+                        char_shape_id: 1,
+                    },
+                    CharShapeRef {
+                        start_pos: 5,
+                        char_shape_id: 0,
+                    },
+                ]);
+            }
+            let prepared = PreparedTextTable::prepare(&t, &s, 7200.0).unwrap();
+            let (tree, lines) = render(&placed(&prepared.start(), 100.0));
+            assert_eq!(
+                lines.iter().map(text).collect::<Vec<_>>(),
+                ["12573 ", "after", "following"]
+            );
+            for (i, line) in lines.iter().enumerate() {
+                assert_eq!(
+                    (line.bbox.y, line.bbox.width, line.bbox.height),
+                    (33.0 + i as f64 * 18.0, 200.0, 12.0)
+                );
+            }
+            let end = lines[0].bbox.x + 200.0;
+            let last = lines[0].children.last().unwrap();
+            assert!(
+                last.bbox.x + last.bbox.width > end,
+                "logical suffix advance is preserved"
+            );
+            let mut svg = SvgRenderer::new();
+            svg.render_tree(&tree);
+            let xml = roxmltree::Document::parse(svg.output()).unwrap();
+            let glyph = xml
+                .descendants()
+                .find(|n| n.has_tag_name("text") && n.text() == Some("3"))
+                .unwrap();
+            let right = glyph.attribute("x").unwrap().parse::<f64>().unwrap()
+                + glyph
+                    .attribute("textLength")
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap();
+            assert!(
+                (right - end).abs() < 0.001,
+                "N-1 visible distribution gaps: {right} vs {end}"
+            );
+            let first = placed(&prepared.start(), 21.0);
+            assert_eq!(
+                render(&first).1.iter().map(text).collect::<Vec<_>>(),
+                ["12573 "]
+            );
+            let rest = placed(&first.continuation(), 100.0);
+            let (_, lines) = render(&rest);
+            assert_eq!(
+                lines.iter().map(text).collect::<Vec<_>>(),
+                ["after", "following"]
+            );
+            assert_eq!(lines[0].bbox.y, 30.0);
+            assert!(matches!(
+                rest.continuation().fit(area(100.0)).unwrap(),
+                TextFragmentFit::Complete
+            ));
+            // Visible decoration paints an advance; it is not a blank suffix.
+            for font in &mut s.char_styles {
+                font.underline = UnderlineType::Bottom;
+            }
+            assert!(PreparedTextTable::prepare(&t, &s, 7200.0).is_err());
         }
     }
 }
@@ -1633,7 +2058,9 @@ fn stored_margins_are_not_applied_twice_and_invalid_frames_stay_rejected() {
 
 #[test]
 fn saved_indentation_survives_continuation_without_restarting_first_line_rules() {
-    for indent in [10.0, -10.0] {
+    // Caller supplies resolved pixels, potentially fractional HU (e.g. URC CHAR).
+    // Check final glyph/line boxes, nested translation and retry.
+    for indent in [10.0, -10.0, 10.5, -10.5] {
         let mut t = table(&["AB", "after"]);
         t.cells[0].paragraphs[0].line_segs = (0..2)
             .map(|i| LineSeg {
@@ -1673,7 +2100,7 @@ fn saved_indentation_survives_continuation_without_restarting_first_line_rules()
         let (_, rest) = render(&b);
         for (i, line) in [&first[0], &rest[0]].into_iter().enumerate() {
             let shift = if (indent > 0.0) == (i == 0) {
-                10.0
+                indent.abs()
             } else {
                 0.0
             };
@@ -1739,7 +2166,7 @@ fn saved_indentation_survives_continuation_without_restarting_first_line_rules()
         );
         for (i, line) in lines.iter().take(2).enumerate() {
             let shift = if (indent > 0.0) == (i == 0) {
-                10.0
+                indent.abs()
             } else {
                 0.0
             };
@@ -1750,7 +2177,7 @@ fn saved_indentation_survives_continuation_without_restarting_first_line_rules()
             assert_eq!(line.bbox.y, 33.0 + i as f64 * 18.0);
         }
         assert_eq!(lines[2].bbox.y, 69.0);
-        for bad in [170.0, 200.0, 0.5, f64::NAN] {
+        for bad in [170.0, 200.0, f64::NAN, f64::INFINITY] {
             s.para_styles[0].indent = bad;
             assert!(
                 PreparedTextTable::prepare(&t, &s, 7200.0).is_err(),
@@ -1791,7 +2218,7 @@ fn original_6923_first_empty_cell_keeps_its_stored_line_frame() {
     let t = Table {
         row_count: 1,
         col_count: 4,
-        page_break: TablePageBreak::RowBreak,
+        page_break: TablePageBreak::CellBreak,
         padding: original.padding,
         cells: vec![cell],
         ..Default::default()
@@ -1863,7 +2290,7 @@ fn original_6923_stored_paragraphs_keep_source_metrics_in_v2_fragments() {
         let t = Table {
             row_count: 1,
             col_count: 1,
-            page_break: TablePageBreak::CellBreak,
+            page_break: TablePageBreak::RowBreak,
             cells: vec![Cell {
                 width: width as u32,
                 row_span: 1,
@@ -2083,6 +2510,70 @@ fn saved_rows_and_objects_are_not_silently_reflowed_or_fallen_back() {
         PreparedTextTable::prepare(&source, &styles(), 96.0),
         Err(GeometryError::Unsupported(_))
     ));
+}
+
+#[test]
+fn saved_forced_breaks_preserve_blank_rows_and_fragment_ownership() {
+    for input in ["A\nB", "A\n\nB", "\nA", "A\n"] {
+        let mut t = table(&[input, "after"]);
+        let p = &mut t.cells[0].paragraphs[0];
+        p.char_count += 1; // paragraph terminator follows the author-owned LF.
+        let mut starts = vec![0];
+        for (i, ch) in input.chars().enumerate() {
+            if ch == '\n' {
+                starts.push(p.char_offsets[i] + 1);
+            }
+        }
+        p.line_segs = starts
+            .iter()
+            .enumerate()
+            .map(|(i, &start)| LineSeg {
+                text_start: start,
+                vertical_pos: 100 + i as i32 * 18,
+                line_height: 12,
+                text_height: 12,
+                baseline_distance: 10,
+                line_spacing: 6,
+                segment_width: 200,
+                tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+                ..Default::default()
+            })
+            .collect();
+        let prepared = PreparedTextTable::prepare(&t, &styles(), 7200.0).unwrap();
+        let (_, lines) = render(&placed(&prepared.start(), 200.0));
+        let expected: Vec<_> = input.split('\n').chain(std::iter::once("after")).collect();
+        assert_eq!(lines.iter().map(text).collect::<Vec<_>>(), expected);
+        for (i, line) in lines.iter().enumerate() {
+            assert_eq!(line.bbox.y, 33.0 + i as f64 * 18.0);
+            assert_eq!(line.bbox.height, 12.0);
+            let RenderNodeType::TextRun(run) = &line.children.last().unwrap().node_type else {
+                panic!()
+            };
+            assert_eq!(run.is_line_break_end, i + 1 < starts.len());
+        }
+        let first = placed(&prepared.start(), 21.0);
+        assert_eq!(
+            render(&first).1.iter().map(text).collect::<Vec<_>>(),
+            expected[..1]
+        );
+        let rest = placed(&first.continuation(), 200.0);
+        let (_, lines) = render(&rest);
+        assert_eq!(lines.iter().map(text).collect::<Vec<_>>(), expected[1..]);
+        for (i, line) in lines.iter().enumerate() {
+            assert_eq!(line.bbox.y, 30.0 + i as f64 * 18.0);
+        }
+        assert!(matches!(
+            rest.continuation().fit(area(200.0)).unwrap(),
+            TextFragmentFit::Complete
+        ));
+        // A stored row cannot claim text on both sides of an explicit break.
+        let mut stale = t.clone();
+        stale.cells[0].paragraphs[0].line_segs.remove(1);
+        assert!(PreparedTextTable::prepare(&stale, &styles(), 7200.0).is_err());
+        let mut misplaced = t.clone();
+        misplaced.cells[0].paragraphs[0].line_segs[1].text_start -= 1;
+        assert!(PreparedTextTable::prepare(&misplaced, &styles(), 7200.0).is_err());
+    }
 }
 
 #[test]

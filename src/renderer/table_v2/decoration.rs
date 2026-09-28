@@ -24,6 +24,9 @@ pub(super) struct Background {
 }
 
 impl Background {
+    pub fn supports_fragment(&self) -> bool {
+        self.gradient.is_none()
+    }
     /// Opaque solid/no-fill effects commute when their actual colors agree.
     /// IDs are references, not paint semantics. Gradients are not idempotent
     /// across different bounds and remain outside this overlapping-zone rule.

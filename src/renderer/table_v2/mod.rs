@@ -12,6 +12,7 @@
 
 mod body_anchor;
 mod body_flow;
+mod body_text;
 mod borders;
 mod cell_anchor;
 mod content;
@@ -28,10 +29,16 @@ mod grid;
 mod ir;
 mod page_number;
 mod paragraph_end;
+mod paragraph_keep;
 mod pictures;
 mod session;
+mod source_units;
+mod stored_child;
+mod stored_child_frames;
 mod stored_text;
 mod tac;
+mod tac_fresh;
+mod tac_metrics;
 mod tac_spaces;
 mod text;
 mod text_flow;

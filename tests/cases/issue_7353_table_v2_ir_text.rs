@@ -45,7 +45,7 @@ fn table(width: u32, padding: Padding, paragraphs: Vec<Paragraph>) -> Table {
     Table {
         row_count: 1,
         col_count: 1,
-        page_break: TablePageBreak::CellBreak,
+        page_break: TablePageBreak::RowBreak, // HWPX CELL: split at complete lines.
         common: CommonObjAttr {
             text_wrap: TextWrap::TopAndBottom,
             vert_rel_to: VertRelTo::Para,

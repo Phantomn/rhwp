@@ -165,6 +165,61 @@ fn fit(cursor: &TableCursor, budget: f64) -> TableFragmentPlan {
 }
 
 #[test]
+fn oversized_inline_row_inside_cell_does_not_receive_body_overflow_permission() {
+    let plan = TableContentPlan::from_flow_rows(
+        vec![100.0],
+        vec![FlowRowInput {
+            cells: vec![FlowCellInput {
+                padding: Insets::default(),
+                minimum_height: 0.0,
+                width: 100.0,
+                blocks: vec![FlowBlock::InlineTables {
+                    height: 50.0,
+                    advance: 50.0,
+                    lines: vec![],
+                    tables: vec![InlineTableInput {
+                        owner: ControlOwner {
+                            paragraph: 0,
+                            control: 0,
+                        },
+                        x: 0.0,
+                        y: 0.0,
+                        plan: Arc::new(child(SplitPolicy::BetweenRows)),
+                    }],
+                }],
+            }],
+        }],
+        0.0,
+        SplitPolicy::WithinCells,
+    )
+    .unwrap()
+    .start();
+    // A cell fragment has a hard physical budget, unlike an oversized first
+    // body TAC row. The 50px child must not escape a 49px parent fragment.
+    assert!(matches!(
+        plan.fit(PageArea {
+            bounds: Rect {
+                x: 0.0,
+                y: 0.0,
+                width: 100.0,
+                height: 49.0,
+            }
+        })
+        .unwrap(),
+        FragmentFit::DoesNotFit { .. }
+    ));
+    let accepted = fit(&plan, 50.0);
+    assert!(accepted.continuation().is_complete());
+    assert_eq!(
+        accepted.placement().cells[0].tables[0]
+            .placement
+            .bounds
+            .height,
+        50.0
+    );
+}
+
+#[test]
 fn signed_inline_insets_keep_physical_child_and_logical_following_origin() {
     // Synthetic boundary contract, not a Hancom fidelity oracle. A 50px
     // child with -1px top/bottom margins advances48px, but ends49px below
@@ -509,6 +564,8 @@ fn fractional_page_budget_does_not_split_an_atomic_nested_table() {
             host: None,
             host_advance: 0.0,
             offset_x: 0.0,
+            offset_y: 0.0,
+            available_width: 100.0,
             top: 0.0,
             bottom: 0.0,
             plan: Arc::clone(&inner),

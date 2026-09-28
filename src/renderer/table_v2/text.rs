@@ -5,6 +5,7 @@ use std::{cell::RefCell, collections::HashMap, sync::Arc};
 use crate::model::{paragraph::Paragraph, style::HeadType, table::Table};
 use crate::renderer::{
     composer::{compose_paragraph, layout_paragraph_in_physical_frame},
+    hwpunit_to_px,
     layout::LayoutEngine,
     layout_frame::ParagraphBox,
     page_layout::LayoutRect,
@@ -77,7 +78,7 @@ impl PreparedTextTable {
     /// Solid backgrounds use the supplied resolved styles. Source-only effects
     /// are qualified by TablePreviewSession::from_document before resolution.
     /// Solid cell edges follow accepted fragments for all three split policies.
-    /// TAC, wrap, stored control hosts, complex borders and keep constraints remain unsupported.
+    /// Unsupported control, border and paragraph-link constraints fail explicitly.
     pub fn prepare(
         table: &Table,
         styles: &ResolvedStyleSet,
@@ -127,7 +128,15 @@ impl TextTableCursor {
     }
 
     pub fn fit(&self, area: PageArea) -> Result<TextFragmentFit, GeometryError> {
-        Ok(match self.cursor.fit(area)? {
+        self.fit_with_page_height(area, None)
+    }
+
+    pub(super) fn fit_with_page_height(
+        &self,
+        area: PageArea,
+        page_height: Option<f64>,
+    ) -> Result<TextFragmentFit, GeometryError> {
+        Ok(match self.cursor.fit_with_page_height(area, page_height)? {
             FragmentFit::Placed(geometry) => TextFragmentFit::Placed(TextFragment {
                 geometry,
                 paint: self.paint.clone(),
@@ -192,6 +201,16 @@ impl TextPaint {
         }
         for cell in &placement.cells {
             let background = self.cells.get(&(cell.row, cell.column));
+            if cell.partial {
+                if background.is_some_and(|b| !b.supports_fragment()) {
+                    return Err(GeometryError::Unsupported("V2 split gradient background"));
+                }
+                if self.diagonals.contains_key(&(cell.row, cell.column)) {
+                    return Err(GeometryError::Unsupported(
+                        "V2 cell-internal diagonal split",
+                    ));
+                }
+            }
             let mut node = RenderNode::new(
                 0,
                 RenderNodeType::TableCell(TableCellNode {
@@ -337,17 +356,38 @@ fn painted_inline_ends(nodes: &[RenderNode], styles: &ResolvedStyleSet) -> Vec<O
             && s.emphasis_dot == 0
             && super::decoration::paragraph_is_unpainted(run.border_fill_id, styles);
         let trimmed = run.text.trim_end_matches(' ');
-        let end = if suffix && plain && trimmed.len() < run.text.len() {
-            if trimmed.is_empty() {
-                None
-            } else {
-                let positions = run.replay_positions_for(&run.text);
-                positions
-                    .get(trimmed.chars().count())
-                    .filter(|v| v.is_finite() && **v >= 0.0)
-                    .map(|v| node.bbox.x + v)
-                    .or(full)
-            }
+        let end = if suffix && plain && trimmed.is_empty() {
+            None
+        } else if suffix
+            && plain
+            && s.underline == crate::model::style::UnderlineType::None
+            && !s.strikethrough
+            && s.extra_char_spacing > 0.0
+        {
+            // Distribution stores a caret advance after every cluster, but
+            // replay fits the glyph without the positive inter-cluster gap.
+            // A plain suffix space does not turn the preceding glyph's gap
+            // into ink: project visible clusters using the ORIGINAL run's
+            // positions, even when trailing spaces have their own style runs.
+            // Consume those same positions and glyph-fit projection; do not
+            // resize the run, the saved lane, or the following paragraph.
+            let positions = run.replay_positions_for(&run.text);
+            crate::renderer::layout::split_into_clusters(trimmed)
+                .iter()
+                .try_fold(0.0_f64, |end, (start, cluster)| {
+                    let x = *positions.get(*start)?;
+                    let advance = positions.get(start + cluster.chars().count())? - x;
+                    Some(end.max(x + s.glyph_fit_advance(advance)?))
+                })
+                .map(|end| node.bbox.x + end)
+                .or(full)
+        } else if suffix && plain && trimmed.len() < run.text.len() {
+            let positions = run.replay_positions_for(&run.text);
+            positions
+                .get(trimmed.chars().count())
+                .filter(|v| v.is_finite() && **v >= 0.0)
+                .map(|v| node.bbox.x + v)
+                .or(full)
         } else {
             full
         };
@@ -359,15 +399,65 @@ fn painted_inline_ends(nodes: &[RenderNode], styles: &ResolvedStyleSet) -> Vec<O
 }
 
 impl CellParagraphComposer for TextComposer<'_> {
+    fn compose_with_cell_wrap(
+        &self,
+        para: &Paragraph,
+        width: f64,
+        single_column: bool,
+        line_wrap: u8,
+    ) -> Result<Vec<ParagraphItem>, GeometryError> {
+        super::stored_text::validate_cell_wrap(para, line_wrap)?;
+        if line_wrap == crate::model::table::CELL_LINE_WRAP_SQUEEZE {
+            self.compose_text(para, width, true)
+        } else {
+            self.compose_in_cell(para, width, single_column)
+        }
+    }
+
+    fn stored_child_frame_tails(
+        &self,
+        paragraphs: &[Paragraph],
+    ) -> Result<Vec<(usize, f64)>, GeometryError> {
+        super::stored_text::child_frame_tails(paragraphs, self.styles, self.dpi)
+    }
+
+    fn stored_frame_starts(
+        &self,
+        paragraphs: &[Paragraph],
+    ) -> Result<Vec<(usize, usize)>, GeometryError> {
+        super::stored_text::cell_frame_starts(paragraphs, self.styles, self.dpi)
+    }
+
     fn compose(&self, para: &Paragraph, width: f64) -> Result<Vec<ParagraphItem>, GeometryError> {
+        self.compose_text(para, width, false)
+    }
+}
+
+impl TextComposer<'_> {
+    fn compose_text(
+        &self,
+        para: &Paragraph,
+        width: f64,
+        squeeze: bool,
+    ) -> Result<Vec<ParagraphItem>, GeometryError> {
+        self.compose_text_with_body_end(para, width, squeeze, None)
+    }
+
+    pub(super) fn compose_text_with_body_end(
+        &self,
+        para: &Paragraph,
+        width: f64,
+        squeeze: bool,
+        body_end: Option<&super::fields::BodyFieldEnd>,
+    ) -> Result<Vec<ParagraphItem>, GeometryError> {
         super::stored_text::validate_tabs(para, self.dpi)?;
-        let stored_fields = super::fields::stored_formula_result(para)?;
+        let stored_fields = super::fields::stored_result(para)?;
         if para.column_type != crate::model::paragraph::ColumnBreakType::None
             || (!para.controls.is_empty() && !stored_fields)
             || para.source_line_seg_vertical_pos.is_some()
             || para.layout_only_fill_lines != 0
             || (!para.field_ranges.is_empty() && !stored_fields)
-            || !para.orphan_field_ends.is_empty()
+            || (!para.orphan_field_ends.is_empty() && body_end.is_none())
             || !para.range_tags.is_empty()
             || !para.title_marks.is_empty()
             || !para.markpen_marks.is_empty()
@@ -387,7 +477,6 @@ impl CellParagraphComposer for TextComposer<'_> {
             .ok_or(GeometryError::Unsupported("missing paragraph style"))?;
         if !super::decoration::paragraph_is_unpainted(style.border_fill_id, self.styles)
             || style.head_type != HeadType::None
-            || style.keep_lines
             || style.keep_with_next
             || style.widow_orphan
             || style.page_break_before
@@ -429,7 +518,7 @@ impl CellParagraphComposer for TextComposer<'_> {
             ));
         }
         let stored = !para.line_segs.is_empty();
-        let mut fresh = if stored {
+        let (mut fresh, physical_rows) = if stored {
             super::stored_text::localize(
                 para,
                 style.margin_left..width - style.margin_right,
@@ -445,9 +534,22 @@ impl CellParagraphComposer for TextComposer<'_> {
                 self.dpi,
             )
             .ok_or(GeometryError::Unsupported("text preview frame composition"))?;
-            fresh
+            let boxes = fresh
+                .line_segs
+                .iter()
+                .map(|row| {
+                    let x = hwpunit_to_px(row.column_start, self.dpi);
+                    x..x + hwpunit_to_px(row.segment_width, self.dpi)
+                })
+                .collect::<Vec<_>>();
+            (fresh, boxes)
         };
-        super::stored_text::resolve_vertical_alignment(&mut fresh, self.styles, self.dpi, stored)?;
+        let centers = super::stored_text::resolve_vertical_alignment(
+            &mut fresh,
+            self.styles,
+            self.dpi,
+            stored,
+        )?;
         let composed = compose_paragraph(&fresh);
         let mut frame = PageLayoutContext::new(0, width, 0.0);
         let mut column = RenderNode::new(
@@ -480,12 +582,17 @@ impl CellParagraphComposer for TextComposer<'_> {
             Some(&fresh),
             None,
             None,
-            true,
+            Some(&physical_rows),
+            squeeze,
         );
         super::contracts::nonnegative(end, "composed paragraph end")?;
+        if let Some(centers) = centers {
+            super::stored_text::align_center_runs(&centers, &mut column.children, style, self.dpi)?;
+        }
         if stored {
             super::stored_text::validate_paint(
                 &fresh,
+                &physical_rows,
                 &column.children,
                 end,
                 style.spacing_before,
@@ -579,6 +686,9 @@ impl CellParagraphComposer for TextComposer<'_> {
         } else {
             Vec::new()
         };
+        if style.keep_lines {
+            items = super::paragraph_keep::group(items)?;
+        }
         let ending = super::ParagraphEnd::from_composed(&items, tail, style.spacing_after)?;
         items.push(ParagraphItem::End(ending));
         self.payloads.borrow_mut().push(column.children);

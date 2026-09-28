@@ -1086,7 +1086,10 @@ pub(crate) fn trailing_space_width_after_last_inline_object(
         if stop_on_underline && ts.underline != crate::renderer::UnderlineType::None {
             break;
         }
-        width += estimate_text_width(&" ".repeat(trailing_spaces), &ts);
+        // Alignment subtracts this suffix from the unrounded line/run advance.
+        // Rounding only the suffix shifts the visible right edge (and the
+        // center) even though every glyph keeps the same replay metrics.
+        width += estimate_text_width_exact(&" ".repeat(trailing_spaces), &ts);
         if trailing_spaces != run_char_count {
             break;
         }
@@ -2369,6 +2372,13 @@ impl LayoutEngine {
             projected.hwpx_axis_shift = 0;
             let composed =
                 crate::renderer::composer::compose_paragraph_in_context(&projected, styles);
+            let physical_rows: Vec<_> = rows
+                .iter()
+                .map(|row| {
+                    let x = hwpunit_to_px(row.column_start, self.dpi);
+                    x..x + hwpunit_to_px(row.segment_width, self.dpi)
+                })
+                .collect();
             self.layout_composed_paragraph_in_frame(
                 tree,
                 col_node,
@@ -2388,7 +2398,8 @@ impl LayoutEngine {
                 Some(&projected),
                 Some(bin_data_content),
                 None,
-                true,
+                Some(&physical_rows),
+                false,
             );
             return;
         }
@@ -4118,6 +4129,7 @@ impl LayoutEngine {
             para,
             bin_data_content,
             wrap_anchor,
+            None,
             false,
         )
     }
@@ -4142,8 +4154,10 @@ impl LayoutEngine {
         para: Option<&Paragraph>,
         bin_data_content: Option<&[BinDataContent]>,
         wrap_anchor: Option<&crate::renderer::pagination::WrapAnchorRef>,
-        physical_frame_rows: bool,
+        physical_rows: Option<&[std::ops::Range<f64>]>,
+        squeeze_stored_line: bool,
     ) -> f64 {
+        let physical_frame_rows = physical_rows.is_some();
         let mut y = y_start;
         let end = end_line.min(composed.lines.len());
         // [#4968 R4D-1] 한 문단의 모든 최종 emitted run이 같은 registry
@@ -5140,7 +5154,12 @@ impl LayoutEngine {
                         || cell_square_wrap_stored_line)
                     && comp_line.segment_width > 0
                     && (line_avail_hu < col_area_w_hu - 200 || cs_significant));
-            let (effective_col_x, effective_col_w) = if uses_stored_segment_geometry {
+            let (effective_col_x, effective_col_w) = if let Some(rows) = physical_rows {
+                // Already resolved by the line owner, including half-HU insets.
+                // Do not infer indentation or quantize this physical interval.
+                let row = &rows[line_idx];
+                (col_area.x + row.start, row.end - row.start)
+            } else if uses_stored_segment_geometry {
                 let cs_px = hwpunit_to_px(comp_line.column_start, self.dpi);
                 let sw_px = hwpunit_to_px(comp_line.segment_width, self.dpi);
                 (col_area.x + cs_px, sw_px)
@@ -5719,8 +5738,9 @@ impl LayoutEngine {
             // [#6303] 자동 축소는 저장 한 줄이 **안쪽 폭을 놓친** 칸에만 수렴한다.
             // 일반 셀·문단의 선형 slack/N 을 바꾸면 page-local hash 와 text-overlap 이
             // 흔들린다. 1.15 는 #6196 억제 임계와 같다.
-            let converge_auto_shrink_cell =
-                stored_single_line_fits_cell && total_text_width > available_width * 1.15;
+            let converge_auto_shrink_cell = (stored_single_line_fits_cell
+                && total_text_width > available_width * 1.15)
+                || (squeeze_stored_line && total_text_width > available_width);
             let is_hancom_company_pua_logo_line =
                 is_hancom_company_pua_logo_line(comp_line, alignment);
 

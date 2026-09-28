@@ -1,6 +1,6 @@
-//! Qualified control-only stored picture rows. The row's saved physical box is
+//! Qualified stored picture/space rows. The row's saved physical box is
 //! composed once; pagination and image paint consume the same owned snapshot.
-//! This does not admit floating objects, mixed text, edits or unequal envelopes.
+//! This does not admit floating objects, visible mixed text or edited rows.
 use super::{GeometryError, ParagraphItem, Rect};
 use crate::{
     model::{
@@ -12,7 +12,9 @@ use crate::{
     },
     renderer::{
         layout::find_bin_data_bytes,
-        render_tree::{BoundingBox, ImageNode, RenderNode, RenderNodeType, TextLineNode},
+        render_tree::{
+            BoundingBox, ImageNode, PlaceholderNode, RenderNode, RenderNodeType, TextLineNode,
+        },
         style_resolver::ResolvedStyleSet,
     },
 };
@@ -21,8 +23,12 @@ fn unsupported() -> GeometryError {
     GeometryError::Unsupported("V2 stored picture appearance or resource")
 }
 
-fn image(pic: &Picture, resources: &[BinDataContent]) -> Result<ImageNode, GeometryError> {
+fn payload(pic: &Picture, resources: &[BinDataContent]) -> Result<RenderNodeType, GeometryError> {
     let a = &pic.shape_attr;
+    // Empty HWPX binaryItemIDRef is preserved as ID0 (#1567). It owns an
+    // object frame even though print output has no ink (#2225). Do not extend
+    // this permission to unresolved nonzero resources or external images.
+    let missing = pic.image_attr.bin_data_id == 0 && pic.image_attr.external_path.is_none();
     if pic.common.width == 0
         || pic.common.height == 0
         || pic.common.width_criterion != SizeCriterion::Absolute
@@ -35,8 +41,6 @@ fn image(pic: &Picture, resources: &[BinDataContent]) -> Result<ImageNode, Geome
         || a.vert_flip
         || a.rotation_angle != 0
         || a.group_level != 0
-        || a.offset_x != 0
-        || a.offset_y != 0
         || a.render_b != 0.0
         || a.render_c != 0.0
         || a.render_tx != 0.0
@@ -63,6 +67,21 @@ fn image(pic: &Picture, resources: &[BinDataContent]) -> Result<ImageNode, Geome
     {
         return Err(unsupported());
     }
+    // HWP 5.0 Table 83: offset_x/y are relative to an owning group, not
+    // paragraph/page translation. With group_level == 0 the TAC line owns
+    // the frame origin. Keep the stored fields intact, but do not apply them
+    // or reject the picture because of them. Actual affine translation and
+    // grouped geometry remain unsupported above; fit and paint both consume
+    // the ObjectRow bounds composed below.
+    if missing {
+        // In this ungrouped TAC path, the row owns the frame's position.
+        // Group-local source-image offsets have no pixels to transform. The
+        // same row rect drives measurement and the MissingPicture backend.
+        // This read-only preview does not claim editable DocumentCore IDs.
+        return Ok(RenderNodeType::Placeholder(
+            PlaceholderNode::missing_picture(None, None, None, None),
+        ));
+    }
     let data =
         find_bin_data_bytes(resources, pic.image_attr.bin_data_id).ok_or_else(unsupported)?;
     if !crate::renderer::image_resolver::is_displayable_image_data(&data) {
@@ -81,7 +100,7 @@ fn image(pic: &Picture, resources: &[BinDataContent]) -> Result<ImageNode, Geome
     // applying it again would shrink/grow the image twice. Other transforms
     // are not admitted above. TAC ignores dormant floating-wrap settings.
     // No editable DocumentCore ownership is claimed by this preview snapshot.
-    Ok(node)
+    Ok(RenderNodeType::Image(node))
 }
 
 pub(super) fn compose(
@@ -93,13 +112,16 @@ pub(super) fn compose(
 ) -> Result<(Vec<ParagraphItem>, Vec<RenderNode>), GeometryError> {
     let style = super::tac::carrier_style(para, styles)?;
     let scale = dpi / 7200.0;
-    // Table-space composition does not qualify the picture inset paint path.
-    if style.margin_left != 0.0 || style.margin_right != 0.0 || style.indent != 0.0 {
+    if style.vertical_alignment
+        != crate::renderer::style_resolver::ParagraphVerticalAlignment::Baseline
+    {
         return Err(GeometryError::Unsupported(
-            "TAC carrier paragraph constraints",
+            "TAC paragraph vertical alignment",
         ));
     }
-    let rows = super::tac::stored_object_rows(para, width / scale, style.alignment, true)?;
+    let local = super::tac::physical_frame(para, width, style, dpi)?;
+    let spaces = super::tac_spaces::compose(para, styles, dpi)?;
+    let rows = super::tac::object_rows(&local, width / scale, style.alignment, true, &spaces)?;
     let mut items = vec![ParagraphItem::Space(style.spacing_before)];
     let mut nodes = Vec::new();
     let mut end = 0.0;
@@ -114,7 +136,7 @@ pub(super) fn compose(
         if row.top > end {
             items.push(ParagraphItem::Space((row.top - end) * scale));
         }
-        let source = &para.line_segs[row.source_line];
+        let source = &local.line_segs[row.source_line];
         let bounds = Rect {
             x: f64::from(source.column_start) * scale,
             y: 0.0,
@@ -130,20 +152,40 @@ pub(super) fn compose(
             BoundingBox::new(bounds.x, 0.0, bounds.width, bounds.height),
         );
         let mut controls = Vec::new();
+        for (si, r) in &row.spaces {
+            let mut child = spaces[*si].node.clone();
+            if child.bbox.height > bounds.height {
+                return Err(unsupported());
+            }
+            child.bbox = BoundingBox::new(r.x * scale, 0.0, r.width * scale, bounds.height);
+            if let RenderNodeType::TextRun(run) = &mut child.node_type {
+                run.baseline = f64::from(source.baseline_distance) * scale;
+            }
+            line.children.push(child);
+        }
         for (ci, r) in row.tables {
             let Control::Picture(pic) = &para.controls[ci] else {
                 return Err(unsupported());
             };
-            let payload = image(pic, resources)?;
+            let payload = payload(pic, resources)?;
             line.children.push(RenderNode::new(
                 0,
-                RenderNodeType::Image(payload),
+                payload,
                 BoundingBox::new(r.x * scale, r.y * scale, r.width * scale, r.height * scale),
             ));
             controls.push(ci);
         }
         if controls.is_empty() {
-            items.push(ParagraphItem::Space(bounds.height));
+            if row.spaces.is_empty() {
+                items.push(ParagraphItem::Space(bounds.height));
+            } else {
+                items.push(ParagraphItem::Lines {
+                    height: bounds.height,
+                    advance: bounds.height,
+                    lines: vec![(nodes.len(), bounds)],
+                });
+                nodes.push(line);
+            }
         } else {
             items.push(ParagraphItem::ObjectRow {
                 line: nodes.len(),

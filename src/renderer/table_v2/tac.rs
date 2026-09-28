@@ -30,6 +30,22 @@ fn unsupported() -> GeometryError {
 // original indices when secd/cold precede a table. The parser's recorded HWPX
 // shift is admitted only for that leading structural prefix; conversion itself
 // remains the Paragraph IR accessor's responsibility.
+pub(super) fn qualified_structural_axis(para: &Paragraph) -> bool {
+    let leading = para
+        .controls
+        .iter()
+        .take_while(|c| matches!(c, Control::SectionDef(_) | Control::ColumnDef(_)))
+        .count();
+    (para.hwpx_axis_shift == 0
+        || (para.hwpx_axis_shift.is_multiple_of(8)
+            && para.hwpx_axis_shift as usize / 8 <= leading
+            && matches!(para.controls.first(), Some(Control::SectionDef(_)))))
+        && para
+            .line_segs
+            .iter()
+            .all(|s| s.text_start.checked_add(para.hwpx_axis_shift).is_some())
+}
+
 fn complete_stream(para: &Paragraph) -> bool {
     let Some(end) = u32::try_from(para.controls.len())
         .ok()
@@ -38,11 +54,6 @@ fn complete_stream(para: &Paragraph) -> bool {
     else {
         return false;
     };
-    let leading = para
-        .controls
-        .iter()
-        .take_while(|c| matches!(c, Control::SectionDef(_) | Control::ColumnDef(_)))
-        .count();
     para.text.is_empty()
         && para.char_offsets.is_empty()
         && para.title_marks.is_empty()
@@ -51,20 +62,13 @@ fn complete_stream(para: &Paragraph) -> bool {
         && !para.controls.is_empty()
         && para.char_count == end
         && para.controls.iter().all(Control::occupies_ctrl_char_slot)
-        && (para.hwpx_axis_shift == 0
-            || (para.hwpx_axis_shift.is_multiple_of(8)
-                && para.hwpx_axis_shift as usize / 8 <= leading
-                && matches!(para.controls.first(), Some(Control::SectionDef(_)))))
-        && para
-            .line_segs
-            .iter()
-            .all(|s| s.text_start.checked_add(para.hwpx_axis_shift).is_some())
+        && qualified_structural_axis(para)
 }
 
 /// Resolve complete 8-unit control streams, including multiple tables on a
 /// saved row. No text/control order or page boundary is inferred from overlap.
-/// Equal occupied envelopes are the qualified baseline case. Mixed text and
-/// unequal envelope ascents/descents require the general inline composer.
+/// The shared baseline envelope must reproduce the saved row height. Mixed
+/// visible text and unqualified saved envelopes require a general composer.
 pub fn stored_tac_rows(
     para: &Paragraph,
     width_hu: f64,
@@ -84,7 +88,7 @@ pub(super) fn stored_object_rows(
     object_rows(para, width_hu, alignment, pictures, &[])
 }
 
-fn object_rows(
+pub(super) fn object_rows(
     para: &Paragraph,
     width_hu: f64,
     alignment: Alignment,
@@ -98,7 +102,7 @@ fn object_rows(
         let mut spans: Vec<_> = positions
             .iter()
             .map(|&p| (p, 8u32))
-            .chain(spaces.iter().map(|s| (s.position, 1)))
+            .chain(spaces.iter().map(|s| (s.position, s.source_len)))
             .collect();
         spans.sort_unstable();
         let mut end = 0u32;
@@ -121,6 +125,7 @@ fn object_rows(
             && para.orphan_field_ends.is_empty()
     };
     if !complete
+        || !qualified_structural_axis(para)
         || para.stored_text_partition_is_dirty()
         || para.source_line_seg_vertical_pos.is_some()
         || para.layout_only_fill_lines != 0
@@ -182,13 +187,15 @@ fn object_rows(
             spaces: Vec::new(),
         });
     }
+    let tac_fields = !pictures && super::fields::stored_tac_prefix(para);
     for (ci, ctrl) in para.controls.iter().enumerate() {
         // Source geometry only: admitting a page-number slot here does not
         // render it. Document admission separately rejects unhandled stories.
         if matches!(
             ctrl,
             Control::SectionDef(_) | Control::ColumnDef(_) | Control::PageNumberPos(_)
-        ) {
+        ) || (tac_fields && matches!(ctrl, Control::Field(_)))
+        {
             continue;
         }
         let (a, margins) = object_box(ctrl, pictures)?;
@@ -214,9 +221,6 @@ fn object_rows(
             .rfind(|&i| para.line_seg_text_start(i) <= position)
             .ok_or_else(unsupported)?;
         let row = &mut rows[li];
-        if f64::from(a.height) + f64::from(margins[2]) + f64::from(margins[3]) != row.height {
-            return Err(GeometryError::Unsupported("unequal TAC occupied envelopes"));
-        }
         let mut pen = if let Some((previous, r)) = row.tables.last() {
             r.x + r.width + f64::from(object_box(&para.controls[*previous], pictures)?.1[1])
         } else {
@@ -244,6 +248,26 @@ fn object_rows(
         ));
     }
     for row in &mut rows {
+        if let Some(band) =
+            super::tac_metrics::TableBand::measure(row.tables.iter().map(|(ci, r)| {
+                let (_, margins) = object_box(&para.controls[*ci], pictures).unwrap();
+                (r.height, f64::from(margins[2]), f64::from(margins[3]))
+            }))
+        {
+            // Stored row height is independent evidence for the composed
+            // envelope. Do not stretch, clamp or ignore an incompatible row.
+            // Normal saved unequal-picture rows share this TAC baseline rule
+            // too (issue7353_picture_space_review), not one full-height image
+            // box per sibling.
+            if !same(band.height, row.height) {
+                return Err(GeometryError::Unsupported(
+                    "stored TAC baseline envelope mismatch",
+                ));
+            }
+            for (_, r) in &mut row.tables {
+                r.y = band.top(r.height);
+            }
+        }
         let source_row = &para.line_segs[row.source_line];
         let stop = rows_stop(para, row.source_line);
         let (occupied, after_last) = if let Some((ci, last)) = row.tables.last() {
@@ -264,14 +288,14 @@ fn object_rows(
         if free < 0.0 {
             // A single unbreakable table can itself exceed its saved line.
             // Normal Hancom saves retain its full width and outside margins,
-            // starting at the line origin even for right alignment. There is
+            // starting at the line origin even for center/right alignment. There is
             // no spare alignment space, not a smaller object/physical box.
             // Multiple objects or leading content need the general breaking
             // composer; trailing spaces remain owned and painted below.
             let single_overwide_table = !pictures
                 && matches!(
                     alignment,
-                    Alignment::Left | Alignment::Justify | Alignment::Right
+                    Alignment::Left | Alignment::Justify | Alignment::Center | Alignment::Right
                 )
                 && row.tables.len() == 1
                 && row.tables.first().is_some_and(|(ci, rect)| {
@@ -291,6 +315,7 @@ fn object_rows(
                 // justification result is not supplied by this saved-box query.
                 Alignment::Justify
                     if row.tables.is_empty()
+                        || row.source_line + 1 == para.line_segs.len()
                         || (row.tables.len() == 1
                             && (spaces.is_empty()
                                 || row.source_line + 1 == para.line_segs.len())) =>
@@ -409,7 +434,7 @@ pub(super) fn carrier_style<'a>(
     Ok(style)
 }
 
-fn physical_frame(
+pub(super) fn physical_frame(
     para: &Paragraph,
     width: f64,
     style: &crate::renderer::style_resolver::ResolvedParaStyle,
@@ -456,7 +481,17 @@ pub(super) fn compose(
     styles: &ResolvedStyleSet,
     dpi: f64,
 ) -> Result<(Vec<ParagraphItem>, Vec<RenderNode>), GeometryError> {
+    if para.line_segs.is_empty() {
+        return super::tac_fresh::compose(para, width, styles, dpi);
+    }
     let style = carrier_style(para, styles)?;
+    if style.vertical_alignment
+        != crate::renderer::style_resolver::ParagraphVerticalAlignment::Baseline
+    {
+        return Err(GeometryError::Unsupported(
+            "TAC paragraph vertical alignment",
+        ));
+    }
     let scale = dpi / 7200.0;
     let local = physical_frame(para, width, style, dpi)?;
     let spaces = super::tac_spaces::compose(para, styles, dpi)?;
@@ -590,4 +625,14 @@ pub(super) fn bind(
         y: rect.y,
         plan,
     })
+}
+
+/// Binding validates the measured child's box against its composed slot. Even
+/// equal HU geometry can differ by a few floating-point bits after row sums.
+/// Reserve the actual bound bottom used by paint, not just the pre-bind slot.
+/// This never changes line advance or relaxes bind's mismatch rejection.
+pub(super) fn bound_height(height: f64, tables: &[InlineTableInput]) -> f64 {
+    tables
+        .iter()
+        .fold(height, |end, child| end.max(child.y + child.plan.height))
 }

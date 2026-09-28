@@ -4229,3 +4229,5419 @@ Native와 fresh WASM의 review·standalone overlay·확대 비교를 직접 열�
 실패의 실제 컷·요구 높이·가용 예산 소비 경로다. 이번 판매현황 표의 사람 시각 판정은 대기한다.
 전체 CI/workspace all-targets, Studio 수동 조작과 수식 편집 후 재계산은 미실행이다.
 Legacy 기본 경로·golden·ignore 변경 및 push/PR은 없으며 R5 완료로 판정하지 않는다.
+
+### 원본 부모 셀의 페이지 초과와 이어받기 — 진행 중
+
+작업지시자는 `50823731a`의 판매현황 표 시각 판정을 통과시켰다. 다음 대상은 원본 #6923
+문단5/control0의 1×1 부모 표다. TAC가 아닌 TopAndBottom/RowBreak이며 셀의 87개 문단과
+자식 표를 구성하면 4144.91px, 바깥여백 포함 요구량은 4148.68px다. 기존은 BetweenRows를
+항상 셀 내부 분할 금지로 처리하여 두 번째 physical page에서 수용하지 못한다.
+원본 대응 `148738070_wrapper_table_stored_page_frame-2020.pdf`의 실제 1·2쪽을 열어,
+같은 부모 셀이 페이지를 넘어 이어지는 독립 출력 근거를 확인했다. PDF는 총7쪽이다.
+
+후보 규칙은 새 페이지에도 들어가지 않는 Top 정렬 단일 행만 구성된 줄/개체 유닛으로
+분할하는 것이다. 현재 남은 예산과 새 페이지 용량을 구분한다. 새 페이지에는 들어가는 행은
+기존 통째 이월을 유지한다. Never, rowspan 연결 그룹과 TAC 한 줄 그룹의 원자성은 유지한다.
+RowBreak enum/파서나 Legacy 규칙은 변경하지 않는다. 일반성/시각 검증 전 후보 상태다.
+
+소비 경로: `BodyCursor::fit`이 본문 fresh-page 높이를 전달 →
+`FlowCursor::fit_with_page_height`가 반복되는 자식 상단 밴드만 차감 →
+`TableCursor::fit_rows`에서 행 점유 높이와 fresh capacity를 비교 → 셀 FlowCursor가
+실제 수용한 줄·자식 조각을 반환 → 그 조각 높이를 부모 예약에 반영 → `TextPaint::build_node`
+는 동일 셀/자식 bounds를 사용한다. padding/빈 밴드는 기존 FlowBlock과 minimum_left로
+한 번 소비하고, paint에서 컷이나 높이를 재계산하지 않는다. 반복 제목과 Top 이외 세로 정렬은
+이번 내부 분할 확장에서 제외하여 기존 원자적 계약을 유지한다. rowspan 연결 그룹도 내부
+분할 미지원이므로 기존 원자적 경로로 남는다.
+
+첫 실행은 내부 TAC 표의 마지막 행에서 `InconsistentAtomicPlan`을 드러냈다. 자식 높이는
+444.96px인데 group합에 페이지 원점을 먼저 더한 비교가 마지막 그룹을 거부하여273.55px만
+반환했다. `row_groups`는 같은 시작 행부터의 local prefix를 측정·수용·최종 예약에 공유하도록
+수정 중이다. 허용 오차나 높이 clamp를 추가하지 않는다. 진단 출력은 제거했다.
+증적 경로는 `output/7353/r19/inline-split/`이며 아직 완료/시각 판정 자료가 아니다.
+
+후속 Native 진단에서는7쪽 전체 종료가 가능해졌다. 그러나 비교 이미지를 직접 열어2쪽의
+첫 제목이 위로 당겨지고,3쪽에 한컴4쪽의 소제목이 먼저 놓이는 차이를 확인했다. 원본 부모
+셀 문단6은 공백 두 글자, 저장 vpos0·높이1500HU·줄간격316HU이며, 앞 문단5의 마지막
+줄은 vpos48210HU·높이1100HU다. 현재 연속 흐름은 이 공백 문단을1쪽 끝에 수용한다.
+원본 PDF2쪽에서는 이 공백 뒤 제목이 시작한다. 명시적 raw_break_type은0이므로 vpos
+되감김만으로 강제 쪽나눔을 만들지 않는다. 저장 프레임의 유효성/공백 소유를 별도 확인해야 한다.
+이는 글꼴 외형 차이가 아니며,7쪽 종료를 독립 PDF의 피델리티 통과로 승격하지 않는다.
+
+부분 셀의 gradient/대각선을 온전한 셀처럼 다시 늘려 그리지 않도록 실제 조각의 partial
+상태를 paint까지 전달하고 미지원 장식은 실패로 유지한다. 반복 제목54px 계약과 세로 정렬
+89px 부족 계약을 처음 확장이 바꾼 것은 focused 검사에서 검출했으며, 기대값을 바꾸지 않고
+확장 범위를 위 미검증 경로에서 제외했다. 작은 일반 행의 이월, 초과 행의 줄 소유/최소 물리
+밴드 보존, Never/용량 미지정 경로, 장식 거부와 재시도의 상태 보존을 정식 검사에 추가했다.
+
+`roundoff-before.log`는 row_groups 수정만 되돌린 통제 실행에서 정상 원본 내부 표의
+최종 행 누락을 검사한 FAIL이다(빌드 성공 뒤 assertion 실패). 같은 테스트는1HU 부족 대조군도
+포함한다. 원본 부모 행의 수정 전 명시적 거부 증거는 기존 `formula/admission/6923-terminal-admission.txt`
+를 재사용한다. 무변경 Legacy, baseline/golden/ignore와 source 샘플은 그대로다.
+
+현재 후보 검증(source `50823731a` + 작업 diff):
+
+| 항목 | 결과 / 증거 (`output/7353/r19/inline-split/` 아래) |
+| --- | --- |
+| focused 정식 cases | 19 harness **315 PASS / 0 FAIL**, `tests-final-summary.log` |
+| 내부 행 누락 반례 | 수정 전 FAIL `roundoff-before.log` → 수정 후 PASS `issue_7353_rowspan_roundoff.log`;1HU 부족·여러 원점 대조 포함 |
+| Native 원본 | 변경하지 않은 #6923 입력 **7쪽 출력 후 종료**, `original-final.log`, `review/actual/native.json`. 각 부모 조각의 본문 경계·셀 내 줄 경계 검사 PASS; PDF 위치 일치 판정은 아님 |
+| lint | fmt check, Native/WASM32 library Clippy `-D warnings` PASS, `fmt-final.log`, `clippy-{native,wasm}-final.log` |
+| Native 비교 | 최종 코드 재출력/재캡처 `review/native-{compare,overlay,review}-{1..7}.png`.2쪽 위치 차이를 다시 직접 확인; 판정 보류 |
+
+최종 `fragment.rs` SHA-256은 `4e00546e1e33963e5eccc6c8331a4f85cc476d7992b43892812d62ae3ad2c1e2`,
+`fragment/row_groups.rs`는 `8f0faf8c2ec6e7778a718955106e1286decf4ea7a42090175349b6aa0234bdf1`다.
+전체 source manifest·입력/PDF 해시는 `source.sha256`, `review/run.json`에 있다.
+실행 명령은 `node output/7353/r19/inline-split/tests.mjs`, library build/Clippy,
+`inline-split/probe <원본HWP> inline-split/review/actual`,
+`pdftoppm -r 96 -png <대응PDF> inline-split/review/hancom`,
+`node output/7353/r19/inline-split/review.mjs`다.
+
+**시각 완료 후보가 아니므로 fresh WASM/Docker·전체 CI·새 사람 승인 요청은 보류**한다.
+기존 `pkg`는 직전 승인된 수식 절편 빌드이며 이번 후보와 같다고 보고하지 않는다.
+다음 장애물은 저장 프레임 경계에서 공백 문단/후속 제목의 소유다. 겹치는 줄 상자의 끝만
+비교해 페이지 경계를 추정했던 Legacy 예외를 복제하지 않고, 정상 저장 프레임의 유효성을
+독립 출력 및 반례와 함께 검증해야 한다. 아직 커밋하지 않은 내부 작업 diff로 유지한다.
+
+### 저장 셀 프레임 경계와 빈 문단 소유 — 시각 확인 후보
+
+작업지시자의 다음 절편 승인으로 위 장애물을 처리한다. 입력은 수정하지 않은 원본 #6923
+HWP이며 독립 기준은 같은 fixture의 `148738070_wrapper_table_stored_page_frame-2020.pdf`다.
+PDF2쪽의 제목 앞 공백과 원본 셀 문단6의 저장 메트릭을 근거로 한다. 문단6의 공백 두 글자는
+1쪽에서 먼저 소비할 내용이 아니라2쪽의 첫 줄이다. 높이1500HU(20px), 줄간격316HU
+(4.213333px), 뒤 제목의 상단 여백141HU를 그대로 보존한다. PDF 페이지 수7 자체를
+분할 조건이나 성공 기준으로 사용하지 않는다.
+
+규칙과 소비 경로:
+
+- `stored_text::cell_frame_starts` → `ir::bind_table`: 저장 줄 구성이 유지되는 셀 story에서
+  문단 첫 줄 원점이0으로 되돌아가는 경계를 다음 문단 앞 `StoredFrameStart`로 보존한다.
+  줄의 **끝점 겹침**은 경계가 아니다. 모든 원점이0인 문단들도 경계로 만들지 않는다.
+  실제 원본에서 해당하는 셀 문단은6·29·48·71이다.
+- 누락 LineSeg, dirty text partition, 원본 vpos 투영 snapshot, layout-only suffix가 있으면
+  저장 프레임을 재사용하지 않는다. custom/reflow composer도 기본적으로 재사용하지 않는다.
+  각 문단의 기존 저장 폭·줄 분할·메트릭 admission은 유지한다. 비0 되감김과 문단 내부
+  되감김은 이번 범위에서 명시적 미지원이며 authored page break로 변환하지 않는다.
+- `TableCursor::fit_rows` → `FlowCursor::fit_cell_until`: 셀 내부 분할 경로만 프레임 경계를
+  소비한다. 앞 내용 뒤 경계를 만나면 marker와 후속 빈줄을 다음 continuation에 남긴다.
+  새 조각의 시작 marker 자체는0높이 메타데이터이며 빈줄을 대신하지 않는다.
+  Never·통째 수용되는 일반 RowBreak 행은 저장 경계로 강제 분할하지 않는다.
+- 앞 프레임의 남은 물리 높이는 현 조각에 예약한다. 첫 후보처럼 외곽을 ink 끝으로 줄이지
+  않는다. 자식이 전달받은 예산 전체를 쓴 경우 Flow/Table/Body fit이 같은 예산 끝점을
+  전달하여 뺄셈·재합산 roundoff를 제거한다. 허용 오차 확대나 paint clamp는 추가하지 않는다.
+- `TextPaint::build_node`는 fit의 셀 bounds와 실제 줄 소유·위치를 소비한다. 빈줄을1쪽에
+  복제하거나2쪽에서 생략하지 않으며 paint에서 프레임/높이를 다시 추정하지 않는다.
+
+정식 검사 `tests/cases/issue_7353_stored_cell_frames.rs`는 원본의 빈줄이2쪽에 정확히 한 번
+존재하는지,20px 높이와 제목까지의 저장 간격,1~4쪽 부모 표가 본문 하단까지 점유하는지를
+실제 render tree에서 검사한다. 추가 합성 계약은 경계에서 빈줄/후속 줄 소유, 부족 예산에서
+재시도 불변성, 정확한 예산 끝점, 마지막 유닛 뒤 종료, intact Never/RowBreak 비적용,
+음수 줄간격에 의한 상자 겹침, local0 원점 반복, fresh composer 비적용을 확인한다.
+합성 계약은 추가 한컴 문서와의 일치 증거가 아니다.
+
+통제 수정 전 실행은 IR marker 연결만 끈 상태로 빌드 후 원본 빈줄의 page index가0으로
+검출되어 FAIL(`contract-before.log`)했다. 복원한 수정 후 같은 소유 검사는 PASS이며,
+그 후 물리 하단 예약 assertion과 fresh composer 대조까지 포함한 최종5개 검사가 PASS다.
+다른 focused cases315개도 PASS다. 전체 CI/workspace all-targets 및 Studio 수동 편집은
+미실행이며 테스트/golden/ignore의 기대 기준을 완화하지 않았다.
+
+검증 source는 `50823731a` + 현재 작업 diff이며 증적은 `output/7353/r19/cell-frames/`다.
+`source.sha256`과 `review/run.json`에 source manifest·원본 HWP·기준 PDF hash를 고정했다.
+Native 원본은7쪽 출력 후 정상 종료했고 Native/WASM32 library Clippy `-D warnings`와
+fmt check가 통과했다. focused20 harness319 PASS 뒤 같은 최종 production source에
+fresh composer 대조1개를 추가하여 해당 harness5개를 재실행했다(총 고유320 PASS).
+`tests-final-summary.log`, `contract-after.log`, `native-final.log`,
+`clippy-{native,wasm}-final.log`가 실행 증거다.
+
+실행은 `node output/7353/r19/cell-frames/tests.mjs`, 공유 target의 library build/Clippy,
+`cell-frames/probe <원본HWP> cell-frames/review/actual`,
+`node output/7353/r19/cell-frames/review.mjs`다. 실험 DocumentV2용 기존 직접 Chrome
+capture/comparison 경로로 Native compare·standalone overlay·review를 새로 생성했다.
+기본 CLI/Studio의 Legacy 출력으로 V2 증거를 대체하지 않았다.1~7쪽을 열어2쪽 빈줄 뒤 제목 위치와
+페이지별 내용 소속 개선을 직접 확인했다. 글꼴 외형·테두리 굵기·1쪽 로고의 기준 PDF 차이는
+남으며,4쪽 부모 외곽 하단은 기준 PDF보다 아래에 있다. 이번 경계/빈줄 소유 개선을
+표 외곽까지 포함한 PDF 완전 일치로 판정하지 않는다. 변경 전후 TextRun1098개의 텍스트
+다중집합은 동일하다(페이지별 위치/순서 일치의 증거는 아님).6·7쪽도 앞 흐름 변경의 영향을
+받았으므로 비교 이미지를 직접 확인했으며 변경 없음으로 분류하지 않는다.
+
+Docker fresh WASM 빌드/직접 Chrome 출력 비교까지 완료했다. 기본 compose는 네트워크
+pool 부족으로 시작하지 못하여 기존 `rhwp` project network/cache를 사용했다. 물리 예약
+수정 전 후보 빌드는 중단했으며 최종 코드는 `docker-final.log`의 별도 빌드로 검증했다.
+`docker compose --env-file .env.docker -p rhwp run --rm wasm`는7분10초에 성공했다.
+그 뒤 `node output/7353/r19/cell-frames/review.mjs --wasm`으로 실제 Chrome의 새
+`DocumentV2`에서7쪽을 출력하고 정상 종료했다. Native와7쪽 SVG가 모두 동일하며 render
+tree의 비수치 차이0, 최대 수치 차이는2.274e-13이다(`review/backend-comparison.json`).
+새 WASM2쪽 review와 standalone overlay를 직접 열어 첫 공백 및 제목 위치를 확인했다.
+한컴 대비2쪽 잉크 영역 자동 일치율22.32%는 글꼴·테두리 차이도 포함한 보조값이지 사람의
+최종 판정 정확도가 아니다. 대표 자료는 `review/wasm-{compare,overlay,review}-2.png`이고
+1~7쪽 모두 생성했다. WASM SHA-256:
+`6dd21d40c61791c76242e367c78765286873d26fb8dad8f81b6a1925c45667ec`.
+2쪽 첫 공백 소유/저장 간격의 사람 판정을 요청하며,4쪽 외곽 하단 차이는 남은 검토로 유지한다.
+Legacy/Studio 기본 엔진 전환·원격 push·PR·R5 전체 완료는 이번 절편에 포함하지 않는다.
+
+### 부모 셀 첫 빈 문단 원점 재검증 — 앞선 해결 주장 정정
+
+작업지시자는 하단이 아니라 부모 표 시작의 첫 빈 문단 문제임을 지적하고 추적·검증 보정을
+승인했다. 앞선 빈줄/제목 사이 상대 간격과 Native/WASM 일치만으로 해결됐다는 주장을 철회한다.
+빈줄의 존재와 높이가 맞더라도 셀 기준 원점이 잘못되면 뒤 내용까지 함께 이동한다.
+
+이번에는 원본 `section0/paragraph5/control0/cell(row0,col0)`를 먼저 고정하고 물리1쪽의
+첫 문단0과 물리2쪽의 첫 문단6을 모두 대조했다. 문단0은 빈 문자열·높이1400HU·간격0이며,
+현재도 부모 셀 상단+141HU에서 시작한다. 문단6은 공백 두 글자·높이1500HU·간격316HU다.
+문단6 자체가 사라진 것이 아니라 **저장 프레임 이어받기 때 셀 상단 안여백141HU가 빠진다**.
+원본/서식은 변경하지 않았다.
+
+| 물리2쪽 기준,96dpi | 수정 전 | 수정 후 | 근거 |
+| --- | ---: | ---: | --- |
+| 부모 셀 상단 |98.266667|98.266667|동일 최종 cell bounds |
+| 첫 빈줄 상단 |98.266667|100.146667|셀 안여백141HU=1.88px |
+| 빈줄 높이 |20|20|저장 LineSeg1500HU |
+| 다음 제목 carrier 줄 상단 |122.48|124.36|빈줄 높이+줄간격316HU |
+| 제목 자식 표 상단 |124.36|126.24|carrier 원점+개체 상단여백141HU |
+
+독립 PDF2쪽 vector path는 부모 상단98.292px, 분홍 제목 상단126.103px다.
+`mutool draw -F trace -o output/7353/r19/leading-blank/reference-trace.xml <대응PDF> 1-2`
+후 path transform을96dpi로 환산했다. 텍스트 bbox를 빈줄 bbox로 간주하지 않았다.
+PDF gap27.811px와 원본 속성 합 `(141+1500+316+141)/75=27.973333px`를 대조하여
+프레임 상단 여백 누락을 판별했다. PDF좌표에 맞춘 상수 보정은 추가하지 않는다.
+
+실제 경로는 `content::from_flow_grid`가 최초 셀 padding을 Space로 한 번 구성 →
+`ir::bind_table`의 저장 프레임 marker → `FlowCursor::fit_cell_until`의 marker 이어받기다.
+기존은 최초 padding Space를 이미 소비한 상태에서 marker만 건너뛰어 첫 줄을 셀 상단에 놓았다.
+수정은 저장 프레임 시작에서만 **동일 cell.padding.top**을 물리 예산과 pen에 포함한다.
+`fragment::fit_rows`의 content_origin도 같은 시작 상태를 사용한다. 실제 paint는 fit이 반환한
+line.bounds를 translate하므로 paint 단계에서 보정하거나 빈줄을 추가하지 않는다.
+일반 용량 컷은 새 저장 프레임이 아니므로 padding/빈줄을 재생하지 않는다.
+
+첫 유닛을 수용하지 못하면 marker/inset을 함께 미소비 상태로 유지하고 요구 높이에 여백을
+포함한다. 여백만 소비한 빈 페이지를 내보내지 않는다. 이 실패 시 복원을 모든0진행 경로에
+적용한 첫 후보는 기존0높이 행의 종료/테두리 거부 계약을 깨뜨렸다. focused에서 검출하여
+복원을 실제 저장 프레임 시작 경로에 한정했고 기대값은 바꾸지 않았다.
+
+추적 실패의 원인은 검사의 기준점 누락이다. 기존 `original_blank_line...`은 서식과 텍스트로
+문단6을 찾고 제목까지의 상대 간격을 검사했으나 **부모 셀 상단→첫 줄 상단**은 검사하지 않았다.
+V2 paint가 셀 내부 TextLine의 section/para 인덱스를 지우는 것도 조사 가시성의 제약이다.
+이번에는 부모 Table 경로와 첫 TableCell/첫 TextLine을 구조적으로 함께 검사하고,
+`leading-blank/detail.mjs`로 원본 경로·빈줄/후속 줄/자식 표의 전후 좌표를 기록한다.
+이는 이번 검사의 보강이며 범용 IR→render tree 소유 추적 API를 완성했다고 주장하지 않는다.
+
+검증 증적은 `output/7353/r19/leading-blank/`다. 원본 검사에 부모 기준 원점을 추가한
+`before.log`는 변경 전 코드에서2쪽 cell.y=line.y로 FAIL했고, 수정 후 정식6개 경계 검사에서
+PASS했다.5px inset 합성 대조는0·4·14px 예산에서 요구15px로 실패,38px 예산에서 정확 수용,
+18px 뒤의 일반 용량 컷에서 padding 미반복·유닛 보존·최종 종료를 확인한다.
+20 focused harness **321 PASS /0 FAIL**(`tests-final.log`), 원본7쪽 정상 종료
+(`native-final.log`)를 확인했다. 합성 대조의 통과는 별도 한컴 입력의 피델리티 증거가 아니다.
+최종 source는 `50823731a`+기존 WIP 포함 현재 diff이며 `source.sha256`으로 고정한다.
+
+Native compare/overlay/review를 재생성하고2쪽을 직접 확인했다. 원점 보정은 제목 앞 공백부터
+후속 내용에 적용되며1쪽 첫 빈 문단은 변경하지 않는다. 확인 영역을 명확히 하기 위해
+`first-blank-native.png`에는 같은2쪽 상단의 PDF/수정 전/수정 후 확대와 rhwp 실제 빈줄 상자
+주석을 분리했다. PDF에 rhwp의 추정 빈줄 상자를 덧씌우지 않는다.
+최종 Native/WASM32 library Clippy와 fmt/diff 검사를 통과했다. Docker fresh WASM은
+`docker compose --env-file .env.docker -p rhwp run --rm wasm`으로7분11초에 성공했다
+(`docker-final.log`). `node output/7353/r19/leading-blank/review.mjs --wasm`으로 실제
+Chrome의 새 DocumentV2에서7쪽을 출력했고 Native와7쪽 SVG가 모두 동일했다.
+render tree 비수치 차이0, 최대 수치 차이2.274e-13이다(`review/backend-comparison.json`).
+WASM SHA-256: `5a770be7976821324221bdd61b9515a3f52bae2c7bd624e57e3870200657570c`.
+source.sha256도 재대조하여 테스트·lint·시각 출력 사이 production source 변경이 없음을 확인했다.
+
+Native 영향3~5쪽 review와 fresh WASM2쪽 review/standalone overlay/확대 자료를 직접 열었다.
+`node output/7353/r19/leading-blank/detail.mjs --wasm`의 `trace-wasm.json`과
+`first-blank-wasm.png`는 셀 상단→빈줄→제목의 최종 좌표와 동일 영역 전후 출력을 연결한다.
+2쪽 자동 잉크 일치율24.11%는 보조값이며 사람 판정 정확도가 아니다.
+1쪽 첫 빈 문단은 이미 올바른 원점이므로 변경하지 않았다. Native1·6·7쪽 SVG는 이전
+cell-frames 후보와 byte 동일하고,7쪽 전체의 페이지별 텍스트 순서도 유지된다.
+3·4쪽 부모 외곽 하단 등 다른 차이와 전체 CI는 이번 첫 빈 문단 원점 검사로 해결/완료
+처리하지 않는다. 이번 자료는 해당 상단 원점에 대한 사람 시각 판정 대기이며,
+Legacy/Studio 기본 엔진 전환·원격 push·PR·R5 전체 완료를 수행하거나 주장하지 않는다.
+
+### 2026-09-27 — 상단 빈 문단 승인, 부모 조각 하단의 독립 재검증
+
+작업지시자가 직전 `leading-blank/first-blank-wasm.png`의 시각 판정을 통과시키고 다음
+절편을 승인했다. 승인 범위는 부모 셀 상단→첫 빈줄→제목의 원점이며, 앞서 명시한 하단
+외곽 차이나 전체 R5 완료로 확대하지 않는다. 같은 stage19에서 계속한다.
+
+다음 대상은 저장 프레임 종료 시 부모 조각의 물리 하단이다. `bug-hunter`의 독립 기준과
+실제 호출 경로 대조 절차를 적용하되, 일반 CLI는 Legacy이므로 승인된 실험 DocumentV2
+probe/Chrome 출력의 기존 정확한 source 증거를 사용한다. 새 CLI나 Legacy 대체 출력을
+만들지 않는다. 원격 이슈 생성은 하지 않고 발견을 #7353의 이 기록에 연결한다.
+
+`output/7353/r19/frame-extent/audit.mjs`가 직전 source manifest와 원본/PDF 해시를
+현재 파일과 대조한 뒤 동일 source의 실제 WASM render tree와 PDF vector path를 비교했다.
+production source는 바뀌지 않았으므로 직전 fresh WASM을 재사용하며 재빌드를 반복하지 않는다.
+`mutool draw -F trace <대응PDF> 1-5`의 실제 transform을96dpi로 환산했고, 원본 부모 폭
+638.68px에 대응하는 수평 외곽만 골랐다. 결과는 `audit.json`, 재현 가능한 원 trace는
+`reference.xml`이다. PDF Creator `Hwp 2020 0.0.0.0`, Producer `Hancom PDF 1.3.0.550`,
+7쪽/A4이며 폰트 목록에는 embedded Gulim/H2gtrM/H2gtrE 및 Type3가 포함된다.
+기존 대응 PDF를 재사용했고 이번에 새 한컴 출력이나 폰트 환경 동등성을 확보했다고 쓰지 않는다.
+
+| 물리 쪽 | PDF 부모 하단(px) | 현재 V2 부모 하단(px) | 아래쪽 차이(px) |
+| --- | ---: | ---: | ---: |
+| 1 |1021.923|1028.013|6.091|
+| 2 |1021.923|1028.013|6.091|
+| 3 |1016.968|1028.013|11.045|
+| 4 |1010.255|1028.013|17.759|
+| 5(부모 종료) |832.369|833.173|0.804|
+
+실제 경로:
+
+- `stored_text.rs:162`의 `cell_frame_starts`는 되감김 위치만 반환한다.
+  `ir.rs:227`은 높이가 없는 `FlowBlock::StoredFrameStart`를 넣는다.
+- `flow.rs:98-104`는 경계를 만나면 **pen과height를 모두area.height로 덮어쓴다**.
+  이는 프레임 소유를 보존하지만, 원본에 없는 "표 외곽도 남은 예산 전체를 채운다"는
+  높이 가정을 동시에 추가한다. 미소비 페이지 공간과 실제 셀 외곽이 구별되지 않는다.
+- `fragment.rs:281`의 `used`가 이 height를 받고, `:319`의 CellPlacement bounds 및
+  TablePlacement/reserved_height로 전달된다. `body_flow.rs:45`는 같은 예약량을 본문
+  높이/pen으로 수용한다. paint는 확정 bounds를 그리므로 뒤에서 임의 clamp할 문제가 아니다.
+- 일반 용량 컷·마지막 프레임에는 이 marker 덮어쓰기가 없고, Never/온전한 RowBreak는
+  stored frame으로 분할하지 않는다. 해당 미적용 경로까지 전부 같은 결함이라고 하지 않는다.
+
+**기존 검사 해석 정정:** `issue_7353_stored_cell_frames.rs:70`의
+`bottom(parent)==bottom(body)`는 현재 구현을 고정한 계약이지 PDF1~4쪽의 독립적인
+정답이 아니다. "대응 PDF에서 본문 경계까지 채운다"는 주석/앞선 보고의 근거가 부족하다.
+321개 PASS 중 이 assertion의 성공을 하단 피델리티 충족으로 세지 않는다. 이번 절편에서는
+대신 더 느슨한 assertion으로 통과시키거나 baseline을 변경하지 않았다.
+
+기각한 대안: 마지막 실제 내용 상자+저장 마지막 줄간격+하단 padding으로 단순 종료시키면
+1쪽 하단1003.547px(PDF보다18.376px 짧음),4쪽1020.400px(PDF보다10.145px 김)이 된다.
+따라서 남는 공간을 통째로 제거하거나 특정 쪽에서 마지막 gap을 버리는 보정도 채택하지 않는다.
+원본 common.height51339HU는 단일 선언값, cell.height189665HU는 단일 셀 값이며,
+이를 페이지별 외곽 높이 목록으로 해석할 근거는 아직 없다. raw extra에도 알려진 페이지별
+높이 목록은 파싱되어 있지 않다. 파서에서 데이터가 소실됐다고 단정하지 않는다.
+
+현재 판정은 **외곽 차이와 무조건 예산 전체 예약 경로 확인 / 정확한 대체 높이 규칙 미검증**이다.
+`frame-extent/parent-bottom-review.png`를 직접 열어1·4쪽의 같은 하단 영역을 확인했다.
+이 그림은 기존 승인 WASM의 조사용 재구성이며 수정 후 산출물이나 새 시각 통과 후보가 아니다.
+원본의 마지막 빈 문단은 계속 보존해야 하며 잉크 끝에 맞춘 외곽 축소는 금지한다.
+
+후속 수정의 설계 경계는 `내용 컷/다음 페이지 소유`와 `표 조각의 물리 외곽/본문 예약`의 분리다.
+외곽을 결정할 독립 근거를 먼저 확보해야 한다. 정상 한컴 저장 대조군에서 마지막 빈 줄·
+줄간격·셀 하단 여백·표 바깥 여백을 하나씩 바꾼 전후 입력/PDF로 종료 규칙을 분리하고,
+그 규칙에 따라 정식 FAIL/PASS 계약과 공통 fragment 결과를 구현한다. 단일 원본의 관측
+좌표를 상수로 옮기거나 테스트 통과를 목적으로 기대값을 바꾸지 않는다. 당시 이름이 노출된
+도구 목록만 확인하여 새 한컴 대조군 획득을 미실행으로 남겼다. 아래 후속에서 문서화된
+MCP CLI 경로를 확인했으므로 "변환 경로가 없다"는 판단은 정정한다. 이미 승인된 상단
+수정은 유지하며, 이 미검증 하단 규칙을 구현 완료로 처리하지 않는다.
+
+### 2026-09-27 — 정상 한컴 저장 대조군으로 프레임 하단 규칙 분리
+
+다음 절편 승인에 따라 `bug-hunter`의 독립 기준 확보 절차를 계속했다. 이름이 노출된 도구가
+없더라도 `mydocs/manual/mcp_hwp2024Convert_usage.md`의 archive CLI를 사용할 수 있었다.
+비공개 env 파일을 인자로 전달하는 `start → status → succeeded 확인 → download`로
+새 대조군을 획득했다. 인증값/endpoint는 이 문서나 명령 증적에 기록하지 않는다.
+
+`output/7353/r19/frame-extent/`의 `create.rs`는 원본에서 스타일/표 틀만 가져온 별도
+작성 대조군을 만든다. 65개 단문, 14pt, 한 셀의 RowBreak 표이며 원본 #6923 내용과의
+피델리티 대체물이 아니다. **LineSeg 없는 작성 HWPX → 한컴 HWP 저장 → 그 HWP에서 PDF**
+순서이고, 한컴 저장본의 줄 정보는 수동 수정하지 않았다. 최종 비교군은 다음 6종이다.
+
+| 대조군 | 분리한 조건 | 한컴 저장 첫 조각 높이(px) | 현재 V2 높이(px) | 진단 |
+| --- | --- | ---: | ---: | --- |
+| `base2` | 줄간격100%, 안 여백141HU |899.760|906.853|FAIL|
+| `blank2` | 내부41번째 문단을 빈줄로 교체 |899.760|906.853|FAIL|
+| `blankend3` | 첫 쪽 마지막48번째 문단을 빈줄로 교체 |899.760|906.853|FAIL|
+| `padding2` | 셀 하단 여백141→750HU |889.213|906.853|FAIL|
+| `outer2` | 표 바깥 하단 여백0→750HU |881.093|906.853|FAIL|
+| `gap3` | 셀 내부 줄간격160%, 본문 host는100% 유지 |888.560|906.853|FAIL|
+
+표의 기대 높이는 **한컴이 새로 저장한 common.height**이다. 이 대조군에서는 첫 조각의
+마지막 저장 줄 `vpos + line_height + 셀 상하 여백`과 정확히 같고, PDF vector의 실제 외곽도
+함께 관찰했다(`controls.json`, 각 `*-trace.xml`). PDF 첫 조각 실측 높이는 base2=898.696,
+padding2=888.148, outer2=880.156, gap3=887.508px이다. 저장 수치 대비 약1px의 인쇄 출력
+차이는 별도로 남기며 좌표를 이동/확대해 숨기거나 PDF와 수치상 완전 일치라고 하지 않는다.
+
+이 대조군이 입증한 범위:
+
+- 마지막 빈 문단을 지우지 않아도 올바른 외곽을 계산할 수 있다. blankend3의48번째 줄은
+  한컴 저장본에서1400HU 높이를 가지며, 기본 문서와 같은 프레임 높이/쪽 소유를 유지한다.
+- 160%의 마지막 줄간격840HU는 다음 줄 원점용이며 해당 조각 외곽에 더해지지 않는다.
+  중간 줄간격은 유지된다. 마지막 줄의 높이 자체를 버린다는 뜻이 아니다.
+- 셀 하단 여백은 물리 외곽에 포함된다. 여백 때문에 첫 쪽 수용 줄 수가48→47로 바뀌므로
+  더 큰 여백에서 첫 조각의 총 높이가 오히려 작아질 수 있다.
+- 표 바깥 여백도 수용 줄 수에 영향을 주지만 셀 외곽 높이에 합쳐 그리지 않는다.
+- 현재 V2는 이 차이를 무시하고 `StoredFrameStart`에서 동일한 남은 페이지 예산을
+  조각 높이로 만든다. `before-controls.log`의6건 FAIL은 현재 결함 재현이며 전체 CI 실행이나
+  이번 변경 때문에 새로 생긴 회귀6건이라는 뜻이 아니다. CI 기대값/ignore는 바꾸지 않았다.
+
+중간 작성본도 보존했다. offset0 작성본은 한컴이0폭 host 줄을 저장하여 V2가 거부했다.
+`gap2`는 host까지160%로 만들어 host 흐름2240HU와 표 offset2000HU가 겹쳤다.
+그 입력을 수용하도록 엔진 조건을 완화하지 않았다. 최종군은 정상 작성 속성으로 host 공간을
+확보하고 다시 한컴에서 저장했으며, 이전 입력의 성공으로 바꾸어 보고하지 않는다.
+최종 `create.rs`는6종의 의미상 재생성 절차이며 기존 산출물 덮어쓰기를 거부한다.
+
+변환 provenance: profile2020, Hancom11.0.0.9136,32-bit managed DLL host,
+input_preprocess=none, PDF one-up(print_method0), font scope verified(2등록/0실패).
+각 `*-hwp-job/status/download.json`, `*-pdf-job/status/download.json`에 job과 결과가 있다.
+대표 base2 HWP job=`9b442820-11f0-44de-8bf3-5026c0698b61`, PDF job=
+`ca903f95-8fd4-42ee-bcce-b3af31703ca0`이다. 원본도 별도 `original-resaved.hwp`로 저장해
+확인했지만 원본을 교체하지 않았다. 첫 조각 common.height51339HU와 주요 프레임 경계는
+유지되었고 일부 저장 vpos에2HU 차이가 있었다. 이를 원본 전체 재조판 일치 증거로 쓰지 않는다.
+
+재현 명령은 `node output/7353/r19/frame-extent/controls.mjs base2 blank2 padding2 outer2 gap3 blankend3`,
+`check-controls.mjs`의 같은 인자, `capture.mjs <base2|blankend3|gap3> --wasm`이다.
+Native6종을 실행했고 기본/끝 빈줄/160%의 Native와 실제 Chrome WASM 총7쪽을 비교했다.
+7개 SVG byte 동일, render tree 비수치 차이0, 최대 수치 차이2.274e-13이다.
+코드 source manifest 전체가 이전 fresh 빌드와 일치하므로 같은 WASM을 사용했으며
+새 빌드를 했다고 주장하지 않는다. WASM SHA는 위 상단 수정 검증과 동일하다.
+각 `*-review/run.json`과 `before-controls.json`에 입력/PDF/source/WASM 해시를 연결했다.
+
+`base2-review/wasm-review-1.png`와 `controls-before-review.png`의 실제 하단을 직접 확인했다.
+compare/standalone overlay/review는 각 대조군 `*-review/`에 있다. 이미지에 명시했듯
+**수정 전 결함 재현 자료이지 시각 통과 요청이 아니다.** 기존 상단 승인도 취소하지 않는다.
+
+이번 절편은 독립 대조군과 실패 검출 근거 확보까지다. 일반 텍스트 대조군의 종료 규칙을
+원본 중첩 표에 무조건 대입하면 앞선1쪽/3쪽의 물리 밴드 차이는 아직 설명되지 않는다.
+후속 구현은 줄/개체 점유 끝, 문단 tail, 셀 inset, 바깥 여백, 다음 프레임 소유를 분리해
+공통 fragment 결과로 전달해야 한다. 정상 예산/부족 예산의 마지막 유닛 원자 수용,
+일반 용량 컷과 저장 프레임 컷, intact/Never의 비적용, 뒤 문단을 정식 `tests/cases/`에서
+전후 검증한 뒤 원본과 fresh WASM 시각 자료를 다시 만든다. 이번 조사만으로 구현 완료,
+회귀 PASS, R5 완료를 선언하지 않으며 production Rust/test source는 변경하지 않았다.
+
+### 2026-09-27 — 저장 프레임 종료 구현 후보와 원본 물리 밴드 보류
+
+다음 절편 승인에 따라 위 대조군으로 재현한 `StoredFrameStart`의 남은 페이지 예산
+전체 점유를 수정했다. 기본 엔진은 여전히 Legacy이며 이 절편은 실험 V2 경로다.
+**일반 대조군은 해결했지만 원본 #6923 전체 시각 통과는 보류한다.**
+
+적용 규칙과 소비 경로:
+
+- `ir.rs::bind_table`은 저장 프레임 경계 직전의 `ParagraphEnd`를 일반 Space로
+  일찍 없애지 않고 `paragraph_end.rs::into_stored_frame_tail`을 통해 typed tail로
+  보존한다. 외부 composer의 의미를 모르는 tail은 여전히 명시적 Space로 보존한다.
+- `content.rs::physical_extent`의 intact 측정과 `flow.rs::fit_cell_until`의 intact/
+  Never 배치는 기존 tail을 같은 순서로 더한다. 저장 프레임 분할 경로만 마지막
+  following-line gap 대신 점유 끝 + 문단 뒤 간격 + 셀 하단 inset을 소비한다.
+  마지막 빈 문단의 줄 상자는 삭제하지 않는다.
+- `flow.rs`는 마지막 유닛 fit 전에 하단 inset/문단 뒤 간격을 예산에서 예약한다.
+  `StoredFrameStart` marker는 다음 프레임 소유로 남기지만 현재 조각 높이를 페이지
+  전체 예산으로 바꾸지 않는다. 초기/이어받기 프레임의 상단 inset도 첫 실제 유닛과
+  함께 수용한다. 상단 여백만 있는 빈 조각을 허용하던 부족 예산 반례도 재현·수정했다.
+- `fragment.rs::fit_rows`의 `used = max(content_offset + fit.height)`가 셀 bounds,
+  표 placement와 reserved height에 그대로 전달된다. 뒤 본문은 `FlowBlock::Table`과
+  `body_flow.rs::BodyFit::accept`가 같은 조각의 점유/advance를 소비한다. paint에서
+  외곽을 다시 늘리거나 clamp하지 않는다. 일반 용량 컷에는 저장 프레임 inset을 재생하지 않는다.
+- rowspan 전용 `row_groups.rs`는 `FlowCursor::fit`의 intact 쿼리를 사용하여
+  `stored_frames=false`로 전달된다. 이번 종료 규칙을 적용하지 않으며 저장 프레임
+  분할 피델리티는 미검증이다. 이 경로를 지원 완료로 확대하지 않는다.
+  intact/Never 비적용 계약도 유지했다.
+
+정식 테스트는 `tests/cases/issue_7353_stored_frame_end.rs`다. 입력6종의 정상 저장 HWP,
+작성 HWPX와 독립 PDF를 `tests/fixtures/issue7353/stored-frame-end/`에 보존했다.
+기대 높이는 위 독립 한컴 저장값이며 구현 결과의 재인용이 아니다. 실제 셀 bounds,
+첫 조각의48/47/30줄, 마지막 빈줄 포함65줄의 순서·중복·누락, 다음 쪽 시작,
+마지막 AFTER TABLE의 표 밖 위치와 추가 빈 페이지 부재를 검사한다.
+합성 경계는 점유20/advance15 또는20, 문단 뒤3, 하단5의 독립 합28로 검사한다.
+27px 예산은 거절,28px는 수용하며 intact 경로는 기존48px를 유지한다.
+상단5를 더한33px 경계도4/5/25/32px 거절과33px 수용을 확인한다.
+
+전후 증거는 `output/7353/r19/frame-end/`에 둔다. 기존 수정 전 Native 실행 파일
+`leading-blank/probe`로 동일 입력을 실행한 결과에 정식 테스트의 동일 좌표 assertion을
+적용한 `formal-before-replay.rs/log`는 FAIL이다. 전체 과거 source를 다시 빌드한 것이
+아니라 수정 전 실행 파일의 실제 출력에 assertion을 적용한 경로임을 구분한다.
+6종 각각의 수정 전 FAIL은 기존 `frame-extent/before-controls.json`에 있다.
+추가 상단 여백 반례의 수정 전 FAIL은 `contracts-padding-before.log`이며,
+최종21 harness **325 PASS / 0 FAIL / 0 ignored**는 `tests-summary-final.log`에 있다.
+이는 #7353 관련 소범위 검사이지 전체 CI/전체 corpus 통과가 아니다.
+fmt, Native library와 wasm32 library Clippy도 `*-final.log`에 기록한다.
+
+기존 `issue_7353_stored_cell_frames`의 “원본 PDF 첫4쪽이 본문 하단과 같다”는 assertion은
+앞 절편의 PDF vector 관찰로 전제가 틀렸음이 확인되어 본문 초과 여부로 정정했다.
+높이의 정확성은 새 독립 대조군 계약으로 검사한다. 이 정정으로 원본의 남은 외곽 차이를
+통과시킨다는 의미는 아니다. 아래 미충족 상태와 수치를 별도로 유지한다.
+
+원본은7쪽이고 수정 전후 각 쪽의 TextRun 순서가 모두 동일하다. 하지만 독립 PDF와
+부모 표 하단을 직접 비교하면 다음 차이가 남는다(`original-comparison.json`).
+
+| 물리 쪽 | 후보 하단 - PDF 하단(px) | 판정 |
+| --- | ---: | --- |
+| 1 | -22.323 | 미충족: 외곽 아래 물리 밴드를 아직 보존하지 못함 |
+| 2 | -3.349 | 미충족: 잔여 외곽 차이 |
+| 3 | -7.035 | 미충족: 잔여 외곽 차이 |
+| 4 | +0.972 | 약1px 인쇄 출력 차이 범위, 사용자 시각 판정 전 |
+| 5 | +0.804 | 이번 종료 변경 전후 동일 |
+
+특히1쪽은 기존 +6.091px보다 오차가 커졌다. 이를 개선 완료나 기존 차이라는 이유로
+통과 처리하지 않는다. 원본의 common.height51339HU와 줄 점유 끝의 차이1747HU는
+후속 조사 대상이며, 이 수치를 문서별 여백 상수로 추가하지 않는다. 정상 대조군은
+후속 내용 누락 없이 해결했지만 **원본 물리 밴드 규칙이 확인되기 전 후보를 최종 승격하지 않는다.**
+이번 작업의 비교 자료는 대조군 부분 검증과 원본 미충족을 구분하는 자료이며 R5 완료,
+전체 시각 승인, PR/push 승인 요청이 아니다.
+
+최종 후보 source는 HEAD `50823731a` + WIP이며 `frame-end/source.sha256`로 고정했다.
+상단 여백 경계 보정 전에 시작했던 첫 Docker 산출물은 최종 증거로 사용하지 않았다.
+보정 후 `docker compose --env-file .env.docker -p rhwp run --rm wasm`을 다시 완료했다
+(`docker-verified.log`,7분8초). 최종 WASM SHA256은
+`da653c776d1de9d25d8a06b11d20c1341d8e3fb46c5198838f6fb9c697474ff6`이다.
+`capture.mjs <base2|blankend3|gap3|original> --wasm`으로 실제 Chrome의 DocumentV2를
+실행했다. 기본/끝 빈줄/160% 대조군7쪽과 원본7쪽, 합14쪽의 Native/fresh WASM SVG가
+byte 동일하고 render tree 비수치 차이0, 최대 수치 차이2.274e-13이다.
+`summary.json`, 각 `*-review/run.json`과 `backend-comparison.json`에 source/input/PDF/
+WASM 해시를 연결했다. 실험 DocumentV2를 호출하는 캡처이므로 기본 Legacy CLI sweep을
+실행했다고 보고하지 않는다. 같은 페이지의 compare·standalone overlay·review를 산출했다.
+
+직접 판독한 대표 자료는 `controls-review.png`(동일 좌표 하단 영역),
+`blankend3-review/wasm-review-2.png`, `gap3-review/wasm-review-3.png`,
+`original-review/wasm-review-4.png`, `original-review/wasm-overlay-1.png`다.
+대조군의 마지막 빈줄 공간과 다음 쪽49번째 줄/AFTER TABLE은 유지되고 하단 외곽은
+약1px 차이다. 원본1쪽에서는 표 아래 물리 공간이 짧아진 것을 overlay에서도 확인했다.
+글꼴 외형 차이·원본 PDF 상단 로고 차이는 이번 하단 규칙의 해결 주장에 포함하지 않는다.
+**자동 계약 통과와 별개로 원본 시각 미충족이 남으므로 최종 승인 요청을 보류한다.**
+
+### 2026-09-27 — 원본 하단 물리 공간의 원인 분리: 셀 최소 높이 배분
+
+다음 절편 승인에 따라 원본의 부족한1747HU를 정상 한컴 저장 대조군으로 추적했다.
+**원인은 빈 문단 누락이 아니라, 분할 도중 셀 최소 높이의 남은 물리 공간을 배분하지
+않는 V2 경로다.** 이번 절편은 원인과 반례를 확정했으며 production Rust는 수정하지
+않았다. 위 후보의 원본 시각 미충족 상태를 유지한다.
+
+입력 생성과 독립 근거는 `output/7353/r19/frame-band/`에 보존했다.
+`create.rs`는 앞 절편의65줄 무캐시 작성 HWPX에서 표 높이만90000HU로 바꾼
+`declared-tall`과 셀 높이만200000HU로 바꾼 `cell-tall`을 만든다.
+`original-controls.rs`는 원본 부모 셀 높이를189665/1000HU로 달리한 두 HWPX를
+만든다. 두 입력 모두 부모 셀 LineSeg를 동일하게 제거하여 한컴이 다시 조판하도록
+했고, 그 입력 캐시를 증거로 사용하지 않았다. 네 문서 모두 MCP `start → status →
+download`로 한컴2020 profile에서 정상 HWP 저장한 뒤 **그 저장 HWP를 PDF로 출력**했다.
+원본과 기존 기준 PDF는 변경하지 않았다. 변환 job/status/download JSON과 input/HWP/PDF,
+`analyze.mjs`, `analysis.json`이 재현 근거다.
+
+| 정상 저장 대조군 | 입력 차이 | 한컴 저장 첫 조각 높이(HU) | 관찰 |
+| --- | --- | ---: | --- |
+| declared-tall | 표 common.height만1000→90000 | 67482 | 기존 base2와 동일. 선언 표 높이를 무조건 최소 높이로 쓸 수 없음 |
+| cell-tall | 셀 height만1000→200000 | 67913 | 첫 쪽부터 물리 공간을 소비하고, 내용 종료 후에도3쪽까지 남은 셀 공간 보존 |
+| original-minimum | 원본 셀 height189665 유지 | 51339 | 원본 기준 PDF의1~5쪽 하단과 동일 |
+| original-small | 부모 셀 height만1000 | 49592 | 첫 하단이1747HU 줄고,2·3쪽도 줄지만4·5쪽은 불변 |
+
+원본 변형 두 정상 저장본의 부모 셀 **전체 paragraphs JSON이 동일**하다. 부모 표의
+semantic 차이는 `cells[0].height`와 한컴이 다시 계산한 `common.height`뿐이며,
+raw control bytes16/17도 이 common.height의 복제다. 줄 소속·줄 상자·빈 문단·중첩 표의
+내용을 바꾸지 않아도 외곽 하단이 달라졌으므로,1747HU를 빈 줄이나 line gap으로
+추가하는 처리는 잘못이다. `common.height`도 이 사례에서는 원인이 아니라 저장된
+첫 조각 크기라는 결과다.
+
+PDF의 동일 페이지에서 부모 외곽 하단을96dpi 좌표로 비교한 값:
+
+| 물리 쪽 | 셀189665HU PDF | 셀1000HU PDF | 현재 V2 원본 |
+| --- | ---: | ---: | ---: |
+| 1 | 1021.923 | 998.588 | 999.600 |
+| 2 | 1021.923 | 1017.607 | 1018.573 |
+| 3 | 1016.968 | 1008.976 | 1009.933 |
+| 4 | 1010.255 | 1010.255 | 1011.227 |
+| 5 | 832.369 | 832.369 | 833.173 |
+
+현재 V2는 원래 셀 높이가 있어도 작은 셀 높이의 한컴 대조군과 같은 하단을 낸다
+(약1px 인쇄 출력 차이는 별도). 페이지 수는 두 PDF 모두7쪽이다. 페이지 수만으로는
+이 결함을 검출할 수 없다. 단순 cell-tall도 V2는3쪽을 만들지만 첫 조각899.760px가
+한컴 저장905.507px보다 짧고, 마지막 조각이 그만큼 길어진다. 총 높이 보존만으로
+조각별 높이 배분의 정확성을 입증할 수 없다.
+
+실제 소비 경로:
+
+1. `ir.rs::bind_table`이 `cell.height * scale`을 `FlowCellInput.minimum_height`로
+   전달하고 `fragment.rs::TableCursor::reset_row`가 `minimum_left`로 보존한다.
+2. `fragment.rs::fit_rows`의 `used`는 실제 수용한 줄/자식 조각 높이다.
+   **289행의 `if all_done` 안에서만** 남은 최소 높이를 고려한다. 저장 프레임 경계에서
+   끊긴 비끝 조각은 이 처리를 건너뛴다.
+3. 같은 `used`가 셀 bounds·표 조각 높이·본문 예약 높이로 전달되고,331행에서
+   `minimum_left`를 차감한다. 따라서 paint의 별도 축소가 아니라 fit 결과의 물리
+   공간 배분 누락이며, paint에서 외곽만 늘려 해결하면 본문 예약과 다시 불일치한다.
+4. Legacy `float_placement.rs` / `table_partial.rs`에는1x1 비끝 조각을 본문 하단−
+   바깥 아래 여백−100HU로 고정하는 별도 규칙이 있다. 이번 작은 셀 높이 대조군과
+   원본4쪽은 같은1x1 RowBreak 형상이지만 그 위치까지 차지하지 않는다. 이 예외를
+   V2에 그대로 복제하지 않는다. 남은 최소 높이 소비와 쪽 경계 예산을 구분해야 한다.
+
+다음 구현은 `common.height` 반복 강제나 문서별1747HU 보정이 아니라, 내용 컷과
+**남은 물리 최소 높이의 분할 소비 결과**를 함께 만드는 방향이다. 내용 유닛이 전혀
+fit하지 않는 경우의 빈 조각 금지, 최소 높이를 모두 소비한 뒤 내용 높이로 종료,
+작은 최소 높이의 기존6종 대조군, 실제 후속 문단, 적용되는 rowspan/중첩 경로를
+검증해야 한다. 쪽 경계의 바깥 여백·기존100HU 규칙의 적용 근거는 별도 확인하여
+최소 높이 배분 문제와 섞지 않는다. 이 부분은 아직 구현/최종 검증 완료가 아니다.
+
+직접 확인한 `frame-band/diagnostic-review.png`는 같은1쪽 하단 영역의
+“원래 셀 높이 한컴 / 작은 셀 높이 한컴 / 현재 V2” 비교이며 **원인 진단 자료이지
+수정본 승인 요청이 아니다**. V2 캡처는 위 frame-end 결과를 재사용했다. production
+Rust30개 파일이 그 source.sha256과 모두 동일함을 `frame-band/source-check.log`로
+확인했기 때문에 재사용한 것이며, 새 빌드나 수정 후PASS로 보고하지 않는다.
+이번 절편에서는 source 변경·재빌드·전체 회귀·새 WASM·commit/push를 수행하지 않았다.
+
+### 셀 최소 높이의 분할 소비 구현 — 부분 충족, 하단 예산은 미해결
+
+다음 절편 승인에 따라 experimental V2의 `fragment.rs::fit_rows`를 수정했다.
+Legacy/default 전환은 하지 않았다. 검증 소스는 HEAD `50823731a` 위 working patch이며,
+production Rust30개 파일은 `output/7353/r19/minimum-band/source-final.sha256`으로 고정했다.
+기존 WIP를 보존했다. 다음 내용은 앞 절의 진단 결과를 대체하는 구현 결과다.
+
+- 실제 수용한 내용 컷마다 남은 셀 최소 높이를 가용 공간 안에서 함께 소비한다.
+  내용이 끝난 뒤에만 최소 높이를 붙이던 지연 배분을 제거했다. 최소 높이가 소진된 뒤에는
+  내용 점유 높이만 사용하며, 내용 종료 후 실제 남은 물리 공간은 유지한다.
+- 첫 내용이 들어가지 않는 경우 물리 공간만으로 진행을 만들지 않는다. `from_flow_rows`가
+  삽입한 상단 여백 block0만 소비한 경우도 이에 포함한다. 다른 셀의 실제 내용이 들어가면
+  같은 행 조각에서 여백을 소비할 수 있다. 편집자가 입력한 빈 문단을 제거하는 조건은 아니다.
+- 내용 컷/소유는 `FlowCursor::fit_cell_until`의 cursor와 lines/tables를 그대로 유지한다.
+  `fragment.rs:269` 요구 높이 → `:286` 여백만 진행한 경계 판정 → `:300` 실패 시 컷 보류 →
+  `:310` 최소 공간 예약 → `:328` 동일 used의 CellPlacement → 조각 높이와 minimum_left 차감으로
+  이어진다. `flow.rs`의 Table 분기와 `body_flow.rs::BodyFit::accept`가 이 조각 높이를 소비한다.
+  paint에서 외곽만 늘리는 보정은 추가하지 않았다. rowspan은 `fit_row_groups` 별도 경로로,
+  이번 셀 내부 컷 변경 비대상이며 기존 그룹 높이 계약을 함께 실행했다.
+
+독립 기대값과 재현:
+
+| 검사 | 근거 / 수정 전 | 최종 결과 |
+| --- | --- | --- |
+| 최소120px, 줄3개 각20px, 예산50px | 각 컷의 물리 공간50+50+20. 이전20+20+50과 잔여 꼬리 | PASS |
+| 첫 줄이 들어가지 않는 예산 | 컷 진행 금지, required에 상단 여백 포함. padding-before.log에서 FAIL 재현 | PASS |
+| 작은/소진 최소 높이, 내용 종료 후 진짜 꼬리 | 내용 높이와 물리 공간을 구별하고 총 높이·유닛 순서 보존 | PASS |
+| 중첩·여러 셀 | 부모가 자식 조각 높이를 재추측하지 않음. 다른 셀의 실제 진행 대조 | PASS |
+| 정상 한컴 base2/cell-tall | 앞 절의 독립 HWP/PDF.65줄 순서와 총 높이, 첫 조각 공간 증가 | PASS; PDF 하단 정확 일치는 미충족 |
+
+정식 원본은 `tests/cases/issue_7353_fragment_minimum_band.rs`9개이며,
+정상 저장 대조군을 `tests/fixtures/issue7353/minimum-band/`에 보존했다.
+초기5개를 수정 전 library에 실행한 `before.log`는4FAIL/1PASS였다.
+상단 여백 경계는 첫 수정 후보에서 별도로 FAIL을 재현한 뒤 보정했다.
+기존 oversize-row의 정확한 배분 기대값을20/40/50에서25/50/35로 변경했다.
+이것은 같은110px 및1/2/1줄 컷을 유지하면서 호출 예산25/50/50에 최소 공간을 앞 조각부터
+소비하는 계약 변경이다. 정상 한컴 대조군의 앞 조각 공간 증가가 독립 근거이며 ignore나
+허용 오차 확대는 하지 않았다.
+
+최종 로컬 실행:
+
+- `cargo build --locked -p rhwp --lib --target-dir /home/edward/mygithub/rhwp/target/pr-review` PASS.
+- `cargo fmt --all -- --check`, Native 및 wasm32 라이브러리 Clippy `-- -D warnings` PASS.
+  `build-final.log`, `fmt-final.log`, `clippy-native-final.log`, `clippy-wasm-final.log` 참조.
+- 기존 `frame-end/tests.sh`와 같은 standalone rustc harness로 #7353의22개 원본을 실행:
+  **334PASS / 0FAIL / 0ignored**. `final-tests/`, `tests-summary-final.log` 참조.
+  이는 국소 검증이며 generated CI suite·workspace all-targets·전체 CI 통과 주장이 아니다.
+- `node output/7353/r19/minimum-band/capture.mjs original|base2|cell-tall`을 각각 실행하여
+  최종 Native7+2+3쪽을 캡처했다. 실제 명령은 인자를 하나씩 전달한다.
+  두 대조군의 최초 브라우저 실행 실패는 순차 재실행으로 해결했다. 각 `*-final-review/run.json`에
+  입력/PDF hash와 소스 manifest를 보존했다. Legacy CLI가 아닌 실제 V2 probe 출력이다.
+- `check.mjs` / `comparison.json`: 원본7쪽의 페이지별 TextRun 순서 전부 유지.
+  원본2·3쪽 review와1쪽 standalone overlay, base2 첫쪽과 cell-tall 마지막쪽을 직접 판독했다.
+  마지막 물리 꼬리와 AFTER TABLE은 보존된다. 폰트 외형 차이는 별도다.
+
+원본 부모 외곽 하단의 기준 PDF 대비96dpi 차이는1·2쪽 **+6.091px**,3쪽 **−7.035px**,
+4쪽+0.972px,5쪽+0.804px다.1쪽의 짧은 외곽은 없어졌지만 과대해졌으며,
+**2쪽은 수정 전−3.349px보다 절대 오차가 커졌다**.3쪽은 변하지 않았다.
+따라서 최소 높이 분할 계약은 충족했지만 원본 시각 개선 완료는 아니다.
+대표 진단 자료는 `minimum-band/original-final-review/native-compare-2.png`,
+`native-overlay-2.png`, `native-review-2.png`이며 승인 요청용 통과 자료로 제출하지 않는다.
+
+다음 대상은 쪽별 하단 가용 높이/바깥여백의 정의와 최소 공간 예약의 연결이다.
+Legacy100HU 보정 또는 모든1x1 비끝 조각의 본문 하단 고정을 그대로 가져오지 않는다.
+현재 Native에서 차이가 확인되므로 이 후보의 fresh Docker WASM·전체 회귀는 아직 실행하지
+않았다. wasm32 Clippy 통과를 WASM 실행 검증으로 대체하지 않는다. commit/push도 하지 않았다.
+
+### 조각 하단 가용 높이 예약 — Native 및 fresh WASM 검증
+
+다음 절편 승인에 따라 `document_input.rs`와 `body_flow.rs`를 수정했다. 앞 절의 최소 높이
+분할 결과는 유지하고, 셀 높이에 바깥여백을 섞지 않았다. `body_anchor.rs`가 산출한 아래
+여백을 기존의 **마지막 조각 뒤 Space** 대신 각 accepted 조각의 예산과 본문 예약에 반영한다.
+분할·기하 계산 후 paint에서 외곽을 clamp하거나 본문 바닥까지 강제로 늘리지 않는다.
+
+독립 근거와 적용 범위:
+
+- 아래 바깥여백은 표 외곽과 본문 경계 사이의 공간이다. 첫/계속/마지막 조각에서 표와 함께
+  수용하고, 여백만 뒤 페이지로 내보내지 않는다. 실제 위치 여유가 부족하면 같은 컷으로 이월한다.
+- 추가100HU는 사양 필드나 일반 조판 규칙이 아니라 **저장 HWP 프레임의 경험적 호환 값**이다.
+  기존 #7095 독립 한컴 PDF·여백/테두리/쪽 기하 변형 근거
+  (`mydocs/report/fragment-geometry-7095/README.md`, 기존 #7095 회귀의 근거 주석)와
+  이번 정상 저장 cell-tall/original-minimum 대조를 확인했다. 기존 Legacy 술어/paint 고정을
+  호출하지 않고, 실제 V2 바인딩 결과에 StoredFrameStart가 있는 미편집 native HWP5의
+  본문1x1 RowBreak anchor에서만 비끝 조각의 가용 높이로 사용한다. TAC·HWPX·저장 프레임이
+  없는 재조판에는 적용하지 않는다. 단순1x1 형상만으로는 적용 근거가 되지 않는다.
+- 최종 조각인지 먼저 순수 fit 질의로 확인한다. 끝나지 않는 경우에만 여유를 포함한 예산으로
+  다시 질의하고 **재질의 결과의 컷·높이·continuation**을 수용한다. 두 질의 모두 cursor를
+  변경하지 않으며 최종 결과만 commit한다. 마지막 조각 뒤에는 실제 바깥여백만 예약한다.
+
+실제 소비 연결:
+
+`document_input.rs:342` profile/저장 프레임 확인 → `AnchoredFlow.bottom_margin` 및
+`nonterminal_clearance` → `body_flow.rs:32` 현재·새 쪽 예산 차감 → `flow.rs` Table 분기의
+같은 child budget → `fragment.rs::fit_rows` 내용 컷/남은 최소 높이/CellPlacement →
+`AnchoredFlow::fit`에서 바깥 공간 예약 → `BodyFit::accept` → `document.rs`의 placement와
+`text.rs:195`의 동일 bounds paint다. 첫 배치와 pending/deferral이 같은 fit을 호출한다.
+여백 예산 실패 시 원래 cursor를 유지하며, 여백만 소비한 deferred 경계는 기존의 명시적
+DoesNotFit를 유지한다. nested cell·rowspan 내부 컷 알고리즘은 수정하지 않았으며 기존
+관련 계약을 함께 실행했다.
+
+검증은 `output/7353/r19/frame-budget/`에 보존한다. HEAD `50823731a` 위 working patch의
+Rust30개 파일은 `source-final.sha256`으로 고정했다.
+
+| 관측 | 결과와 범위 |
+| --- | --- |
+| 원본 PDF 외곽 회귀 | 수정 전1쪽1028.013px로 FAIL → 수정 후1~5쪽 모두 독립 PDF 축척 정규화 오차0.25px 이내 PASS |
+| 큰 셀 대조군 | 기존906.853px →905.520px. PDF 벡터 높이 오차0.25px 이내; 한컴 저장67913HU와는1HU 차이 잔존 |
+| 기본·선언 높이만 큰 대조군 |2쪽 유지. declared-tall의 두 쪽 SVG가 base2와 동일 |
+| 저장 HWP 호환 값 비적용 | 동일 저장 내용을 HWPX로 직렬화한 source-boundary 계약 PASS. 한컴 HWPX fidelity 증거는 아님 |
+| 바깥여백 포함 원자 표 |72px 본문에6+18+60px 요구를 거부, 반복 질의도 같은84px 요구/페이지 진행 없음 PASS |
+| 국소 회귀 | #7353의22개 standalone 원본 harness **338PASS,0FAIL,0ignored**. 전체 CI 결과가 아님 |
+| 정적/빌드 | 최종 Native library build, fmt check, Native/wasm32 library Clippy PASS. workspace all-targets/전체 CI 미실행 |
+
+`before.log`의 원본 회귀는 실제 좌표 실패이며 빌드 실패가 아니다. 최초 큰 셀 검사는
+저장 common.height와 소수점까지 동일해야 한다고 요구해 수정 후에도1HU 차이로 실패했다.
+이것을 숨기지 않고 정확 일치 주장을 철회했다. 최종 검사는 원본과 **같은 독립 PDF 벡터
+좌표0.25px 기준**을 사용한다. 이 변경은 저장 필드를 일치시킨 증거가 아니며100HU의 정확한
+내부 반올림 규칙은 미확정이다. 큰 셀의 이전906.853px와 PDF 높이 차이는 이 기준도 위반한다.
+
+기존 `stored_anchor_reserves_offset_once_and_preserves_host_and_following_rows`의 기대값은
+본문 끝102px/표 시작54px에48px 높이를 허용하여8px 바깥여백을 침범했다. 독립 입력의
+여백을 반영한 table budget94px에 따라 첫쪽 A/B, 다음쪽 C/D로 수정했다. 기존3/1줄 기대를
+유지하려고 여백 적용을 제외하지 않았다. 새 원자 표 경계와 HWPX 비적용 검사는 최종 소스의
+PASS이며, 이 둘을 별도 수정 전 FAIL 실행 증거로 과장하지 않는다.
+
+Native 원본7쪽의 페이지별 TextRun 순서는 모두 유지된다(`comparison.json`).1~5쪽 하단의
+PDF 원좌표 대비 차이는 각각+0.984/+0.984/+0.992/+0.972/+0.804px다. 한컴 출력의
+84188HU→841pt 인쇄 축척을 정규화하면 모두0.25px 이내다. 캡처 이미지에는 이 정규화나
+맞춤 이동을 적용하지 않았으므로 아래쪽에 약1px 프린지가 남는다. 원본1·3쪽 review를
+직접 확인했으며 기존 글꼴/로고 차이와 이번 표 외곽 판정을 구분한다.
+
+추가 대조군 `frame-band/original-small-saved.hwp` 전체는 paragraph29의
+`unequal TAC occupied envelopes` 지원 제한으로 DocumentV2가 거부했다. 이 정상 재저장
+대조군 전체의 무회귀는 미검증이며, 기본/큰 셀 대조군 통과로 대신하지 않는다.
+
+fresh WASM은 표준 Docker 경로로 완료했다. 최초 기본 project의 신규 network 생성은
+address pool 소진으로 실패했고, 이전부터 사용하던 `-p rhwp` network/cache로 재시작했다.
+네트워크·볼륨을 삭제하거나 native WASM으로 우회하지 않았다.
+
+- `docker compose --env-file .env.docker -p rhwp run --rm wasm`: **7분15초, PASS**.
+  `docker-wasm-final.log`, `wasm.sha256`에 결과와 패키지 해시를 보존했다.
+- `node output/7353/r19/frame-budget/capture.mjs original --wasm`, `base2 --wasm`,
+  `cell-tall --wasm`을 순차 실행했다. 실제 브라우저 DocumentV2 출력으로 총 **12쪽**을
+  비교했으며 Native/fresh WASM의 SVG가 모두 동일하다. JSON의 비수치 차이는 없고
+  최대 수치 차이는2.28e-13 미만이다. 각 `*-final-review/run.json`과
+  `backend-comparison.json`에 입력·기준 PDF·소스·패키지와 실행 결과를 연결했다.
+- `geometry-comparison.json`: 수정 전후 원본7쪽의 TextRun/TextLine/Image 내용과 실제
+  bounds가 모두 보존된다. 부모 표1~5쪽 하단의 PDF 인쇄 축척 정규화 오차는 최대0.086px다.
+  이는 이미지의 임의 위치 정렬이나 픽셀 수정이 아니라 독립 PDF 좌표의 단위 비교다.
+- 최종 원본3쪽 WASM review/standalone overlay와 cell-tall 마지막쪽 review를 직접 확인했다.
+  부모 표 하단, 큰 셀의 물리 꼬리 및 AFTER TABLE을 확인했다. 원본3쪽 자동 잉크 일치율
+  보조값18.78%는 글꼴 등 기존 차이를 포함하며, 사람의 시각 판정 정확도가 아니다.
+
+시각 판정 대상은 원본1~3쪽 부모 표 하단이다. 증적 루트는
+`output/7353/r19/frame-budget/original-final-review/`이며 대표 파일은
+`wasm-compare-3.png`, `wasm-overlay-3.png`, `wasm-review-3.png`다.
+1·2쪽은 같은 디렉터리의 `wasm-review-1.png`, `wasm-review-2.png`에서 확인한다.
+소스 manifest를 최종 검증했으며 이후 production 변경은 없다.
+이 절편은 작업지시자가 시각 판정 통과를 확인하고 다음 절편을 승인했다. 전체 CI, 기본 엔진 전환, commit/push는
+수행하지 않았고, 앞서 명시한1HU 차이와 original-small 대조군 미검증은 남아 있다.
+
+### 재저장 대조군 TAC 거부 — 입력 계보와 저장 줄 일관성 조사
+
+하단 경계 시각 판정 통과 후 `original-small` 전체 수용을 막는 문단29를 조사했다.
+이번 절편에는 production 코드를 변경하지 않았다. `tac-envelope/inspect.rs`를 최종
+Native 라이브러리에 링크하여 원본과 두 재저장본을 직접 파싱·준비했다. 과거 JSON dump를
+원본의 현재 파싱 결과로 대신하지 않았다.
+
+| 입력 | 표 높이HU | 위/아래 바깥여백HU | 저장 줄 높이HU | 관측 |
+| --- | ---: | --- | ---: | --- |
+| #6923 원본 HWP |11156|−1 / −1|11154|V2 문서 준비 수용 |
+| original-small-input HWPX |11156|−1 / −1|11154|문단29 속성 보존; 부모 캐시 제거 입력이므로 문서 전체 수용 증거 아님 |
+| original-small/minimum 정상 변환 HWP |11156|0 / 0|11154|문단29 `unequal TAC occupied envelopes` 거부 |
+| 문단29 LineSeg만 제거 후 한컴 변환 HWP |11156|0 / 0|없음|`stored TAC carrier requires unambiguous intact rows` 거부 |
+
+원본은 `11156 − 1 − 1 = 11154`로 일치한다. child 단독 준비 높이는 원본과 재저장본
+모두148.7466667px이며, 거부는 child 행 높이 계산 이전의 `tac.rs::object_rows`에서 발생한다.
+`tac.rs:217`의 저장 줄/객체 점유 일치 검사 → `compose`의 줄 원점·advance/물리 점유 →
+`document_input.rs`의 `tac::bind` → FlowCursor의 InlineTables 수용 → 동일 placement paint
+경로다. 여기서 단순2HU tolerance를 추가하면 변환 중 달라진 여백과 오래된 줄 정보의
+불일치를 검증하지 않은 채 수용하게 된다. 일반적인 서로 다른 높이의 TAC 합성 규칙도
+입증하지 못한다. 이 조사만으로 guard를 완화하지 않았다.
+
+HWPX ZIP의 `outMargin`은 실제로−1을 보존했다. serializer의
+`src/serializer/hwpx/table.rs::write_out_margin`도 signed 값을 그대로 기록한다.
+따라서 이번 관측의−1→0 변경은 rhwp serializer의 clamp가 아니라 **이 한컴 변환 과정**에서
+발생했다. 왜 해당 변환이 저장 LineSeg를 갱신하지 않았는지는 미확정이다. 모든 한컴 편집기나
+포맷 전체의 동작으로 일반화하지 않는다.
+
+독립 재생성 시도는 원본 실패 파일을 보존한 채 `tac-envelope/create.rs`로 수행했다.
+`original-small-input.hwpx`를 파싱해 문단29의 LineSeg만 제거하고 별도
+`refreshed-input.hwpx`로 저장했다. MCP `start → status → download`, engine2020,
+한컴11.0.0.9136, input_preprocess none으로 `refreshed-saved.hwp`를 얻었다.
+job `2de06ae8-4829-41c3-8690-289cf50b7bdd`는8초에 성공했지만 **LineSeg는 여전히 없다**.
+파일 변환 성공을 캐시 재생성이나 정상 조판 증거로 승격하지 않는다.
+
+증거는 `output/7353/r19/tac-envelope/`의 `inspection.jsonl`,
+`input-inspection.jsonl`, `refreshed-inspection.jsonl`, `hwp-{job,status,download}.json`,
+`inspect.rs`, `create.rs`와 새 입력/저장본이다. production30개 파일은 이전
+`frame-budget/source-final.sha256`과 동일함을 재확인했다. 코드 변경이 없어 이전
+Native/WASM 시각 통과 증거를 재사용하며 전체 회귀·Docker 빌드를 반복하지 않았다.
+
+결론: 원본 하단 경계의 승인과 별개로, 이전 대조군은 문단29에서 저장 정보의 상호 일관성이
+깨져 있으므로 V2 수용 조건 완화의 근거로 쓰지 않는다. 부모 표 외곽에 관한 기존 PDF 관측은
+보존하지만 이 문서 전체의 무회귀는 여전히 미검증이다. 다음 구현 경계는 **저장 줄 없는 TAC
+문단의 텍스트/공백·객체 순서, 기준선, 바깥여백, 가용 폭을 반영한 공통 줄 구성**이다.
+미지원 재조판과 저장 정보 불일치를 구분하며, 독립적인 정상 생성 문서/출력으로 이 경계의
+기대값을 확보한 뒤 측정과 paint에 같은 결과를 연결한다.
+
+### 저장 줄 없는 TAC 재조판 — 줄 소유·공백·가용 폭의 공통 결과
+
+다음 절편 승인으로 `tac_fresh.rs`를 추가했다. 유효한 저장 LineSeg가 있으면 기존
+`tac.rs` 경로를 그대로 쓰며, 저장 줄이 없는 경우만 새 composer를 호출한다.
+임의 LineSeg 생성, 저장 높이 tolerance 완화, Legacy 표 측정 호출은 하지 않는다.
+
+입력의 raw UTF-16 순서 → 공백/명시적 개행/TAC 객체 토큰 → 가용 폭에 따른 줄 구성 →
+`ParagraphItem::{InlineTables,Lines,Space,End}`가 생산 결과다. 글자 크기·줄간격의 기본
+메트릭은 기존 `layout_paragraph_in_physical_frame`의 빈 글줄 결과를 사용한다.
+TAC 줄은 바깥여백을 포함한 점유와 advance를 구분한다. 본문과 셀 내부가 같은 결과를
+소비하며, 개행으로 생긴 빈 줄도 소유 LineBox로 유지한다.
+
+| 실제 호출 경로 | 소비 및 적용 |
+| --- | --- |
+| `tac.rs::compose → tac_fresh::compose` | 캐시가 없는 경우에만 원점·높이·줄 소유를 구성 |
+| `document_input.rs`의 TAC 분기 | 본문 InlineTables와 빈 Lines를 FlowBlock으로 전달 |
+| `text_ir.rs::compose → ir.rs::bind_table` | 셀 내부도 동일 ParagraphItem을 FlowBlock으로 전달 |
+| `tac.rs::bind` | 실제 자식 계획과 선언 객체 상자의 폭·높이가 다르면 명시적 거부; resize하지 않음 |
+| `flow.rs`의 InlineTables 수용 | 줄 전체 요구 높이를 예산과 비교; 부족하면 해당 줄을 소비하지 않고 이월; 형제 표 전부를 transactional fit |
+| `document.rs` 및 기존 text paint | 같은 placement의 원점/자식 조각을 사용; 별도 원점 추측·clamp 없음 |
+
+범위는 비음수 바깥여백, 들여쓰기 없는 공백·TAC·개행 문단이다. 같은 줄의 TAC는 같은
+점유 높이 envelope에 한정한다. 서로 다른 높이의 공통 기준선, 가시 텍스트 혼합, 비최종
+양쪽 정렬 줄의 공백 배분, lane보다 큰 객체, 편집으로 선언 상자보다 커진 자식 내용은
+아직 미지원이다. 범위를 일반 TAC 재조판 완료나 R5 완료로 보고하지 않는다.
+rowspan/cell 분할 알고리즘·clipping·후속 캡션 규칙은 변경하지 않았으며, 이번 TAC 줄의
+완전 수용/이월에서 동일 객체를 중복 소비하거나 누락하지 않는지를 검사했다.
+
+#### 독립 기준 및 계약
+
+- 기준은 `tests/fixtures/issue7353_tac_noop_review/README.md`에 출처가 있는 정상 한컴
+  저장본과 PDF다. 파생 입력은 **중첩 TAC 호스트의 LineSeg만 제거**해서 저장한다.
+  원본 그대로의 저장 줄 일치 검사와 이 재조판 검사는 별개다.
+- 부모 y8787HU, 셀 padding283HU, 앞 줄 advance1760HU, 자식 높이5000HU,
+  CELL AFTER vpos7420HU 및 표 뒤 본문 vpos21685HU를 독립 기대값으로 사용했다.
+  실제 부모/자식 외곽과 뒤 문단까지 검사한다.
+- 재조판 내부 폭은 `32000−2×283=31434HU`다. 저장 줄 폭31432HU와 달라 가운데
+  정렬 x는 저장 기준보다1HU(약0.013px) 오른쪽이다. 허용치로 숨기지 않고 실제 가용
+  폭에서 좌우 여유가 같은 정렬 불변식을 검사한다. y·높이는 독립 기준과 일치한다.
+- `tests/cases/issue_7353_table_v2_document_flow.rs`에5개 정식 계약을 추가했다.
+  같은 줄의 두 표, 너비 부족에 따른 두 줄/페이지, 명시적 개행, 선두 빈 줄,
+  앞·사이 공백의 순서/너비, 뒤 문단 위치 및 미지원 반례를 검사한다.
+- 첫 합성 입력의 저장 과정에서 자동 구역 컨트롤이 개행 앞 객체 슬롯을 소비했다.
+  합성 입력에 구역 슬롯을 명시하고 재파싱 char_offsets 보존을 추가 검사했다.
+  또한 자식 내용의 종료 간격 정책과 선언 높이가 달랐던 합성 입력은 의도한 셀 최소
+  높이2700HU를 명시했다. 두 수정은 테스트 입력의 계약을 분명히 한 것이며 생산
+  수용 조건을 완화한 것이 아니다.
+- `fresh-tac/before.log`의 독립 중첩 TAC 검사는 수정 전 실제 실행에서 저장 줄
+  미지원으로 FAIL, 동일 파생 입력의 최종 검사는 PASS다. 초기 합성 행 검사도 FAIL이었으나
+  이후 입력 슬롯·최소 높이를 정정했으므로 최종 모든 합성 변형의 수정 전 검출 증거로
+  대신하지 않는다. 정상 대조군인 기존 저장 줄·일반 fresh 문단 검사는 보존한다.
+
+#### 검증 상태
+
+검증 소스는 HEAD `50823731a` + 작업 변경이며 `output/7353/r19/fresh-tac/source.sha256`
+으로 생산31개 파일을 고정했다. `after-final.log`는 최종 문서 흐름99건 PASS,
+`suite.log` 및 `tests/*.log`는 #7353의22개 source/343건 PASS다. 마지막 추가 좌표
+assertion 후 영향 source99건을 다시 실행했다. Native/WASM library Clippy 각각 PASS,
+fmt 및 diff whitespace 검사 PASS다. 이는 절편 검사이며 workspace/all-target CI 묶음의
+완료를 주장하지 않는다.
+
+기존 #6923 원본은7쪽이며 `original-control/native.json`을 이전 승인본
+`frame-budget/original-final-review/actual/native.json`과 `cmp`하여 전체 렌더 트리·SVG의
+동일함을 확인했다. `tac-envelope/refreshed-saved.hwp`도7쪽 출력까지 진행한다
+(`refreshed.log`). 후자는 수용 진단이며 문서 전체 시각 통과로 승격하지 않는다.
+
+Native 비교 명령은 `node output/7353/r19/fresh-tac/capture.mjs`다.
+`review/native-{compare,overlay,review}-1.png`에서 자식 표 위치·높이, CELL AFTER,
+부모 외곽과 AFTER PARENT TABLE을 직접 확인했다. 픽셀 자동 일치율 보조값37.72%는
+글꼴 등 차이를 포함하며 사람 시각 판정 정확도가 아니다. 입력·기준 PDF·source hash는
+`review/run.json`에 연결했다. fresh Docker WASM 최종 비교 결과는 아래에 이어 기록한다.
+
+`docker compose --env-file .env.docker -p rhwp run --rm wasm`은7분17초에 PASS했다.
+`node output/7353/r19/fresh-tac/capture.mjs --wasm`으로 새 패키지를 브라우저에서
+실행했다. `review/backend-comparison.json`: Native/fresh WASM SVG 동일, 비수치
+차이0건, 최대 수치 차이5.69e-14 미만이다. `wasm.sha256`에 패키지를 고정했고
+`source-check.log`에서31개 생산 파일이 검증 중 변경되지 않았음을 확인했다.
+최종 WASM review와 standalone overlay를 직접 판독하여 자식 외곽과 뒤 문단·부모
+외곽/뒤 본문의 보존을 확인했다. 작업지시자가 시각 판정 통과 및 다음 절편 진행을 승인했다.
+
+판정 자료: `output/7353/r19/fresh-tac/review/wasm-review-1.png`,
+`wasm-compare-1.png`, `wasm-overlay-1.png`. 시각 입력은 같은 루트 상위의
+`fresh-nested.hwp`, 기준은 위 fixture의 `noop-2020.pdf`다. 이 결과를 혼합 텍스트·
+서로 다른 높이의 TAC·재저장 원본 전체의 피델리티 증거로 확대하지 않는다.
+전체 CI, 기본 엔진 전환, commit/push는 수행하지 않았다.
+
+### 승인 후 후속 검증 — fresh TAC 재저장 파생 문서 전체
+
+앞 절편의 시각 통과를 기록하고, 수용 진단만 남았던
+`output/7353/r19/tac-envelope/refreshed-saved.hwp` 전체를 검증했다. 생산 코드와
+Rust test는 추가 변경하지 않았다. HEAD `50823731a` + 기존 WIP의
+`fresh-tac/source.sha256`, `wasm.sha256` 일치를 확인하여 앞 절편의 Docker WASM을
+재사용했다. 동일 소스의 빌드·343건 검사를 반복하지 않았으며, 이번 실행 결과로
+workspace CI 통과를 새로 주장하지 않는다.
+
+#### 입력과 독립 기준
+
+입력은 #6923 원본 그 자체가 아니다. 부모 셀 최소 높이를189665→1000HU로 낮추고
+부모 셀의 저장 줄을 제거한 파생본을 한컴에서 재저장했으며, 본문 p29 TAC의 LineSeg도
+제거한 재조판 대조군이다. `tac-envelope/create.rs`에 생성 과정이 있다. 이 결과를
+원본 전체의 한컴 일치나 일반 fresh TAC 지원 완료로 확대하지 않는다.
+
+같은 `refreshed-saved.hwp`를 MCP 변환 클라이언트의 `start --target pdf --engine 2020`
+→ `status` → `download`로 한컴 PDF화했다. 작업 ID는
+`4d0b9fd5-d49f-442a-b163-3b5b104bb08f`이며, 입력·PDF hash와 소스 manifest는
+`output/7353/r19/fresh-tac-full/review/run.json`에 고정했다.
+기준 PDF는 `fresh-tac-full/refreshed-2020.pdf`이고7쪽이다. 정상 변환된 독립 출력이며
+Native SVG나 브라우저 인쇄로 만든 정답지가 아니다.
+
+#### 실행과 직접 판독
+
+- `node output/7353/r19/fresh-tac-full/capture.mjs --wasm`: Native/fresh WASM 모두7쪽,
+  7쪽 모두 SVG 동일, 비수치 차이0건, 트리의 최대 수치 차이2.274e-13px 미만.
+- 전체7쪽 WASM review와3·6쪽 standalone overlay를 직접 확인했다. 부모 표1–5쪽의
+  외곽, 이어지는 자식 표와 본문,6쪽 하단의 저장 줄 없는 TAC 및7쪽 후속 내용을 확인했다.
+  이것은 직접 판독 범위이며 모든 문자열·유닛의 완전 보존을 전수 입증했다는 뜻은 아니다.
+- `node output/7353/r19/fresh-tac-full/geometry.mjs`: PDF stroke와 V2 부모 하단을
+  대조했다. PDF 용지841pt와 HWP84188HU의 비율을 적용한 **진단용 좌표 환산** 후
+  1–5쪽 하단 차이는 각각−0.033/−0.098/−0.098/−0.058/−0.067px였다.
+  이미지에는 이 환산이나 위치 보정을 적용하지 않았고, 테스트 허용치를 바꾸지 않았다.
+- 기존 승인 원본과 비교할 때1–3쪽 부모 하단은 작은 최소 높이에 맞게 줄었다.
+  자식 상자는4쪽 마지막 표를 제외하고 동일하다.4쪽 마지막 표와6쪽 본문 p29 표는
+  x/y가 각각+1HU다. `inspect.rs`와 `original-ir.jsonl`/`refreshed-ir.jsonl`에서
+  해당 표의 바깥여백이 한컴 재저장 중−1→0HU로 바뀐 것을 확인했다.4쪽 호스트 저장
+  줄 높이도14845→14847HU이며,6쪽 p29는 저장 줄이 없는 입력이다.
+- 축소 review2를 처음 보고 큰 가로 이동을 의심했으나 PDF stroke 직접 측정으로
+  정정했다. 해당 자식 표 왼쪽은 PDF109.381px, V2 109.520px이며 V2 상자는 기존
+  승인 원본과 동일하다. 큰 이동 결함으로 등록하거나 이를 맞추는 보정을 하지 않았다.
+
+대표 판정 자료는 `fresh-tac-full/review/wasm-review-3.png`, `wasm-overlay-3.png`,
+`wasm-review-6.png`, `wasm-overlay-6.png`다. 내용 픽셀 자동 일치율 보조값은3쪽19.73%,
+6쪽46.81%이며 사람 판정 정확도가 아니다. 글꼴 폭·굵기 차이와1쪽 로고 출력 차이는
+남아 있으며 이번 TAC/부모 외곽 검증으로 해결했다고 보고하지 않는다. 작업지시자가
+시각 판정 통과와 다음 절편 진행을 승인했다. 전체 R5 완료·기본 엔진 전환·commit/push는
+수행하지 않았다.
+
+### 승인 결과의 정식 회귀 계약 고정 및 다음 실물 진입점 확인
+
+생산 코드는 바꾸지 않고 승인된 파생 입력·독립 PDF·생성 HWPX를
+`tests/fixtures/issue7353/fresh-tac-full/`에 보존했다. README에 원본과의 차이,
+한컴 정상 저장/PDF job, hash, 독립 기대값과 판정 한계를 기록했다.
+`samples/` 추가나 기존 baseline·ignore·허용치의 변경은 없다.
+
+새 `tests/cases/issue_7353_fresh_tac_full_document.rs`의 계약은 실제
+`DocumentV2Session::from_bytes` → 페이지 RenderTree를 검사한다.
+
+- 부모 조각은 PDF와 같이1–5쪽에만 존재한다. PDF stroke에서 얻은 하단을 용지 단위
+  차이만 환산하여96dpi 출력1픽셀 이내로 비교한다. 이는 새 검사의 독립 판정 해상도이며
+  관측 잔차에 맞춘 subpixel 허용치나 기존 검사의 완화가 아니다.
+- 부모 하단은 본문 안에 있고 자식 표 상자는 부모 조각 안에 들어간다.
+- 저장 줄 없는 본문29번 TAC는6쪽에 정확히 한 번 있으며 IR 선언 폭·높이와 같다.
+  뒤 문단은 같은 쪽의 표 아래에 남는다. 마지막 쪽 뒤 재호출도 종료 상태다.
+- 모든 쪽의 Body TextRun에서 비공백·비제어 문자별 개수를 세어 source IR의 재귀
+  문단 전체와 비교한다. 본문 누락·중복의 문자 개수 축을 보호하며, 같은 문자의
+  교환이나 문단 전체 순서를 보증하지 않는다. 위치·후속 문단 순서는 별도 assertion이다.
+
+검증 소스는 HEAD `50823731a` + 앞 절편과 동일한 생산 WIP + 새 test다.
+기존 `fresh-tac/source.sha256`·`wasm.sha256`의 동일성을 확인했고, 새 source는
+`rustc --edition=2021 --test ... -D warnings`로 현재 library에 연결하여 실행했다.
+`output/7353/r19/fresh-tac-contract/after.log`:1건 PASS,
+`document-control.log`:기존 문서 흐름99건 PASS. fmt/diff whitespace도 확인했다.
+직접 rustc 집중 실행은 Cargo generated suite·workspace Clippy·전체 CI를 대신하지 않으며
+새 source의 manifest 준비와 제출 전 필수 lint는 통합 검증 때 남아 있다.
+
+구현 전 보존 바이너리 `output/7353/r19/frame-budget/probe`로 동일 보존 HWP를
+실행하면 문단29의 `stored TAC carrier requires unambiguous intact rows`로 거부된다
+(`fresh-tac-contract/before.log`). 신규 지원의 이전 거부→현재 수용 증거다.
+새 geometry assertion 전체가 이전 오조판을 검출했다고 주장하지 않는다.
+생산 코드와 출력이 같으므로 앞 절편에서 승인된7쪽 시각 자료와 fresh WASM을 재사용하며
+같은 이미지의 재승인 요청이나 Docker 재빌드는 하지 않는다.
+
+다음 실물 대조군은 기존 계획/stage4의 #7243 계약에 연결된
+`samples/86712_regulatory_analysis.hwp` 및
+`samples/issue1891/86712_regulatory_analysis.hwpx`다. 현재 V2 실행은 두 입력 모두
+**네 번째 본문 문단(인덱스3)**의 `PageNumberPos`에서 명시적 거부다.3쪽 오류가 아니다.
+IR 값은 format0/position5/dash `-`이며 위치·서식 자체는 `page_number.rs::new`의
+지원 범위다. 최초 원인은 `document_input.rs`가 쪽번호 선언을 `pi == 0`으로만 허용하는
+진입 제한이다. `7243-hwp.log`, `7243-hwpx.log`, `7243-ir.jsonl`에 보존했다.
+
+후속은 쪽번호 선언의 실제 적용 페이지와 호스트 빈 문단의 줄 점유를 구분하는 공통
+story 소유 계약이다. 첫 문단 제한을 무조건 삭제하여 이전 페이지에까지 적용하거나,
+컨트롤/빈 문단을 제거해 원본 수용을 위장하지 않는다. 이 진입 제한 뒤의 다른 미지원
+기능은 아직 실행 확인하지 않았으며 #7243 표 분할 해결이나 R5 완료로 보고하지 않는다.
+
+### 뒤 문단의 쪽번호 선언 활성화 — 계약 구현, 세로 위치 차이 보류
+
+이번 승인 범위는 위 #7243의 최초 진입 제한이다. 기준 HEAD `50823731a`와 기존 WIP를
+유지했고 Legacy/기본 엔진/표 분할·높이 규칙은 변경하지 않았다.
+
+독립 대조군 `tests/fixtures/issue7353/late-page-number/`는 기존 정상 저장본의 용지·스타일을
+재사용하되 본문을50개 ROW 문단으로 교체한 작성 입력이다. 선언 호스트25/40번은 빈 문단이다.
+HWPX→한컴2020 정상 HWP 저장→그 HWP의 PDF 순서와 job/hash는 fixture README에 기록했다.
+합성 LineSeg를 만들지 않았다. 첫 대조군의25번은 예상과 달리1쪽에 있으므로, 실제2쪽 선언
+대조군40번을 추가했다. 기준 PDF는 각각1·2쪽 모두 번호, 1쪽 번호 없음·2쪽 `- 2 -`이다.
+따라서 구역 전체 소급 적용이나 선언 시1번으로 재시작하는 구현은 하지 않는다.
+
+값 소비 경로:
+
+- `document_input.rs`가 단일 선언의 서식과 문단 진입 슬롯을 검증하고 `(paragraph, story)`를
+  저장한다. 첫 문단만 허용하던 제한을 제거하되 글자/객체 뒤 선언·복수 선언은 미지원이다.
+- `document.rs::next_page_json`이 실제 수용된 `fit.lines/fit.tables`의 소유 문단으로 활성화를
+  결정한다. 번호는 구역 시작 번호+물리 페이지 index이고, 활성 상태는 SVG/JSON 성공 후
+  cursor와 함께 commit한다. 실패/retry/clone에서 먼저 소비하지 않는다.
+- 호스트 문단은 기존 줄 구성 결과를 그대로 사용한다. 정상 저장1000HU 줄+500HU 간격은
+  ROW40과ROW42 사이의 실제 빈 줄로 남는다. story는 Body 뒤 형제이며 본문 예산을 밀지 않는다.
+  분할 컷/rowspan/패딩/예약 변경은 비해당이며, story 없는 대조군과 Body 전체 equality를 검사한다.
+
+`issue_7353_table_v2_page_number.rs`의 신규 계약은 정상 HWP와 그 IR의 HWPX 직렬화,
+선언 전/후 쪽번호, 빈 줄·뒤 문단, clone/overflow/retry, 문단 중간 선언의 명시적 거부다.
+HWPX 직렬화는 별도 한컴 정상 생성본이라고 주장하지 않는다. 기존 합성 테스트의 secd 슬롯
+누락 때문에 HWP 저장기가 pgnp를 글자 뒤로 이동시키던 문제도 입력 쪽에서 고쳤다.
+내장 SectionDef와 구역 정의를 함께 변경해 stale 정의를 저장하지 않도록 했다.
+기존 입력/실패 로그는 `old-ir.jsonl`, `before.log`, 초기 `after.log`에 보존했다.
+`before.log`의 정상 대조군은 이전 코드에서 paragraph25 미지원으로 실패한다. 신규 지원의
+거부→수용 증거이지 번호 y 위치 수정의 FAIL→PASS 증거가 아니다.
+
+증적 루트는 `output/7353/r19/late-page-number/`다. 초기 문서 흐름 재검사98/99 PASS의
+1실패는 기존 잘못된 서식 검증보다 새 위치 검증이 먼저 실행되어 오류 이유가 바뀐 것이었다.
+기대값을 완화하지 않고 서식 검증 우선순위를 보존했다. 직접 rustc 첫 시도에서 빠진
+`--extern roxmltree` 때문에 발생한 컴파일 실패는 회귀 실패로 세지 않는다.
+
+**시각 미충족:** `second-review/native-review-2.png`와 standalone overlay를 직접 확인했다.
+호스트 빈 줄과 후속 ROW의 세로 위치는 보존되지만, 자동 번호는 한컴보다 약18px 위에 있다.
+PDF 번호 잉크 y556.592669..566.537319pt이며 V2의 기존 run top은
+본문 하단538.59pt+10/3pt다. 잉크 bbox와 run bbox는 구분한다. 내용 픽셀 보조값10.62%는
+사람 판정 정확도가 아니며, 이 이미지를 시각 통과 승인 대상으로 제시하지 않는다.
+
+추가 `margins.rs` 대조군은 margin_bottom/footer를 바꾸고 정상 한컴 저장·PDF로 확인했다.
+아래 값은 PDF 잉크 top(pt)이며 저장 후 원본 여백 값이 유지됐다. 생성 HWPX 직접 PDF와
+정상 저장 HWP의 PDF 관측값도 같았다.
+
+| 아래 여백/꼬리말(HU) | PDF 잉크 top |
+|---|---:|
+|5669/0|556.592669|
+|5669/1417|528.288009|
+|5669/2835|528.288009|
+|2835/0|570.744999|
+
+기존 `footer_distance/2 + em/3`를 일반 규칙으로 주장할 수 없다. #6923 단일 관측에서
+만든 호환 공식이라는 한계를 코드 주석에 명시했고, 새 관측에 맞춘 상수·조건을 추가하지 않았다.
+현재 속성/문서 스타일과 한컴 번호 배치 사이의 일반 관계는 **미검증**이다. 이 위치 차이가
+해소되기 전에는 시각 완료·fresh WASM 판정 준비로 보고하지 않는다. Docker/전체 CI 재실행도
+하지 않았으며 이전 WASM을 현재 source의 검증으로 재사용하지 않는다.
+
+최종 검증은 `*-final.log`에 보존했다. Native library build와 Native/WASM lib Clippy
+`-D warnings`, fmt check, diff whitespace 모두 PASS다. 최종 라이브러리에 다시 연결한
+정식 source 직접 harness는 쪽번호9건/문서 흐름99건/승인된7쪽 전체 문서1건, 총109건 PASS다.
+이는 선택 회귀이며 generated suite manifest·workspace/all-targets Clippy·전체 CI를
+대체하지 않는다. 최종 source 전체 hash는 `source.sha256`이고 같은 라이브러리로 Native
+캡처를 다시 생성했다. 번호 y 차이는 그대로 재현되어 미충족 상태다.
+
+#7243 HWP/HWPX 원본은 이제 본문 인덱스5의 `non-table cell control`로 거부된다.
+`7243-controls.jsonl`에서 최초 대상은 `s0/p5/control0/cell0(0,0)/p0`의 `Field`이며
+“노후계획도시 정비 및 지원에 관한 특별법 시행령” 문단이다. 필드를 삭제하거나 표 높이를
+줄여 통과시키지 않았다. 다음 우선순위는 번호 y 배치 근거 확립 후 이 실물 Field의 역할과
+저장 결과 경계를 연결하는 것이다. 이번 기록은 부분 구현/추가 결함 발견 보고이며
+시각 승인·WASM 완료·#7243 종단 완료·R5 완료가 아니다. commit/push는 하지 않았다.
+
+### 기본 쪽번호 하단 앵커/기준선 교정 — 독립 여백 행렬
+
+앞 절편의18px 차이를 우선 처리했다. 기존 #6923 한 건에서 근사한 `footer_distance/2+em/3`
+공식을 다른 여백에도 일반화한 것이 원인이었다. 이번에는 용지 속성→번호 줄 하단→줄 상단/
+기준선→SVG TextRun의 실제 y를 연결한다. 본문 fit/표 분할과 별개인 story만 변경했다.
+
+독립 증거는 `tests/fixtures/issue7353/footer-position/`의 작성 HWPX11개와 한컴2020 PDF다.
+이전 정상 저장본의 용지·스타일을 재사용하되 본문은 한 문단으로 교체했고 저장 줄은 수동
+작성하지 않았다. 아래/꼬리말 여백11조합(0,1HU,1/2/5/10/15mm 포함)과 보이지 않는 쪽
+테두리 Paper/Body 기준을 대조했다. README와 `conversion.json`에 값·job·SHA를 보존했다.
+별도의 정상 저장 HWP→PDF 대조는 앞 절편의3건을 재사용했다. 같은 검증을 새 실행으로 합산하지 않는다.
+
+PDF의 잉크 bbox가 아니라 `mutool draw -F trace`의 글자 기준선 좌표를 사용했다.
+A5 PDF y변환0.119935에 원점4712/4476/4594/4948을 곱하면 각각
+565.13372/536.82906/550.98139/593.43838pt다. 글자10pt의 기본1000HU 줄과850HU 기준선,
+용지/device 반올림을 함께 대조하면 다음 관계가 모든 대조군에서96dpi1픽셀 이내다.
+
+- 꼬리말 여백>0: 줄 하단=용지 하단−아래 여백.
+- 꼬리말 여백=0: 줄 하단=용지 하단−아래 여백/2.
+- 줄 상단=줄 하단−10pt, 기준선=줄 상단+8.5pt.
+
+이는 HWP 사양에 명시된 수식이라는 주장이 아니라 **기본10pt 경로의 독립 출력 호환 규칙**이다.
+[한컴 공식 도움말](https://help.hancom.com/hoffice_mac/2022/ko-KR/hwp/format/pagenumber.htm)은
+자동 번호가 영문 이름 `Page Number` 스타일의 글자 모양을 따른다고 설명한다. 새 대조군에는
+그 스타일이 없고 #6923은10pt 기본 크기임을 확인했다. 사용자 정의 크기/서식 지원은 이 수정에
+포함하지 않았다. 도움말의 구역 적용 설명과 수동 배치 pgnp의 적용 페이지도 같은 근거라고
+섞지 않는다. UI 생성 단계에서 컨트롤을 어디에 삽입하는지 이번에는 검증하지 않았다.
+
+생산/소비 경로는 `PageNumberStory::new`가 PageDef의 정수 여백으로 `line_bottom`을 만들고,
+`render`가 같은 값으로 TextLine/TextRun top·height·baseline을 만드는 구조다.
+0 여부는 부동소수점 좌표 차이로 추측하지 않는다. 기본 줄 높이는10pt이며 뒤 내용이 없는
+story에 임의의1.2배 bbox를 남기지 않는다. `document.rs`는 이 노드를 Body 다음에 그대로
+추가하고 `SvgRenderer`가 그 기준선을 소비한다. 이후 앵커 덮어쓰기/clamp는 없다.
+작은 양수 꼬리말 여백에서 번호가 본문 영역과 겹칠 수 있어도 본문을 강제로 밀지 않는다.
+0여백도 번호가 용지 안에 들어가는 입력이다. 분할 컷/rowspan/패딩/flow 예약 변경은 비해당이다.
+
+정식 `issue_7353_table_v2_page_number.rs`에11개 독립 PDF 기준선 행렬 검사를 추가했다.
+수정 전 `before.log`: b20f0 실제735.8978px 대 PDF753.5116px로 FAIL.
+수정 후 `final.log`: 번호10건 PASS. 합성 geometry 계약은 위 독립 관계에 따라 갱신했으며
+baseline/ignore를 완화하지 않았다. 기존 “0여백이면 용지 밖” 테스트의 잘못된 전제는 b0f0
+PDF로 반증했다. 대신10pt 번호보다 물리 용지가 작고1pt 본문은 들어가는 입력에서
+거부/retry의 비소비를 검증한다. 실험 중 `after.log`는 Native build 완료 전에 링크된
+이전 라이브러리의 결과이므로 최종 검증에서 제외하고 빌드 종료 후 다시 연결했다.
+
+최종 Native library build, Native/WASM lib Clippy `-D warnings`, fmt/diff check는 PASS다.
+같은 라이브러리의 문서 흐름99건/승인된 전체 문서1건도 PASS, 총110건 선택 회귀다.
+직접 rustc harness이며 전체 CI·generated suite 정책·workspace all-targets 제출 검증은 아니다.
+2쪽 대조군의 모든 Body와 기존 승인7쪽 문서의 모든 Body를 수정 전 JSON과 직접 비교해
+완전 동일함을 확인했다.7쪽 문서는 번호 baseline만−0.87778px 이동한다.
+
+증적은 `output/7353/r19/footer-position/`에 모았다. Native `second-review`2쪽과
+`b20f5-review`1쪽의 review를 직접 열어 세로 차이 해소를 확인했다. 자동 잉크 보조값은
+각각10.62%,13.68%이며 글꼴 폭/줄표 glyph 차이가 남아 있고 사람 판정 정확도가 아니다.
+동일 본문 출력이라도 번호가 달라졌으므로 fresh Docker WASM을 새로 빌드하여 backend
+비교를 진행한다. 이 기록 시점에는 최종 WASM/메인테이너 시각 판정을 완료로 세지 않는다.
+
+후속 실행: Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm`은
+7분24초에 exit0으로 완료됐다(`docker-wasm.log`). 최종 WASM SHA256은
+`ba3bf72309abc4585434c9229e96e5efafd94083d3cc69bcc467913bca388a38`이며,
+code head `50823731a`+WIP의 `source.sha256`과 일치하는 소스로 빌드했다.
+`node output/7353/r19/footer-position/capture.mjs --wasm` 및 `--matrix --wasm`,
+`--full --wasm`을 실행했다. 각 `run.json`에 입력/PDF/WASM SHA와 소스 manifest가 있다.
+
+| 브라우저 대조 | 페이지 | SVG | RenderTree 최대 수치 차이 | 비수치 차이 |
+|---|---:|---|---:|---:|
+| second-review |2|전부 동일|2.22e-16|0|
+| b20f5-review |1|동일|1.42e-14|0|
+| full-review |7|전부 동일|2.28e-13 미만|0|
+
+최종 포맷 이후 번호 테스트를 다시 링크/실행해10 PASS를 확인했다(`final.log`).
+fresh WASM의 `second-review/wasm-review-2.png`, `b20f5-review/wasm-review-1.png`,
+`full-review/wasm-review-1.png`와 각각의 standalone `wasm-overlay-N.png`를 직접 열었다.
+2쪽의 기존18px 세로 차이는 사라졌고 ROW40/42 사이 빈 줄은 유지된다. 글꼴 폭과 번호
+양옆 줄표의 외형 차이는 남는다. 전체7쪽 대조군1쪽에는 기존 로고 표시·글꼴·외곽선 차이도
+보이며 이번 번호 수정으로 해소했다고 주장하지 않는다. 수정 전후 Body JSON은 동일하다.
+전체1쪽 잉크 자동 보조값은36.79%이며 사람의 시각 판정 정확도가 아니다.
+
+이번 절편은 기본 쪽번호 위치의 구현/선택 검증/WASM 증적 준비까지 완료했다.
+메인테이너에게 2쪽 번호 기준선과 빈 줄 보존을 시각 판정 요청한다. 원본 #7243의 Field
+지원, 사용자 정의 번호 스타일, R5 전체 완료는 아직 미완료다. 전체 CI·commit·push 및
+기본 엔진 전환은 수행하지 않았다.
+
+### 입력된 누름틀의 저장 표시 결과 — 착수
+
+작업지시자가 앞 절편의 쪽번호 위치 시각 판정을 통과시켰다. 다음은 #7243 원본 첫 제목
+셀의 ClickHere 필드다. HWP/HWPX 모두 properties=32768, 범위0..26, 시작/끝8 UTF-16단위 슬롯,
+저장 두 줄(text_start0/25), 표시 문자열은 “노후계획도시 정비 및 지원에 관한 특별법 시행령”이다.
+HWP 사양 표153의 bit15(내용 수정됨), 기존 `Field::is_dirty`, 원본 한컴 PDF에 제목이
+인쇄된 사실을 독립 근거로 삼는다. 현재 계산식 전용 `fields::stored_formula_result`가
+이 값을 거부한다. Field를 삭제하거나 안내문을 제목 대신 출력하지 않는다.
+
+이번 범위는 입력된 비어 있지 않은 누름틀의 저장 결과 재생이다. 유효한 범위/슬롯/LineSeg를
+공통 검증한 뒤 같은 텍스트 구성 결과를 측정과 paint가 소비한다. 편집 후 재조판, 초기 안내문,
+빈 누름틀, 하이퍼링크, 중첩/문단을 넘는 필드의 의미는 무조건 수용하지 않는다.
+원본에는 입력된 누름틀59개, 초기 누름틀3개, 하이퍼링크117개가 있어 이번 결과를 원본 전체
+수용으로 세지 않는다. 원본 앞6문단과 제목 표를 보존한 분리본을 정상 한컴 저장/출력해
+지원한 제목의 줄바꿈·좌표·표 경계 증거로 사용한다. 분리본과 원본 전체의 주장은 구분한다.
+
+추가 피드백: 공공기관의 누름틀 범위에 웹기안 SDK로 다른 문서 조각이 채워질 수 있다는
+작업지시자의 관찰을 고려한다. 누름틀은 문자열만 담는 상자로 일반화하지 않으며, 필드 범위와
+내부 문단/표/그림의 소유·저장 줄·페이지 분할은 별도 축이다. 현재 파일로 SDK 생성 출처를
+단정하지 않는다. 이번 단순 저장 텍스트 경로는 내부 객체/중첩 슬롯/다른 문단의 끝 마커를
+명시적으로 거부하고 원본을 보존한다. 향후 복합 조각 지원을 필드 삭제·평탄화로 대신하지 않는다.
+
+구현은 `fields.rs::stored_result`에서 기존 계산식과 입력된 ClickHere의 적격성/범위/UTF-16
+슬롯을 검증하고, `ir.rs`가 이를 비기하 marker로 소유한다. `text_ir.rs`→`text.rs`의 기존
+저장 줄 구성 결과가 FlowLine의 점유와 TextLine/TextRun paint를 함께 만든다. marker를
+지우거나 텍스트 오프셋을 다시 만들지 않으며 뒤에서 별도 높이/원점을 보정하지 않는다.
+본문 직접 필드, 복합 객체 혼재, 편집 세션 지원을 확장한 것이 아니다. 분할 컷/rowspan/
+예약/이어받기 알고리즘 변경은 비해당이다.
+
+정식 `tests/cases/issue_7353_filled_field.rs`의 정상 저장 분리본 문서 및 원본 HWP/HWPX
+선택 제목 셀은 수정 전 라이브러리에서 `non-table cell control`로 거부됐다(`before.log`).
+새 지원의 이전 거부→현재 수용 증거이며 초기 필드 가드의 오류 문자열 차이를 결함 재현으로
+세지 않는다. 첫 테스트 작성의 Section 직렬화 컴파일 오류도 재현 증거에서 제외했다.
+문서에 상단 표가 하나 더 있으므로 검사 대상은 제목 셀로 명확히 지정했다.
+
+수정 후5건은 두 줄 문자열/48px 원점 간격/40px 줄 높이/34px 기준선, 실제 셀 포함,
+원본 IR 보존, 종단 반복 호출, 초기 상태·빈 값·저장 정보 무효화·슬롯 오류·고아 끝·중첩
+객체의 거부를 검사한다. 분리본 문서 경로의 절대 글자 x/y 및 셀 상자는 독립 PDF trace의
+좌표를96dpi로 환산하여1px 이내를 검사한다. 선택 preview의 임의 원점을 PDF 위치로
+주장하지 않는다. 앞6문단 외 원본 내용은 분리본에 없다는 한계도 README에 명시했다.
+
+Native build, Native/WASM lib Clippy `-D warnings` PASS. 최종 선택 검사는
+filled_field5 + document_flow99 + page_number10 + fresh_tac_full_document1 =115 PASS다.
+기존 계산식의 다른 종류 거부 반례는 이제 지원하는 ClickHere 대신 여전히 미지원인
+Hyperlink로 옮겼고, 초기 ClickHere 거부는 새 검사에서 보존한다. 기존 baseline/ignore는
+변경하지 않았다. 직접 rustc harness이며 전체 CI/generated suite/workspace 검증은 아니다.
+
+Native 비교 PNG에서 제목의 “관/한” 줄 경계, 앞 빈 문단, 셀 상자가 보존됨을 직접 확인했다.
+글꼴 외형/획/줄표 차이는 남는다. 자동 잉크 보조값36.14%는 사람 판정 정확도가 아니다.
+원본 HWP/HWPX를 재실행하면 p5의 필드는 수용하고 p8에서
+`stored text requires intact single-segment rows`로 명시적 거부된다(physical8쪽이 아님).
+`output/7353/r19/field-result/`의 원본 로그와 source manifest로 연결하며 원본 전체 완료는 아니다.
+Docker fresh WASM 빌드는7분18초에 완료했다(`docker-wasm.log`). 이어
+`node output/7353/r19/field-result/capture.mjs --wasm`으로 같은 정상 저장 HWP를
+브라우저 DocumentV2 API에서 실행했다. Native/WASM SVG는 동일하고 비수치 차이는0,
+최대 수치 차이는2.274e-13이다(`review/backend-comparison.json`). 전체 Studio 편집
+세션을 검증한 것은 아니다. source HEAD는50823731a+WIP이며 빌드 전후
+`source.sha256` 일치를 확인했다. 입력/PDF/WASM 해시는 `review/run.json`에 고정했다.
+
+fresh WASM `review/wasm-review-1.png`와 `review/wasm-overlay-1.png`를 직접 열어
+한컴 PDF 대비 제목2줄의 관/한 경계, 앞 공백 영역과 두 표 외곽을 확인했다. 글꼴 외형/획과
+쪽번호 줄표 차이는 남으며 자동 잉크 보조값36.14%를 사람 판정으로 승격하지 않는다.
+작업지시자가 이번 제목 절편의 시각 판정을 통과시켰다. 복합 문서 조각/원본 전체는 미지원 또는
+미검증으로 유지하고 필드 내용을 삭제·평탄화하지 않는다. 전체 CI, commit/push,
+기본 엔진 전환은 수행하지 않았다.
+
+### 본문 자리차지 표의 너비0 저장 선언 줄
+
+작업지시자가 입력된 누름틀 제목 절편의 시각 판정을 통과시켰다. 다음 원본 p8은
+TopAndBottom/ParaTop/offset0 표와 너비0의 저장 선언 줄이다. source 줄은 높이1600HU,
+줄간격320HU, vpos25995이며 뒤의 독립 빈 문단 p9는 vpos42719다. 표의 내부8문단은
+1600HU 높이+480HU 간격으로 이어진다. 표 높이16442HU와 상하 바깥여백 각141HU의
+합16724HU가 p8→p9 원점 차이와 같다. 선언 줄의 높이를 없애는 것이 아니라 표와 같은
+원점의 점유로 보존하고, p9의 실제 빈 줄은 별도로 전진시켜야 한다.
+
+이전 document_input은 표 컨트롤을 분리한 뒤 일반 TextComposer로 너비0 줄을 보내 거부했다.
+셀 경로의 cell_anchor::compose→ExcludedTable→FlowBlock::AnchoredTable 계약을 본문에 연결했다.
+일반 저장 텍스트의 너비 검사를 완화하거나 별도 높이 예외를 만들지 않는다. source IR은 보존한다.
+어울림/TAC/양수 너비/세로offset이 있는 다른 소유 경로는 이 계약에 넣지 않는다.
+
+실제 경로: `cell_anchor.rs:99`에서 저장 선언 줄의 높이/advance/여백을 생산하고,
+`document_input.rs:282`가 prepared plan과 함께 AnchoredTable로 결합한다.
+`body_flow.rs::BodyCursor::fit`→`flow.rs:168`은 host와 첫 자식 조각을 함께 수용하고
+자식 컷/요구높이/예약을 `TableCursor::fit_with_page_height`에서 받는다. 실패하면 host도
+소비하지 않는다(:253). 수용된 조각 높이와 host 점유의 합집합만 전진하고(:209), 마지막
+물리 여백은 anchor_tail로 이어받는다(:268). `document.rs:159`는 확정 placement를
+paint.build_node에 전달한다. paint에서 다시 컷/원점을 선택하지 않는다. 기존 일반 본문
+anchor와 TAC 경로는 변경하지 않았으며 이번 경로의 rowspan 변경은 비해당이다.
+
+독립 증거는 원본 첫10문단을 보존한 HWPX를 정상 한컴 저장한 HWP와 같은 HWP의 PDF다.
+추가 `marked-*` 대조군은 그 뒤에 “목차 표와 빈 문단 다음 위치 확인”을 새 문단으로 넣어
+정상 저장/출력했다. 보이지 않는 빈 영역만 제시하지 않고 뒤 빈 문단의 효과를 확인하기 위함이다.
+이 문장은 원본 내용이 아니며 원본 전체 통과의 증거도 아니다. 생성 명령/receipt/입력·PDF·
+hash는 `output/7353/r19/body-exclusion/` 및 fixture README에 연결한다.
+
+`tests/cases/issue_7353_body_exclusion.rs`5건은 실제 문서 경로의 두 줄 원점 차이,
+셀 외곽/8개 줄(5개 빈 줄 포함)/독립 PDF 글자 기준선, 원본 HWP/HWPX 첫10문단,
+뒤 확인 문단과1920HU 빈 줄 전진, 합성 작은 용지의 이어받기/host1회/종료와
+잘못된 폭·어울림·offset 등 거부를 검사한다. 수정 전3개 수용 경로가 p8에서 의도한
+stored-row 거부로 실패했고 수정 후 통과한다(`before-final.log`, `after.log`). 초기
+테스트의 Box 할당 컴파일 오류, CellBreak+Center 미지원 조합, 컨트롤 제거 뒤 serializer의
+빈 문단 정상화는 대상 결함 재현에 포함하지 않는다. 합성 분할 대조군은 CellBreak/Top을
+명시했으며 한컴 동일 페이지 수의 증거로 쓰지 않는다.
+
+선택 검사120 PASS(body_exclusion5/filled_field5/document_flow99/page_number10/fresh_tac1),
+Native build와 Native/WASM lib Clippy `-D warnings` PASS. 직접 rustc harness이며 전체CI/
+generated suite/workspace 제출 검증이 아니다. Native compare와 overlay에서 목차 줄 위치,
+뒤 확인 문단 위치를 직접 확인했다. 확인 문단의 PDF glyph 시작 x≈177.99px와 V2≈174.97px의
+약3.02px 차이는 남는다. 이 문단은 CENTER이며 글자 폭이 다른 대체 글꼴의 시작 위치까지
+일치하는 계약은 성립하지 않았다. 임계치를 늘리지 않고 수평 일치 주장을 철회하여 정렬 중심과
+독립 PDF 세로 기준선(1px 이내)을 분리 검사했다. 기존 목차의 왼쪽 원점/PDF 좌표 검사는
+그대로 통과한다.
+
+fresh Docker WASM은 `docker compose --env-file .env.docker -p rhwp run --rm wasm`으로
+7분12초에 완료했다. WASM SHA256은
+`d46b92bb50bce11f40f5c7969c1b1b2c83e2cd57bdf8748efe7b1c7a099bcbc3`이다.
+`node output/7353/r19/body-exclusion/capture.mjs --wasm` 및 같은 명령의
+`--marked --wasm`으로 정상 저장 입력 두 건을 fresh 브라우저 DocumentV2에서 실행했다.
+두 입력 모두 Native/WASM SVG가 동일하고 비수치 차이는0, 최대 수치 차이는
+2.274e-13이다. source HEAD50823731a+WIP와 입력/PDF/WASM 해시는 각 `run.json`에
+기록했으며 빌드 후 `source.sha256`31개 항목 일치와 `git diff --check`를 확인했다.
+
+`output/7353/r19/body-exclusion/review-contents/` 및 `review-marked/`의
+`wasm-review-1.png`, `wasm-overlay-1.png`를 직접 열어 목차3줄과 뒤 확인 문단의
+세로 위치를 대조했다. 내용 픽셀 중심 자동 일치율 보조값은 각각28.36%,25.91%이며
+사람 판정 정확도가 아니다. 글꼴 외형과 위의 가운데 정렬 글자 시작점 차이는 남는다.
+marked 첫 캡처는 Chrome 시작 중 종료되어 `capture-wasm-marked.log`에 보존했고,
+동일 코드·입력의 재실행은 통과했다(`capture-wasm-marked-retry.log`). 이를 조판 실패나
+수정 전 결함 재현으로 세지 않는다. 전체 Studio 편집 세션 검증은 아니다.
+이번 절편의 작업지시자 시각 판정은 통과했다. 전체 CI, commit/push, 기본 엔진 전환은
+수행하지 않았다.
+원본 전체는 HWP/HWPX 모두 p10에서 `inconsistent grid boundary`로 멈춘다. p10은 본문
+문단 인덱스이며 물리10쪽이 아니다. 이 경로의 원인은 아직 미조사이며 본 절편 완료에 포함하지 않는다.
+
+### 작성자 표의 공유 오른쪽 경계와 말미 공백 측정
+
+직전 본문 자리차지 선언 줄 절편의 시각 판정을 작업지시자가 통과시켰다.
+다음 원본 p10(물리10쪽 아님)의6행11열 작성자 표는 앞5행 너비 합47,953HU,
+마지막 행47,958HU, 표 선언 너비47,958HU다. HWP/HWPX와 첫12문단의 한컴 정상
+재저장본에서 모두 같았다. 정수 경계 완전 일치라는 V2의 가정이 지원을 막았다.
+한컴 PDF는 오른쪽 외곽이 연결된다.5HU를 화면 기반의 임의 tolerance로 허용하지 않는다.
+
+`grid.rs::resolve`는 내부 경계를 그대로 검사하고, 서로 다른 행 끝은 표 선언 너비와
+최대 너비의 완전 행이 일치할 때만 공유 오른쪽 경계로 확정한다. 짧은 행의 마지막 셀
+잔여를 CellTrack.width에 반영한다. 선언 너비가 없거나 완전 행과 모순되거나 내부 경계가
+충돌하면 거부한다. 모든 행의 너비가 같은 기존 경로는 바꾸지 않는다. 원본 Cell.width를
+수정하거나 열을 비례 축소/확대하지 않으며, 병합 내부 미관측 열도 만들어 내지 않는다.
+
+소비 경로: grid의 CellTrack.width→`ir.rs`의 inner_width/cell_lane_width와 composer→
+`TableContentPlan::from_grid_rows`→TableCursor의 요구 폭/CellPlacement→TextPaint의
+확정 셀 외곽과 텍스트 배치다. 그 뒤 별도 열 폭 재계산은 없다. 기존 flow/row_groups의
+컷·예약·이어받기 알고리즘은 변경하지 않았다. 저장 줄 측정 및 fresh 줄 구성은 같은
+확정 폭을 받는다. source IR·Legacy 표 기하 경로는 그대로다.
+
+grid 수용 후 실제 paint에서 “ 정책책임자 직위 : ”의 가시 advance가 줄 끝287.146667px를
+0.5px 초과했다. 전체 run은 소수 폭인데 오른쪽/가운데 정렬의 말미 공백 helper는 정수로
+반올림했다. 공통 `paragraph_layout.rs::trailing_space_width_after_last_inline_object`가
+`estimate_text_width_exact`를 사용하도록 변경했다. 스타일별 suffix/마지막 TAC 이후 범위/
+가운데 정렬의 밑줄 공백 제외 조건은 유지한다. 이 helper는 Legacy 문단·글상자에서도
+소비하므로 V2만의 변경으로 주장하지 않는다. 정렬 offset→emit_line_runs의 소수 측정→
+V2 painted_inline_ends/각 backend replay가 같은 advance를 사용한다. clamp나 guard 완화,
+폰트 교체, 저장 줄바꿈 변경은 없다.
+
+독립 대조군은 `tests/fixtures/issue7353/grid-terminal/README.md`에 생성 절차·정상 저장
+MCP job·hash·PDF 좌표를 기록했다. 원본 첫12문단 이외를 포함하지 않는다. 수정 전
+grid 계약2건은 의도한 경계 거부로 실패하고 guard1건은 통과했다(`grid-boundary/before.log`).
+grid만 수정한 뒤 문서 paint 계약은 정렬 오류로 실패했다(`before-text.log`). 진단 로그의
+변수명 오타로 발생한 일시적 컴파일 실패는 결함 재현으로 세지 않았고 임시 진단 출력은 제거했다.
+
+최종 검사는 실제 셀 좌표/PDF 경계·25개 셀 소유·문서 종료, IR 원본 보존, 내부 경계
+충돌/선언 누락/모순 거부, 소수 글자 크기와 혼합 글자모양 suffix의 정렬 불변식을 포함한다.
+Native compare/standalone overlay에서 작성자 표·작성일·정책책임자 행의 위치를 직접 확인했다.
+자동 잉크 일치율20.97%는 사람 판정 정확도가 아니다. 글꼴 외형/굵기/자폭 차이는 남는다.
+원본 전체는 HWP/HWPX 모두 본문 p12의 `explicit body page/column break`에서 멈춘다.
+현재 절편은 원본 전체 수용이나 R5 완료가 아니다.
+
+`bash output/7353/r19/grid-boundary/tests.sh`의 최종 선택 회귀 검사는177 PASS다
+(`tests-final-summary.log`). grid_terminal4/colspan10/rowspan_roundoff2/text37,
+기존 정렬 회귀 #7081(2)/#5820(1)/#6173(1), body_exclusion5/filled_field5/
+document_flow99/page_number10/fresh_tac1을 포함한다. 직접 rustc harness이며 전체 CI나
+generated suite/workspace 제출 검증으로 보고하지 않는다. Native build, Native/WASM lib
+Clippy `-D warnings`, `cargo fmt --all -- --check`, `git diff --check` 모두 통과했다.
+HEAD50823731a+WIP의 `source.sha256`32개 항목(table_v2와 공통 paragraph_layout)을
+최종 코드와 대조해 모두 일치했다.
+
+fresh Docker WASM은 `docker compose --env-file .env.docker -p rhwp run --rm wasm`으로
+7분15초에 완료했다(`grid-boundary/docker-wasm.log`). WASM SHA256은
+`282c1ae8bc4387f79a902a215aedba507dde142097b31794f1f9f3f3b4d4e6ce`다.
+`node output/7353/r19/grid-boundary/capture.mjs --wasm`으로 같은 정상 저장 HWP를
+브라우저 DocumentV2에서 실행했다. Native/WASM 모두1쪽, SVG 동일, render tree의 수치/
+비수치 차이0이다(`review/backend-comparison.json`). source HEAD+WIP/입력/PDF/WASM
+hash는 `review/run.json`에 연결한다.
+
+`review/wasm-review-1.png`와 `review/wasm-overlay-1.png`를 직접 열어 작성자 표의
+오른쪽 외곽·내부 열·작성일·정책책임자 행 및 앞 목차와의 간격을 대조했다. 자동 잉크
+일치율20.97%이며 글꼴 외형 차이는 남는다. 이번 절편은 작업지시자 시각 판정 통과다.
+원본 전체·Studio 편집 세션·전체 CI 검증, commit/push, 기본 엔진 전환은 수행하지 않았다.
+
+### 본문 문단 앞 명시적 쪽 나누기
+
+작성자 표 절편의 시각 판정 통과와 다음 진행 승인을 받았다. 원본 HWP/HWPX의 p12
+`< 규제 개요 >`는 `ColumnBreakType::Page`, 첫 저장 줄 y=0이다. HWP5 사양 표59의
+쪽 나누기와 정상 한컴 저장/PDF2쪽의 문단 시작을 독립 근거로 삼는다. 기존 V2는 본문
+나누기를 일괄 거부했으므로 기존 오배치 수정이 아닌 명시적 거부 경로의 신규 지원이다.
+
+`document_input::prepare`가 문단 진입의 `(flow block, 앞 anchor 수)`를 BodyPlan에
+기록한다. 로컬 문단 composer에만 나누기를 소비한 clone을 전달하며 원본 IR·LineSeg를
+변경하지 않는다. 일반 문단, TAC, zero-width 자리차지 선언 줄 모두 같은 진입 경계다.
+`BodyCursor::fit`은 다음 anchor와 쪽 경계 중 앞쪽까지만 `FlowCursor::fit_until`로
+측정/예약한다. 같은 block의 선행 anchor는 먼저 처리하고 pending 표는 기존 컷으로
+이어받은 뒤 경계를 소비한다. 다음 문단은 다음 fit의 본문 원점에서 시작한다.
+`DocumentV2Session::next_page_json`은 이 fit의 lines/tables를 그대로 paint하고 성공 후
+cursor를 commit한다. paint에서 쪽을 다시 추측하거나 좌표를 clamp하지 않는다.
+
+분할 경로는 기존 일반 Table/AnchoredTable/TAC의 소유 컷·요구 높이·누적 예약을 그대로
+소비하며 flow/row_groups의 표 분할 알고리즘은 바꾸지 않았다. 달라지는 것은 body fit의
+종료 경계다. 앞 표가 현재 공간에 안 맞으면 pending에 남고 앞 표의 마지막 조각이 끝난
+쪽에서 나누기를1회 소비한다. 원래 높이/부분 컷/rowspan 요구 높이 자체는 비변경이다.
+첫 문단 Page와 본문 단·다단·구역, 셀 내부 나누기는 명시적 거부를 유지한다.
+
+정상 저장 대조군은 `tests/fixtures/issue7353/page-break/README.md`에 생성·MCP job·
+해시·독립 PDF 좌표를 기록했다. 첫14문단 시도는 p13 표 내부의 명시적 나누기 거부로
+멈췄다(`probe.log`). 이 입력/정상 저장본/변환 영수증을 보존하고, 성공 대조는 원본
+첫13문단으로 명시했다. p13의 속성을 삭제해서 원본 전체를 통과시키지 않았다. 현재
+원본 HWP/HWPX 모두 p13에서 같은 미지원 이유로 멈춘다(본문 문단 인덱스이며 물리13쪽 아님).
+
+기존 바이너리로 이 정상 저장본의 p12 거부를 재현했다(`before-native.log`). 작은 계약
+3건도 수정 전 같은 거부로 실패했다(`before.log`). 임시 rustc 의존성 누락과 테스트의
+빈 TextRun/누적 emitted_pages 가정 오류, 지원 밖 기본 Justify TAC 입력, source 바깥여백을
+빠뜨린 기대값은 결함 재현으로 세지 않는다. HWPX로 직렬화되지 않는 구역/다단 반례는
+HWP로 인코딩하고 재파싱 속성 보존을 assert한 뒤 검사한다.
+
+Native2쪽에서 제목의 실제 원점/기준선과 쪽 번호를 직접 확인했다. 첫 쪽 작성자 표와
+공백 문단은 보존된다. 자동 잉크 일치율은1쪽20.97%,2쪽8.77%이며 글꼴 차이가 남는다.
+2쪽은 제목과 쪽 번호만 있으므로 흰 영역 픽셀 일치율을 전체 조판의 증거로 사용하지 않는다.
+`bash output/7353/r19/page-break/tests.sh` 최종 선택 회귀186건 통과
+(`tests-final-summary.log`): document_flow108(신규 경계9), grid_terminal4/colspan10/
+rowspan_roundoff2/text37/기존 정렬4/body_exclusion5/filled_field5/page_number10/fresh_tac1.
+Native build, Native/WASM lib Clippy `-D warnings`, fmt/diff 검사도 통과했다. 직접 rustc
+harness이며 generated suite/workspace/전체 CI 검증으로 보고하지 않는다. 전체 CI·commit/push·
+기본값 전환은 이 절편의 수행 범위가 아니다.
+
+fresh Docker WASM은 `docker compose --env-file .env.docker -p rhwp run --rm wasm`으로
+7분24초에 완료했다(`page-break/docker-wasm.log`). WASM SHA256은
+`87ee2351736983cdcaab5a3ddb247248664683c814f1d687b47654f91f1c0ba4`다.
+`node output/7353/r19/page-break/capture.mjs --wasm`으로 같은 정상 저장본을 실행했다.
+Native/WASM 모두2쪽, 두 SVG 동일, render tree의 수치/비수치 차이0이다.
+source HEAD50823731a+WIP와 입력/PDF/WASM hash는 `review/run.json`, 소스32개 hash는
+`source.sha256`에 보존했다. 빌드 뒤 소스 일치 및 diff 검사를 다시 확인했다.
+
+`review/wasm-boundary-review.png`는1쪽 하단 y640..1000px와2쪽 상단 y40..180px를
+세 backend 패널에 똑같이 잘라 나란히 배치한 추가 판정 자료다. 숨은 좌표 정합이나 확대는
+없으며 `boundary.mjs`에 절차가 있다. 이 이미지와2쪽 `wasm-review-2.png`,1·2쪽
+`wasm-overlay-{1,2}.png`를 직접 확인했다. 전체 페이지의
+`wasm-compare-{1,2}.png`/`wasm-review-{1,2}.png`도 같은 폴더에 보존했다.
+제목의 새 쪽 원점, 앞 표와 공백 문단의 보존, 쪽 번호를 확인하는 제한된 시각 자료이며
+뒤 규제 개요 표의 정상화 증거가 아니다. 이번 절편은 작업지시자 시각 판정 통과다.
+
+### 셀 첫 문단의 일반 1단 정의
+
+본문 쪽 나누기의 시각 판정 통과와 다음 진행 승인을 받았다. 다음 p13 거부를 추적한
+결과 실제 속성은 Page가 아니라 r6c2/p0와 r30c1/p0의 `MultiColumn`이었다.
+둘 다 첫 컨트롤은 일반 1단·동일 너비·간격0·구분선 없음의 `ColumnDef`다.
+원본과 한컴 재저장본에서 같으며, 첫14문단 PDF2쪽의 자식 표와3쪽의 규제정비 셀은
+앞뒤 내용과 같은 셀 흐름 안에 놓인다(`cell-break/source.log`, `break-2020.pdf`).
+따라서 쪽 경계를 추가하지 않고 셀 story의 초기 단일 영역 선언을 처리한다.
+
+`ir.rs::initial_cell_column`(80행)은 첫 문단/첫 source slot의 정상 단일 영역만
+수용한다. 실제 다단·폭/간격/구분선 변경·중간 선언·Page/Column/Section은 거부한다.
+`bind_table`266행은 로컬 clone의 `column_type`만 소비하고 원본 IR/문자축/LineSeg/
+컨트롤 배열은 유지한다. 289/308행은 구조 슬롯의 소비를 기록하며 표 소유자로 취급하지
+않는다. `text_ir.rs`138행의 일반 텍스트는 구조 컨트롤만 없는 로컬 view로 기존 composer에
+전달한다. TAC는169행에서 구조 슬롯을 포함한 원본 배열을 기존 `tac::compose`에 전달한다.
+따라서 `ColumnDef=ci0`, 자식 `Table=ci1`의 소유 번호가 보존된다.
+
+측정은 기존 ParagraphItem/FlowBlock을 소비하고, `bind_paint`는 동일 ParagraphPaint
+slot recipe로 원본 ci1의 자식 paint를 바인딩한다. 구조 정의가 추가 줄·Space·페이지
+경계·표 높이를 만들지 않는다. fit/cut/reservation/continuation/rowspan 알고리즘과
+최종 원점 보정은 이번 절편에서 변경하지 않았다. 이 지원을 일반 다단이나 중첩 표
+페이지네이션 전체 지원으로 해석하지 않는다.
+
+독립 대조군은 `tests/fixtures/issue7353/cell-column/README.md`에 생성·MCP job·
+hash·PDF 좌표를 기록했다. 원본 두 셀을 각각1x1 부모로 분리하고 설명 제목을 추가했으며
+셀 내용/단 정의/자식 표/글자모양은 유지했다. 저장 줄 캐시를 제거한 뒤 한컴에서 정상
+재조판·저장했다. 최초 생성본은 제목의 raw Page 비트를 남기는 생성 오류가 있어 보존하고
+v2에서 바로잡았다. 이 생성 오류와 테스트의 의존성 누락/노드 traversal/고정 간격 가정
+오류는 제품 결함 재현으로 세지 않는다.
+
+기존 Native 바이너리는 최종 정상 저장 fixture에서 의도한
+`explicit paragraph page/column break`로 거부한다(`before-v2.log`). 변경 후에는1쪽이다.
+`tests/cases/issue_7353_table_v2_document_flow.rs`의 신규 `initial_cell_*`4건은
+실제 부모/자식 표의 최종 bbox, 뒤 제목/문단의 기준선, 자식 텍스트 누락·중복, 빈 첫 문단의
+점유를 검사한다. PDF path/글자 기준선은0.5px 이내 비교하고, fresh 셀 재조판은 암묵적
+단일 영역 대조와 같은 paint 좌표를 내는지 별도로 검사한다. 변형 계약은 한컴 일치 자료와
+구별한다. Native review/standalone overlay를 직접 열어 표 외곽·두 행·뒤 제목·규제정비
+문단을 확인했다. 잉크 중심 보조값50.81%이며 폰트 외형 차이는 남는다.
+
+`bash output/7353/r19/cell-break/tests.sh`: 선택201건 PASS
+(document_flow112, nested_text11, grid_terminal4, colspan10, rowspan_roundoff2,
+text37, 기존 정렬4, body_exclusion5, filled_field5, page_number10, fresh_tac1).
+Native build 및 Native/WASM lib Clippy `-D warnings`도 통과했다. 직접 rustc harness이며
+전체 CI/generated suite/workspace 검사로 보고하지 않는다. 소스는 HEAD50823731a+WIP다.
+
+원본 첫14문단은 다음 제한인 `stored body anchor outside body`에서 멈춘다
+(`full-prefix.log`). 한컴 저장 전 HWPX 대조군도 기존 anchor 조건에서 거부된다
+(`fresh-hwpx.log`). 정상 저장 HWP와 fresh HWP 계약의 통과를 이 입력들 또는 원본 전체
+통과로 바꾸어 보고하지 않는다. 기본 엔진 전환·commit/push는 수행하지 않았다.
+
+fresh Docker WASM은 `docker compose --env-file .env.docker -p rhwp run --rm wasm`으로
+7분20초에 완료했다(`cell-break/docker-wasm.log`). WASM SHA256은
+`f690e79cda0ea830832057d585f8f48963e9d0f67eceb1c6bff979f0210171ec`다.
+`node output/7353/r19/cell-break/capture.mjs --wasm`으로 같은 정상 저장 HWP를 브라우저
+DocumentV2에서 실행했다. Native/WASM 모두1쪽, SVG 동일, 수치/비수치 차이0이다.
+`review/run.json`에 source HEAD+WIP, 입력/PDF/WASM hash를 보존했다. 소스31개 manifest
+`source.sha256`와 실제 소스의 일치, fmt/diff 검사도 확인했다.
+
+`review/wasm-detail-review.png`는 같은1쪽 x60..560/y60..310px 영역을 Native와 같은
+크기로 보여주는 판정 자료다(`crop.mjs --wasm`, 이동 보정·확대 없음). 이 자료와
+`review/wasm-overlay-1.png`를 직접 열어 자식 표 원점·두 행·부모 외곽·뒤 제목·하단 문단의
+보존을 확인했다. 전체 `wasm-compare-1.png`/`wasm-review-1.png`도 보존했다.
+잉크 보조값50.81%이며 글꼴 굵기/외형 차이는 남는다. 이번 절편은 작업지시자 시각 판정 통과다.
+
+### 본문 너비보다 넓은 저장 자리차지 표
+
+셀 초기 일반1단 정의의 시각 판정 통과 후 다음 거부를 조사했다.
+`stored body anchor outside body`는 세로 분할이 아니라 가로 수용 조건이었다.
+원본과 첫14문단 정상 재저장본은 본문48190HU, 표49204HU, 좌우 바깥여백141HU다.
+96dpi에서 본문642.533px, 표656.053px다. 원본 대응 PDF2쪽에서도 오른쪽 외곽은
+본문 밖·용지 안에 있다. 표 축소나 본문 글줄 폭 확대 없이 이 절대 너비를 유지한다.
+
+독립 대조는 원본 첫 네 행의 내용·17열 그리드·4행 병합·폭·여백을 보존하고 뒤 문단을
+추가한 정상 한컴 저장 HWP/PDF다. 생성기·MCP job·PDF path 및 뒤 문단 기준선·hash는
+`tests/fixtures/issue7353/body-width/README.md`에 기록했다. 원본31행 전체의 정상화
+증거가 아니며, 원본 첫14문단은 다음 미지원 `V2 mixed double-border junction`에서
+멈춘다(`output/7353/r19/body-width/full.log`). 이 거부를 숨기거나 표를 간략화한
+대조군의 통과로 원본 통과를 선언하지 않는다.
+
+가로 값의 소비 연결:
+
+- `document_input.rs`320–364행: 저장 exclusion host가 선언한 x와 준비된 표 폭으로
+  용지 안 바깥여백 포함 envelope를 검증하고 `AnchoredTable.available_width`를
+  확정한다. 본문 `FlowCellInput.width`와 앞뒤 LineSeg 폭은 변경하지 않는다.
+- `ir.rs`의 두 셀 anchor 경로는 기존 content box 및 오른쪽 여백 검사를 유지한다.
+  `content.rs`217행의 lane 검증도 부모 content box 초과를 거부한다. 본문용 배치
+  가능 폭을 셀 overflow 허용으로 전파하지 않는다.
+- `flow.rs`168–270행: 최초/이월/이어받기 모두 동일 anchor lane을 child fit에
+  전달한다. 세로는 기존 `child_budget → TableCursor::fit_with_page_height →
+  reserved_height/continuation`을 소비한다. host는 최초 수용 때만, 하단 여백은
+  마지막 조각 뒤에서만 소비한다. 실패 시 아직 소비하지 않은 host/child를 이월한다.
+- `document.rs`156행은 그 TablePlacement를 `paint.build_node`로 전달한다.
+  paint의 별도 너비 축소·다른 원점 선택·clamp는 추가하지 않았다. 일반 body anchor,
+  TAC·어울림·셀 내부 분할 규칙·rowspan 컷 알고리즘은 변경하지 않았다.
+
+용지 경계의4회 양수 부동소수점 연산 오차만 구분한다(4×EPSILON×좌표 크기).
+정확한 맞춤과1HU 부족 반례를 함께 실행해 실제 부족분을 허용치로 숨기지 않았다.
+표 원점·폭 자체는 변경하지 않는다. 용지 밖 개체와 nonzero vertical offset의 별도
+본문 anchor 경로는 미지원이며 이번 지원 범위에 포함하지 않았다.
+
+수정 전 보존 Native 바이너리는 동일 정상 HWP를 p1의 `stored body anchor outside body`로
+거부했다(`before.log`). 수정 후 동일 HWP는1쪽이며 최종 bbox와 뒤 문단 기준선이 독립
+PDF 좌표0.6px 이내다. 신규 정식 계약은 `issue_7353_body_exclusion.rs`의5건이다:
+정상 저장본의 최종 표/후속 문단, 용지/바깥여백 경계, 셀 overflow 거부, RowBreak
+이어받기, 병합 셀의 통째 이월. 원본4행 병합+RowBreak는 통째 이동해야 하므로
+이어받기 계약에서만 첫 열을 비병합 셀로 바꾸고 빈 문단/원래 글자의 소유를 명시했다.
+이 변형은 한컴 일치 자료가 아니다. 초기 변형의 빈 셀 글자모양 누락과 기존 rowspan
+cell-internal cuts 미지원은 입력/범위 오류로 구분하고 제품 결함 재현으로 세지 않았다.
+
+선택 회귀224건 PASS(본문10, nested18, grid_terminal4, colspan10,
+rowspan_roundoff2, text37, 기존 정렬4, filled_field5, document_flow112,
+page_number10, fresh_tac1, nested_text11). `body-width/tests.sh` 실행 후 추가한
+통째 이월 계약은 본문 harness10건을 다시 실행했다. 각 최종 harness log를 증거로 삼는다.
+Native build, Native/WASM lib Clippy `-D warnings`, fmt/diff 검사도 통과했다.
+직접 rustc 선택 harness이며 전체 CI/generated suite/workspace 검사로 보고하지 않는다.
+
+최종 소스 Native의 compare·standalone overlay·detail review를 직접 확인했다.
+표 외곽·행 높이·뒤 문단 위치가 대응하며 글꼴 굵기/외형 차이는 남는다. 잉크 중심
+자동 보조값18.67%를 위치 판정이나 사람 판정 정확도로 사용하지 않는다.
+fresh Docker WASM은 `docker compose --env-file .env.docker -p rhwp run --rm wasm`으로
+7분10초에 완료했다(`body-width/docker-wasm.log`). WASM SHA256은
+`54a485d1073a07db9e659341bf4c5542aa340f99e29459a1e356bf9fd18d1b9a`다.
+`node output/7353/r19/body-width/capture.mjs --wasm`과 `crop.mjs --wasm`으로
+같은 정상 HWP를 새 브라우저 WASM에서 실행했다. Native/WASM 모두1쪽, SVG 동일,
+수치/비수치 차이0이다(`review/backend-comparison.json`). source HEAD50823731a+WIP,
+입력/PDF/WASM hash 및 소스31개 hash는 `review/run.json`과 `source.sha256`에 보존했다.
+
+최종 `review/wasm-detail-review.png`와 `review/wasm-overlay-1.png`를 직접 열어
+동일 영역의 표 외곽·네 행·뒤 문단을 확인했다. detail은 x50..750/y60..345px의 같은
+영역만 잘라 보여주며 이동 보정·확대는 없다. 전체 compare/review도 같은 폴더에 있다.
+추가된 테스트2파일의 hash는 `tests.sha256`, 전체 선택 결과는 각 harness의 최종 log에
+보존했다. 본문 이어받기의 내용 기대값은 분할 전 V2 출력이 아니라 입력 셀 소유 문자열로
+검사한다. 소스/테스트 hash 일치와 fmt/diff를 재확인했다.
+이번 절편은 작업지시자 시각 판정 통과다. 승인 범위는 본문보다 넓은 표의 원래 폭,
+네 행의 외곽과 후속 문단 배치이며 원본 전체 통과를 뜻하지 않는다.
+기본 엔진 전환·commit/push는 없다.
+
+### 전체 진행 현황과 다음 접합 절편
+
+승인된 전체 범위에 대한 거친 진행 추정은 약50% 전후다. 절편·테스트 개수의 비율이
+아니며, 이전45% 추정 이후 본문 연결과 정상 저장 입력의 지원 경계가 확장된 점을
+반영한다. R2 기반과 R3 Native/WASM 연결은 확보했으나 원본 전체 수용은 미완료다.
+R3/R4 복합 분할·일반 어울림·각주/캡션·편집/캐시/커서·세로쓰기 등의 검증과 R5
+최신 devel 통합·전체 CI·전환/복귀 판단이 남아 절반가량의 잔여 범위로 보고한다.
+
+다음은 첫14문단의 `V2 mixed double-border junction` 거부다. 독립 PDF와 입력의
+실제 접합 스타일을 확인한 후 지원 규칙을 정하며, 기존 guard 삭제만으로 진행하지 않는다.
+
+### 실선–이중선 내부 접합
+
+원본 s0/p13/r28–29/c4의0.5mm 세로 이중선은 양쪽으로 이어지는0.12mm 가로
+실선과 만난다. 첫14문단 정상 저장 PDF3쪽 `14.비용감축제`의 path에서 이중선
+두 pen(0.36pt, 원본 중심284.127/285.207pt)이 실선
+가장자리에서 끝나는 것을 확인했다. 숫자는 문서 위치일 뿐 구현 조건으로 쓰지 않는다.
+독립 정상 저장 가로/세로 대조군은 `tests/fixtures/issue7353/mixed-borders/README.md`에
+생성 방식·job·원문/PDF hash·지원 경계를 기록했다.
+
+최종 값의 경로는 `CellBorders::append`가 확정된 `TablePlacement`의 xs/ys와 공유
+Span을 구성 → `borders::double::Junction::inset`이 두 방향의 동일 색/동일 실선을
+확인 → 공통 실선 pen 폭의 절반을 반환 → `double::append`가 최종 LineNode
+끝점과 ink bbox를 생성 → 동일 RenderTree를 Native SVG와 WASM이 소비하는 것이다.
+실선은 기존 한 개의 연속 Span 그대로다. 두 pen의 간격이나 표/셀 사각형은 바꾸지 않는다.
+측정·예약·컷·이어받기 생산 경로 변경은 비해당이며, geometry 불변 대조로 확인한다.
+
+바깥 모서리까지 일괄 수용하지 않았다. 최초 all-vertical/all-horizontal double 그리드의
+정상 저장 PDF는 한쪽만 만나는 접합이 내부와 다름을 보여 준다. 이 진단 입력/PDF도
+`output/7353/r19/mixed-borders/{vertical,horizontal}-*`에 보존했다. 정식 inner
+대조군은 모든 외곽을 실선으로 두고 중앙 경계만 이중선으로 선언해 실제 원본에 해당하는
+T/십자 접점을 확인한다. 색 충돌·한쪽 접점·동일하지 않은 incident 실선은 기존 거부를 유지한다.
+
+정식 회귀 `normal_saved_mixed_inner_junctions_stop_at_solid_ink_and_preserve_content`는
+최종 두 pen의 시작/끝,0.48px 폭/1.44px 중심 간격, 실선의 연속성, 독립 PDF 원점,
+30000×8000HU 그리드, 각 셀 글자와 AFTER CELL의 단일 소유/후속 배치를 검사한다.
+추가 접합 분기만 제외한 수정 전 라이브러리에 같은 테스트를 링크해
+`V2 mixed double-border junction`으로 FAIL한 뒤 복원 코드로 PASS했다.
+`mixed-borders/test-before.log`는 빌드 실패가 아니라 해당 거부의 재현이다.
+반복 제목·분할과 색 충돌의 계약도 추가했다. 최초 테스트에서 의도적으로 바꾼
+border_fill_id까지 같다고 비교한 실수는 장식 참조만 비교에서 빼고 bbox/소유/텍스트를
+유지하도록 정정했다. 선택 harness의 roxmltree 링크 누락도 제품 결함이 아니라 실행
+구성 오류로 분리했다.
+
+#### 새로 출력 가능한 원본 첫14문단의 분할 차이
+
+거부 해소 후 V2는3쪽을 출력하지만 동일 PDF와2→3쪽 컷이 다르다.
+V22쪽은 r0..7,3쪽은 r8부터이며 PDF2쪽에는 r8/9까지 있다. `fit_row_groups`의
+`group_end(8)`은 r8/c0의7행 병합을 포함한 그룹 끝15까지 묶는다. 원래 남은 공간에
+r8/9를 배치하고 rowspan을 이어받는 처리는 현재 이 RowBreak 경로에서 하지 않는다.
+페이지3 후속 내용은 약63.87px 늦어지며 직접 `full/native-review-3.png`에서 관측했다.
+
+원본 테두리의 Double만 Solid로 치환한 진단 사본은 수정 전/후 출력이 완전히 동일하다.
+이 진단 출력과 원래 Double 입력의 Table/TableCell/TextLine/TextRun도 bbox와 내용이
+동일하다(`geometry-check.json`). 따라서 이번 paint 변경으로 생긴 분할 회귀가 아니다.
+사본은 진단용이며 한컴 일치 증거로 쓰지 않는다. 원본 첫14문단 통과도 선언하지 않는다.
+다음 실제 작업 대상은 이 RowBreak 병합 그룹의 경계/소유/이어받기 규칙이다. 이번 접합
+절편에 분할 규칙 변경을 섞거나3쪽이라는 총수만으로 정상화하지 않는다.
+
+#### 최종 검증과 판정 자료
+
+`bash output/7353/r19/mixed-borders/tests.sh` 최종227건 PASS
+(borders25, split_borders11, headers14, colspan10, rowspan10, nested18,
+geometry9, vertical_alignment8, body_exclusion10, document_flow112).
+Native build 및 Native/WASM lib Clippy `-D warnings` 통과, fmt/diff 통과다.
+직접 rustc 선택 harness이며 전체 CI/generated suite/workspace 검사로 보고하지 않는다.
+production은 `borders/double.rs`의 내부 실선 접점 분기10줄 추가뿐이다.
+
+`docker compose --env-file .env.docker -p rhwp run --rm wasm`은7분21초에 완료했다.
+새 WASM SHA256은 `2b456e033f504ba20071de4a13da1cb43ae7e6d3f7dde0e92208b8a6870758b7`다.
+`MIXED_CASE=<vertical-inner|horizontal-inner|full> node
+output/7353/r19/mixed-borders/capture.mjs --wasm`으로 실제 브라우저 DocumentV2를
+실행했다. 두 대조군은 각각1쪽, 첫14문단은3쪽이며 모든 쪽의 Native/WASM SVG 동일,
+수치/비수치 차이0이다. 각 `run.json`에 HEAD50823731a+WIP, 입력/PDF/WASM hash를,
+`source.sha256`에는 변경한 borders 하위 모듈을 포함한 소스32개 hash를 남겼다.
+`tests-fixtures.sha256`도 현재 파일과 대조했다.
+
+Native/fresh WASM의 직접 확인 자료:
+
+- [세로 이중선 384dpi 접점](../../output/7353/r19/mixed-borders/vertical-inner/wasm-junction-review.png)
+- [가로 이중선 384dpi 접점](../../output/7353/r19/mixed-borders/horizontal-inner/wasm-junction-review.png)
+- [세로형 전체 review](../../output/7353/r19/mixed-borders/vertical-inner/wasm-review-1.png),
+  [standalone overlay](../../output/7353/r19/mixed-borders/vertical-inner/wasm-overlay-1.png)
+- [가로형 전체 review](../../output/7353/r19/mixed-borders/horizontal-inner/wasm-review-1.png),
+  [standalone overlay](../../output/7353/r19/mixed-borders/horizontal-inner/wasm-overlay-1.png)
+- [미해결 원본3쪽 비교](../../output/7353/r19/mixed-borders/full/wasm-review-3.png),
+  [standalone overlay](../../output/7353/r19/mixed-borders/full/wasm-overlay-3.png)
+
+384dpi 접점은 같은 물리 영역의 start T/cross/end T를 같은 크기로 잘라 놓은 자료다.
+개별 영상 이동·정렬 보정 없이 직접 판독했다. 전체 페이지 잉크 자동 보조값은 세로형93.20%,
+가로형93.00%이며 폰트 외형과 미세 PDF 격자 차이는 남는다. 원본3쪽22.19%는 분할
+차이의 진단값이지 통과 근거가 아니다. 접합 규칙 대조군은 작업지시자 시각 판정 통과이며
+원본 분할은 다음 절편의 미해결 대상이다. 기본 엔진 전환·commit/push는 수행하지 않았다.
+
+### RowBreak 병합 셀의 행 경계 이어받기 착수
+
+동일 정상 저장 첫14문단과 한컴 PDF2/3쪽을 재사용한다. PDF2쪽은 r8/9를 포함하고,
+병합 제목은 앞 조각에 한 번만 표시되며 PDF3쪽의 이어받은 좌측 영역은 빈 셀로 남는다.
+현재 `group_end`의 병합 연결 그룹 원자성은 이 관측과 다르다. 행 경계 분할과 셀 내부
+내용 분할을 구별하여, 셀 내용 전체가 앞 조각에 수용되는 행 경계 컷부터 구현한다.
+내용이 앞 조각에 안 들어가는 컷은 수용하지 않으며 Never/반복 제목의 원자성은 유지한다.
+
+추적 값은 물리 행 범위다. `TableContentPlan`의 행 높이/내용 점유 → row-group fit의
+컷 후보와 요구 높이 → `TableFragmentPlan`의 예약 높이/실제 셀 조각 → `TextPaint`의
+내용 소유 및 `CellBorders`의 물리 경계를 연결한다. 원본 셀 주소와 조각 행 범위를
+분리하여 이어받기 테두리가 원래 시작 행을 다시 생성하지 않게 한다. CellBreak rowspan
+내부 컷은 기존 명시적 미지원으로 남긴다. 글꼴과 전체 원본 수용은 이번 판정 범위가 아니다.
+
+#### RowBreak 구현 및 독립 경계 확인
+
+수정 전 정식 `tests/cases/issue_7353_rowbreak_span_continuation.rs`는2쪽의
+r9/c2가 없다는 원인으로 FAIL했다(`output/7353/r19/rowbreak-span/test-before.log`).
+수정 후에는2쪽 r0..9,3쪽 r10..30이며 r8/c0,c1의 원본 주소는 유지하되
+`visible_rows`로 각 조각의 실제 행 범위를 별도로 전달한다. 두 병합 제목은 첫 조각에만
+소유되고 다음 조각은 빈 물리 셀로 이어진다. 제목이 잘리는 대신 셀 내용 전체가 첫 조각에
+들어가는 컷만 수용한다. 셀 내부 rowspan 내용 분할을 구현한 것으로 보고하지 않는다.
+
+첫 후보는 행 컷을 맞췄지만2쪽 마지막 행 높이가 짧았다. 이를 paint에서 늘리지 않고
+쪽 여백 대조본으로 분할 단계의 물리 예약을 검증했다. 원본 첫14문단 정상 저장 HWP에서
+① 쪽 아래 여백만600HU 늘린 HWPX,② 주 표 아래 바깥여백만141HU→0으로 바꾼 HWPX를
+각각 한컴으로 정상 저장한 뒤 해당 HWP의 PDF를 획득했다. 행/줄 메타데이터는 수동으로
+바꾸지 않았다. 생성 코드·입력·반환본·PDF·job ID는
+[`tests/fixtures/issue7353/rowbreak-span/README.md`](../../tests/fixtures/issue7353/rowbreak-span/README.md)에 연결했다.
+재현 생성기의 두 `section0.xml`은 실제 제출 입력과 동일한 것도 확인했다.
+
+독립 PDF2쪽의 마지막 테두리 끝은 원본1042.6987px,쪽 여백 증가본1034.7080px,
+표 여백 제거본1044.4573px다. 같은 r9→10 컷에서 물리 표 끝이 가용 영역/바깥여백에
+따라 움직인다. 이에 따라 rowspan을 가로지르는 컷은 마지막 물리 행에 남은 빈 밴드를
+예약하고 후속 행의 원래 최소 높이/내용은 소비하지 않는다. 최종 조각은 남은 실제 높이만
+사용한다. source HU 델타8px/1.88px를 적용하며 PDF 출력의 양자화 차이를 상수로
+엔진에 넣지 않았다. 현재 원본2쪽 외곽 끝은1045.0267px로 PDF와 약2.33px 차이가 남는다.
+
+실제 호출/소비 경로:
+
+| 단계 | 코드와 계약 |
+| --- | --- |
+| 내용 점유 생산 | `content.rs:388`의 패딩 포함 `content_height`; 기존 전체 셀 정렬 결과와 분리 |
+| 컷·요구 높이 | `fragment.rs:209`→`fragment/row_groups.rs:15`의 `row_cut_required`; 앞 조각이 소유할 전체 내용까지 요구 |
+| 예약·이월 | 같은 파일 `fit_row_groups`가 컷을 먼저 확정하고 남는 물리 밴드를 마지막 행에 예약; `next.row=end`로 내용 컷과 구별 |
+| 바깥여백 | `flow.rs:202`의 RowBreak 앵커 자식 예산에서 아래 바깥여백 선예약; CellBreak는 기존 별도 tail 소비 계약 유지 |
+| 실제 배치 | `TextPaint::build_node` (`text.rs:203` 이후)가 원본 주소로 payload를 찾고 전달된 줄/자식 원점을 사용; 내용 재측정/축소 없음 |
+| 외곽·배경 | `borders.rs:85` 이후가 `visible_rows`와 실제 bbox 사용; gradient/diagonal 조각은 기존 명시적 미지원 유지 |
+
+검증 중 바깥여백을 CellBreak까지 적용했을 때 기존
+`following_anchor_cuts_preserve_negative_gap_host_and_child_tail`의20px 예산이 실패했다.
+이 검사를 완화하지 않고, 독립 출력으로 확인한 RowBreak 경로로 적용 범위를 수정하여
+기존20/30/40/1000px CellBreak 검사 모두 복구했다. CellBreak 여백의 한컴 일치는 이번
+근거로 주장하지 않는다.
+
+작은 경계 계약은36px 행에54px 내용이 있는 경우를53px 예산에서 거부하고54px에서
+온전히 수용하는 것, 같은 컷에서 여러 셀이 끝나는 경우, 두 병합 셀의3개 조각,
+첫 조각 Center/Bottom 정렬, 이후 제목 비반복, 마지막 행 후 종료, Never/반복 제목,
+중첩 자식 뒤의 문단 보존을 확인했다. #6923의1HU 부족 검사는 세 번째 행을 수용하지
+않는 계약을 유지하고, 새 물리 닫힘 밴드와 원래 행 높이 합을 따로 검사한다. 이전 그룹
+전체 원자성 기대값은 RowBreak와 맞지 않아 독립 PDF와 위 규칙에 따라 변경했고, 전체
+원자성 대조군은 명시적 Never로 유지했다. 단순 페이지 수/golden 완화가 아니다.
+
+#### RowBreak 최종 검증 및 시각 판정 준비
+
+선택 harness `bash output/7353/r19/rowbreak-span/tests.sh`:237건 PASS
+(normal/여백2, borders25, split_borders11, headers14, colspan10, rowspan13,
+nested18, geometry9, vertical_alignment8, body_exclusion10, document_flow112,
+rowspan_roundoff2, oversize_row3). Native build와 Native/WASM lib Clippy
+`-D warnings`, fmt/diff 확인. 이는 직접 rustc 선택 검사이며 전체 CI/generated suite/
+workspace 검증을 대신하지 않는다. 신규 테스트 원본만 `tests/cases/`에 두었다.
+
+Native에서 원본2/3쪽 review와 두 여백 대조본2쪽을 직접 판독했다. 원본3쪽의 후속 표
+외곽과 행 위치가 개선됐으며, 원본2쪽 하단 약2.33px 및 대체 글꼴 외형 차이는 남는다.
+`docker compose --env-file .env.docker -p rhwp run --rm wasm`은7분28초에 완료했다.
+fresh WASM SHA256:
+`d0ff783b99898082ebc52daa1eeb371453d89741e36edf8c37316cc9f87a9800`.
+`SPAN_CASE=<prefix14|margin|no-bottom> node output/7353/r19/rowbreak-span/capture.mjs --wasm`
+으로 실제 브라우저 DocumentV2를 실행했다. 입력3종×각3쪽 모두 Native/WASM 수치·비수치
+차이0, SVG 동일이다. 각 `run.json`에 HEAD50823731af+WIP, 입력/PDF/WASM SHA256과
+소스32개 manifest를 기록했다. `source.sha256`, `tests-fixtures.sha256` 최종 대조 통과.
+
+판정 자료(각 review는 한컴/새 WASM/overlay를 같은 쪽·크기로 표시):
+
+- [원본 첫14문단2쪽 review](../../output/7353/r19/rowbreak-span/review/wasm-review-2.png),
+  [compare](../../output/7353/r19/rowbreak-span/review/wasm-compare-2.png),
+  [standalone overlay](../../output/7353/r19/rowbreak-span/review/wasm-overlay-2.png)
+- [원본 첫14문단3쪽 review](../../output/7353/r19/rowbreak-span/review/wasm-review-3.png),
+  [compare](../../output/7353/r19/rowbreak-span/review/wasm-compare-3.png),
+  [standalone overlay](../../output/7353/r19/rowbreak-span/review/wasm-overlay-3.png)
+- [쪽 여백 증가본2쪽 review](../../output/7353/r19/rowbreak-span/margin-review/wasm-review-2.png)
+- [표 바깥여백 제거본2쪽 review](../../output/7353/r19/rowbreak-span/no-bottom-review/wasm-review-2.png)
+
+fresh WASM2쪽 review와3쪽 standalone overlay도 직접 열어 행 경계·병합 제목 소유·
+후속 내용·외곽을 확인했다. 원본2/3쪽 잉크 자동 보조값20.06%/50.46%는 사람이 판정한
+정확도가 아니다. 약2.33px 테두리 잔차와 글꼴 외형 차이를 공개한 자료에 대해
+**작업지시자 시각 판정 통과**와 다음 절편 진행 승인을 받았다. 기본 엔진 전환,
+전체 원본 통과 선언,commit/push는 하지 않았다.
+
+#### 다음 원본 진입점: p15 단 기준 앵커와 셀 문단 내부 이어받기
+
+원본 `86712_regulatory_analysis.hwp`의 p15(문단 index,쪽 번호 아님)는 가로 Column,
+세로 Para/Top,offset0,폭0 host를 가진 RowBreak2×2표다. 첫17문단을 보존한 HWPX를
+한컴 정상 저장 후 반환 HWP의 PDF10쪽을 확보했다. 생성과 job 근거는
+`tests/fixtures/issue7353/cell-line-continuation/README.md`에 연결한다.
+
+수정 전 정식 `issue_7353_cell_line_continuation`은 p15의
+`stored excluded cell anchor` 미지원으로 FAIL했다. 메모리상의 Para 치환 진단에서
+`unqualified stored cell frame reset`도 확인했다. PDF4→5쪽은 오른쪽 셀의 같은 문단
+p7/line0→line1 이어받기이며, 원본 저장 y가0으로 돌아간다. 문단 분해나 속성 치환으로
+입력을 우회하지 않고 본문 Column 원점과 셀 내부 줄 컷을 명시적으로 구별한다.
+
+추가 확인된 경로는 반복 제목이다. `fragment::fit_with_header`가 본문 fit에 fresh-page
+capacity를 전달하지 않아 초과 높이 RowBreak행이 원자적으로 거부됐다. 제목 예약은
+원자적으로 유지하고 제목을 뺀 현재 조각 예산과 호출자가 준 fresh-page capacity를
+분리해 기존 셀 줄 fit을 호출한다. 제목 높이를 초과 행 판정의 fresh capacity에서도
+빼는 첫 후보는 기존 `multirow_prefix`에서 간격만 남는 제목 전용 마지막 쪽을 만들었다.
+이 잘못된 가정을 제거하여 기존 53px 거부/54px 수용 계약을 유지한다. 합성 새 경계는
+본문40px/전체 fresh45px에서는 원자성 유지, 본문60px/fresh50px에서는 제목10px을
+실제 예산에서 예약한 뒤20px줄 단위로 분할하는 것을 검사한다.
+추적: source(pi,li) 리셋 → 같은 UTF-16 분할의 연속 문단 메트릭 → 공통 TextComposer
+노드 → IR의 StoredFrameTail/Start → FlowCursor 컷·패딩 예약 → 원래 line owner의 paint.
+본문의 일반 LineSeg 수용 조건 및 셀 안 Column 앵커 수용은 변경하지 않는다.
+
+#### 셀 문단 내부 이어받기 검증
+
+현재 절편의 실제 소비 경로는 `stored_text.rs:162`의 `(pi,li)` 컷 → 같은 파일201의
+연속 story 변환 → `ir.rs:310`의 동일 composer 입력 →457의 원래 line owner 경계에
+`StoredFrameTail/Start` 삽입 → `fragment.rs:120,158`의 제목+본문 트랜잭션 →
+`flow.rs:109,135,154`의 끝 패딩 선예약/시작 패딩/간격 처리 → `text.rs:232`의 같은
+line payload 배치다. 글자와 UTF-16 분할은 바꾸지 않는다. Never/intact는 원래 줄간격을
+유지하고, 분할 시에만 해당 저장 프레임 끝의 다음 줄 간격을 소비하지 않는다.
+
+`bash output/7353/r19/cell-anchor-next/tests.sh`:17개 선택 harness289건 PASS.
+신규5건은 정상 저장본의 양쪽 셀 모든 줄(빈줄 포함) 순서·횟수·셀 내부 수용, 반복 제목,
+4→5쪽 이어받기와10쪽 후속 문단,1HU 부족 시 거부와 재시도,첫/끝 패딩 및 Never pitch,
+제목만의 진행 금지,비정상 nonzero 리셋 거부,본문 Column을 셀 기준으로 오인하지 않는
+반례를 검사한다. 기존 제목14건은 기대값 변경 없이 통과했다. 수정 전 첫 거부와
+중간 후보에서 검출한 실패도 같은 output 폴더에 보존했다.
+
+Native build,Native/WASM lib Clippy `-D warnings`,fmt/diff PASS. 전체 CI나
+generated suite/workspace 검증을 대신하지 않는 선택 검사다. 원본 전체는 현재 p20의
+`stored indentation precision`에서 명시적 미지원이며, 첫17문단의 수용을 전체 원본
+완료로 보고하지 않는다.
+
+최종 Native4/5쪽 review,6/7/8/9쪽 standalone overlay,10쪽 후속 내용까지 직접 판독했다.
+`reference-trace.xml`의 독립 PDF 선 끝을96dpi로 환산하면4/5/9쪽은
+1036.9453/1038.5440/635.7840px다. Native끝은1037.9200/1039.5200/636.3200px로
+약0.98/0.98/0.54px 차이가 남는다. 엔진에 그 잔차를 보정 상수로 넣지 않았다.
+대체 글꼴 외형과 이 잔차는 판정 자료에서 공개한다. 총10쪽이라는 사실만으로
+시각 통과를 선언하지 않는다.
+
+#### 최종 WASM 판정 준비 — 셀 문단 내부 이어받기
+
+`docker compose --env-file .env.docker -p rhwp run --rm wasm`:7분27초 PASS.
+첫 후보 빌드는 경계 수정으로 중지했으며 최종 코드로 다시 빌드했다.
+fresh WASM SHA256:`4aa9ace4b3ffe261fc2377beae3c673e77a923c18f19d0dc9a59ca7b61b05acb`.
+`node output/7353/r19/cell-anchor-next/capture.mjs --wasm`으로 실제 브라우저 DocumentV2
+실행:10쪽 전체 Native/WASM 수치 차이0,기타 차이0,SVG 동일.
+`review/run.json`에 HEAD50823731af+WIP의 source manifest,입력/PDF/WASM SHA를 기록했고
+마지막 source manifest 대조도 통과했다. 최종 WASM4/5쪽 review를 직접 열어 확인했다.
+
+판정 대상은 한컴 정상 저장 첫17문단의4→5쪽 문단 내부 이어받기,제목 반복,
+9쪽의 표 종료다. 대체 글꼴과 약1px 이내의 표 하단 잔차는 남아 있다.
+
+- [4쪽 review](../../output/7353/r19/cell-anchor-next/review/wasm-review-4.png)
+- [5쪽 review](../../output/7353/r19/cell-anchor-next/review/wasm-review-5.png)
+- [9쪽 review](../../output/7353/r19/cell-anchor-next/review/wasm-review-9.png)
+- [4쪽 compare](../../output/7353/r19/cell-anchor-next/review/wasm-compare-4.png) /
+  [standalone overlay](../../output/7353/r19/cell-anchor-next/review/wasm-overlay-4.png)
+- [5쪽 compare](../../output/7353/r19/cell-anchor-next/review/wasm-compare-5.png) /
+  [standalone overlay](../../output/7353/r19/cell-anchor-next/review/wasm-overlay-5.png)
+- [검토용 HWP](../../tests/fixtures/issue7353/cell-line-continuation/prefix17-saved.hwp) /
+  [독립 기준 PDF](../../tests/fixtures/issue7353/cell-line-continuation/prefix17-2020.pdf)
+
+4/5쪽 잉크 자동 보조값16.12%/14.97%는 사람이 판정한 정확도가 아니다.
+**에이전트 시각 검토: 이번 절편의 기능 범위 충족**. 작업지시자의 “확인은 당신도 할 수
+있습니다” 지시에 따라 직접 판독 결과로 이 절편의 확인을 마친다. 작업지시자가 직접
+시각 통과를 선언한 것으로 기록하지 않으며, PR 최종 승인과도 구분한다.
+
+판독 근거: WASM4쪽 말미의 문단이5쪽 반복 제목 아래로 이어지고,6~8쪽의 저장 줄 구성과
+왼쪽 빈줄 배치,9쪽 마지막 문장/표 종료,10쪽 후속 문단이 보존된다. Native4~10쪽 직접
+판독과 최종 WASM4/5쪽 review·9쪽 standalone overlay를 확인했으며,10쪽 전체의
+Native/WASM 출력 동일성도 대조했다. 이번 확인 시 source manifest는 변경되지 않았다.
+누락·중복은 정식 줄 보존 검사와 함께 확인했다. 앞서 공개한 글꼴 차이와0.54~0.98px
+하단 잔차까지 완전 일치한다고 주장하지 않는다. 동일 자료의 확인을 다시 요청하거나
+빌드·회귀를 중복 실행하지 않는다. 기본 엔진은 전환하지 않았고 commit/push도 하지 않았다.
+
+#### 메인터너 판정 및 다음 절편 — URC 글자 단위 내어쓰기
+
+작업지시자가 위 셀 문단 내부 이어받기에 대해 “메인테이너의 시각 판정도 통과”를
+명시하고 다음 절편 진행을 승인했다. 앞 절편의 증적을 재사용한다.
+
+원본 `86712_regulatory_analysis.hwp`의 본문 p20은 ParaShape indent=-3001이다.
+저장 LineSeg는 cs=0/sw=48188이고 첫 줄을 제외한6개 줄에 bit20이 있다.
+**초기 가설 정정:** 홀수를 half-HU로 해석한 후보는 합성 계약을 통과했지만 실제
+한컴PDF10쪽과 약80px 시작점 차이를 만들었다. 자동 검사로 시각 통과를 선언하지 않고
+직접 비교에서 검출했다. 후보의10쪽 좌표는 `half-unit-indent/diagnostic/native.json`,
+수정 전 수용 거부는 `saved-before.log`에 보존했다. 이 후보의 테스트 통과는 올바른
+조판 근거가 아니다. output/fixture/test의 `half-unit` 이름은 초기 조사 이력이다.
+
+[한컴 URC 설명](https://forum.developer.hancom.com/t/topic/2209)의 bit0 단위 구분과
+signed `data >> 1`에 따르면 -3001은 **-15.01ch**다. [첫 줄 모양 도움말](https://help.hancom.com/hoffice/multi/ko_kr/hwp/format/paragraph/paragraph%28indenting%29.htm)은
+ch의 기준을 바탕글 스타일의 영문 크기로 명시한다. 이 문서는 바탕글10pt로,
+영문 반각5pt 기준의 내어쓰기는75.05pt다. PDF의 첫 줄/다음 줄 시작 차이는 약74.959pt로
+프린터 좌표 양자화 잔차가 남는다. 본문 run의14/15pt를 기준으로 삼지 않는다.
+
+추적: ParaShape URC→V2 source_units의 문서 기준 단위 해소→stored_text::localize의물리구간
+→TextComposer→layout_composed_paragraph_in_frame의effective_col_x/w
+→실제TextLine/TextRun→같은노드를셀fit과paint가소비. 물리 구간 경로에서는 기존
+margin/indent 중복 적용을 하지 않는다. 다른 Legacy 호출은None, 기존inline flow의
+정수 줄 상자는 원래 값을 물리 구간으로 변환해 같은 경로를 사용한다.
+기본 Legacy style resolver는 그대로 두고 V2 Document/선택 TablePreview 진입점에 같은
+단위 해소를 적용한다. PreparedTextTable의 직접 호출자는 기존대로 해소된px를 제공한다.
+이번 범위는 indent의URC CHAR이며, 다른 문단 여백·위아래 간격의CHAR 해소는 미구현이다.
+장평/상대크기100%,자간0인 바탕글 영문 기준을 검증했으며 다른 기준은 명시적으로 거부한다.
+
+기준 출력은 원본 첫21문단을 무스타일변경으로 추출한 뒤 한컴 정상 저장한HWP와 그PDF다.
+바탕글만12pt로 바꾸고 본문run크기는 유지한 별도 대조군도 정상 저장/PDF출력했다.
+한컴이 좁아진 가용 폭으로 갱신한 대조군의LineSeg를 그대로 검사하며 원본 줄바꿈을
+강요하지 않는다. 두 파일 모두10쪽이지만 판정 근거는10쪽 들여쓰기와각저장줄소속이다.
+첫21문단을 원본 전체 지원으로 보고하지 않는다.
+
+#### URC 내어쓰기 검증과 적용 경계
+
+`half-unit-indent/tests.sh`의7개 harness192건과 정상 저장본 신규3건,
+공통 물리 줄 상자를 소비하는 `issue_6812_square_picture_tac_table`20건이 통과했다
+(총215건). `test-summary-final.log`, `test-saved-final.log`, `test-6812.log`에 결과를
+보존했다. Native build, Native/WASM lib Clippy `-D warnings`, fmt를 통과했다.
+전체 CI/workspace gate를 수행했다는 의미는 아니다.
+
+기존 precision 거부는 `test-before.log`/`saved-before.log`에 보존했으며, 최종 검사는
+원본/바탕글12pt 정상 저장본의 실제 줄 상자·글자 원점·저장 줄 소속을 확인한다.
+셀 경로의 양수 URC 합성 대조군은 `AB` 두 글자 carrier로 구분한다. 한컴 생성본으로
+주장하지 않는다. 원본의 긴 첫 줄을 양수 들여쓰기한 후 좁은 폭에 그대로 강요하지 않는다.
+단위가 보존되지 않은 plain HWPX의 홀수 여백은 URC로 추정하지 않고 명시적으로 거부한다.
+Normal 기준 누락과 scaled Latin 기준도 미지원 경계를 검사했다.
+
+앞서 승인한 첫17문단을 최종 Native로 다시 출력해 기존 증적과 대조했다.
+10쪽 모두 내용/구조 차이0, 좌표 최대 차이1.1369e-13px다. 부동소수점 연산 순서로
+4~8쪽 SVG 문자열 차이는 있지만 의미 있는 배치 차이는 없다
+(`previous-control/comparison.json`). 원본 첫21문단의10쪽 다음 줄 x는
+PDF175.42493px / V2175.65333px, Normal12 대조군은 PDF195.574px / V2195.66667px다.
+잔차 약0.23px /0.09px와 대체 글꼴 외형을 공개하며, 임의 위치 보정은 추가하지 않았다.
+
+#### URC 최종 fresh WASM 및 직접 시각 확인
+
+`docker compose --env-file .env.docker -p rhwp run --rm wasm`:7분19초 PASS.
+최종 WASM SHA256:`aaeaee52467204ca63236fc41decc845670dfce54ee7ea6bc5f0d60e61965a02`.
+`node output/7353/r19/half-unit-indent/capture.mjs --wasm`와 같은 명령의
+`--normal12 --wasm`으로 실제 브라우저 DocumentV2를 실행했다. 두 입력 각각10쪽 모두
+Native/WASM 수치 차이0, 기타 차이0, SVG 동일이다. `review/run.json`과
+`control-review/run.json`에 HEAD50823731af6050c60ec3cfcc898abf36daa6b35a+WIP의
+source manifest/입력/PDF/WASM SHA를 보존했다. 검증 후 source manifest 대조 PASS.
+
+최종 두 입력10쪽의 WASM review와 standalone overlay를 직접 열어 확인했다.
+원본의 내어쓴6줄과 대조군에서 한컴이 다시 나눈6줄은 각 입력의 저장 줄 소속과
+시작점에 대응한다. 앞 제목/빈줄 위치와 마지막 줄도 보존된다.
+에이전트 판정은 **이번 내어쓰기/줄 구성 범위 충족**이다. 이번 새 증적에 대한
+메인터너 판정을 대신 기록하지 않으며 원본 전체/R5 완료로 확대하지 않는다.
+자동 잉크 보조값11.65%/11.35%는 사람 판정 정확도가 아니고 글꼴 차이의 영향을 받는다.
+
+- [원본10쪽 review](../../output/7353/r19/half-unit-indent/review/wasm-review-10.png) /
+  [compare](../../output/7353/r19/half-unit-indent/review/wasm-compare-10.png) /
+  [standalone overlay](../../output/7353/r19/half-unit-indent/review/wasm-overlay-10.png)
+- [바탕글12pt 대조군10쪽 review](../../output/7353/r19/half-unit-indent/control-review/wasm-review-10.png) /
+  [compare](../../output/7353/r19/half-unit-indent/control-review/wasm-compare-10.png) /
+  [standalone overlay](../../output/7353/r19/half-unit-indent/control-review/wasm-overlay-10.png)
+- [검토용 HWP](../../tests/fixtures/issue7353/half-unit-indent/prefix21-saved.hwp) /
+  [독립 PDF](../../tests/fixtures/issue7353/half-unit-indent/prefix21-2020.pdf)
+
+최종 Native로 원본 전체를 재실행한 다음 미지원은 p30의 `V2 cell border style`이다
+(`full-original-final.log`). 다음 절편은 해당 테두리 속성의 IR/측정/paint 적용 경로를
+조사한다. 기본 Legacy 경로 전환, 전체 CI, commit/push는 수행하지 않았다.
+
+#### 메인터너 판정 및 다음 절편 — 셀 Dash 테두리
+
+작업지시자는 URC 내어쓰기 증적의 시각 판정 통과와 다음 절편을 승인했다.
+다음 거부는 원본p30/c0,4행3열 표의 borderFill15/16에 저장된 Dash다.
+파서→IR에는 정상 보존되지만 V2 `borders::resolve_edges`가 Solid/Double만 수용했다.
+원본 첫31문단을 속성 변경 없이 추출→한컴 정상 저장→같은HWP의PDF를 만들었고,
+정상 저장본도 수정 전 p30에서 `V2 cell border style`로 거부됐다(`before.log`).
+정식 `issue_7353_cell_dash`의 첫 검사도 같은 원인으로 FAIL했다(`test-before.log`).
+
+독립 PDF10쪽의 점선은 약2.398pt 획/1.439pt 공백이다. 일반 도형의6px/3px 패턴을
+그대로 적용하지 않는다. 원본 표를 이용해 굵기4종 및16종 대조군을 정상 저장하고
+수평/수직 stroke trace를 확보했다. 16개 표준 굵기에 대응하는600dpi pen 사전을 사용하며
+문서·페이지·특정 셀 크기 조건은 없다. 출처·변경점·job은
+[fixture 기록](../../tests/fixtures/issue7353/cell-dash/README.md)에 연결했다.
+원본/대조군의 저장 LineSeg는 수동 수정하지 않았다.
+
+추적: BorderFill→ResolvedStyleSet→`text_ir.rs:241 CellBorders::prepare`→
+`borders.rs:280 resolve_edges`의 검증/보존→`text.rs:130 fit`의 기존 공통 조각 geometry→
+`text.rs:181 build_node`→269의 `borders.append`→위상 경계별union→`borders/dash.rs`의
+물리 stroke 목록→공통 RenderNode Line→Native/WASM SVG다. Dash를 짧은 실선 노드들로
+표현해 backend별 독자 대시 추정을 없앴다. 셀 측정 높이·예약·컷·원점은 변경하지 않았다.
+마지막 pen을 해당 경계 끝에서 끝내는 것은 paint 패턴의 부분 획이며 셀/내용 좌표 clamp가 아니다.
+Zone Dash 수용과 혼합 Double 접점은 미검증이므로 기존 거부 경계를 유지한다.
+공유 Dash의 색/굵기/선종류 충돌도 임의 우선순위로 덮지 않는다.
+
+정식 선택 검사5개 harness173건 PASS: borders28,cell_dash2,document_flow112,rowspan13,
+nested18. 새 검사는 실제 정상 저장본의 두 점선 경계·연속 주기, 두 DPI의16종 최종
+endpoint/부분 획/끝 공백, 동일 공유 경계의 중복 제거, 충돌 시 세션 미전진,
+반복 제목·부모/자식 분할·뒤 문단의 기존 bbox/텍스트 보존을 확인한다.
+`test-summary-final.log`에 실행 결과를 남겼다. Native build,Native/WASM lib Clippy,
+fmt/diff도 PASS. 전체 CI/workspace 검증을 대신하지 않는다.
+
+16종 catalog의 문서 전체는 한컴 정상 저장 후 host paragraph inset이 있어 V2가 거부한다
+(`capture-catalog.log`). 이를 없애려고 문서 속성/수용 조건을 바꾸지 않았다.
+catalog의 독립PDF에서 pen을 관측하고, 선택 TablePreview의16개 실제 표를 각2개 DPI로
+검사했다. catalog 전체 V2 조판 통과 또는 전체 시각 일치로 보고하지 않는다.
+
+Native10쪽 review/standalone overlay 직접 확인: 점선 경계·저장 줄바꿈·표 외곽이 대응한다.
+원본 표 y/height는 V2851.6133/173.12px, PDF는 약850.7493/172.9307px다.
+약0.86px 시작점·0.19px 높이 잔차와 대체 글꼴 외형 차이가 남는다.
+자동 잉크 보조값11.37%는 사람 판정 정확도가 아니다. 임의 보정은 추가하지 않았다.
+원본 전체의 다음 미지원은 p34 `anchored host paragraph insets`다(`full-original.log`).
+
+#### 셀 Dash 최종 fresh WASM 및 직접 시각 확인
+
+Docker 표준 빌드 `docker compose --env-file .env.docker -p rhwp run --rm wasm`는
+7분16초 PASS. WASM SHA256은
+`19e80fa32d9838f64b4c0490c664adee572b30eae9d28b677bc41aef36b89a8d`다.
+`node output/7353/r19/cell-dash/capture.mjs --wasm`으로 정상 저장본10쪽을 실제
+브라우저 DocumentV2에서 출력했다. Native/WASM 수치·기타 차이0,10쪽 SVG 모두 동일이다
+(`review/backend-comparison.json`). `review/run.json`은 HEAD50823731af+WIP,
+source manifest·입력·기준PDF·WASM 해시를 연결한다. 검증 후 source manifest 대조 PASS.
+
+최종 WASM10쪽 review와 standalone overlay를 직접 열었다. 하단 표의 두 점선 경계,
+열 사이 연속성, 셀 줄바꿈과 외곽 배치를 확인했다. 이번 Dash 처리 범위의 에이전트
+판정은 충족이다. 대체 글꼴과 위에 기록한 약0.86px/0.19px 잔차는 남아 있으며,
+자동 잉크 보조값11.37%를 사람 판정 정확도로 해석하지 않는다. 이번 증적에 대한
+메인터너 시각 판정이나 원본 전체/R5 완료를 대신 선언하지 않는다.
+
+기존 승인한 첫21문단 정상 저장본도 최종 Native로 재실행했다.
+`cell-dash/previous-control/native.json`과 `half-unit-indent/review/actual/native.json`을
+`cmp`로 비교해10쪽 전체 바이트 동일을 확인했다. 기존 대조군 무변경이며,
+다음 대상은 p34의 앵커 문단 안쪽 여백이다. 전체 CI·기본 엔진 전환·commit/push는 하지 않았다.
+
+- [최종10쪽 review](../../output/7353/r19/cell-dash/review/wasm-review-10.png) /
+  [compare](../../output/7353/r19/cell-dash/review/wasm-compare-10.png) /
+  [standalone overlay](../../output/7353/r19/cell-dash/review/wasm-overlay-10.png)
+- [검토 HWP](../../tests/fixtures/issue7353/cell-dash/prefix31-saved.hwp) /
+  [독립 PDF](../../tests/fixtures/issue7353/cell-dash/prefix31-2020.pdf)
+
+#### 메인터너 판정 및 다음 절편 — 저장 호스트 내어쓰기·줄간격과 표 원점
+
+작업지시자는 셀 Dash 증적의 시각 판정 통과와 다음 절편 진행을 승인했다.
+p34의 `anchored host paragraph insets`는 내어쓰기-2500URC만 있어도 앵커 문단을
+거부하던 조건이다. 빈 호스트의 실제 저장 줄은400HU+뒤 간격200HU이며, 표 top은
+문단 상대448HU+바깥 위141HU=589HU다. 줄 상자를 침범하지 않으면서 뒤 간격의
+11HU를 점유한다. 기존 BodyAnchor는 실제 점유 끝과 다음 원점을 모두 침범 기준으로
+사용했다. 입력의 빈 문자열을 줄 높이0으로 해석하거나 표 좌표를 다음 원점으로
+clamp하지 않는다. 저장 줄 내어쓰기는 기존 TextComposer/localize에서만 적용한다.
+
+첫35문단을 속성 변경 없이 추출→한컴 정상 저장→같은 반환HWP의 독립PDF11쪽을
+확보했다. 원본과 정상 저장본 모두 p34 속성이 유지된다. 수정 전 셀Dash source의
+기존 실행 바이너리로 정상 저장본이 같은 p34 거부를 내는 것을 보존했다(`before.log`).
+이는 새 지원의 수정 전 명시적 거부 증거이며, 새 테스트를 옛 source에 실행한
+FAIL로 과장하지 않는다. [fixture 출처와 독립 관측](../../tests/fixtures/issue7353/host-insets/README.md).
+
+실행 경로: 입력 LineSeg/ParaShape→`TextComposer::compose`→`ParagraphEnd`의
+occupied_end/next_origin→`BodyAnchor::resolve`의 before/tail_overlap→
+`document_input::prepare`의 AnchoredFlow→`BodyCursor::fit`의 실제 예약 시작점→
+`FlowCursor`/TableCursor 공통 조각→실제 table/text paint다. 저장 문단의 좌우 여백과
+문단 앞 간격, fresh 앵커 문단의 inset 지원은 확대하지 않았다. 저장 줄 메트릭이 유효한
+경로의 들여쓰기/내어쓰기만 텍스트와 앵커의 책임으로 분리했다.
+
+일반 before>=0 예약은 기존 경로를 유지한다. tail_overlap>0은 실제 호스트 줄이
+현재 페이지에 있는 경우에만 해당 뒤 간격에서 예약한다. fit 실패 시 이야기 흐름의
+원점을 되돌리지 않고 표만 deferred로 이월한다. 호스트 뒤 공백 자체가 다음 페이지로
+이어진 경우 source offset을 재적용하지 않고 deferred 원점을 사용한다. 수용된 조각의
+끝과 원래 호스트 다음 원점의 합집합으로 다음 흐름을 정한다. 공백은 내용 컷과 별도로
+보존되고, 부분 소비된 자식의 줄간격도 다음 조각으로 이어받는다.
+
+이 문서의 다음 거부는 자식 표의 오른쪽 회피 여백이었다. 실제 border box는
+부모 셀 안이지만 그 여백까지 추가 너비로 요구했다. TopAndBottom의 ExcludedTable/
+PositionedTable 모두 `ir::bind_table`에서 실제 x+plan.width를 검사하고 같은 plan과
+available_width를 `content` 검증·`flow` fit·paint에 전달한다. 전체 폭을 이미 회피하는
+right margin으로 table ink를 늘리지 않는다. 자식의 실제1HU overflow는 계속 거부한다.
+rowspan/컷 알고리즘·cell padding·표의 선언 최소 높이는 수정하지 않았다.
+
+Native11쪽 review 직접 확인: 첫 빈 문단, 제목 아래 부모/자식 표 위치·줄바꿈·외곽이
+기준PDF에 대응한다. 자식 표 위/높이 PDF137.1293/99.892px 대 V2137.24/99.9067px.
+글꼴 외형과 미세 잔차를 별도 기록하며 자동 잉크 보조값25.91%는 사람 판정 정확도가 아니다.
+앞서 승인한 첫31문단·10쪽은 최종 Native의 `previous-control/native.json`과
+셀Dash의 `review/actual/native.json`을 `cmp`해 바이트 동일이다.
+원본 전체는 p43 `unqualified stored field result`까지 전진했다(`full-original.log`).
+
+#### 저장 호스트 원점 절편 — 최종 검증
+
+`bash output/7353/r19/host-insets/tests.sh`의 정식 `tests/cases/` 선택 검사165건 PASS:
+host_anchor_gap4, document_flow116, ir_text9, nested18, rowspan13, cell_dash2,
+half_unit_indent3. 최종 결과는 `test-summary-final.log`다. 실제 빈 줄 상자 침범의 거부,
+뒤 간격 내부 원점, 첫 조각 예산/원자 표 이월, 호스트 공백의 다음 페이지 이어받기,
+자식 실제1HU 너비 초과 거부, 텍스트 들여쓰기와 표 원점 분리를 검사했다.
+원본 source를 이용한 build와 Native/WASM lib Clippy, fmt/diff 검사도 PASS다.
+전체 CI/workspace-all-targets 검증을 실행한 것으로 확대하지 않는다.
+문단 뒤 간격만으로 tail_overlap이 생기는 경우의 독립 한컴 시각 근거는 이번 범위에 없다.
+
+Docker 표준 WASM 빌드는7분20초 PASS. WASM SHA256은
+`7fcbbb7343bc6d2919211023a1ad37a87055eee79b7c1537e23bd3b4035efc1a`다.
+`node output/7353/r19/host-insets/capture.mjs --wasm`으로 같은 정상 저장 HWP를
+실제 브라우저에서 실행했다. Native/WASM11쪽 수치 차이0, 기타 차이0, 모든 SVG 동일
+(`review/backend-comparison.json`). `review/run.json`은 HEAD50823731af+WIP,
+source manifest, 입력/기준PDF/WASM 해시를 연결한다. 빌드 이후 source manifest 대조 PASS.
+
+최종 WASM11쪽 review와 standalone overlay를 직접 확인했다. 첫 빈 문단의 점유,
+제목과 표 시작점, 자식 표 외곽·줄바꿈은 해당 기준PDF에 대응한다. 에이전트의 이번
+지원 범위 판정은 충족이며, 글꼴 외형·농도 및 위에 기록한 미세 좌표 잔차는 남는다.
+자동 잉크 보조값25.91%는 사람 판정 정확도가 아니다. 이 새 증적의 메인터너 판정은
+아직 받지 않았으며 원본 전체/R5 완료를 선언하지 않는다. 다음 대상은 p43의 저장
+field result 자격 검증이다. 기본 엔진 변경·commit/push는 하지 않았다.
+
+- [최종11쪽 review](../../output/7353/r19/host-insets/review/wasm-review-11.png) /
+  [compare](../../output/7353/r19/host-insets/review/wasm-compare-11.png) /
+  [standalone overlay](../../output/7353/r19/host-insets/review/wasm-overlay-11.png)
+- [검토 HWP](../../tests/fixtures/issue7353/host-insets/prefix35-saved.hwp) /
+  [독립 PDF](../../tests/fixtures/issue7353/host-insets/prefix35-2020.pdf)
+
+#### 메인터너 판정 및 다음 절편 — 열린 누름틀 시작 마커의 저장 본문
+
+작업지시자가 위11쪽 시각 판정 통과와 다음 진행을 승인했다. p43 부모표 첫 셀의
+첫 문단에는 ClickHere 시작2개(16UTF-16슬롯), 실제 본문152자, 문단 끝1유닛이 있다.
+field_ranges와 orphan_field_ends는 없고, 셀의 후속12문단에도 종료 마커가 없다.
+한 필드는 dirty=1, 다른 필드는 dirty=0이지만 둘의 안내문과 본문은 다르다.
+문단 내부에서 반드시 닫힌 필드만 허용한 `fields::stored_result`가 이를 거부했다.
+
+원본 첫44문단을 속성 변경 없이 추출→HWPX 직렬화→한컴 정상 저장한 HWP에서도
+위 구조/본문/오프셋을 보존했다. 반환 HWP로 만든 독립 PDF는12쪽이며 실제 본문을
+출력하고 안내문을 출력하지 않는다. 생성 job/환경은 fixture README에 연결한다.
+기존 실행 binary의 p43 거부 및 정식 새 테스트의 같은 거부 FAIL을
+`output/7353/r19/field-boundary/before.log`, `before-test.log`에 보존했다.
+
+규칙: 완결 범위가 없는 시작 마커를 임의의 결과 범위로 바꾸지 않는다. ClickHere만
+있는 정확한 시작 슬롯 뒤의 저장 리터럴을 보존하고 실제 줄 구성은 TextComposer가
+소비한다. dirty=0만으로 뒤 본문을 안내문으로 지우지 않는다. 알려진 안내문과
+구별되지 않는 텍스트, 잔재·편집·미확인 슬롯·혼합 객체·종료 마커는 여전히 거부한다.
+이 절편은 다문단 필드의 명령 실행/편집/종료 의미 지원이 아니다.
+
+경로: 파서 Paragraph의 controls/char_offsets/char_count/LineSeg→
+`fields::stored_result`의 open_prefix_text 검증→`ir::bind_table`의 필드 소유 확인과
+`text_ir`의 같은 검증→기존 TextComposer 저장 줄 결과→FlowBlock 예약/분할→공통
+RenderNode→Native/WASM이다. 입력 IR·마커·본문은 삭제/변경하지 않으며 별도 원점
+보정·높이 예외를 추가하지 않는다. 아래 실제 출력 확인에서 추가로 발견한 RowBreak
+진입 조건을 수정했으며, 기존 FlowCursor의 예약/끝 컷 계산은 재사용한다.
+
+#### 열린 누름틀 절편 — 실제 출력에서 발견한 저장 프레임 이어받기
+
+필드 수용만 구현한 중간 Native 출력은 표 전체를12쪽으로 이월했다. 독립 PDF는
+11쪽에서 시작하여12쪽으로 이어받으므로 페이지 수12가 같아도 시각 충족이 아니다.
+RowBreak 행이 fresh page에 들어간다는 이유로 부분 페이지에서 저장 프레임 컷을
+무시한 것이 원인이다. 정상 저장본 p8의 vpos35572→0 재시작이 실제 독립 근거다.
+
+`fragment::fit_rows`의 분할 진입은 상단 정렬 RowBreak 행에 저장 프레임 경계가
+있고 현재 예산을 넘거나 이미 이어받기 중인 경우에도 기존 cell cursor를 사용한다.
+전체가 현재 예산에 들어가는 미시작 행은 기존 원자 배치를 유지한다. Never,
+반복 제목의 원자 처리, rowspan group 및 비상단 정렬은 지원을 확대하지 않았다.
+
+실제 경로는 `ir::stored_text::cell_frame_starts`→저장 문단의 공통 FlowBlock
+(`StoredFrameStart`/tail)→TableContentPlan 높이→`fragment::fit_rows`의 현재 예산과
+분할 진입→`FlowCursor::fit_cell_until`의 소유 컷/안 여백→같은 TablePlacement의
+paint다. 소비된 내용 컷과 남은 물리 높이를 새로 혼합하지 않는다. 요구 줄이 안 맞는
+예산에서 패딩만 소비하지 않고, 수용한 줄/패딩은 실제 조각 높이와 continuation으로
+이어진다. 반복 제목/rowspan의 별도 경로는 이번 조건의 적용 대상이 아니다.
+
+선택 정식 검사174건 PASS(`field-boundary/test-summary-final.log`):
+open_field_markers3, filled_field5, stored_cell_frames6, stored_frame_end4,
+rowbreak_span_continuation2, oversize_row3, document_flow116, nested18,
+rowspan13, host_anchor_gap4. 작은 경계는 패딩만 fit하는 예산 거부, 첫 컷·다음 시작,
+마지막 줄/패딩 종료, Never 및 경계 없는 RowBreak 대조군을 검사했다. 정상 저장
+입력은 두 조각의 최종 좌표/높이, 빈 줄, 본문의 정확히 한 번 보존을 검사한다.
+
+Native/WASM lib Clippy와 Native build PASS. 앞서 승인한 첫35문단 대조군의11쪽
+전체 JSON은 동일한 원시 직렬화 probe로 `cmp`하여 바이트 동일하다. JSON을 재파싱해
+출력하는 진단 probe의 부동소수점 직렬화 차이는 엔진 좌표 변화와 구분했다.
+원본 전체의 다음 거부는 p89 `stored excluded cell anchor`이며 전체 문서/R5 완료가 아니다.
+Native11·12쪽 review와 standalone overlay를 직접 확인했다. 저장 줄바꿈·표 시작과
+이어받기는 기준PDF에 대응하며 글꼴 외형/농도 잔차는 남는다. 잉크 픽셀 일치율 보조값
+14.86%/11.48%는 사람 판정 정확도가 아니다. fresh WASM 결과는 아래에 연결한다.
+
+#### 열린 누름틀 절편 — fresh WASM 최종 증적
+
+Docker 표준 빌드7분20초 PASS. WASM SHA256:
+`d929e8d7c7d8134aa6915b8204f542e463a7659ec3374953f2e02a501eec836e`.
+`node output/7353/r19/field-boundary/capture.mjs --wasm` PASS.
+`review/backend-comparison.json`: Native/WASM12쪽 수치 차이0, 기타 차이0,
+모든 SVG 동일. `review/run.json`에 HEAD50823731af+WIP, source manifest,
+입력/기준PDF/WASM 해시를 기록했다. 빌드 이후 source manifest 대조도 PASS다.
+최종 테스트는 대상 셀 전체 문자열의 동등성까지 검사하여174건 PASS이며 fmt/diff PASS.
+전체 CI/workspace-all-targets 검증이나 기본 엔진 전환은 실행하지 않았다.
+
+fresh WASM11·12쪽 review와 standalone overlay를 직접 확인했다. 실제 본문 시작,
+11쪽 마지막 줄→12쪽 첫 줄 이어받기, 저장 줄바꿈과 문단 간격은 독립 PDF에 대응한다.
+에이전트의 이번 지원 범위 판정은 충족이다. 글꼴 외형·농도 및 미세 프린터 잔차가
+남고 잉크 픽셀 일치율14.86%/11.48%는 사람 판정 정확도가 아니다. 이 새 증적의
+메인터너 판정은 대기이며 원본 전체/R5 완료로 확대하지 않는다. commit/push 없음.
+
+- [11쪽 review](../../output/7353/r19/field-boundary/review/wasm-review-11.png) /
+  [compare](../../output/7353/r19/field-boundary/review/wasm-compare-11.png) /
+  [standalone overlay](../../output/7353/r19/field-boundary/review/wasm-overlay-11.png)
+- [12쪽 review](../../output/7353/r19/field-boundary/review/wasm-review-12.png) /
+  [compare](../../output/7353/r19/field-boundary/review/wasm-compare-12.png) /
+  [standalone overlay](../../output/7353/r19/field-boundary/review/wasm-overlay-12.png)
+- [검토 HWP](../../tests/fixtures/issue7353/field-boundary/prefix44-saved.hwp) /
+  [독립 PDF](../../tests/fixtures/issue7353/field-boundary/prefix44-2020.pdf) /
+  [생성 근거](../../tests/fixtures/issue7353/field-boundary/README.md)
+
+#### 메인터너 판정 및 다음 절편 — 빈 호스트의 문단 상대 세로 위치
+
+작업지시자가 위11·12쪽 시각 판정 통과와 다음 절편을 승인했다. 다음 p89는
+빈 문자열/폭0 저장 줄(높이1000HU, 간격600HU)에 RowBreak 자리차지 표가 선언된
+경우다. 문단 상대 세로784HU, 가로1238HU, 바깥여백141HU이며 기존 cell_anchor는
+세로0만 허용하여 거부했다. 정상 저장한 첫90문단에서도 이 속성과 vpos4640HU가
+보존되고 독립 PDF17쪽의 표 시작점은75.6+(4640+784+141)/75=149.8px에 대응한다.
+입력 속성/LineSeg를 수동 변경하지 않았으며 생성 결과와 기존 거부는
+`output/7353/r19/anchor-offset/`에 보존했다.
+
+규칙은 빈 호스트 줄을 삭제하지 않고 문단 상대 위치와 물리 바깥여백을 구별하는 것이다.
+`cell_anchor`→ParagraphItem::ExcludedTable→document_input/ir의 FlowBlock::AnchoredTable
+공통 offset_y가 측정 `content::height`와 실제 `flow::fit_cell_until`의 최초 예산/원점에
+사용된다. 첫 수용 시에만 offset_y를 소비하고 continuation은 위 여백만 재사용한다.
+실패한 query는 호스트/offset을 소비하지 않는다. host 줄과 child 점유의 합집합으로
+흐름을 전진시켜 빈 문단을0높이로 만들지 않는다. paint는 반환된 placement를 그대로
+사용한다. 음수 offset, side-wrap, 가시 텍스트 호스트는 이 수용 조건에서 확대하지 않는다.
+rowspan/끝 컷/행 높이는 수정하지 않으며 공통 자식 cursor의 실제 조각을 예약한다.
+
+#### 빈 호스트 세로 위치 — 집중 검증
+
+`bash output/7353/r19/anchor-offset/tests.sh` 선택 정식 검사189건 PASS:
+excluded_anchor_offset5, body_exclusion10, open_field_markers3, filled_field5,
+stored_cell_frames6, stored_frame_end4, rowbreak_span_continuation2, oversize_row3,
+document_flow116, nested18, rowspan13, host_anchor_gap4. 로그는
+`test-summary-final.log` 및 각 검사 `.log`다. 실물 기대값의 용지 왼쪽 원점은
+5669HU이며 위 본문 원점5670HU와 구분한다. 처음에 둘을 같은75.6px로 기록한
+테스트 기대값 오류를 원문 값으로 정정했고 파서 원문 값 assertion도 추가했다.
+
+작은 합성 계약은 첫 조각에서 원래 여백+줄만 fit하고 offset 포함 시 실패하는 예산,
+재시도·이어받기의 위 여백, 호스트 한 번 소비, 뒤 문단/마지막 종료를 검사했다.
+RowBreak의 컷 조각은 아래 여백도 함께 예약하는 별도 실제 경로를 검사했다.
+셀 adapter는 기존 fixture의 속성 변형으로 host 원점 불변, 자식 원점/부모 점유의
+동일 이동, 음수 거부를 검사했다. 비영 offset의 실제 다쪽 한컴 출력은 이번 입력에
+없으며 continuation은 합성 계약이다. 이를 실물 시각 증거로 확대하지 않는다.
+
+Native build와 Native/WASM lib Clippy PASS, fmt/diff PASS. 전체 CI/workspace-all-targets
+게이트는 별도 승인 전이므로 미실행이다. 승인된 첫44문단12쪽 대조군의 전체 JSON은
+`previous-control/native.json`과 이전 `field-boundary/review/actual/native.json`을
+`cmp`해 바이트 동일이다. 원본 전체는 p89를 통과하고 p101 `non-table cell control`에서
+명시적으로 거부한다(`full-original.log`). 아직 원본 전체/R5 완료가 아니다.
+
+Native17쪽 review/standalone overlay 직접 판독: 표 시작·줄바꿈·행 경계는 독립 PDF에
+대응한다. PDF 위149.756px/높이780.5867px 대 V2위149.8px/높이781.4933px로,
+하단은 약0.95px 잔차가 있다. 글꼴 외형·농도와 프린터 잔차는 남으며 임의 보정하지
+않는다. 자동 잉크 픽셀 일치율20.13%는 사람 판정 정확도가 아니다.
+
+#### 빈 호스트 세로 위치 — fresh WASM 최종 증적
+
+Docker 표준 WASM 빌드7분27초 PASS. WASM SHA256:
+`4a7e846bd93cf83e92fa18884b8e096616810039090f26834be632ed7ef23c3e`.
+`node output/7353/r19/anchor-offset/capture.mjs --wasm` PASS.
+`review/backend-comparison.json`에서 Native/WASM17쪽의 수치 차이0, 기타 차이0,
+모든 SVG 동일을 확인했다. `review/run.json`은 HEAD50823731af+WIP,
+source manifest, 입력/PDF/WASM 해시를 연결한다. 빌드 후 source 해시 대조 PASS.
+
+fresh WASM17쪽 review와 standalone overlay를 직접 열어 제목 뒤 빈 문단·표 시작점,
+행 경계·셀 줄바꿈·하단을 확인했다. 이번 지원 범위의 에이전트 판정은 충족이며,
+글꼴 외형/농도와 앞서 명시한 미세 잔차는 남는다. 이 새 증적의 메인터너 판정은
+대기다. 원본 전체 및 R5 완료, 전체 CI 통과로 확대하지 않는다. 기본 엔진 변경,
+commit/push는 하지 않았다. 다음 대상은 p101의 셀 내부 비표 컨트롤이다.
+
+- [17쪽 review](../../output/7353/r19/anchor-offset/review/wasm-review-17.png) /
+  [compare](../../output/7353/r19/anchor-offset/review/wasm-compare-17.png) /
+  [standalone overlay](../../output/7353/r19/anchor-offset/review/wasm-overlay-17.png)
+- [검토 HWP](../../tests/fixtures/issue7353/anchor-offset/prefix90-saved.hwp) /
+  [독립 PDF](../../tests/fixtures/issue7353/anchor-offset/prefix90-2020.pdf) /
+  [생성 근거](../../tests/fixtures/issue7353/anchor-offset/README.md)
+
+### 셀의 저장 하이퍼링크 본문과 이어받기
+
+사용자가 앞 절편17쪽 fresh WASM 시각 판정 통과와 다음 진행을 승인했다.
+p101의 다음 거부 지점을 조사했다. 셀 문단p34부터 하이퍼링크 필드가 있고,
+문단p69는 저장 vpos가 문단 안에서0으로 재시작하며, p75 두 번째 줄은
+첫 가시 글자136이 아닌 시작 표식128에서 시작한다. 정상 저장에서도 동일하다.
+원본 첫102문단→HWPX 직렬화→한컴 HWP 정상 저장→그 HWP의 PDF 생성 절차와
+해시는 [fixture 근거](../../tests/fixtures/issue7353/cell-control/README.md)에 있다.
+속성·LineSeg를 임의로 고친 입력이 아니다. 독립 PDF21쪽을 얻었다.
+
+구현 전 `anchor-offset/probe`는 같은 새 HWP를 p101 `non-table cell control`로
+거부했다(`cell-control/before.log`). 이번 변경은 기존 기본 엔진의 결함 수정이
+아니라 V2의 명시적 미지원 범위 확장이다. 수용 뒤 드러난 같은 표의 두 경계를
+함께 처리했다. 링크 명령은 해석/실행하지 않고 저장 표시 문구와 글자모양만 사용한다.
+
+- `fields::stored_result`의 범위·슬롯·저장 유효성 검증에 닫힌 Hyperlink를 포함.
+  열린 링크·잘못된 범위/오프셋은 계속 거부한다. ClickHere 안내문 규칙은 그대로다.
+- `stored_text::continuous_cell_paragraph`는 검증된 필드의 원래 글자 위치·범위를
+  그대로 두고 행 원점만 연속 좌표로 만든다. `fields::is_row_start`는8슬롯 표식의
+  정확한 경계를 수용하며 표식 내부 위치를 수용하지 않는다.
+- p101 셀은 Center이지만 선언 높이282HU보다 내용이 커서 실제 정렬 밴드는0이다.
+  `content::from_grid_rows`가 이미 만든 `content_offset_y`를 `fragment::fit_rows`의
+  RowBreak 분할 수용과 실제 배치가 함께 사용한다. enum만 보고 분할을 금지하던
+  조건을 제거했다. 양수 정렬 밴드, WithinCells의 새 Center 지원은 확대하지 않는다.
+
+실제 호출 연결은 `ir::bind_table`의 저장 프레임 시작/끝→공통 text 구성→FlowBlock의
+저장 컷과 Lines→`fit_rows`의 수용 높이/`fit_cell_until`의 내용 컷→CellPlacement→
+TextPaint다. 바깥 `document_input`의 AnchoredTable→flow의 첫/이어받기 예산과
+예약 높이→DocumentV2 후속 흐름도 실행했다. 표식은 소스 위치만 차지하고 별도
+높이/폭을 만들지 않는다. 실제 빈 줄은 Lines로 보존한다. 양수 정렬 여백·Never는
+분할하지 않고, rowspan/repeated header는 이번 변경의 별도 분할 경로가 아니며
+기존 경로와 집중 대조군을 유지했다. paint 후 높이 확대나 좌표 덮어쓰기는 추가하지 않았다.
+
+새 `issue_7353_stored_hyperlink`4건은 전체 셀의 모든 빈/가시 줄 순서·문구·높이와
+셀 내부 좌표,20→21쪽의 문단 이어받기, 마지막 종료를 검사한다. 속성 변형은
+실제 정렬 밴드/원래 높이만 fit하는 예산의 거부, Never,0여백 Top/Center/Bottom의
+동일 출력, 불완전한 필드와 임의 표식 내부 컷 거부를 검사한다. 수정 전 명시적 거부
+로그와 수정 후21쪽/4건 PASS를 연결하며, 합성 변형을 한컴 시각 근거로 세지 않는다.
+
+기존 filled-field와 document-flow의 Hyperlink 무조건 거부 검사2건은 새 정상 저장
+근거와 충돌하여 실패했다. 해당 검사는 Date 등 미지원 필드 종류 거부로 갱신하고, Hyperlink의
+범위/표식 오류 거부는 새 정식 검사로 보호했다. 페이지수 baseline을 완화한 것이 아니다.
+초기 Clippy `manual_is_multiple_of` 경고를 수정하고 Native/WASM lib Clippy 재실행
+PASS. 전체 CI/workspace-all-targets는 별도 승인 전 미실행이다.
+
+Native19~21쪽 review 직접 판독: 법령 문구/줄바꿈,20쪽 마지막 두 줄 뒤21쪽 첫 `다`,
+표 하단을 확인했다. 대체 글꼴 외형/농도와 프린터 잔차는 남는다. 자동 잉크 일치율은
+19쪽11.98%,20쪽11.26%,21쪽12.91%로 사람 판정 정확도가 아니다.
+원본 전체는 p129 `body control or multiple anchors`에서 명시적 거부한다.
+새 부분본의21쪽 통과를 원본 전체 또는 R5 완료로 확대하지 않는다.
+
+#### 하이퍼링크 절편 — 최종 집중 검증
+
+최종 소스의 Native lib 재빌드 뒤 `bash output/7353/r19/cell-control/tests.sh`
+재검증201건 PASS (`test-summary-final.log`). 구성은 신규4, anchor-offset5,
+body-exclusion10, open-field3, filled-field5, stored-cell-frames6, frame-end4,
+rowbreak-span2, oversize-row3, vertical-alignment8, document-flow116, nested18,
+rowspan13, host-anchor-gap4다. 신규 정식 검사는 본문 아래 경계 및 독립 PDF21쪽의
+상하 표 외곽(프린터 양자화1px 이내)도 검사한다. 기준값을 현 출력으로 갱신하지 않았다.
+
+최종 source로 이전 승인 prefix90의17쪽 전체 Native JSON을 다시 내보내
+이전 절편과 `cmp` 결과 바이트 동일을 확인했다(`cell-control/previous-control/`).
+fmt/diff PASS. 최종 Native19~21쪽 직접 판독에 앞서 Native18쪽 review와
+20/21쪽 standalone overlay도 직접 판독했다.
+
+#### 하이퍼링크 절편 — fresh WASM 최종 증적
+
+Docker 표준 WASM 빌드7분20초 PASS. 새 WASM SHA256:
+`0df55d8b05e08a4961618a3457914bfb001a78228285d49ae854a5cad3709112`.
+`node output/7353/r19/cell-control/capture.mjs --wasm` PASS.
+`review/backend-comparison.json`:21쪽 Native/WASM 수치 차이0, 기타 차이0,
+모든 SVG 동일. 최종 `review/run.json`은 HEAD50823731af+WIP, source manifest,
+입력/PDF/WASM 해시를 연결한다. 빌드 뒤 source 해시 대조 PASS.
+
+fresh WASM19/20/21쪽 review와20/21쪽 standalone overlay를 직접 열어
+링크 문구·줄바꿈·이어받기 및 셀 하단을 판독했다. 해당 지원 범위의 에이전트
+판정은 충족이다. 글꼴 외형/농도·프린터 잔차는 남고 메인터너 시각 판정은 대기다.
+PDF의 비활성 javascript 링크 대상에 대해 raster 도구가 `invalid link destination`
+경고를 출력했지만 변환/캡처는 종료 코드0이며, 링크를 실행하지 않았다.
+commit/push·기본 엔진 전환·전체 CI는 수행하지 않았다. 다음 대상은p129다.
+
+- [19쪽 링크 본문 review](../../output/7353/r19/cell-control/review/wasm-review-19.png)
+- [20쪽 review](../../output/7353/r19/cell-control/review/wasm-review-20.png) /
+  [standalone overlay](../../output/7353/r19/cell-control/review/wasm-overlay-20.png)
+- [21쪽 review](../../output/7353/r19/cell-control/review/wasm-review-21.png) /
+  [standalone overlay](../../output/7353/r19/cell-control/review/wasm-overlay-21.png)
+- [검토 HWP](../../tests/fixtures/issue7353/cell-control/prefix102-saved.hwp) /
+  [독립 PDF](../../tests/fixtures/issue7353/cell-control/prefix102-2020.pdf)
+
+#### 하이퍼링크 절편 승인 / 다음 쪽 번호 재선언 조사
+
+메인터너가 위19~21쪽 시각 판정을 통과시키고 다음 절편을 승인했다.
+원본p129는 빈 문단에 `PageNumberPos(position=5,dash='-')`가 들어 있는 경우다.
+원인은 `document_input::prepare`의 구역당 최초 선언만 허용하는 조건이다.
+이 빈 문단의 저장1500HU 줄 높이와752HU 간격을 없애는 수정은 하지 않는다.
+입력 선언→BodyPlan→fit에서 수용한 host owner→페이지 footer→직렬화 성공 뒤
+session 상태 확정 경로를 조사한다. 선언 재등장과 위치 변경/해제, 같은 페이지 내
+순서를 정상 한컴 저장/출력 대조군으로 확인한 뒤 적용 범위를 결정한다.
+원본133문단 부분본은 속성·줄 정보를 수동 수정하지 않고 정상 한컴 저장을 거친다.
+
+#### 쪽 번호 재선언 — 독립 근거와 구현
+
+`tests/fixtures/issue7353/page-number-timeline/README.md`에 정상 저장/PDF 출처와
+입력·결과 해시를 기록했다. 원본133문단 부분본은23쪽, 별도 timeline은6쪽이다.
+한컴 timeline은 가운데1→왼쪽2→왼쪽3→오른쪽4→번호 해제→오른쪽6이다.
+같은4쪽의 가운데/오른쪽 선언 중 뒤 선언이 적용됨을 PDF로 확인했다.
+PDF trace 기준선565.13372pt와 bbox 정렬 edge/center를 정식 테스트에 연결했다.
+
+`document_input.rs:118–185`의 단일 선언 제한을 소스 순서의 목록으로 바꿨다.
+`document.rs:186–210`은 fit에서 실제 수용한 host 줄/표 owner로 마지막 선언을
+선택한다. 이전 커밋 상태보다 오래된 owner의 이어받기는 상태를 되돌리지 않는다.
+footer는 해당 story의 기존 `PageNumberStory::render` 결과를 그대로 소비한다.
+직렬화 성공 뒤 cursor/활성 선언/출력쪽 수를 함께 확정한다. 실패·대기 중인
+host는 앞 페이지에 영향을 주지 않는다. 쪽 번호 변경으로 번호를 재시작하지 않는다.
+
+본문 측정·예약·분할 컷·paint 원점은 변경하지 않았다. 선언을 담은 p129 빈 줄은
+최종 render tree에서1500HU 높이와 직전 줄부터2252HU 간격으로 확인했다.
+번호0 변형과 본문 tree의 완전 동일성도 검사했다. 행 분할/rowspan/클리핑의
+알고리즘 변경은 비해당이며 기존 document/TAC/중첩 경로를 집중 대조했다.
+
+수정 전 보존 Native probe(`cell-control/probe`)에서 동일 입력2건을 실행했다.
+`body-next/before-prefix.log`는p129, `before-timeline.log`는p1에서 같은
+`body control or multiple anchors` 오류를 기록했다. probe SHA256은
+`effb5f520b80bfc13d5f9326c7394db2ce7d930cf95abad7e03f4aff08d4bb93`이며
+직전 절편의 source manifest와 연결된다. 빌드 실패가 아니라 실제 DocumentV2
+공개 진입의 거부다. 변경 후 동일 입력은 각각23/6쪽을 출력한다.
+신규5건 전체를 이전 라이브러리로 실행한 것은 아니며, 신규 결함의 수정 전
+실행 증거는 위2건의 공개 경로 거부다. 경계 변형들은 변경 후 보호 계약으로 구분한다.
+
+`bash output/7353/r19/body-next/tests.sh`:7 suite158건 PASS.
+신규5, document-flow116, stored-hyperlink4, body-exclusion10,
+host-anchor-gap4, nested18, fresh-TAC-full-document1이다.
+신규 정식 검사에 페이지 수/오류 이유 확인을 보강한 뒤 `test-final.log`5건 PASS.
+Native/WASM lib Clippy, fmt/diff PASS. 이전 승인 prefix102의21쪽 Native JSON은
+이전 산출과 `cmp` 바이트 동일(`body-next/previous-control/`).
+
+Native22/23쪽 review,22쪽 standalone overlay 및 timeline4쪽 review를 직접
+판독했다. 줄바꿈·문단 원점·번호의 정렬 기준을 확인했다. p128 마지막 줄의
+PDF x126.531425pt(96dpi168.70857px)와 V2 x168.78667px도 대조했다.
+대체 글꼴 농도/폭과 프린터 양자화 차이는 남는다. 원본 전체의 다음 명시적
+거부는p161 `nested anchor, TAC, wrap or outer margin`이며 별도 다음 대상이다.
+
+기존 `issue_7353_table_v2_page_number`를 추가 실행하자9통과/1실패였다.
+실패는 `unsupported_stories_are_not_silently_discarded`의case4(뒤 본문 문단에
+두 번째 쪽 번호 선언 자체를 거부)다. 독립 한컴 timeline과 충돌하는 과거 지원
+제한이므로 뒤 선언의 미지원 숫자 format 거부로 변경했다. 새 일반 재선언 검사는
+그대로 두고, 분할 표 뒤 문단의 재선언에서 HWP/HWPX 모두 앞 페이지 가운데/
+수용 페이지 왼쪽과 본문 동일성을 보호하는 정식 검사도 추가했다.
+`test-page-number-final.log`:11건 PASS. 최종 집중 검증 합계8 suite169건 PASS.
+쪽 수 baseline/좌표 허용치/ignore를 바꾼 것이 아니다. 새 입력은 정식
+`tests/cases/`와 fixtures에만 추가했으며 파생 suite를 PR source로 만들지 않았다.
+
+#### 쪽 번호 재선언 — fresh WASM 및 시각 판정 요청
+
+Docker 표준 빌드7분17초 PASS. WASM SHA256:
+`ce3b4d74a7fef360166e88e6899e505d0dd4c7b78dbd34de589f8d9cabb1ffff`.
+`node output/7353/r19/body-next/capture.mjs --wasm` 및
+`--timeline --wasm` 모두 PASS. 부분본23쪽/대조군6쪽 각각 Native와 WASM의
+수치 차이0, 기타 차이0, 모든 SVG 동일(`review`/`timeline-review`의
+`backend-comparison.json`). run manifest는 HEAD50823731af+WIP의 source
+해시와 입력/PDF/WASM 해시를 연결한다. 빌드 후 source manifest 대조 PASS.
+
+새 WASM22/23쪽 review,22쪽 standalone overlay, timeline2/4/5/6쪽 review와
+4쪽 standalone overlay를 직접 판독했다. 본문과 번호 위치·동일 페이지 최종 선언·
+해제/재개를 확인했다. 에이전트 판정은 해당 범위 충족, 메인터너 판정은 대기다.
+자동 잉크 일치율은22쪽12.37%,23쪽13.56%,timeline2쪽15.25%,4쪽10.18%다.
+이는 대체 글꼴 농도/외형과 인쇄 잔차를 포함한 보조값이지 사람 판정 정확도가 아니다.
+본문 줄바꿈/원점/높이가 유지되는 근거는 정식 좌표 검사와 직접 판독으로 분리했다.
+
+- [22쪽 WASM review](../../output/7353/r19/body-next/review/wasm-review-22.png) /
+  [standalone overlay](../../output/7353/r19/body-next/review/wasm-overlay-22.png)
+- [23쪽 WASM review](../../output/7353/r19/body-next/review/wasm-review-23.png)
+- 위치 변경: [왼쪽2](../../output/7353/r19/body-next/timeline-review/wasm-review-2.png) /
+  [오른쪽4](../../output/7353/r19/body-next/timeline-review/wasm-review-4.png)
+- [해제5](../../output/7353/r19/body-next/timeline-review/wasm-review-5.png) /
+  [재개6](../../output/7353/r19/body-next/timeline-review/wasm-review-6.png)
+- [부분본 HWP](../../tests/fixtures/issue7353/page-number-timeline/prefix133-saved.hwp) /
+  [한컴 PDF](../../tests/fixtures/issue7353/page-number-timeline/prefix133-2020.pdf)
+
+원본 전체/R5 완료로 확대하지 않는다. 다음 대상은p161의 중첩 표 속성 거부다.
+commit/push·기본 엔진 전환·전체 CI는 이번 절편에서 수행하지 않았다.
+
+### 다음 승인: 셀 초기 단 정의와 중첩 저장 프레임의 연결
+
+메인터너가 직전 쪽 번호 재선언 절편의 시각 판정 통과와 다음 진행을 승인했다.
+기존22~23쪽 판정은 통과로 확정한다. 이번 대상은 원본p161의
+`cell13/p0/c1` 자리차지 자식 표다. 근거 자료는
+`tests/fixtures/issue7353/local-column-anchor/README.md`에 연결한다.
+
+입력의 첫 셀 문단에는 일반1단 `ColumnDef`가control0, 비TAC/TopAndBottom/
+ParaTop/ColumnLeft 표가control1로 선언되어 있다. 저장 host는 폭0, 높이1500HU,
+간격300HU인 실제 줄이다. 자식 마지막 문단의 저장 두 줄은v37000→0으로
+다음 프레임에 이어진다. 원본 첫163문단을 속성 삭제 없이 HWPX로 내보낸 뒤
+한컴2020profile에서 정상 HWP 저장하고 그 HWP의26쪽 PDF를 생성했다.
+원본 자체와 재저장본의 차이를 혼동하지 않는다.
+
+수정 전 `body-next/probe`는 동일 정상 HWP를p161에서
+`nested anchor, TAC, wrap or outer margin`으로 거부했다(`nested-next/before.log`).
+초기 단의 수용만 연결한 중간본은26쪽을 만들었지만 부모 마지막 행 전체가
+26쪽으로 이월됐다. Native 직접 판독으로 이를 검출했고
+`nested-next/anchor-only-review/`와 `anchor-only-probe`를 보존했다.
+이 중간 산출을 시각 통과 자료로 제출하지 않았다.
+
+적용 규칙과 실제 소비 경로:
+
+- `ir::initial_cell_column`에서 셀 첫 문단의 단일 영역을 검증한다.
+  `cell_anchor::excluded_slot/compose_in_frame`은 구조 슬롯을 삭제하지 않고
+  control1의 `ExcludedTable`을 생산한다. 명시적 단 정의 없는 Column 참조,
+  다단·중간 선언은 수용하지 않는다.
+- `ir::bind_table`은 동일 item의 host/offset/owner와 자식 plan을
+  `FlowBlock::AnchoredTable`로 연결한다. `text_ir`은 그 item의 control1을
+  paint 슬롯으로 저장하고 원본 control1에 바인딩한다. host와 자식은 같은
+  문단 원점을 공유하며 host의1500HU 점유를 삭제하거나 별도 빈 줄로 더하지 않는다.
+- `FlowBlock::has_stored_frame_cut`은 분할 가능한 비inline 자식의 저장 컷
+  존재를 부모에 전달한다. 실제 컷 소유권은 자식 cursor에 남는다.
+  `TableCursor::fit_rows`의 부모 분할 결정 → `FlowCursor::fit_cell_until` →
+  자식 `fit_in_frame`까지 동일 프레임 소비 모드를 전달한다. 자식 전체 높이가
+  남은 예산에 들어가도 부모의 분할 프레임 안에서는 저장 컷을 건너뛰지 않는다.
+- 자식 continuation이 저장 프레임에서 시작하면 부모 셀의 아래 여백을
+  해당 조각 예산에 먼저 확보하고 다음 조각의 위 여백을 한 번 적용한다.
+  `CellPlacement.content_origin`과 자식의 최종 bbox가 이 결과를 소비한다.
+  여백만 fit하는 실패는 커서를 확정하지 않는다. 이미 소비한 host/제목은
+  반복하지 않고 마지막 자식 줄 뒤의1300HU 빈 문단과 표 외곽도 보존한다.
+- 저장 컷을 가지지 않는 완전한 동반 셀은 첫 수용 조각의 물리 높이로
+  Center/Bottom 정렬한다. 수용 예산 안에 내용 전체가 들어가야 하며, 실제
+  placement를 그 원점에서 다시 질의한다. paint만 이동하거나 원래 작은
+  높이를 수용한 뒤 외곽을 늘리지 않는다. 컷을 가진 셀의 비0 정렬 band는
+  여전히 미지원이다.
+- Never/inline 자식은 원자적이며 descendant 컷을 전파하지 않는다.
+  rowspan 조각은 기존 row-group 경로이므로 새 컷 전파 대상에서 제외한다.
+  header의 atomic prefix는 저장 프레임 강제 소비를 하지 않고 body만 이어받는다.
+
+신규 정식 검사 `tests/cases/issue_7353_local_column_anchor.rs`는 정상 저장본의
+25/26쪽 최종 좌표·부모/자식 외곽·빈 host·후속 빈 문단·원문 유닛 전체 보존,
+단 좌표 반례, 1/2단계 자식의 경계 예산과 원자적 재시도, Never 대조군,
+Center/Bottom 동반 셀의 첫 조각 정렬과 중복 방지를 검사한다.
+변형 입력의 다단 거부 검사는 typed IR에서 실행한다. 최초 HWP 재직렬화 변형은
+기존 raw 단 속성이 유지되어 의도한2단 입력이 아니었고, 그 실행은 구현의
+다단 수용 증거가 아니다. 실제 변형의 qualification 검사는 별도로 통과했다.
+
+검증 및 Docker WASM 시각 결과는 아래에 이어 기록한다.
+
+최종 source는 HEAD50823731af+기존WIP이며 `nested-next/source.sha256`으로 고정했다.
+`tests-final.log`14suite239건, `tests-extra-final.log`4suite38건이 통과했다.
+신규6번째 동반 셀 경계와 원본 슬롯/직렬화 변형 검증을 추가한
+`tests-boundary-final.log`6건까지 반영하면18suite 총278건 PASS다.
+전체 회귀/CI를 실행한 수치가 아니다. Native/WASM lib Clippy는 각각
+`clippy-native-final.log`/`clippy-wasm-final.log`에서 PASS다.
+이전 승인 prefix133의23쪽 Native JSON은 `previous-control/`에서 직전 산출과
+`cmp` 바이트 동일이었다. 새 기능의 수정 전 증거는 동일 정상 입력의 공개 진입
+거부(`before.log`)와 중간본의 잘못된 페이지 소유/시각 출력이며, 신규6개 테스트
+전체를 이전 라이브러리로 실행했다고 주장하지 않는다.
+
+원본 전체 재검사(`nested-next/full.log`)는 여전히p161의
+`unqualified stored cell frame reset`에서 멈춘다. 원본 자식p9 첫 줄은v100으로
+재시작하는 반면 한컴 정상 재저장본의 마지막 문단 둘째 줄은v0으로 재시작한다.
+현재 프레임 수용은0만 허용하므로 이것이 다음 원본 입력 조사 대상이다.
+숫자만0으로 바꾸거나 재저장본 성공을 원본 성공으로 보고하지 않는다.
+
+최종 Docker WASM과 직접 시각 판독:
+
+- `docker compose --env-file .env.docker -p rhwp run --rm wasm` 성공
+  (`nested-next/wasm-build.log`). WASM SHA256은
+  `ddcfb01decd1c1aed4142621c82523718040f94a0c5d4b33d76110d980dda745`다.
+  빌드 뒤 `sha256sum -c nested-next/source.sha256`에 해당하는 저장소 루트 검사를
+  통과했고 이후 production source 변경은 없다.
+- `node output/7353/r19/nested-next/capture.mjs --wasm` 성공.
+  동일 정상 저장본의 Native/fresh WASM은 모두26쪽이며 render tree 수치 차이0,
+  그 외 차이0, 전체26쪽 SVG 동일이다(`review/backend-comparison.json`).
+  입력·PDF·source manifest·WASM 해시는 `review/run.json`에 고정했다.
+- `cargo fmt --all -- --check`와 `git diff --check` PASS.
+- Native와 fresh WASM의25~26쪽 review 및 standalone overlay를 직접 판독했다.
+  25쪽 부모 마지막 `근거설명` 행이 유지되고 자식 마지막 문단은 `지정 전까지`에서
+  이어받는다. 26쪽에는 `각 주민대표단별로 약 1년간 운영하는 것으로 가정` 한 줄과
+  후속 빈 문단의 점유가 보존되며 부모/자식 외곽이 끝난다. 제목 셀의 반복은 없다.
+  글꼴 외형·농도와 인쇄 배율/양자화 잔차는 남는다. 에이전트 판정은 이번 범위
+  충족이며 메인터너 시각 판정은 대기다. 원본 전체 또는 R5 완료 판정은 아니다.
+
+판정 자료:
+
+- [25쪽 WASM review](../../output/7353/r19/nested-next/review/wasm-review-25.png) /
+  [standalone overlay](../../output/7353/r19/nested-next/review/wasm-overlay-25.png)
+- [26쪽 WASM review](../../output/7353/r19/nested-next/review/wasm-review-26.png) /
+  [standalone overlay](../../output/7353/r19/nested-next/review/wasm-overlay-26.png)
+- [검토용 정상 재저장 HWP](../../tests/fixtures/issue7353/local-column-anchor/prefix163-saved.hwp) /
+  [동일 입력 한컴 PDF](../../tests/fixtures/issue7353/local-column-anchor/prefix163-2020.pdf)
+
+commit/push·기본 엔진 전환·전체 CI는 수행하지 않았다.
+
+### 다음 승인: 문단 앞 간격을 포함한 저장 셀 프레임 시작
+
+메인터너가 직전 셀 초기 단/자식 저장 프레임 절편의25~26쪽 시각 판정을 통과시키고
+다음 진행을 승인했다. 이번 대상은 원본p161 자식p9의v100 재시작 거부다.
+
+원인과 독립 근거:
+
+- 원본 해당 문단의 ParaShape.spacing_before는200이며 공통 style resolver는
+  URC2배 스케일을 적용해100HU로 해석한다. 이전 수용은 무조건v0만 허용했다.
+- 직전 정상 저장 부분본에 같은 서식의 실제 빈 문단1개만 마지막 문단 앞에 삽입하고,
+  HWPX→한컴 정상 HWP 저장→동일 HWP의PDF 순서로 대조군을 만들었다.
+  LineSeg의v100을 손으로 쓰지 않았다. 정상 저장본에서도 마지막 문단p10/l0가
+  정확히100HU로 다음 프레임을 시작했다. PDF25쪽에는 추가 빈 문단,26쪽에는
+  마지막 문단 두 줄이 나타난다. 생성 절차·job·해시·독립 좌표는
+  `tests/fixtures/issue7353/frame-origin/README.md`에 기록했다.
+- 같은 정상 입력과 정식 신규 검사 모두 수정 전 공개 DocumentV2 진입에서
+  `unqualified stored cell frame reset`으로FAIL이다. 빌드 실패를 재현으로 세지 않았다.
+
+실제 생산/소비 경로:
+
+- `stored_text::cell_frame_starts`는 실제 줄 원점 감소를 검사하되 문단 첫 줄에
+  한해 해석된 spacing_before와 일치하는 비영 원점을 수용한다. 문단 내부 컷은
+  기존0 원점 계약을 유지한다. 특정100HU나 임의의 작은 값 범위는 사용하지 않는다.
+- `CellParagraphComposer`의 boolean 프레임 보존 응답을 style에 근거한 컷 목록
+  query `stored_frame_starts`로 바꿨다. `TextComposer`와`IrTextComposer`가 동일
+  qualification을 사용하고 custom/fresh composer의 기본 반환은 빈 목록이다.
+- `ir::bind_table`은 문단 앞에 `StoredFrameStart`만 추가한다. 원본v100을 별도의
+  Space로 더하지 않는다. `stored_text::localize`가 저장 문단 원점을 빼고 공통
+  문단 배치가 같은 resolved spacing_before를 한 번 적용한다. 그 최종 노드에서
+  `TextComposer::compose`가 Space/Lines를 생산해 fit과 paint가 함께 소비한다.
+- 이전 절편의 `FlowCursor::fit_cell_until`/자식 `fit_in_frame`과
+  `CellPlacement.content_origin` 경로는 그대로다. 프레임 여백 예약·예산 실패
+  rollback·자식 소유 유닛·조각 종료를 바꾸거나 paint 원점만 보정하지 않았다.
+  문단 앞 간격은 새 프레임에서 줄과 함께 fit되어야 하며 이미 소비한 제목은 반복하지 않는다.
+
+정식 신규 검사 `issue_7353_stored_frame_origin`:
+
+- 정상 한컴 저장본96/144dpi:25쪽 빈 줄,26쪽 두 줄/앞 간격1회, 부모·자식 외곽,
+  후속1300HU 빈 문단, 모든 원문 유닛1회 보존 및 종료를 검사한다.
+  실제 첫 글줄 기준선과 부모 외곽은 독립 PDF trace 좌표에도 대조한다.
+- 비영 값1/99/101/1200을 지정한 typed IR 반례는 거부한다.
+- 내부 이어받기 줄의v100은 문단 앞 간격을 재적용할 근거가 없으므로 거부한다.
+- 수정 전1FAIL/2PASS(`frame-origin/test-before.log`), 수정 후3PASS
+  (`test-final.log`). 최초 테스트 소스 API명 오타로 인한 컴파일 실패는 결함 재현에
+  포함하지 않았고, 올바른 API로 같은 이전 라이브러리를 실행한 실패만 근거로 삼았다.
+
+검증: 새 검사와 local-column-anchor/document-flow/nested/text/stored-cell-frames/
+stored-frame-end/fragment-minimum-band의8suite 총202건 PASS(`frame-origin/tests.log`).
+Native/WASM lib Clippy PASS. 전체 CI 게이트를 수행한 결과는 아니다.
+Native25~26쪽 compare/review와26쪽 standalone overlay를 직접 열어 빈 줄·원점·
+줄바꿈·외곽 및 후속 내용을 확인했다. 대체 글꼴 외형/농도와 인쇄 잔차는 남는다.
+fresh Docker WASM 검증 결과는 아래에 이어 기록한다.
+
+원본 전체는 이제p161을 통과해p172의 `unqualified stored cell frame reset`에서
+멈춘다(`frame-origin/original.log`). 해당 위치는cell80/p0/c1/cell0/p21/l0이며
+v9213, 앞 간격은100HU다(`original-resets.log`). 이번 규칙과 일치하지 않아
+수용하지 않았으며 다음 독립 조사 대상으로 남긴다. 원본 전체 또는R5 완료가 아니다.
+
+최종 Docker WASM 검증:
+
+- `docker compose --env-file .env.docker -p rhwp run --rm wasm` 성공,7분14초.
+  WASM SHA256 `faae4c55624a2384538fe0aa32fde600a34b62f1630c84d47c8624eb2d5620b4`.
+- HEAD50823731af+기존WIP의 production source를 `frame-origin/source.sha256`으로
+  고정하고 빌드 뒤 검증했다(`source-verify.log`). production source 후속 변경 없음.
+- `node output/7353/r19/frame-origin/capture.mjs --wasm` 성공.
+  Native/fresh WASM26쪽 전체 render tree 차이0, SVG 동일
+  (`review/backend-comparison.json`). source/입력/PDF/WASM 해시는 `review/run.json`.
+- fresh WASM25/26쪽 review 및26쪽 standalone overlay를 직접 판독했다.
+  25쪽 빈 문단과26쪽 앞 간격·두 줄·외곽·후속 빈 문단을 확인했다.
+  해당 범위 에이전트 판정은 충족, 메인터너 시각 판정은 대기다.
+- 직전 승인 prefix163의 Native26쪽은 이전 산출과 `cmp` 바이트 동일
+  (`previous-control/`). fmt check 및 `git diff --check` PASS.
+
+판정 자료:
+
+- [25쪽 WASM review](../../output/7353/r19/frame-origin/review/wasm-review-25.png)
+- [26쪽 WASM review](../../output/7353/r19/frame-origin/review/wasm-review-26.png) /
+  [standalone overlay](../../output/7353/r19/frame-origin/review/wasm-overlay-26.png)
+- [빈 문단을 추가한 정상 저장 대조군 HWP](../../tests/fixtures/issue7353/frame-origin/paragraph-start-saved.hwp) /
+  [동일 입력 한컴 PDF](../../tests/fixtures/issue7353/frame-origin/paragraph-start-2020.pdf)
+
+기본 Legacy 엔진 전환·commit/push·전체 CI는 수행하지 않았다.
+
+### 후속 절편: p172의 셀 단 기준 앵커와 문단 간격 (진행 중)
+
+직전 `frame-origin` 25~26쪽은 메인터너 시각 판정 통과. 다음 절편 진행 승인에 따라
+p172를 조사한다. 원본의 v9213 감소를 곧바로 새 프레임으로 허용하지 않는다.
+원본 첫174문단을 속성 변경 없이 HWPX로 직렬화하고 한컴2020 정상 저장한 대조군은
+같은 후속 문단을 v100(문단 앞 간격)으로 다시 저장한다. 원본과 재생성본은 구분한다.
+
+- 정상 저장 job `e08822d9-de04-477d-9d27-c5a23bd8e34e`, PDF job
+  `1d5d2277-2234-4597-a085-de801f095cab`, PDF28쪽.
+- 입력/진단/기준: `output/7353/r19/next-172/`. 수정 전 정상본은 p172에서
+  `stored excluded cell anchor`로 거부된다(`before.log`).
+- 깊은 자식 이야기 p20/p23의 표는 단 왼쪽 기준, 앞 간격100HU,
+  문단 좌우 여백50HU, 저장 host column_start50HU다. 단 정의는 같은 셀 p0에 있다.
+  PDF27쪽의 3x12 표 및28쪽 5x4 표를 직접 열어 확인했다.
+- 변경값의 경로: `ir::bind_table`의 셀 최초 단 정의 → composer의 셀 단 문맥 →
+  `cell_anchor`의 host 원점/offset_y/host_advance → `FlowBlock::height`와
+  `FlowCursor::fit_cell_until`의 예산 및 실제 LinePlacement → TextPaint.
+  host.bounds의 x/y를 마지막 배치에서 덮어쓰던 지점도 함께 변경한다.
+- 전체 부모 표는 앵커 준비를 통과한 후28쪽에서 `DoesNotFit`(요구높이1245.6133px)로
+  멈춘다. 이 부모 분할 문제와 앵커 해석의 검증을 섞지 않기 위해 같은 원문 셀80의
+  1x1 내부 표를 별도 정상 저장 대조군으로 준비한다. 원본 전체 일치/완료 주장이 아니다.
+
+구현·검증 결과(같은 절편):
+
+- `CellParagraphComposer::compose_in_cell`에 adapter가 검증한 셀1단 문맥을 전달한다.
+  최초 p0의 단 정의를 같은 셀 뒤 문단에서 사용하며 다른 셀로 전파하지 않는다.
+  단 정의 부재/다단/중간 단 선언은 이번 지원으로 바꾸지 않는다.
+- `cell_anchor::compose`는 Column/Left 표의 x를 문단 왼쪽 여백과 분리한다.
+  host는 저장 column_start와 resolved margin_left의 일치를 확인한다.
+  앞 간격은 host의 y/advance에만 적용하고, Para/Top 표는 간격 전 문단 원점을 쓴다.
+  초기 구현에서 표에도 앞 간격을 더한 것은2쪽 독립 PDF 좌표 검사로 발견해 제거했다.
+- 같은 결과의 소비: `FlowBlock::height`는 host의 y+height를 점유 끝으로 보고,
+  fit은 그 끝까지 예산을 예약하며 실제 LinePlacement도 host의 x/y를 보존한다.
+  host 예산 실패 시 자식 컷과 host는 소비되지 않는다. 내용 끝/여백 이어받기는
+  기존 anchor_tail을 사용하고 paint에서 별도 원점을 덮어쓰지 않는다.
+- 정상 분리본 `tests/fixtures/issue7353/cell-column/cell-column-saved.hwp`와 동일 입력
+  한컴PDF2쪽으로 검증. 분리 편집·초기 생성 실패·정상 저장 job·해시·독립 좌표는
+  같은 폴더README의 후속 문단 절에 기록했다. 원본 전체의 대체 정답지가 아니다.
+- 수정 전 보존 Native probe: 같은 정상 분리본이 `stored excluded cell anchor` FAIL.
+  중간 단 문맥 연결본: 신규 정식검사2FAIL/1PASS(`test-initial-anchor.log`),
+  최종3PASS. 이 중간본을 작업 시작 전 전체 코드라고 부르지 않는다.
+- 최종12개 focused suite 총224PASS: 새 cell-column-insets와 기존 stored-frame-origin,
+  local-column-anchor, document-flow, nested, text, stored-cell-frames, stored-frame-end,
+  fragment-minimum-band, excluded-anchor-offset, host-anchor-gap, body-exclusion.
+  최종 Native/WASM lib Clippy PASS, fmt check/diff check PASS. 전체CI 실행 아님.
+- 신규 정식검사는96/144dpi의 host/표 최종 좌표, 독립PDF 외곽, 모든 원문 내용1회,
+  뒤 문단 및2쪽 종료를 검사한다. 합성 작은 예산은31px 거부/32px 수용 뒤
+  host간격3px와 다음10px줄을 이어받는 실제 fit 경계를 검사한다.
+- Native1/2쪽 review 및2쪽 standalone overlay 직접 판독: 두 표 위치·내용·줄바꿈과
+  후속 문단 보존 확인. 폰트 외형/농도와 인쇄 배율 잔차는 남는다.
+  직전 승인 frame-origin26쪽 전체 Native JSON은 `cmp` 바이트 동일.
+- 최초 WASM 빌드는 PDF 대조로 원점 수정이 필요해 중단했다. Native 최종 좌표검사 후
+  Docker 재빌드 중이며 완료 전 fresh WASM 판정으로 보고하지 않는다.
+
+남은 범위: 최종 코드에서 첫174문단 정상 저장본은28쪽에서 요구높이1242.9467px의
+`DoesNotFit`로 멈춘다(`full-after-final.log`). 원본 전체는 p172의 v9213에 대한
+`unqualified stored cell frame reset`을 그대로 거부한다(`original-final.log`).
+이 실패를 page-count 예외나 임의 저장 좌표 허용으로 숨기지 않았다. 이번에 판정할 것은
+분리한 정상 저장본의 셀 단 기준/문단 원점 규칙이며 전체 부모의 분할 완료가 아니다.
+
+최종 fresh WASM 및 판정 자료:
+
+- Docker 빌드 성공,7분17초(`next-172/wasm-build-final.log`). WASM SHA256
+  `0bca78c8aec99d4da91e9f32bcf05071d23ccba2529cf94eefc5fc539019808f`.
+- `node output/7353/r19/next-172/capture.mjs --wasm` 성공.
+  Native/fresh WASM2쪽 전체 render tree 차이0, SVG2쪽 모두 동일
+  (`column-review/backend-comparison.json`). HEAD50823731af+WIP이며
+  `source.sha256`은 빌드 후 재확인했다. 입력/PDF/WASM/source는 `column-review/run.json`.
+- fresh WASM1/2쪽 review와 standalone overlay를 직접 판독했다. 두 자식 표의
+  위치·줄바꿈·후속 문단 보존은 에이전트 판정 충족. 폰트 외형/농도 및 인쇄 잔차는
+  남으며 메인터너 시각 판정은 대기다. 전체 원본과 전체CI는 통과 주장하지 않는다.
+- [1쪽 건설공사비지수 표 review](../../output/7353/r19/next-172/column-review/wasm-review-1.png) /
+  [standalone overlay](../../output/7353/r19/next-172/column-review/wasm-overlay-1.png)
+- [2쪽 건축비 표 review](../../output/7353/r19/next-172/column-review/wasm-review-2.png) /
+  [standalone overlay](../../output/7353/r19/next-172/column-review/wasm-overlay-2.png)
+- [정상 저장 HWP](../../tests/fixtures/issue7353/cell-column/cell-column-saved.hwp) /
+  [동일 입력 한컴 PDF](../../tests/fixtures/issue7353/cell-column/cell-column-2020.pdf).
+
+기본 Legacy 경로 전환·commit/push는 수행하지 않았다.
+
+### 후속 절편: 세로 병합과 비병합 셀의 저장 분할 공존 (진행 중)
+
+직전 `cell-column`2쪽은 메인터너 시각 판정 통과. 다음 절편 승인에 따라 정상
+저장 prefix174 전체 부모 표의 실패를 처리한다. 원본 p172의 v9213을 임의로
+새 프레임으로 허용하는 변경은 하지 않는다.
+
+원인: `TableCursor::fit_rows`는 표 어디에든 rowspan이 있으면 모든 행을
+`fit_row_groups`로 보냈다. 이 경로는 첫 조각에 셀 내용을 통째로 소비하므로,
+p172의 r26c2(비병합)의3줄/1줄 저장 컷과 r27c1(가로 병합만 있음)의 자식 컷도
+무시했다. 앞 행이26쪽에서 통째로 밀렸고 마지막 행은28쪽에서
+`DoesNotFit(required_height=1242.9467px)`로 실패했다. 특정 문서 번호가 아닌
+**현재 내용 소유 셀의 rowspan 여부**와 공통 분할 결과로 경로를 구분한다.
+
+실제 생산·소비 경로:
+
+| 구간 | 규칙과 호출 경로 |
+| --- | --- |
+| 원문→컷 | 정상 한컴 저장본의 `stored_frame_starts` → `ir::bind_table` → `StoredFrameStart`. 중첩 비병합 행의 컷은 `FlowBlock::has_stored_frame_cut`으로 조상에게 전달한다. |
+| 병합 소유자 앞부분 | `fit_mixed_rows` → `fit_row_groups`의 `row_cut_required`. 이미 소비한 병합 내용은 계속 원자적이며 내용을 새로 분할하지 않는다. 뒤 행을 같은 조각에 붙이는 중간 경계는 페이지 끝으로 늘이지 않는다. |
+| 비병합 셀/자식 | 같은 `fit_plain_rows` → `FlowCursor::fit_cell_until` → 자식 `fit_in_frame`. host·패딩·물리 최소 밴드를 포함한 요구 높이와 확정 컷을 그대로 소비한다. |
+| 예산 실패 | 비병합 첫 유닛이 안 맞으면 해당 컷을 소비하지 않는다. 앞 병합 행만 수용 가능하면 그 조각을 종료하고 다음 페이지에서 재시도한다. Never/제목 원자 구간은 기존 경로를 유지한다. |
+| 물리 이어받기 | 이미 내용이 소비된 incoming rowspan의 외곽은 실제 수용한 행 조각의 끝까지 이어진다. 서로 다른 종료 행의 span을 다른 span의 높이로 늘이지 않는다. 같은 페이지 안의 내부 경로 전환은 같은 셀 외곽 하나로 합친다. |
+| 최종 배치 | 완성된 조각 높이에서 첫 병합 셀의 세로 정렬을 다시 query하고 동일 `CellPlacement`의 lines/tables/origin을 paint가 사용한다. 이어받은 병합 셀에는 내용을 다시 넣지 않는다. |
+
+단순 행 경계의 rowspan 이어받기와 **저장 셀 내부 컷**을 구분한다. 초기 후보는
+후자도 페이지 바닥까지 외곽을 늘였으나26쪽 직접 overlay 및 PDF 하단 좌표와
+불일치했다. 셀 내부 컷은 실제 수용 줄·패딩 envelope에서 닫도록 수정했고,
+기존 rowbreak-span 대조군의 물리 밴드 계약은 유지한다.
+
+정식 신규 `issue_7353_mixed_row_frames`6건은 정상 저장본28쪽 종료,26쪽3줄/
+27쪽1줄(`이자율`), 독립 PDF26쪽 하단,27/28쪽3x12·5x4 자식 표, 내부 원문
+단위 전부1회/순서 보존, 부모 외곽·본문 경계 및 후속p173 빈 문단을 검사한다.
+작은 합성 계약은 원래 작은 높이만 들어가는39px와 실제 첫 줄까지 들어가는45px,
+컷 재시도·Never, 동일/상이한 행에서 종료되는 여러span, 후속 새span 및 같은
+페이지의 외곽 중복을 검사한다. 합성 기대값은10/20px 줄 점유와 셀 소유 관계이며
+한컴 일치 주장이 아니다. 입력/PDF provenance와 독립 좌표는
+`tests/fixtures/issue7353/mixed-row-frames/README.md`에 기록했다.
+
+후속 span 시작 경계를 추가 검사하던 중 같은 incoming 셀을 한 페이지에 두 노드로
+발행하는 후보 결함을 발견했다. 첫 WASM 빌드는 중단하고, 내부 경로 경계를
+실제 페이지 경계로 오인하지 않도록 동일 소유 셀을 합쳤다. 해당 반례6번째 검사는
+수정 전2개/수정 후1개의 실제 셀을 확인한다. 중단 빌드를 검증 성공으로 세지 않는다.
+
+Native26~28쪽 review와26쪽 overlay 직접 판독에서 줄 이어받기·중첩 표·뒤 문단을
+확인했다. 폰트 외형/농도·프린터 배율의 미세 차이는 남는다. 전체 원본/모든
+rowspan 셀 내부 분할/R5 완료가 아니며, 최종 회귀·fresh WASM 결과는 아래 이어 기록한다.
+
+최종 Native 검증:
+
+- 위6건을 포함한16 focused suite 총248PASS. Native/WASM **lib** Clippy,
+  fmt check 및 diff check PASS. 전체 CI/워크스페이스 검증은 수행하지 않았다.
+- 최종 정식 검사 소스로 보존된 직전 라이브러리 실행:5FAIL/1PASS. 정상본의
+ 28쪽 실패와 비병합 셀 컷 누락이 재현된다(`tests-before.log`, `before.log`).
+  수정 전 부분 출력27쪽도 `before/native-review-27.png`로 직접 확인했다.
+- 수정 전/후 Native JSON 비교:1~25쪽 동일, 기존 쪽 중 변경은26/27쪽이며
+  수정 후28쪽까지 종료한다(`before-after-pages.json`).
+- 28쪽 부모 표 하단은 Native386.2933px, PDF384.6987px로 약1.59px 차이가
+  남는다. 전부 폰트/프린터 문제라고 단정하지 않고 **기하 잔차·판정 보류**로
+  남긴다. 신규 검사는26쪽 독립 하단 좌표를 검사하며28쪽의 완전한 외곽 일치를
+  주장하지 않는다. 자식 두 표와 뒤 문단은 보존된다.
+- 원본 전체 재실행은 여전히p172의 `unqualified stored cell frame reset`에서
+  거부한다(`original.log`). 이를 정상 재저장 대조군 통과와 구별한다.
+
+최종 fresh WASM 및 시각 판정 준비:
+
+- `docker compose --env-file .env.docker -p rhwp run --rm wasm` 성공,7분12초
+  (`mixed-row-frames/wasm-build-final.log`). WASM SHA256
+  `319eb20f39ba2d8bca36d3d62aa393a9d11ac156582e6b831e586e632fc99b90`.
+- `node output/7353/r19/mixed-row-frames/capture.mjs --wasm` 성공.
+  Native/fresh WASM28쪽 전체 render tree 차이0, SVG28쪽 모두 동일
+  (`review/backend-comparison.json`). HEAD50823731af+WIP의 코드 manifest와
+  입력·PDF·WASM 해시는 `review/run.json`에 고정했고 빌드 후 source를 재확인했다.
+- fresh WASM26/27/28쪽 review 및26/28쪽 standalone overlay 직접 판독:
+  26쪽 마지막 셀3줄→27쪽 `이자율`1줄,27쪽 건설공사비지수 표,
+  28쪽 건축비 표의 순서·내용·분할 보존을 확인했다. 부모 외곽의 누락·중복은
+  발견하지 않았다. 28쪽 부모 하단의 약1.59px 기하 잔차는 앞서 기록한 대로
+  보류하며, 폰트 외형/농도 차이와 분리한다. 메인터너 시각 판정은 대기다.
+- [26쪽 review](../../output/7353/r19/mixed-row-frames/review/wasm-review-26.png) /
+  [overlay](../../output/7353/r19/mixed-row-frames/review/wasm-overlay-26.png)
+- [27쪽 review](../../output/7353/r19/mixed-row-frames/review/wasm-review-27.png) /
+  [overlay](../../output/7353/r19/mixed-row-frames/review/wasm-overlay-27.png)
+- [28쪽 review](../../output/7353/r19/mixed-row-frames/review/wasm-review-28.png) /
+  [overlay](../../output/7353/r19/mixed-row-frames/review/wasm-overlay-28.png)
+- [정상 저장 HWP](../../tests/fixtures/issue7353/mixed-row-frames/prefix174-saved.hwp) /
+  [동일 입력 한컴 PDF](../../tests/fixtures/issue7353/mixed-row-frames/prefix174-2020.pdf).
+
+기본 Legacy 경로 전환·commit/push는 수행하지 않았다. 전체 원본·전체CI·R5 완료를
+주장하지 않으며, 이번 제출 범위는 정상 저장 대조군의 혼합 행/중첩 표 분할이다.
+
+### 후속 절편: 초기 셀 단 정의와 중첩 누름틀
+
+메인터너가 앞선26~28쪽 시각 판정을 통과시키고 다음 절편을 승인했다.
+원본 p172의 비영점 저장 프레임 reset을 정상화하는 조건부터 추가하지 않고,
+원본 직접 한컴2024 PDF와 정상 재저장본의 입력·출력을 분리해 확인했다.
+원본은 `unqualified stored cell frame reset` 거부를 유지한다. 원본의 p21
+vpos9213과 재저장본100은 다르며, 이 차이를 임의로 페이지 시작0으로 치환하지 않았다.
+원본 직접 PDF job은 `9b7241cb-b7f9-4172-9940-a9378e4f44ee`다.
+
+정상 전체 재저장본은 다음 p222에서 `non-table cell control`로 막혔다.
+첫 셀 문단의 ColumnDef 하나와 중첩 ClickHere 두 개가 원인이었다. 이전 필드
+검사는 제어 전체를 필드로 요구하고 중첩 범위를 거부했다. 입력은 수동 캐시가
+아닌 정상 한컴 저장본이며, 필드 범위 `[0,183)`/`[3,182)`와 source slot을
+파서 정의대로 보존하면 저장6줄을 기존 공통 배치로 전달할 수 있다.
+
+`table_v2/fields.rs`에서 초기 단 슬롯과 필드 슬롯을 구분하고, 잘 구성된 중첩
+범위만 허용했다. 각 begin/end는8 source unit이며 추가 줄·공백을 만들지 않는다.
+교차 범위·중첩 수 불일치·누락/중복 슬롯·다단·안내문·편집 후 무효 캐시는 거부한다.
+문서 ID·페이지 수 조건은 없고, 명령 실행이나 Legacy 변경도 없다.
+
+실제 소비 경로:
+
+- `ir.rs:initial_cell_column`/`bind_table`이 셀 첫 문단의 단 정의를 검증하고
+  `fields::stored_result`가 범위와 정확한 문자 오프셋을 검증한다.
+- `text_ir.rs:compose_in_cell`→`text.rs:compose`가 동일 저장 줄로 실제
+  TextLine payload와 ParagraphItem 높이/advance를 함께 만든다.
+- 기존 분할 흐름은 이 줄 유닛을 소비하고 `TextPaint::build_node`가 같은
+  payload를 배치 원점으로 이동한다. 필드용 별도 높이·앵커·clamp는 추가하지 않았다.
+- 이번 변경은 줄 수용 자격이며 pagination/rowspan/컷 계산 변경은 없다.
+  80px 합성 예산으로 모든 저장 줄이 실제 분할을 거쳐 한 번씩 셀 안에 배치되는지
+  검사했다. 필드 편집 후 재조판과 문단 사이 범위는 미구현/미검증으로 남긴다.
+
+증적은 `output/7353/r19/child-frame-tail/`이다. 정상 대조군 생성·해시·MCP job과
+독립 PDF 기준선은 `tests/fixtures/issue7353/nested-field/README.md`에 기록했다.
+정식 신규 `issue_7353_nested_field`3건은 저장6줄/문자 순서와 보존, 실제 셀 범위,
+PDF36쪽 기준선, 제한 예산 분할, 잘못된 범위 거부를 검사한다.
+동일 검사 소스를 직전 라이브러리에서 실행하면2FAIL/1PASS이며 예상한 미지원
+제어 오류로 실패한다(`tests-before.log`). 수정 후3PASS이며 독립 PDF 좌표 검사를
+추가한 최종 검사도3PASS다(`tests-final.log`).
+
+기존 필드·저장 프레임·단 정의·문서·텍스트·중첩 표 대조군 포함11 suite 총204PASS
+(`tests-all.log`, 신규3건 최종 재검증은 중복 합산하지 않음).
+정상 전체 재저장본은 Native64쪽까지 종료했고 동일 입력 한컴 PDF도64쪽이다.
+이는 원본 통과 또는64쪽 전체 시각 일치 판정이 아니다. 직접 판독한36쪽에서는
+중첩 필드의6줄/줄바꿈을,64쪽에서는 마지막 표·내용·종료를 확인했다.
+폰트 외형·농도 차이가 남는다. fresh WASM 대조와 최종 검증은 아래 이어 기록한다.
+
+최종 검증/시각 판정 준비:
+
+- Native/WASM **lib** Clippy, fmt 및 diff check PASS. 신규 검사도 rustfmt 및
+  직접 rustc `-D warnings`로 검증했다. 전체 CI/통합 suite 등록 검사는 미실행이다.
+- Docker WASM 빌드 성공(7분18초). SHA256:
+  `b2772a4e82341b9c7964715b9936373ea5bd5e2db3eacf1208cedd695c3cc051`.
+- `node output/7353/r19/child-frame-tail/capture.mjs --full --wasm` 및
+  `--wasm`으로 전체본64쪽/대조군36쪽을 검증했다. 각 Native/fresh WASM
+  render tree 차이0, SVG 전부 동일이다. `full-review/run.json` 및
+  `review/run.json`에 HEAD50823731af+WIP source manifest와 입력/PDF/WASM 해시를
+  고정했다. 빌드 후 source manifest 재검사 PASS.
+- 정상 전체본의 한컴 PDF job `4baee058-752d-4897-a246-908928bed006`,
+  SHA256 `b8c0a434ff2672c7df2cf77bd5dd1b1a1224250b37d1a62344ec265dd933cb4f`.
+- fresh WASM36쪽 review/standalone overlay 직접 판독: 주민대표단 문단의
+  6줄과 뒤 `3. 규제목표` 문단 배치 보존.64쪽 review에서는 마지막 표/내용과
+  문서 종료를 확인했다.28쪽 대조에서도 자식 표·뒤 표가 보존되며, 앞 절편에서
+  기록한 부모 하단의 작은 기하 잔차는 남는다. 전체64쪽 시각 판정은 미실행이다.
+- 원본 현재 코드 재실행(`original-after.log`)은 여전히p172의 저장 프레임
+  reset에서 거부한다. 정상 재저장본의64쪽 성공으로 원본 통과를 대체하지 않는다.
+- [36쪽 review](../../output/7353/r19/child-frame-tail/full-review/wasm-review-36.png) /
+  [overlay](../../output/7353/r19/child-frame-tail/full-review/wasm-overlay-36.png)
+- [64쪽 review](../../output/7353/r19/child-frame-tail/full-review/wasm-review-64.png)
+- [정상 전체 저장 HWP](../../output/7353/r19/child-frame-tail/full-saved.hwp) /
+  [동일 입력 한컴 PDF](../../output/7353/r19/child-frame-tail/full-2024.pdf).
+
+이번 절편의 메인터너 시각 판정은 대기다. 기본 Legacy 변경·commit/push는 없으며,
+원본 미지원 경계와 전체 통합 검증이 남아 있어 R5 완료로 보고하지 않는다.
+
+### 다음 절편 조사: 원본의 자식 표 뒤 저장 프레임
+
+메인터너가 중첩 누름틀 절편의36/64쪽 시각 판정을 통과시켰다. 공공기관의
+웹기안기에서는 누름틀 범위에 다른 문서 조각을 삽입할 수 있다는 도메인 지침도
+확인했다. 따라서 필드 경계를 단순 문자열로 평탄화하지 않으며, 문단·표·그림·
+중첩 필드의 소유를 보존해야 한다. 앞 절편의 한 문단/저장 텍스트 검증을
+문단 간 복합 문서 조각의 지원 증거로 확대하지 않는다.
+
+이번 조사는 원본 p172의 미지원 원인을 좁혔다. 원본·정상 재저장본을 재귀 비교한
+`output/7353/r19/frame-after-child/compare.rs`와 `compare.log`를 보존했다.
+비교한 문단의 텍스트·char_offsets·field_ranges·char_shapes 참조·문단 모양 ID·
+문단/컨트롤 수에는 차이가 없었다. 글자모양은 raw bytes/언어별 폰트 ID를 제외하고
+실제 참조 폰트 이름으로 비교했을 때 차이가 없었다. DocInfo 전체는 동일하지 않으며
+폰트 목록 추가 등은 `original-doc-info.txt`/`saved-doc-info.txt`에 남겼다.
+이를 모든 문서 속성이 같다는 주장으로 확대하지 않는다.
+
+차이는 reset 한 곳에만 있지 않았다. 경로는
+`s0/p172/t0/c80/p0/t1/c0`이다.
+
+| 항목 | 원본 저장값 | 한컴 정상 재저장값 |
+| --- | --- | --- |
+| p6 줄 수 | 4 | 3 |
+| p8 줄 수 | 5 | 4 |
+| p10 줄 수 | 2 | 1 |
+| p15 줄 수 | 2 | 1 |
+| p20 자식 표 호스트 vpos | 66300 | 59100 |
+| p20 자식 표 common.height | 1463 | 10212 |
+| p21 자료출처 문단 vpos | 9213 | 100 |
+
+줄바꿈 text_start도 p3부터 달라진다. 누적4줄×1800HU=7200HU가 자식 표 시작
+차이에 연결된다. 따라서 `9213→100` 보정만으로 현재 한컴 출력의 재조판을
+대신할 수 없다. 이것만으로 원본 캐시가 불법이라고 단정하지도 않는다. 원래
+작성 환경의 저장 줄 구성과 현재 한컴의 재계산 결과를 분리해야 한다.
+
+진단용 복제 IR에만 두 반사실 실험을 수행했다(`probe.rs`). 원본은 변경하지 않았다.
+
+- `intact`: 무수정 HWPX 직렬화 대조도 p172의 동일 미지원 오류.
+- `carry`: p21 이후 vpos에70000HU를 더해 reset을 없앤 변형은27쪽 출력 뒤
+  `DoesNotFit { page:27, required_height:1358.64 }`로 중단.
+- `reset`: p21 이후 vpos에서9113HU를 뺀 변형은65쪽 종료. 독립 기준 PDF64쪽과
+  다르며, 좌표를 바꾼 합성 결과이므로 원본 지원/수정 성공 증거가 아니다.
+
+위 변형은 다른 소비 지점의 좌표 차이에도 영향을 줄 수 있다. 따라서 carry 실패를
+단순히 StoredFrameStart 제거의 결과라고 해석하지 않는다. 원본의 비영점 reset
+수용 규칙을 만들 근거로도 사용하지 않는다.
+
+독립 대조군 후보도 생성했다. 정상 전체본에서 본문p172~173을 분리하고 용지 높이를
+2500HU 줄인 `carrier.hwpx`를 한컴2024로 정상 저장했다(job
+`59e949a4-19e4-4079-b00c-bfe60ac1b31d`). 캐시 값을 직접 수정하지 않았다.
+그러나 이 후보의 reset은 p2/p23의100HU이며, 목표인 자식 뒤 비영점 잔여 높이를
+재현하지 않았다. 또한 현재 V2는 별도의 저장 단일 줄 자격 검사에서 거부한다.
+이를 목표 반례/시각 판정 자료로 제출하지 않는다.
+
+판정: 원본의 reset 단독 완화는 근거 부족으로 채택하지 않았다. 이번 절편에서는
+production Rust·WASM·baseline을 변경하지 않았고, 앞 절편 검증을 새 검증으로
+합산하지 않는다. 다음 구현 전 해결할 계약은 **저장 줄 구성 재사용과 현재 환경
+재조판의 구분**, 그리고 **자식 표가 이미 넘긴 프레임과 후속 문단의 프레임 소유**다.
+원본 저장 줄을 유지해야 하는 경로에 정상 재저장본의 줄 수/좌표를 강제하지 않는다.
+
+### 후속 조사/후보 검증: 자식이 소유하는 프레임의 정상 재현
+
+다음 절편 승인에 따라 위 미재현 경계를 정상 한컴 저장본에서 재현했다.
+`frame-after-child/normal_candidates.rs`는 정상 전체본의p172~173을 분리하고
+앞 빈 문단과 용지 높이만 바꾼다. 74000/76000/78000HU 후보를 각각 한컴2024로
+저장했다. 78000HU에서는 자식 호스트v59100 뒤 자료출처v4448이 저장된다.
+직접 대응 PDF3쪽의2쪽은 자식0/1행,3쪽은2행·자료출처·뒤 표다.
+입력/PDF와 생성 job·해시는 `tests/fixtures/issue7353/child-frame-tail/README.md`에
+보존했다. 기준 캐시를 수동 수정한 앞선 반사실 실험과 구분한다.
+
+검토한 생산→소비 경로는 `stored_text::cell_frame_starts`의 reset 분류 →
+`ir::bind_table`의 공통 자식 plan → `FlowBlock::has_stored_frame_cut` →
+부모 `fit_mixed_rows`/`fit_plain_rows` → `FlowCursor::fit_cell_until`의 여백 예약 →
+자식 `TableCursor::fit_in_frame`의 컷과 최종 TablePlacement다.
+
+후보는 비영점 감소를 무조건 수용하지 않고, 완성된 자식 plan의 유일한 행 suffix와
+바깥여백이 후속 저장 원점에 대응할 때만 자식 행 경계로 소유를 옮겼다.
+반복 제목·rowspan·내부 저장 컷이 있는 자식은 확장하지 않았다. 후보가 따로
+준비한 높이나 Legacy 측정을 paint에 재사용하지는 않는다. 그러나 아래 실제
+실행에서 실패했으므로 이 방식의 일반성·완료를 확정하지 않는다.
+
+| 실행 | 관측 |
+| --- | --- |
+| 직전 코드 + 정상78000HU 저장본 | 동일 `unqualified stored cell frame reset` |
+| 후보 코드 + 같은 입력 |4쪽 종료, 한컴3쪽과 다른 자식 행 소유 |
+| 직전 코드 +76000HU 저장 대조군 |3쪽 종료. 시각 일치 검증은 아님 |
+| 직전 코드 +74000HU 저장 대조군 |별도 단일 저장 줄 자격에서 미지원 |
+
+`trace-78000.log`에서 자식 최초 예산81.12px인데 처음 두 행의 공통 요구 높이는
+20.8667+63.5333=84.4px다. 따라서0행만2쪽에 수용하고1행을3쪽으로 넘긴 뒤,
+새로 설정한 저장 컷 때문에2행을4쪽으로 넘겼다. 실제 Native2/3/4쪽과
+PDF2/3쪽을 직접 열어 판독했으며, 페이지 숫자만으로 실패를 분류하지 않았다.
+
+추가 원인: IR에 선언된1행 높이4765HU와 PDF에서 관측한 약4207HU가 다르다.
+PDF의 가로 경계109.521→67.453pt는42.068pt다. 단순 여백 중복이라고 아직
+확정할 수 없다. 저장 프레임 소유뿐 아니라 분할 조각에서 선언 높이/물리 밴드를
+어떻게 소비하는지 함께 확인해야 한다. 마지막 행의 공통 높이3882HU+바깥여백566HU는
+저장4448HU와 대응하지만 이 수치 일치만으로 앞 조각의 정확성을 보장하지 못한다.
+원본의9213HU도 공통 suffix8647HU+566HU와 대응하며, 이것만으로 원본 조판이
+정상이라는 결론을 내리지 않는다.
+
+후보는 `output/7353/r19/frame-after-child/candidate.patch`와 `candidate-source/`에
+진단 trace를 포함해 분리 보존했다. 이번에 추가한 제품 코드만 되돌렸고 이전 WIP는
+보존했다. 직전 `child-frame-tail/source.sha256`와 제품 source 전체 일치 확인.
+기존 WASM은 변경하지 않았으며 후보의 WASM/전체CI는 실행하지 않았다.
+비교 캡처 도구는 예상하지 못한4번째 쪽의 기준PNG 부재로 종료했다. Native1~4쪽과
+1~3쪽 비교 PNG는 진단 자료이지 성공한 sweep/판정 요청 자료가 아니다.
+
+회귀 계약 초안은 `frame-after-child/pending_contract.rs`로 보존했다. 수정 전 라이브러리에서
+미지원 오류로1FAIL, 후보에서4/3쪽 불일치로1FAIL이며 뒤의 좌표 assertion까지 통과한
+것이 아니다. 수정 후 PASS 계약이나 formal suite 통과로 보고하지 않는다.
+다음 대상은 위 정상 입력의 자식1행 높이 차이와 실제 물리 높이 소비 규칙이다.
+
+### 2026-09-27 후속: 선언 높이 소비와 분할 정책의 반대 매핑 확인
+
+승인 범위의 원인 추적을 수행했다. 제품 소스는 직전 승인 WIP 그대로 유지했다.
+`child-frame-tail/source.sha256` 전 항목 일치를 확인했으며, 새 WASM/전체CI를
+실행하거나 과거 시각 판정을 이번 미해결 원본의 통과로 바꾸지 않았다.
+
+**4,765HU 생산→소비 경로**: `parser/control.rs:375`의 LIST_HEADER 셀 높이 →
+`table_v2/ir.rs:614`의 `minimum_height` → `content.rs`의
+`max(physical, minimum_height)` 공통 행 높이 → `fragment.rs::fit_plain_rows`의
+비분할 행 사전 fit → `minimum_left` 예약/차감 → `CellPlacement.bounds`.
+따라서 이 숫자는 V2가 만든 보정값도 패딩을 한 번 더 더한 값도 아니다.
+문제는 어떤 분할 정책에서 이 온전한 높이를 요구하고, 내용/물리 공간을 어디서
+이월/종료하느냐에 있다.
+
+용지 높이만 다른 정상 한컴 저장/PDF 대조군을 추가했다. 모든 PDF는3쪽이지만
+내용과 행 경계가 다르다. `frame-after-child/trace_rows.mjs`는 PDF clip/가로 경계의
+pt 차이를 HU로 환산한다. 약12HU 수준의 PDF 출력 격자 차이는 정수 원본값과
+구분하며 이를 구현 허용치로 사용하지 않는다.
+
+| 용지HU | child common.height | 1행(0기준) PDF 높이 | 마지막 행의 내용 소유 |
+| --- | --- | --- | --- |
+| 76000 |10212 |4757.9HU |표 전체가3쪽 |
+| 78000 |5781 |4206.8HU |마지막 행 전체가3쪽 |
+| 79000 |6330 |4764.2HU |마지막 행 전체가3쪽 |
+| 80000 |9681 |4769.8HU |`년간`/`상승률`은2쪽, `(%)`는3쪽 |
+
+80000HU의 마지막 행 PDF 조각은3343.7HU/1282.4HU다. 이 입력의 저장 셀 높이는
+3448HU이므로 선언 높이가 모든 분할 조각 높이의 합과 같다는 가정도 성립하지 않는다.
+78000HU의 값만 보고1행 높이를 전역 축소하거나 common.height를 전체 높이로
+재사용하면 위 정상 대조군을 깨뜨린다. 정확한 물리 밴드 처리 계약은 아직 미완료다.
+
+더 근본적인 오류를 확인했다. 독립 기준은
+[한컴 공식 도움말](https://help.hancom.com/hoffice130_assistant/ko-KR/Hwp/table/tableattribute/table%28table%29.htm)과
+[PageBreak 값에 대한 개발자 답변](https://forum.developer.hancom.com/t/topic/2004)이며,
+동일 입력의 목표 표 분할 속성 한 곳만 바꾼 정상 저장/PDF 쌍으로 확인했다.
+
+| HWP 값 / IR 이름 | 독립 규칙 | 현재 V2 매핑 |
+| --- | --- | --- |
+| 2 / RowBreak |나눔: 셀 안 줄 단위 분할 |BetweenRows: 행 전체 fit 요구 |
+| 1 / CellBreak |셀 단위로 나눔: 셀 전체 이월 |WithinCells: 셀 내부 분할 허용 |
+| 0 / None |나누지 않음 |Never |
+
+파서의 숫자 보존 문제가 아니라 IR 의미를 분할 정책으로 연결하는 해석 문제다.
+`model/table.rs`의 주석도 반대 의미로 설명한다. 기존 local 스펙 Markdown의 값2는
+‘나누지 않음’으로 중복되어 있어 그것만으로 의미를 확정하지 않았다. 공식 도움말,
+API 설명, 실제 한컴 출력이 일치하는 의미를 기준으로 삼았다.
+
+정상 쌍은 `tests/fixtures/issue7353/child-frame-tail/`의 `line-split-*`,
+`whole-cell-*`에 보존했다. 생성/해시/job은 같은 README에 기록했다.
+HWPX 입력diff는 목표 표의 `pageBreak=CELL/TABLE` 한 곳뿐이다.
+전자는 PDF2쪽의 `년간`/`상승률` 뒤3쪽의 `(%)`로 이어지고, 후자는 같은 셀 전체와
+수치 행이3쪽에 모인다. 해당 PDF PNG2/3쪽을 직접 열어 확인했다.
+
+현재 라이브러리로 `frame-after-child/policy_contract.rs`를 rustc --test 실행:
+**1PASS / 2FAIL** (`policy-before.log`). 두 실패는 실제 fit 결과가 독립 규칙과
+반대이기 때문이며 빌드 실패가 아니다. 뒤의 좌표/유닛 보존 assertion은 아직
+실행되지 않았으므로 그 부분은 미검증이다. 이 RED 초안은 정식 성공 회귀에
+등록하지 않았고, 수정 후 PASS도 주장하지 않는다.
+
+수정은 `ir.rs` 두 줄만 뒤집고 끝낼 수 없다. 같은 의미의 소비 위치는
+`text_ir.rs:268,282` 대각선/셀 배경 수용, `zones.rs:62` 영역 대각선,
+`flow.rs:221` continuation 바깥여백 예약, `fragment.rs` Center/Bottom 분할 및
+`fragment/row_groups.rs` rowspan 컷, `document_input.rs:476` 정상 저장 프레임
+clearance다. 특히 기존 BetweenRows 경로에 붙은 저장 컷 지원을 올바른 줄 단위
+정책에서도 공통 소비하도록 정리해야 한다. 원본의 비영점 reset은 여전히 별도
+미지원이며 정책 매핑 오류 하나가 모든 증상을 설명한다고 주장하지 않는다.
+
+다음 구현 우선순위는 (1) 독립 규칙 기반 정책 어댑터와 소비 분기 정리,
+(2) 동일한 줄/객체 소유 컷을 사용하는 자식 continuation과 부모 후속 원점,
+(3) 위4개 예산 대조군에서 물리 조각·정렬·내용 보존이다. 이전 suffix 행 수치
+일치 후보에 예외를 추가하는 방향은 채택하지 않는다. 제품 변경/수정 후 PASS/
+fresh WASM 시각 판정은 아직 남아 있다.
+
+### 2026-09-27 후속: 분할 정책 어댑터와 실제 조각 소비 경계 수정
+
+사용자의 다음 절편 승인으로 위 정책 해석 오류를 수정했다. 작업 기준은
+`50823731af6050c60ec3cfcc898abf36daa6b35a` + 기존 stage19 WIP다. Legacy 엔진,
+파서의 숫자 보존, 기본 엔진 선택은 바꾸지 않았다. 아래 결과는 R5 전체 완료나
+`carrier-saved.hwp`의 미해결 reset/물리 밴드 조판 통과를 뜻하지 않는다.
+
+구현과 실제 소비 경로:
+
+- `table_v2/ir.rs::From<TablePageBreak>`에서 raw2/`RowBreak`는 `WithinCells`,
+  raw1/`CellBreak`는 `BetweenRows`, raw0은 `Never`로 단일 변환한다.
+  `bind_table` → 공통 `TableContentPlan` → `fragment::fit_plain_rows` /
+  `fragment/row_groups::fit_mixed_rows` → `CellPlacement` → `text::append_cells`
+  순서로 같은 정책과 수용 조각을 소비한다. 역사적인 enum 이름은 유지하고
+  `model/table.rs`의 반대 설명만 정정했다.
+- 분할 **허용**만으로 모든 Center/Bottom·rowspan 셀을 준비 단계에서 거부하지 않는다.
+  온전한 행은 기존 정렬 높이로 배치하며, 실제 내부 컷에서 정렬 내용이 불완전하면
+  해당 prefix를 소비하지 않는다. rowspan 내부 내용의 일반 분할은 여전히 미구현이다.
+  새 제목 셀 전체 분할·일반 rowspan 내부 컷 지원을 주장하지 않는다.
+- 셀 대각선·그라데이션의 수용은 준비 시 정책 이름이 아니라 최종 `cell.partial`에
+  따라 판단한다. `text.rs`의 실제 partial 검사와 `zones.rs::bounds`의 partial
+  검사로 미지원 조각을 paint 전에 거부한다. 온전한 셀은 정책과 무관하게 기존
+  장식을 보존한다. 원래 미통과였던 긴 대각선 셀을 성공으로 바꾸지 않았다.
+- `flow.rs`의 AnchoredTable은 줄/셀 정책 모두 동일한 하단 바깥여백을
+  `child_budget`에서 먼저 예약한다. 그 예산으로 수용한 자식 조각 높이와 후속
+  원점이 함께 전진한다. 실제 소스의 첫 줄1200HU와 위/아래 여백283HU씩은
+  1766HU(약23.5467px)를 요구한다. 기존 합성20px 예산은 앞 문단만 소비하고
+  자식은 이월해야 하며, 이를 검사하도록 계약을 바로잡았다.
+- 정상 #6923에서 온전한13행 자식의 마지막 minimum이 뺄셈 반올림으로
+  `1.7763568394002505e-14px` 남는 후속 오류를 검출했다.
+  `fit_mixed_rows`의 후보 선택과 `fit_plain_rows`의 온전한 행/물리 최소 높이
+  수용은 측정과 같은 prefix+height 누적합을 사용하도록 수정했다. 허용 오차나
+  좌표 clamp를 추가하지 않았다. 원본 전체의 빈 문단/프레임 계약과1HU 부족
+  대조 검사가 다시 통과한다.
+
+기대값은 앞 절의 공식 도움말·PageBreak API·정상 한컴 저장/PDF 쌍에서 구한
+정책 의미, 원본 저장 메트릭, 명시적인 composer 컷이다. 기존 합성 테스트 중
+내부 줄 분할을 `CellBreak`로, 셀 전체 분할을 `RowBreak`로 지정했던 입력은
+그 의도에 맞는 속성으로 정정했다. 정상 HWP/PDF fixture와 좌표 golden은
+변경하지 않았다. 저장 컷 뒤에 여유 공간이 있어도 다음 줄의 소유를 앞쪽으로
+합치지 않는 반례도 검사한다. 일반 줄/셀/여백의 기대값을 페이지수로 조정하지 않았다.
+
+별도로 기존 장식 negative-control이 이미 지원된 `Dash`를 미지원으로 기대하는
+실패를 발견했다. 변경 전 라이브러리+HEAD의 원래 테스트에서도 동일한 `case 0`
+실패를 확인했다(`policy-export-before.log`). 아직 미지원인 `Dot`으로 해당
+negative-control을 교체했고, 이미 있는 `dash_fragment_edges`와 두 DPI pen
+catalog 계약은 그대로 통과한다. 제품의 장식 지원 범위를 넓힌 수정은 아니다.
+
+검증 자료는 `output/7353/r19/frame-after-child/`에 모았다.
+
+| 검사 | 결과 / 증거 |
+| --- | --- |
+| 정식 `issue_7353_table_v2_split_policy.rs` | 변경 전1PASS/2FAIL → 변경 후3PASS. `policy-before-formal.log`, `final-formatted-issue_7353_table_v2_split_policy.log`. 좌표와 줄 owner의 단일 소비까지 검사 |
+| 관련25개 `tests/cases` | 총389PASS/0FAIL. `policy-final-summary.log`의 초기 확대 결과에 `policy-final-contracts.log`와 `policy-split-property.log`의 최종 해당 suite 결과를 대체 적용 |
+| Native lib build / Clippy | `policy-formatted-build.log`, `policy-clippy.log` PASS (`cargo clippy --locked -p rhwp --lib --target-dir /home/edward/mygithub/rhwp/target/pr-review -- -D warnings`) |
+| fmt / diff | `cargo fmt --all -- --check`, `git diff --check` PASS |
+| Docker fresh WASM | `policy-wasm-build.log`, 약7분26초, SHA256 `dd67a55ebc5fa8b5a7a0b03dea2cf5ee75d950974926dd3f46206ada59e94507` |
+| 정상 저장 Native 전후 | `rowbreak-span/prefix14-saved.hwp` 전체3쪽 JSON/SVG가 변경 전후 동일. `policy-review/before/native.json` / `policy-review/actual/native.json` |
+
+명령은 `run-policies.sh <phase> <suite...>`로 각 정식 원본을 같은 debug rlib에
+`rustc --test -D warnings` 연결했다. zip 사용 suite는 `policy-split-property`로
+명시적인 zip extern을 추가해 검사했다. 이는 선택 범위 검증이며 생성 integration
+전체 suite·전체 CI·workspace all-target/WASM Clippy 완료 주장과 구분한다.
+빌드 중 시작한 `consumed-policy-*` 결과는 구/신 산출 혼재 가능성 때문에 폐기했고,
+빌드 성공 후 재실행한 결과만 사용했다. 진단 `POLICY_DIAG` 출력은 제품 코드에서
+모두 제거했다.
+
+Native 시각 대조는 정상 `prefix14-saved.hwp`와 대응 `prefix14-2020.pdf`를
+같은2/3쪽에서 직접 열어 확인했다. 표의 row9→10 컷, 병합 셀 제목의 단일 소비,
+뒤 셀 내용과 외곽은 유지된다. 기존 대체 글꼴 외형/약2px 수준 외곽선 차이는
+남아 있다. 대표 자료: `policy-review/native-review-2.png`,
+`native-review-3.png`, 각각의 `native-overlay-*.png`.
+기존 캡처를 재사용하지 않고 이번 Native 산출로 다시 생성했다.
+
+소스 고정은 `policy-source.sha256`, 입력/기준 PDF/명령·backend 정보는
+`policy-review/run.json` 및 `policy-review.mjs`에 기록한다. 이 정상 대조군은
+정책 수정의 **무회귀 대조**이며, 미해결 carrier의 시각 개선을 대신하는 자료가 아니다.
+원본 비영점 reset, 자식 분할 후 후속 문단 원점, 76000/78000/79000/80000HU
+대조군의 실제 물리 밴드 소비는 다음 구현 범위로 남는다.
+
+fresh WASM 후 `node output/7353/r19/frame-after-child/policy-review.mjs --wasm`
+완료. `backend-comparison.json`에서3쪽 전체 Native/WASM JSON의 수치·비수치
+차이0, SVG3/3동일을 확인했다. `wasm-review-2.png`와 독립
+`wasm-overlay-3.png`도 직접 열어 컷·제목 중복 없음·후속 셀과 외곽을 판독했다.
+이번 WASM 결과에서도 기존 글꼴/작은 외곽 차이는 남아 있으며, 미해결 carrier에
+대한 새 시각 판정 요청이나 통과 선언은 하지 않는다.
+
+### 2026-09-27 후속: 온전한 행 경계의 자식 표 이어받기
+
+직전 정책 수정에 이어 비영점 저장 원점 감소를 자식 표의 소유 프레임으로
+연결했다. Legacy 기본값과 기존 WIP는 유지하며 commit/push는 하지 않았다.
+
+이번 지원 범위는 첫 조각과 마지막 조각이 모두 **온전한 행의 집합**인 정상
+저장 입력이다. `whole-cell-saved.hwp`(80000HU/셀 단위 분할),
+`whole-row-saved.hwp`(79000HU/줄 분할 허용)는 정책이 달라도 실제 저장 컷이
+0·1행→2행이다. 첫 조각6330HU와 후속 문단 원점4448HU를 양쪽에서 대조하면
+동일한 유일한 경계가 나온다. 이 조건으로 지원 범위를 한정한 이유는 임의의
+vpos 감소로 줄이나 셀의 소유 페이지를 추정하지 않기 위해서다.
+
+반대로 `carrier-saved.hwp`(78000HU)는 첫 조각5781HU가 온전한 행의 합과
+다르다. 이 경우에는 `unqualified stored child frame geometry`로 명시적으로
+거부한다. 셀 내부 컷을 가진 `line-split-saved.hwp`도 아직 미해결이다.
+따라서 원본 전체 문서 또는 모든 파생 대조군을 해결한 절편이 아니다.
+
+#### 생산 결과와 실제 소비 경로
+
+- `stored_text.rs::cell_frames`는 뒤 문단의 감소를 직전 excluded host에 연결한
+  후보로 분리한다. fresh/dirty 입력에 저장 컷을 부여하지 않는다.
+- `ir.rs::bind_table`의 ExcludedTable 분기에서 `stored_child.rs::qualify`가
+  정상 저장된 자식의 첫 높이와 마지막 행+바깥여백을 동일한 composed plan에
+  대조한다. 반복 제목, rowspan, 내부 컷, 자식 내부 컨트롤은 이 계약의 비적용
+  경로다. 선언 높이를 clamp하거나 행 높이를 줄이는 처리는 없다.
+- `TableContentPlan::stored_row_starts`는 자식 안의 컷이다. 부모의 뒤 문단 앞에
+  StoredFrameStart를 삽입하지 않는다. `FlowBlock::has_stored_frame_cut`를 통해
+  조상에 프레임 존재만 전달한다.
+- `fragment.rs::fit_plain_rows`는 해당 경계에서 수용한 조각을 끝내며 실제
+  `reserved_height`와 continuation을 반환한다. `starts_stored_frame`는 해당
+  행이 미소비 상태일 때만 참이다. 예산 부족은 기존 fit/DoesNotFit 경로를 따른다.
+- `flow.rs` AnchoredTable의 `fit_in_frame`→reserved_height→anchor_tail 경로가
+  동일 조각의 점유와 여백을 소비한다. 조상 셀 inset은 terminal_inset에서
+  예약한다. 마지막 조각 뒤 바깥여백을 소비한 후 다음 문단의100HU 앞 간격을
+  적용한다. paint에는 별도의 원점 재계산이나 높이 덮어쓰기를 추가하지 않았다.
+
+#### 계약과 확인 결과
+
+`tests/cases/issue_7353_stored_child_tail.rs`에 정상 저장2종의 양성 계약과
+짧아진 첫 조각의 음성 계약을 추가했다. 양성 계약은3쪽 종료,2/3쪽 행 소속,
+각 셀 전체 문자열의 단일 보존, 글줄의 셀 내부 배치, 자식 마지막 행3882HU,
+후속 문단과5×4표의 순서 및 본문 영역 내부를 검사한다.3882HU는 원문3개 줄
+1000HU·두 줄 사이 간격300HU·셀 위아래 여백141HU에서 독립적으로 정했다.
+후속 문단 간격 기대값에 처음100HU를 빠뜨린 오류를 원문 문단모양 확인 후
+바로잡았으며 실제 좌표를 맞추는 제품 코드 수정은 하지 않았다.
+
+- 이전 정책 수정 직후 바이너리로 같은 입력은 `unqualified stored cell frame reset`
+  FAIL (`tail-current-before.log`). 이전 보존 rlib에 정식 계약을 연결한 실행도
+  같은 원인으로 FAIL (`tail-contract-before.log`); 두 산출의 시점은 구분한다.
+- 새 코드: 관련10개 suite **191PASS/0FAIL** (`tail-final-summary.log`). 그중 새
+  계약3건은 셀 전체 내용/좌표 검사를 보강한 뒤 다시3PASS
+  (`tail-content-issue_7353_stored_child_tail.log`). ignore/golden/래칫 변경 없음.
+- Native build: `tail-final-build.log`. 명령은 동일 공유target에
+  `cargo build --locked -p rhwp --lib --target-dir /home/edward/mygithub/rhwp/target/pr-review`.
+- Native 2/3쪽 review와 독립 overlay를 직접 확인했다. 목표 자식의 행 분할,
+  자료출처와 뒤 표가 보존된다. 대체 글꼴 외형 및 약2~4px의 위치·외곽
+  차이가 남아 있으므로 PDF 픽셀 완전 일치라고 보고하지 않는다.
+
+증적은 `output/7353/r19/frame-after-child/tail-review/`, 생성 명령은
+`tail-review.mjs`, 현재 source manifest는 `tail-source.sha256`에 있다.
+기준 head `50823731af6050c60ec3cfcc898abf36daa6b35a` 위 작업중 변경이며,
+입력/PDF 해시는 fixture README 및 run.json으로 연결한다. 이 선택 범위 검증을
+전체 CI 또는 R5 완료로 보고하지 않는다. fresh WASM 후 최종 결과를 아래에 추가한다.
+
+최종 확인:
+
+- Native lib Clippy `-D warnings` PASS (`tail-clippy.log`,54.18초),
+  `cargo fmt --all -- --check` / `git diff --check` PASS.
+- Docker fresh WASM 성공 (`tail-wasm-build.log`,7분13초). SHA256
+  `01e052be0627ed07768ae2d169a754b0828a743ab0e2faef8140e5622533a7d6`.
+- `node output/7353/r19/frame-after-child/tail-review.mjs --wasm` 및
+  같은 명령의 `--whole-row` 실행 성공. 두 정상 입력 모두3쪽이며, 각각 전체3쪽
+  Native/WASM JSON 수치·비수치 차이0, SVG3/3동일이다. 각 review 폴더의
+  `backend-comparison.json`과 `run.json`에 기록했다.
+- `tail-row-review/wasm-review-2.png`, `wasm-review-3.png`와
+  `tail-review/wasm-review-2.png`, `wasm-overlay-3.png`를 직접 판독했다.
+  온전한 자식 행의 컷과 다음 쪽 후속 문단·표가 유지된다. 글꼴/작은 위치 차이는
+  위와 같다. 이후 작업지시자의 “시각 판정 통과입니다” 피드백으로 이번에 제시한
+  정상 대조군2/3쪽의 온전한 행 경계 이어받기 시각 판정을 통과로 기록했다.
+  대상 증적과 WASM 해시는 위와 동일하며, 이 판정으로 `carrier-*`의 끝 행 높이나
+  `line-split-*`의 셀 내부 분할까지 통과 처리하지 않는다.
+- 새 계약 양성2건의 이전 보존 rlib 결과는 모두 같은 미지원 원인으로 FAIL이다.
+  최종191건 결과 중 새3건은 강화된 전체 셀 문자열/좌표 검사까지 재실행 PASS다.
+  전체workspace/all-target/WASM Clippy 및 전체 CI는 이번 선택 검증 범위에 포함하지 않았다.
+
+다음 구현 대상은 `carrier-*`의 짧아지는 페이지 끝 행과 `line-split-*`의 셀 내부
+컷이다. 첫 조각과 내용 소유 컷을 분리해 물리 밴드를 소비하는 계약이 필요하며,
+현재 온전한 행 경계의 통과를 그 범위의 완료로 확장하지 않는다.
+
+### 2026-09-27 후속: 페이지 끝 행의 저장 물리 높이
+
+이번 절편은 위 두 대상 중 `carrier-*`의 행 경계와 실제 높이를 구현했다.
+`line-split-*`의 내부 줄 컷은 서로 다른 조각의 물리 높이·정렬 계약이 필요하므로
+미지원 상태를 유지한다. 이 구분을 정식 음성 계약으로 보호한다.
+
+#### 근거와 적용 경로
+
+입력은 fixture README에 기록한 한컴 정상 저장본 그대로이며, 새로운 기준 PDF나
+LineSeg 보정본을 만들지 않았다. 첫 조각5781HU, 앞 행1565HU, 다음 쪽 마지막
+행3882HU와 다음 문단 원점4448HU를 함께 사용한다. 독립 PDF의 끝 행은 약4207HU
+(인쇄 스케일 포함)이며, 저장 첫 조각에서 계산한 물리 밴드는4216HU다.
+기존4765HU는 이 저장 조각의 무조건적인 최소 높이가 아니었다.
+
+- 생산: `stored_child::qualify`가 뒤 문단 원점을 만족하는 유일한 행 경계를 찾고,
+  첫 조각에서 앞 행들을 제외해 끝 행의 물리 밴드를 확정한다. 모든 셀의 실제 줄·
+  패딩이 그 안에 들어가야 한다. 더 큰 임의 밴드나 내용보다 작은 밴드는 거부한다.
+- 측정: 부모 bind 전 자식 `row_heights/height`와 각 셀의 `content_offset_y`를
+  동일 저장 밴드로 확정한다. 원본 IR·호출자 `minimum_height`는 수정하지 않고
+  별도 `stored_row_bands`에 qualified 결과를 보존한다. 일반 재조판 및 직접 구성한
+  API 최소 높이 계약에는 이 저장 정보가 없다.
+- 수용/컷: `TableCursor::reset_row`는 qualified 밴드를 소비 잔량으로 사용한다.
+  `fit_plain_rows`는 같은 행 높이로 예산을 검사하고 같은 offset으로 줄을 배치한다.
+  저장 행 경계에서 자식이 멈추고, 다음 쪽에는 마지막 행부터 이어진다. 예산이
+  부족하면 기존 DoesNotFit/이월 계약을 따르며 작은 높이를 수용한 뒤 paint에서
+  다시 늘리지 않는다. 내부 줄 컷·rowspan·반복 제목은 이번 qualification 비적용이다.
+- 누적 예약/최종 배치: 조각 `reserved_height`를 AnchoredTable의 바깥여백 및
+  조상 셀 inset과 함께 소비한다. 별도 paint clamp나 좌표 덮어쓰기는 추가하지 않았다.
+  마지막 행 뒤 자료출처와 후속5×4표까지 동일3쪽에 남고 EOF에서 종료한다.
+
+#### 실행 검증
+
+- 수정 전 `band-before-issue_7353_stored_child_tail.log`: 기존 정상2건 PASS,
+  새 carrier 계약은 `unqualified stored child frame geometry`로 FAIL. 빌드 실패가 아니다.
+- 최종 관련10 suite **193PASS/0FAIL** (`band-final-summary.log`). 새 계약은5건이며
+  양성3종, 직렬화 정상 대조 뒤 모순된 높이2종 거부, 내부 컷 미지원 경계다.
+  첫 밴드가 맞아도 뒤 문단 원점만1HU 바꾼 음성 입력은 거부하는 검사를 추가한 뒤
+  새5건을 다시 실행해 통과했다(`band-final-contract-issue_7353_stored_child_tail.log`).
+  전체 셀 내용의 단일 보존·셀 내부 좌표·CENTER 대칭·후속 문단/표·3쪽 종료를 검사한다.
+  기존 물리 최소 밴드12건·중첩/rowspan/제목 계약도 통과했다. ignore/golden 변경 없음.
+- Native 최종 빌드 `band-final-build.log` 성공. Native compare/overlay/review는
+  `output/7353/r19/frame-after-child/carrier-band-review/`에 생성했다.
+  2/3쪽을 직접 판독해 목표 끝 행 및 다음 쪽 내용 보존을 확인했다. 글꼴 외형과
+  작은 기존 위치 차이는 남아 있으며 PDF 픽셀 완전 일치를 주장하지 않는다.
+
+기준 head `50823731af6050c60ec3cfcc898abf36daa6b35a` 위 WIP이다. 최종 소스는
+`output/7353/r19/frame-after-child/band-source.sha256`, 입력/PDF 해시는 fixture
+README와 review `run.json`에 연결한다. 생성 명령은 `band-review.mjs`다.
+이 기록은 선택 범위의 구현/검증이며 전체 CI·R5 완료 또는 메인테이너 시각 통과가 아니다.
+Docker fresh WASM과 최종 직접 판독 결과는 아래에 추가한다.
+
+- Native lib Clippy `-D warnings` PASS (`band-clippy.log`,29.04초), Cargo fmt 및
+  별도 integration source rustfmt check, `git diff --check` PASS.
+- 기존 승인 whole-cell/whole-row의 새 Native JSON은 이전 `tail-review/actual` 및
+  `tail-row-review/actual` 산출과 각각 `cmp`로 바이트 동일함을 확인했다.
+- Docker fresh WASM 성공 (`band-wasm-build.log`,7분14초). SHA256
+  `bead6c215e71ef2544d39ab9da44f25a581fd369a51b4027ea9ce9503a28a1d8`.
+  `band-review.mjs --wasm` 및 `--whole-cell`·`--whole-row` 조합을 실행했다.
+  carrier와 정상 대조군2종 모두3쪽, Native/WASM JSON 수치·비수치 차이0,
+  SVG 각각3/3동일이다. 각 `*-band-review/backend-comparison.json` 및
+  `run.json`이 소스 manifest·입력/PDF·WASM 해시를 보존한다.
+- 최종 `carrier-band-review/native-review-2.png`, `wasm-review-2.png`,
+  `wasm-review-3.png`, 독립 `wasm-overlay-3.png`를 직접 판독했다.
+  2쪽 마지막 `주거용 건물` 행의 높이/가운데 정렬, 3쪽 마지막 행 및 자료출처·
+  후속 표 연결을 확인했다. 작은 위치/대체 글꼴 차이는 위와 동일하다.
+  이 두 쪽을 메인테이너 시각 판정 대상으로 제시한다.
+
+남은 대상은 `line-split-*`의 셀 내부 줄 컷이다. 이번 저장 물리 밴드 계약을
+그대로 내부 줄 분할에 적용하거나 미지원 검사를 삭제하지 않는다. 해당 조각별
+패딩·정렬·소비 잔량을 독립 PDF/저장 줄 소유와 함께 검증해야 한다.
+전체 CI/all-target/WASM Clippy는 이번 내부 절편의 실행 범위가 아니며,
+커밋·push·PR·기본 엔진 전환은 수행하지 않았다.
+
+작업지시자의 후속 “시각 판정 통과입니다. 다음 절편 진행을 승인합니다”에 따라
+위 carrier 2/3쪽의 저장 끝 행 높이·정렬 판정을 통과로 기록한다. 다음 작업은
+`line-split-*`의 내부 줄 컷이며 이 승인으로 해당 미지원 범위까지 통과 처리하지 않는다.
+
+### 후속 절편: 자식 셀 내부 저장 줄 컷과 조각별 정렬
+
+정상 저장 `tests/fixtures/issue7353/child-frame-tail/line-split-saved.hwp`와
+대응 `line-split-2024.pdf`를 사용했다. 생성 job·해시는 fixture README에
+기록되어 있으며 이 절편에서 원본 LineSeg를 수정하거나 PDF를 재생성하지 않았다.
+독립 기준은 마지막 행의 `년간·상승률`이2쪽, `(%)`가3쪽인 소유 관계다.
+숫자 셀은2쪽에 한 번만 나타나고 자료출처·후속5×4표는3쪽에서 이어진다.
+
+- 입력→공통 결과: `ir.rs::bind_table`의 AnchoredTable 분기에서 다음 문단의
+  저장 원점과 자식 common.height를 `stored_child::qualify`에 전달한다.
+  한 행 안에 저장 컷이 있으면 `stored_child_frames::StoredRowFrames::qualify`가
+  같은 `FlowCursor::fit_cell_until`로 셀별 시작 cursor·끝 block·점유·정렬을
+  확정한다. 첫 행 조각3351HU는9681−6330, 마지막1282HU는1848−283×2이다.
+  실제 저장 컷에 도달해야 하며, 마지막 줄과 패딩이 마지막 밴드를 정확히
+  설명해야 한다. 내용보다 작은 공간이나 임의 꼬리 높이를 수용하지 않는다.
+- 측정→예산: bind 전에 row_heights/height를 두 물리 조각의 합으로 확정한다.
+  `fragment.rs::TableCursor::fit_plain_rows`는 해당 저장 조각 전체 높이를
+  검사한다. 실패하면 소비하지 않고 DoesNotFit/이월한다. 충분하면 해당 조각의
+  실제 높이를 누적하고 cursor와 remaining band를 함께 전진시킨다.
+- 실제 배치: `StoredRowFrame::place`가 qualification과 같은 cell flow를
+  실제 원점에서 소비한다. CENTER는 각 조각의 내용+패딩을 기준으로 적용한다.
+  `FlowCursor`의 AnchoredTable/상위 Table 소비 경로는 반환 reserved_height와
+  바깥여백·셀 inset을 예약한다. `TextPaint::build_node`는 이 placement를 그린다.
+  별도 clipping·paint 높이 확장·Legacy fallback은 추가하지 않았다.
+- 종료/비적용: 두 번째 조각을 끝내면 다음 행으로 이동한다. 이미 끝난 숫자
+  셀의 content는 다시 내보내지 않는다. 한 plain-text 행의 두 저장 프레임에
+  한정하며 rowspan·반복 제목·다중 컷 행·세 프레임 이상·편집 후 재조판은
+  이번 qualification 대상이 아니다. 해당 범위까지 지원/시각 일치로 주장하지 않는다.
+
+수정 전 `split-before-issue_7353_stored_child_tail.log`에서 새 정상 내부 컷
+계약만 `unqualified stored child frame geometry`로 FAIL(4PASS/1FAIL)했다.
+수정 후 정식 계약7건 및 관련10 suite는 **195PASS/0FAIL**이다.
+`output/7353/r19/frame-after-child/split-final-summary.log`와 개별 로그에
+연결한다. 정상 입력/직렬화 대조, 작은/큰 첫 밴드·모순된 tail·셀 단위 정책
+음성 입력, API 부족 예산에서 미소비 후 재시도, 실제 셀 좌표·단일 내용 소유·
+CENTER·뒤 문단/표·EOF를 검사했다. 45/50/54px는 내용 줄은 들어가지만
+3351HU 조각+283×2HU 바깥여백+141HU 부모 끝 inset은 들어가지 않는 예산이다.
+재시도는 충분한 공간의 직접 결과와 실제 placement가 동일하다.
+API 예산/수동 모순 입력은 PDF 일치 근거가 아닌 경계 계약으로 구분했다.
+
+Native 2/3쪽을 직접 판독해 내부 줄 소속·숫자 중복 없음·후속 표 연결을 확인했다.
+작은 위치·대체 글꼴 외형 차이는 남는다. 이 입력은 수정 전 미지원이므로 그 차이를
+‘기존 차이’로 단정하지 않으며 PDF 픽셀 완전 일치를 주장하지 않는다.
+증적은 `output/7353/r19/frame-after-child/line-split-split-review/`, 명령은
+`split-review.mjs --wasm`이다. 기준 HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a`
+위 WIP이며 `split-source.sha256`·`split-test-source.sha256`으로 구현/계약을 고정한다.
+Docker fresh WASM·lint·최종 직접 판독 결과는 아래에 이어 기록한다.
+
+- Native lib Clippy `-D warnings` PASS (`split-clippy.log`,30.24초).
+  Cargo fmt check·integration source rustfmt check·`git diff --check` PASS.
+  전체 CI/all-target/WASM Clippy를 수행했다는 의미는 아니다.
+- 기존 carrier/whole-cell/whole-row의 새 Native JSON은 각 이전 band-review
+  Native JSON과 `cmp`로 바이트 동일하다. 승인된 대조군 배치를 바꾸지 않았다.
+- Docker fresh WASM 성공 (`split-wasm-build.log`,7분14초), SHA256
+  `3a2c9082849ba008f66d042bed2e6e739cc139466bebb3e873d88f8ea6b7b95b`.
+  `split-review.mjs --wasm` 및 `--carrier`·`--whole-cell`·`--whole-row`를 실행했다.
+  네 입력 모두3쪽이며 Native/WASM JSON 수치·비수치 차이0, SVG 각각3/3동일이다.
+  `*-split-review/backend-comparison.json`과 `run.json`이 입력/PDF/소스/WASM을 고정한다.
+- 최종 `line-split-split-review/wasm-review-2.png`, `wasm-review-3.png`,
+  standalone `wasm-overlay-3.png`를 직접 판독했다. 목표 줄 소속·숫자 미반복·
+  조각별 정렬·자료출처와 후속 표 보존을 확인했다. 앞서 기록한 작은 위치·
+  글꼴 차이는 남아 있다. PDF 래스터화의 xref 복구 경고는 로그에 보존했으며,
+  출력 원본을 바꾸거나 이 경고를 fidelity 통과 근거로 사용하지 않았다.
+
+현재 절편은 **구현/선택 범위 검증 완료, 메인테이너 2/3쪽 시각 판정 대기**다.
+R5 전체 완료·원본 전체 문서 통과·미지원 다중 프레임 지원을 의미하지 않는다.
+커밋·push·PR·기본 엔진 전환은 수행하지 않았다.
+
+#### 메인테이너 피드백: 2쪽 내부 셀 시작 원점 미충족
+
+“이번 변경이 오히려 2쪽 내부 셀 시작위치가 더 차이가 난다”는 피드백으로
+현재 절편의 시각 판정은 **미충족**이다. 위 테스트 PASS는 유지하되 셀 상단
+원점의 정확성까지 검증했다는 뜻으로 사용하지 않는다. 다음 절편으로 넘기지 않는다.
+
+- 실제2쪽 부모 표와 내부1×1표 시작Y가 모두77.48px다. 부모 유효 위 여백은
+  223HU(2.973333px)인데 내부 표 시작 원점에 재적용되지 않았다.
+- 내부 첫 글줄 `편익의 종류`는Y79.76px, baseline13.6px → 기준선93.36px.
+  같은 입력의 한컴 PDF trace는608×0.12pt =72.96pt →96dpi 기준97.28px로,
+  rhwp가3.92px 위다. 이는 글꼴 굵기 문제가 아니라 원점 차이다.
+- 입력 내부 문단0/1의 첫 저장vpos는 둘 다100HU이다. `stored_text.rs::cell_frames`
+  는 `line.vertical_pos < previous`만 검사하므로 이 쪽 경계를 표시하지 않는다.
+  `flow.rs::fit_cell_until`은 자식이 `starts_stored_frame()`일 때만 조상 위 여백을
+  재계상한다. 이 경우 일반 예산 분할로 처리되어 부모223HU와 자식141HU의
+  프레임 재시작 대신 이전 문단 줄간격의 잔량을 소비한다.
+- 진단 `start-cursor.rs`는 실제1쪽 내부 표 높이26.2666667px 예산에서
+  `space_left=0.9466667px`(71HU)를 보존하고 다음 첫 줄을2.28px에 둔다.
+  이는 잔량71HU + 다음 문단 앞 간격100HU다. 정상 재시작에서 필요한
+  부모223HU + 자식141HU + 문단 앞100HU와 비교하면293HU(3.906667px)가
+  부족하여 PDF의3.92px 차이와 대응한다(나머지는 PDF 출력 좌표 반올림 범위).
+  근거: `output/7353/r19/frame-after-child/start-origin.log`, `start-cursor.log`,
+  `control-80000-trace-2.xml`, 기존 `line-split-split-review/actual/native.json`.
+- 이전 승인 입력whole-cell(같은 용지80000HU)의 `whole-cell-band-review`에서도
+  동일한 내부 표Y77.48/글줄Y79.76이다. 이전carrier(78000HU)는 내부 표Y80.453333이다.
+  따라서 기존 출력 간 차이는 확인되지만, 다른 입력인carrier와 비교한 것을 이번
+  줄 분할 코드의 신규 회귀라고 단정하지 않는다. 같은line-split 입력의 수정 전은
+  미지원이어서 전체 출력 전후 비교가 불가능하다.
+
+현재 원인 조사를 위해 진단 산출물만 추가했으며 production 코드는 수정하지 않았다.
+후속 보정은 단순 `<`→`<=` 변경이나Y 보정이 아니다. 같은 원점을 갖는 겹침 문단과
+실제 새 프레임을 독립된 저장 조각/수용 경계 근거로 구분하고, 부모·자식 여백과
+문단 간격을 한 번씩 계상해야 한다. 회귀 계약에 부모→내부 표 시작점과 첫 글줄
+기준선의 독립 기대값을 추가하고, 1쪽 끝/2쪽 처음/2쪽 끝을 함께 재검증한다.
+
+#### 승인된 보정: 같은 양수 저장 원점의 문단 프레임 시작
+
+메인테이너의 수정 승인 후 `stored_text.rs::cell_frames`의 판정을 보강했다.
+단순 `<=` 치환은 하지 않았다. 현재/직전 저장 글줄 원점이 같고 양수이며,
+현재 문단 앞 간격과 그 원점이 일치하는 일반 텍스트 문단에서만 판단한다.
+직전 줄 높이가 양수이고 음수 줄간격·문단 뒤 간격이 없어 정상 전진과 같은
+원점 배치가 모순되는 경우 저장 프레임 시작을 보존한다. 직전 문단의 단 설정은
+비점유 메타데이터로 허용하되, 유효한 최초 단 설정인지는 기존 IR binder가 검증한다.
+0 원점·앞 간격과 다른 원점·음수 줄간격의 겹침 가능 사례는 새 판정에서 제외했다.
+이 범위를 임의 편집 LineSeg나 모든 겹침 문단의 해석 완료로 확대하지 않는다.
+
+실제 경로는 `cell_frames → ir.rs::bind_table`의 `StoredFrameStart` 생성 →
+`flow.rs::fit_cell_until`의 terminal inset 사전 예약/마커 경계 종료 →
+자식 continuation의 `starts_stored_frame` → 같은 fit의 부모 위 여백 계상 →
+`fragment.rs::fit_plain_rows`의 실제 셀/글줄 배치다. paint에서Y를 옮기지 않았다.
+일반 예산 분할의 잔여 Space를 새 저장 프레임의 첫 문단 앞 간격으로 섞지 않는다.
+기존 자식 내부 컷·최소 물리 밴드·숫자 동반 셀·마지막 유닛 뒤 종료 경로는 유지했다.
+
+독립 근거는 앞 절과 동일한 정상 저장 `line-split-saved.hwp`와 대응 PDF다.
+API 반례는 이 입력을 복제해 원점/줄간격만 바꾼 합성 계약이며 PDF 근거와 구분했다.
+
+| 관측값, 96dpi | 수정 전 | 수정 후 | 독립 기준/판정 |
+| --- | ---: | ---: | --- |
+| 2쪽 부모→내부 표 시작 간격 | 0 | 2.973333px | 부모 유효 위 여백223HU |
+| 내부 표→첫 글줄 간격 | 2.28px | 3.213333px | 내부 위 여백141HU + 문단 앞100HU |
+| 첫 글줄 기준선 | 93.36px | 97.266667px | PDF97.28px, 반올림 범위 내 |
+| 1쪽 부모 표 하단 | 986.213333px | 989.186667px | PDF985.285333px, **약3.9px 차이 남음** |
+
+1쪽 하단 변화도 숨기지 않는다. 저장 컷이 인식되면서 기존 물리 밴드 예약 후
+부모 아래 여백223HU가 계상된다. 본문 하단991.066667px 안에는 있지만 PDF와
+외곽선이 정확히 같지는 않다. 위 여백 보정을 근거로 1쪽 외곽 일치까지 선언하지 않는다.
+`native-review-1.png`에서 이 차이를 직접 확인했고, 2쪽 상단의 개선과 별도 판정한다.
+3쪽 JSON/SVG는 수정 전과 바이트 동일하며 기존 자식 마지막 줄·자료출처·뒤 표를 보존한다.
+carrier/whole-row는 세 쪽 모두 수정 전과 동일하다. whole-cell은 동일한 양수 원점을
+가진 1/2쪽에 같은 보정이 적용되고 3쪽은 그대로다.
+
+검증 명령/로그는 `output/7353/r19/frame-after-child/`에 보존했다.
+
+- `origin-before-issue_7353_stored_child_tail.log`: 새 2쪽 원점 검사 수정 전 FAIL
+  (7 PASS/1 FAIL, 빌드 오류가 아닌 실제 좌표 assertion). 보정 후 같은 원점 검사 PASS.
+  이후 1쪽 아래 여백/본문 수용 검사도 추가해 `origin-final-summary.log` 9/9 PASS.
+- `run-policies.sh origin-related ...`: 관련10 suite **197/197 PASS**.
+  `origin-boundaries-summary.log`: 기존 원점·프레임 끝·채워진/중첩/열린 누름틀
+  5 suite **18/18 PASS**. 총 선택 범위215건이며 전체 CI 실행을 의미하지 않는다.
+  기존 내부 줄 컷의 예산 부족/재시도 계약은 새로 인정한 앞 문단 프레임을 먼저
+  이어받도록 수정했고,3351HU 물리 밴드의 required height와 소유 유닛 검사는 유지했다.
+- Native build/Clippy `-D warnings` PASS (`origin-build.log`, `origin-clippy.log`).
+  Cargo fmt·integration source rustfmt·`git diff --check` 확인.
+- Native 직접 판독: `line-split-origin-review/native-review-{1,2}.png`.
+  기준 HEAD는 앞 절과 같은 `50823731af6050c60ec3cfcc898abf36daa6b35a` 위 WIP다.
+  `origin-source.sha256`·`origin-test-source.sha256`으로 최종 소스/계약을 고정했다.
+
+현재 2쪽 시작 원점 개선의 구현/선택 검증 결과이며, 메인테이너 시각 통과를
+대신 선언하지 않는다. Docker fresh WASM 결과는 아래에 이어 기록한다.
+
+- Docker fresh WASM PASS,7분12초 (`origin-wasm-build.log`). WASM SHA256:
+  `4a2edde6df5c5fb58d455f9931f201c1b25df2306881cf9b5850dc37476a77fd`.
+- `origin-review.mjs --wasm` 및 `--carrier`·`--whole-cell`·`--whole-row` 실행.
+  네 입력 모두 Native/fresh WASM JSON 수치·비수치 차이0, 각 SVG3/3 동일.
+  `*-origin-review/run.json`, `backend-comparison.json`에 입력/PDF/소스/WASM 연결을 남겼다.
+- `line-split-origin-review/wasm-review-2.png`, standalone `wasm-overlay-2.png`,
+  `wasm-origin-detail.png`를 직접 확인했다. 마지막 자료는 같은 원본 좌표의
+  PDF/수정 전 WASM/수정 후 fresh WASM을 표시하며 위치를 맞춰 이동하지 않았다.
+  2쪽 상단의 개선과 **1쪽 하단 차이 증가**를 함께 보존했다. PDF 래스터화의
+  xref 복구 경고는 로그에 남겼으며 입력/PDF 원본은 변경하지 않았다.
+
+상태: **2쪽 원점 보정 후보 구현/선택 검증 완료, 전체 시각 통과 아님**.
+1쪽 하단 차이를 포함한 메인테이너 판정 대기이며 다음 절편으로 넘기지 않았다.
+커밋·push·PR·기본 엔진 전환·전체 CI 검증은 수행하지 않았다.
+
+#### 메인테이너 판정과 원본 전체 문서 종단 확인 (2026-09-27)
+
+메인테이너가 앞의 원점 보정 자료에 **시각 판정 통과, 다음 진행 승인**을 주었다.
+앞서 공개한1쪽 하단 약3.9px 차이도 기록에 유지한다. 이 승인을 모든 입력의 PDF
+외곽선 완전 일치나 R5 전환 승인으로 확대하지 않는다.
+
+다음 대상은 추가 속성 구현이 아니라 `samples/86712_regulatory_analysis.hwp`의
+무수정 원본 종단 실행이다. production source는 앞의 `origin-source.sha256`과
+전부 같음을 재확인했다. 같은 소스의 Docker fresh WASM을 재사용했으며 재빌드하지 않았다.
+
+- `origin-probe samples/86712_regulatory_analysis.hwp output/7353/r19/after-origin/original`:
+  이전 문단172의 미지원 경계를 넘어 **64쪽을 출력하고 정상 종료**.
+- 정상 한컴 재저장 대조군 `output/7353/r19/child-frame-tail/full-saved.hwp`도64쪽 종료.
+  원본을 이 입력으로 교체하지 않았다.
+- `node output/7353/r19/after-origin/capture.mjs --wasm` 및 `--resaved --wasm`:
+  두 입력 각각 Native/WASM JSON 수치·비수치 차이0, **SVG64/64 동일**.
+  원본 증적은 `after-origin/`, 재저장 증적은 `after-origin/resaved/`에 분리했다.
+  각각의 `run.json`에 input/PDF/source/WASM 해시를 고정했다.
+
+**원본의 현재 한컴 PDF와의 시각 차이는 남는다.** 원본27쪽에는 건설공사비지수
+자식 표의 첫 행만,28쪽에는 나머지 두 행과 자료출처·후속 표가 나온다. PDF27쪽에는
+세 행 전부가 있다. 원본29쪽의 앞 문단도 PDF와 다르다. 같은 총64쪽 또는 backend
+일치만으로 이 차이를 통과시키지 않는다.
+
+기존 `frame-after-child/compare.log`의 실제 입력 비교와 이번 최종 출력 검사를 연결했다.
+
+| 원본 IR 위치 | 무수정 원본 저장값 | 정상 한컴 재저장값 | 출력에서 확인한 의미 |
+| --- | --- | --- | --- |
+| p172/parent.cell77/p0 | vpos `[0,1560,0,1560]` | `[0,1560,3120,0]` | 원본은 마지막2줄이 다음 프레임, 재저장은 마지막1줄만 이월 |
+| parent.cell80/p0/control1/cell0의 p6·p8·p10·p15 | 재저장보다 각1줄 많음 | 총4줄 적음 | 자식 표 이전 누적 저장 위치 차이7200HU(96px) |
+| 같은 셀 p20의3×12 자식 표 | 저장 첫 높이1463HU | 10212HU | 원본 첫 조각은 제목 행, 재저장은 전체3행 |
+
+문자/char_offsets/필드/스타일 참조의 기존 비교 결과와 달리, 실제 줄 분할과 저장
+높이는 서로 다르다. 재저장본27·28쪽의 Native/fresh WASM review 및29쪽 standalone
+overlay를 직접 판독하면 표 분할·자료출처·후속 표 위치가 PDF와 가깝게 대응한다.
+글꼴 폭·굵기와 작은 외곽 차이는 남으며 자동 점수를 시각 판정으로 사용하지 않았다.
+원본1·27·28·29·36·64쪽 review와27쪽 overlay도 직접 확인했다. 원본1·36·64쪽의
+주요 배치와 종료 내용은 보존되지만, 이는64쪽 전수 시각 판독을 뜻하지 않는다.
+재저장 대조군 결과를 원본의 PDF 일치로 보고하지 않는다.
+
+`tests/cases/issue_7353_stored_child_tail.rs`에 무수정 원본 계약을 추가했다.
+페이지 수64를 정답으로 고정하지 않고 아래 실제 출력 의미를 검사한다.
+
+- 원본 cell77의 저장4줄이 실제 같은 셀에서 정확히 한 번씩 보존되고, 저장 원점
+  재시작 전후2줄씩 서로 인접한 페이지에 속함.
+- p172의 부모/중첩 표 조각이 본문 안에 있고,3×12 자식 첫 조각 높이가 원본의
+  독립 저장 높이1463HU이며, 모든 자식 셀의 내용이 누락·중복 없이 보존됨.
+- 자식 마지막 조각 뒤 자료출처가 같은 페이지에 배치되고 문서가 안전 상한 전에
+  정상 종료하며, 종료 후 재호출에도 추가 페이지가 없음.
+
+명령 `bash output/7353/r19/frame-after-child/run-policies.sh original-contract issue_7353_stored_child_tail`:
+**10/10 PASS**, rustfmt 및 `git diff --check` PASS.
+테스트 SHA256 `d2efafb771ce77351a912c8f33fb5f507658caffb51d3f0a69e62552bbd6317a`.
+처음 작성 시 전체 표의 순회 순서를 셀 읽기 순서로 사용한 검사 오류를 수정하여 해당
+소유 셀만 검사했다. 이 초기 assertion 실패는 production 결함의 수정 전 FAIL 증거가 아니다.
+기존215건은 이전 동일 production source 검증이며 이번 실행 건수와 중복 합산하지 않는다.
+
+상태: **원본 종단 실행/저장 소유 계약 충족, 원본과 현재 한컴 재출력의 시각 일치 미충족**.
+남은 판정은 저장 줄 정보 보존과 현재 한컴 재조판 차이의 구분이다. 이 차이를 지우려고
+원본 LineSeg를 변경하거나 문서별 예외를 추가하지 않았다. A 전체 시각 승인, B/C 잔여
+기능, D 통합/기본값 전환은 완료로 올리지 않는다. 이번에는 테스트/증적/기록만 추가했으며
+전체 CI·추가 production 수정·커밋·push·PR·기본 엔진 변경은 하지 않았다.
+
+#### 절편 종료 — 메인테이너의 입력 신뢰성 판정
+
+작업지시자는 이 절편을 종료하고 다음으로 진행하도록 지시했으며, 그 의미를 다음처럼
+명확히 했다: **재저장본의 rhwp 피델리티가 맞으므로 원본 샘플의 저장 조판 정보 문제로
+판정하고, 이번 차이를 우리 조판 로직의 결함으로 보지 않는다.**
+
+이를 이번 샘플에 대한 메인테이너 판정으로 반영한다. 원본27–29쪽과 현재 한컴 PDF의
+차이는 앞의 실측 기록 그대로 보존하지만, 이 차이는 더 이상 이번 작업의 수정 대상이나
+다음 진행 차단 항목이 아니다. 같은 원본/재저장 비교와 원인 재조사는 중단한다.
+재저장 대조군을 통과 근거로 수용하며, 원본 파일 교체·삭제나 저장 정보 강제 수정은 하지 않는다.
+이 판정을 다른 문서의 저장 정보 또는 모든 V2 경로의 정확성으로 일반화하지 않는다.
+
+다음 절편은 승인 계획B의 기존 실물 TAC·어울림 사례 연결이다. 기존 바이너리로 입력을
+바꾸지 않고 최초 진입을 실행한 결과, 다음 세 가지 지원 공백을 확인했다.
+
+| 기존 회귀 | V2 최초 거부 | 다음 처리 |
+| --- | --- | --- |
+| #6601, #7150 | p0 `stored TAC mixed text requires qualified space advances` | 같은 공백/TAC 구성 경로의 source 축·서식 조건부터 함께 확인 |
+| #7008 | `section decoration, grid or writing direction` | 표 배치 이전 구역 속성 제한으로 분리 |
+| #7158 | p0 `TAC carrier paragraph constraints` | 목표 어울림 문단 이전의 문단 제약으로 분리 |
+
+이 결과는 기존 Legacy 회귀 실패가 아니라 V2 미지원 진입점이다. 네 입력 모두 아직
+전체 출력/시각 통과로 세지 않는다. 샘플을 재작성하거나 미지원 속성을 제거하지 않고
+공통 원인을 처리하며, 이번에 종료한 원본27–29쪽 조사로 되돌아가지 않는다.
+
+#### B 진행 — 첫 본문 TAC의 공백·구조 슬롯 소유 연결
+
+2026-09-27 다음 작업 승인에 따라 기존 실물 사례의 V2 진입을 처리했다.
+원본27–29쪽 종료 판정은 유지한다. 이번 변경은 Legacy 기본값이나 저장 LineSeg의
+내용을 바꾸지 않고, 기존 공통 IR의 문자 위치를 V2 공백 경로에서도 수용하는 것이다.
+
+**입력 → 규칙 → 소비 경로.** #6601 무수정 HWPX의 첫 문단은
+`secd, cold, 표 A, 공백 3개, 표 B`이며 parser 결과는 `char_offsets=[24,25,26]`,
+`hwpx_axis_shift=8`, `control_text_positions=[0,0,0,3]`이다. 구조 컨트롤의8-unit
+슬롯은 원문 소유 위치이지 가로 점유 폭이 아니다. 기존 control-only 경로의
+구조 접두부 검증을 `tac.rs::qualified_structural_axis`로 공유하고, `tac_spaces::compose`
+및 `tac.rs::object_rows`가 같은 검증을 사용하도록 연결했다. 후자는 source 슬롯의
+연속성·줄 소유를 검증하고 공백 advance와 표 rect를 `ParagraphItem::InlineTables`로
+생산한다. 기존 공통 fit/예약/paint가 이 결과를 소비하며, 이후 좌표 보정이나 문서별
+예외를 추가하지 않았다. 모호한 다중 줄 HWPX 축, 탭, 보이는 혼합 텍스트의 제한은 유지했다.
+
+정식 회귀 `issue_7353_table_v2_document_flow.rs`의
+`first_body_space_separated_tac_preserves_common_ir_order_in_both_formats`는 위 source 순서의
+합성 입력을 HWP/HWPX로 직렬화·재파싱한다. 좌/중앙/우 정렬별 실제 두 표 좌표,
+3개 공백의 위치·연속성·보존, 뒤 문단 y=74와 양 포맷의 표 bbox를 검사한다.
+기대값의 근거는 구조 슬롯의 무점유, 표80px·바깥여백2px, 줄 너비300px의 정렬 불변식이다.
+합성 계약을 정상 한컴 저장본 또는 #6601 전체 피델리티 증거로 세지 않는다.
+
+- 수정 전 첫 계약 실행은 동일한 source축 자격 오류로116 PASS/1 FAIL이었다
+  (`frame-after-child/structural-before-issue_7353_table_v2_document_flow.log`).
+  이후 검사 코드의 공개 accessor/노드 순회와 종료 간격 옵션을 정정했으므로 이를
+  최종 테스트 파일 그대로의 수정 전 실행이라고 표현하지 않는다. 실물 #6601의
+  수정 전 거부는 앞 절편의 최초 진입 표에, 수정 후 거부는
+  `core-flow-cases/6601-after.log`에 남겼다. `before.log`는 합성 계약의 요약이다.
+- Native build와 lib Clippy(`--locked -p rhwp --lib`, 공용 `target/pr-review`) PASS.
+  `run-policies.sh structural-after issue_7353_table_v2_document_flow` 117 PASS,
+  관련 ir_text/nested_text/split_policy/headers 37 PASS, 기존 Legacy 네 사례12 PASS:
+  이번 선택 검사 **166 PASS/0 FAIL**. 로그는 `output/7353/r19/core-flow-cases/`의
+  `after.log`, `controls.log`, `legacy.log`; fmt 및 `git diff --check` PASS.
+- `docker compose --env-file .env.docker -p rhwp run --rm wasm` 성공(7m08s).
+  `node output/7353/r19/core-flow-cases/check-wasm.mjs`로 fresh WASM을 Chrome에서 실행했다.
+  초기 Chrome 시작 실패는 기존 로컬 검증과 같은 `--no-sandbox` 실행 옵션으로 해소했다.
+  합성 계약은 Native/fresh WASM JSON·SVG 동일이며 backend 비교 PNG에서 두 표·공백
+  간격·뒤 문단을 직접 확인했다. `structural-spaces-backends.png`와 standalone
+  `structural-spaces-overlay.png`는 **backend 계약 자료이며 한컴 정답지 비교가 아니다**.
+- 검증 source는 HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` 위 기존 WIP를 포함한다.
+  변경 source/test·입력·WASM SHA256은 `core-flow-cases/wasm-results.json`에 기록했다.
+  전체 CI 상당 검사나 push 전 전체 lint 묶음은 실행하지 않았으며 커밋/push/PR/기본값
+  전환도 하지 않았다.
+
+**남은 실물 경계.** 같은 오류 문자열을 공통 원인으로 묶었던 앞 기록을 정정한다.
+
+| 사례 | 이번 fresh WASM의 최초 거부와 조사 결과 | 다음 구현 경계 |
+| --- | --- | --- |
+| #6601 | 공백/구조 축 거부 해소 후 `unequal TAC occupied envelopes`; 두 표의 바깥여백 포함 높이13136/13116HU, 저장 줄13136HU | 서로 다른 표의 기준선·상하 점유 공통 계산. 20HU 임의 tolerance로 우회하지 않음 |
+| #7150 | 첫 셀 내부 `s0/p0/t2/c0/p0`의 탭과 TAC 혼합이 공백 자격 오류의 원인 | 탭 정지점의 위치 의존 advance; 공백으로 치환하지 않음 |
+| #7008 | `section decoration, grid or writing direction` | 구역 속성 지원 경계 |
+| #7158 | `TAC carrier paragraph constraints` | 어울림 대상 이전 carrier 문단 속성 경계 |
+
+네 사례의 Legacy 선택 회귀는 통과하지만 V2 전체 출력은 아직 미완료다. 이번 결과로
+B 완료나 한컴 시각 판정 통과를 선언하지 않는다. 다음 작업 우선순위는 #6601의 서로
+다른 TAC 점유 높이를 실제 기준선 규칙으로 연결하는 것이며 별도 소규모 재승인은 요구하지 않는다.
+
+#### B 진행 — 서로 다른 TAC 높이의 기준선·점유 영역 공유
+
+2026-09-28(KST). 승인된 다음 작업으로 표별 `높이+여백`이 같아야 한다는 제한을
+제거했다. 기존 #7049/#7150의 한컴 관측과 이번 정상 저장 대조군이 확인하는 표 기준선
+(높이의85% 위/15% 아래)을 사용한다. 임의 오차로 두 높이를 같다고 취급하지 않는다.
+`tac_metrics::TableBand`는 기준선 위 `max(.85*h+top)`와 아래
+`max(.15*h+bottom)`를 각각 구해 줄 점유 높이와 각 표의 원점을 함께 생산한다.
+두 최댓값의 소유 표가 다를 수 있으므로 개별 전체 높이의 단순 최댓값으로 대체하지 않는다.
+Baseline 이외 문단 세로정렬은 명시적 미지원으로 남겼으며 그림 경로는 변경하지 않았다.
+
+**실제 소비 연결.** 저장 경로 `tac::object_rows`는 저장 줄 높이와 공통 band의 일치를
+검사하고, 재조판 경로 `tac_fresh::compose`는 같은 band를 생성한다. 둘 다
+`ParagraphItem::InlineTables {height, advance, rects}`를 반환한다.
+`document_input.rs` 본문 경로와 `ir.rs` 셀 경로는 `tac::bind`에서 실제 자식 plan 크기를
+검사한 뒤 `FlowBlock::InlineTables`로 연결한다. `content.rs`는 그 rect의 점유를 검증하고,
+`flow.rs`는 같은 height로 예산을 검사한 후 동일한 자식 x/y를 배치한다. 예산 부족이면
+행 전체를 이월한다. paint에서 높이를 다시 늘리거나 위치를 clamp하지 않는다.
+행 내부 분할/rowspan 컷은 이 원자 TAC 행 변경에 비해당이며 기존 분할 회귀는 유지했다.
+
+**정식 검사와 독립 근거.** `issue_7353_table_v2_document_flow.rs`에 다음을 연결했다.
+
+- 저장/재조판 × 본문/부모 셀 × 현재 쪽 수용/이월: 다른 높이의 실제 표 y·높이,
+  빈 host 줄 보존, 내용 각각1회, 앞쪽에 일부만 출력되지 않는 원자 행 이월.
+- 서로 다른 표가 최대 ascent/descent를 소유하는 반례: 개별 최대5900HU와 달리
+  실제 공통 점유6325HU. 뒤 문단 위치를 검사하고5900HU 저장 줄은 거부한다.
+- Top/Center/Bottom 문단 세로정렬을 Baseline으로 추측하지 않는 비적용 계약.
+- `tests/fixtures/issue7353_unequal_tac_review/`의 정상 한컴 저장본: 두 자식 표,
+  부모 외곽, 셀 안팎 뒤 문단의 최종 좌표·보존. 저장본과 carrier LineSeg만 지운
+  재조판 파생본을 별도 검사한다. 생성 방법·SHA·MCP job·PDF 측정값은 fixture README 참조.
+
+이 fixture는 기존 정상 `noop-saved.hwp`의 글꼴·용지·부모 표를 유지하고 내부 표만
+높이5000/8000HU, 너비10000HU, 여백200HU로 바꾼 독립 대조군이다. 한컴이 HWPX를
+저장한 HWP를 무수정 입력으로 사용하고 그 HWP에서 PDF를 생성했다. #6601 원본의
+미지원 속성을 지운 대체본이 아니다. 앞서 작은 합성 HWP의 한컴 변환은180초 timeout으로
+끝나 시각 근거에서 제외했다. 모든 입력/실패 증거는 `output/7353/r19/unequal-tac/`에 보존했다.
+
+**검증 결과.**
+
+- 변경 전 WASM에 동일한 두 최종 합성 입력을 실행하면 저장/재조판 각각
+  `unequal TAC occupied envelopes` / `fresh TAC unequal baseline envelopes`로 거부했다.
+  `before-wasm.json`에 이전 WASM 및 동일 입력 SHA와 오류를 보존했다. 변경 후 두 입력은
+  각1쪽을 출력하고 Native/fresh WASM JSON·SVG가 완전히 같다(`after-wasm.json`).
+- Native build, lib Clippy(`cargo clippy --locked -p rhwp --lib`, 공용 target/pr-review),
+  해당 source/test rustfmt 및 diff check PASS. 최종 document_flow121 PASS,
+  ir_text9/nested_text11/split_policy3/headers14 및 기존 Legacy 네 사례12 PASS:
+  선택 검증 합계 **170 PASS/0 FAIL**. `unequal-tac/after.log`(기존120개)와
+  `frame-after-child/unequal-fixture-final-issue_7353_table_v2_document_flow.log`(121개)를 연결한다.
+- 최초 PDF 좌표 계약은 인쇄 축척을 반영하지 않아 부모 폭320pt 대319.643pt로 실패했다.
+  PDF trace의 독립 x/y transform(.119851/.12, .119935/.12)을 반영해 비교했고
+  0.25pt 허용치는 늘리지 않았다. 이는 테스트의 PDF 좌표 변환 수정이며 엔진 보정이 아니다.
+- Docker fresh WASM 성공(7m14s). `node output/7353/r19/unequal-tac/check-wasm.mjs`,
+  `node output/7353/r19/unequal-tac/capture.mjs --wasm` PASS.
+  Chrome의 일시 시작 실패 뒤 같은 명령 재실행이 성공했다. 정상 한컴 fixture도
+  Native/fresh WASM JSON·SVG 동일, 각각1쪽이다.
+- `review/wasm-review-1.png`와 `review/wasm-overlay-1.png`를 직접 판독했다.
+  작은 표 시작점이 큰 표보다34px 낮고, 각 표 하단·부모 외곽·CELL AFTER·뒤 본문 위치가
+  대응한다. 대체 글꼴 외형 및 PDF 인쇄 축척에 따른 미세한 외곽 차이는 남는다.
+  PNG에는 좌표 축척 보정을 적용하지 않았다. 자동 픽셀 점수로 시각 통과를 대신하지 않는다.
+  에이전트 직접 확인 완료이며 이번 대조군의 메인테이너 판정은 아직 받지 않았다.
+
+검증 기준은 HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + 기존 WIP.
+source/test SHA는 `unequal-tac/source.sha256`, WASM SHA는
+`2323510f3a8fd31ad367a90b6dfc5a5ea8c660d98970870598d64f8890440270`.
+WASM 생성 뒤에는 검사/fixture/기록만 추가했으며 production source는 변경하지 않았다.
+전체 CI 및 push 전 전체 workspace lint는 이번 절편에서 실행하지 않았다.
+Legacy 기본값·원본 샘플·baseline/ignore는 변경하지 않았고 commit/push/PR도 하지 않았다.
+
+**다음 경계.** 무수정 #6601은 이번 TAC 높이 제한을 통과한 뒤 첫 셀에서
+`cell direction or line wrap` 미지원으로 멈춘다. SQUEEZE/KEEP 셀 줄바꿈 속성의
+실제 의미와 저장/재조판 소비 경로가 다음 대상이다. #6601 전체 출력이나 B/R5 완료로
+세지 않으며, 종료 승인된86712 원본/재저장 조사로 돌아가지 않는다.
+
+#### B 진행 — 저장 SQUEEZE 셀의 정책 전달과 공통 자간 계산
+
+2026-09-28 메인테이너가 직전 높이 차이 TAC 대조군을 시각 통과로 판정하고 다음 절편을
+승인했다. 그 판정은 해당 대조군 범위에 반영한다. #6601 원본 첫 두 표의 셀은 모두
+HWPX `subList lineWrap=SQUEEZE`이며 parser가 공통 IR `Cell.line_wrap=1`로 보존하고 있다.
+V2 `ir::bind_table`은 이 값이0이 아니라는 이유로 내용 구성 전에 전체를 거부했다.
+
+**규칙과 소비 연결.** 셀 줄바꿈 정책은 grid에서 버릴 속성이 아니라 문단 구성 입력이다.
+`CellParagraphComposer::compose_with_cell_wrap`로 전달하고, 기본/custom composer는
+지원하지 않는 정책을 거부한다. 실제 TextComposer/IrTextComposer는 공통
+`stored_text::validate_cell_wrap`로 intact plain 저장 줄만 수용한다. dirty/fresh/개체 혼합 및
+KEEP/알 수 없는 값은 기존 BREAK 재조판으로 대체하지 않는다. 기존 localize의 저장 폭·원문
+소유 검증과 최종 paint 검증도 그대로 거친다.
+
+속성 거부만 제거한 첫 실행에서 긴 한 줄 대조군은 `text preview run outside occupied line`으로
+실패했다. 따라서 공통 `layout_composed_paragraph_in_frame`에 명시적 `squeeze_stored_line`
+정책을 추가했다. V2는 source SQUEEZE일 때만 true를 전달하며 기존 Legacy 호출은 false다.
+공통 glyph 폭 계산의 자간 수렴 함수를 사용하고, 여백/셀 폭 변경이나 출력 clip은 하지 않는다.
+완성된 TextLine/TextRun·End를 구성기가 한 번 생산하고 `ir.rs`의 Lines→FlowBlock,
+fit/예약과 `text_ir::record_items`의 paint가 동일 결과를 소비한다. paint 전 별도 좌표 보정은 없다.
+분할 컷/rowspan/이어받기 알고리즘 변경은 비해당이며 관련 선택 회귀를 실행했다.
+
+**독립 증거와 정식 검사.** `tests/fixtures/issue7353_squeeze_review/README.md`에 입력 생성,
+한컴 저장/PDF job, SHA 및 관측값을 기록했다. 정상 한컴 글꼴·용지·부모 표를 가진 기존 대조군에서
+자식 표를10000HU 너비 SQUEEZE로 바꾸고 긴 문구를 넣어 한컴이 LineSeg를 생성했다.
+저장 HWP를 무수정으로 시험하고, 별도 HWPX roundtrip도 검사한다. 두 형식 모두 실제 한 줄,
+좌우 안여백, 음수 자간, 자식/부모 외곽, 셀 안팎 뒤 문단의 위치·내용1회 보존을 검사한다.
+한컴 PDF는 glyph 겹침을 포함한 강한 자간 압축을 보여준다. rhwp의 SVG 대체 글꼴/글자 형태는
+그와 완전히 같지 않아 **한 줄·폭·표 기하 일치와 glyph 외형 완전 일치를 구분**한다.
+
+`issue6601_first_paragraph_replays_original_squeeze_cells`는 원본 첫 문단의 속성·내용·저장
+줄을 바꾸지 않고 이후 문단만 제외한 분리 계약이다. 두 표의 크기·기준선차17HU, 모든 셀,
+비공백 내용의 순서/보존을 실제 V2 출력에서 검사한다. 전체 문서 피델리티로 세지 않는다.
+원본 전체는 이제 paragraph index1의 `TAC row exceeds stored width`에서 거부되며,
+첫 두 표의 SQUEEZE 미지원에서 벗어났음을 `squeeze/original.log`에 남겼다.
+
+변경 전 WASM을 보존해 같은 정상 저장 대조군과 무수정 #6601을 실행했으며 둘 다
+`cell direction or line wrap` 오류다(`squeeze/before.json`). 초기 negative 테스트는 dirty flag를
+HWP로 직렬화해 재현하려다 실패했다. runtime flag가 파일에 보존되지 않는 테스트 오류이므로
+Document IR에서 직접 검증하도록 고쳤으며 구현 조건/기준값을 완화하지 않았다.
+
+**최종 검증과 시각 확인.** Native build, lib Clippy, 해당 source/test rustfmt 및 diff check PASS.
+`document_flow`124, `ir_text`9, `nested_text`11, `split_policy`3, `headers`14,
+기존 Legacy #6601/#7150/#7008/#7158 합계12: 선택 검증 **173 PASS/0 FAIL**.
+`squeeze/tests.log`, `squeeze/original-test.log` 및
+`frame-after-child/squeeze-original-issue_7353_table_v2_document_flow.log`에 남겼다.
+이는 전체 CI 통과 주장이 아니며 전체 workspace lint와 전체 회귀는 이번 절편에서 실행하지 않았다.
+
+Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm` 성공(7m12s),
+`node output/7353/r19/squeeze/capture.mjs --wasm` 성공.
+`squeeze/review/backend-comparison.json`은 Native/fresh WASM 숫자 차이0, 기타 차이0,
+SVG 동일을 기록한다. 각1쪽이다. 직접 `wasm-review-1.png`와 `wasm-overlay-1.png`를 열어
+한 줄 유지, 양쪽 안여백, 부모/자식 외곽 및 CELL AFTER/뒤 본문 위치를 확인했다.
+강한 SQUEEZE의 개별 glyph 모양·겹침 차이는 남는다. 글꼴만의 원인이라고 단정하지 않으며
+완전한 glyph 피델리티 통과로 보고하지 않는다. 자동 픽셀 보조값34.94%도 판정을 대신하지 않는다.
+이번 대조군의 메인테이너 시각 판정은 아직 대기다.
+
+검증 source는 HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + 기존 WIP이며,
+`squeeze/source.sha256`의 현재 source/test 일치를 확인했다. fresh WASM SHA256은
+`27005fe478f33f3bfb325ee28c3776725f0cb943d0771901ec33403b5bc90afa`.
+`squeeze/review/run.json`에 입력/PDF/WASM/source SHA와 DPI를 연결했다.
+빌드 후 production source를 변경하지 않았다. Legacy 기본값·원본·baseline/ignore는 그대로이며,
+commit/push/PR은 하지 않았다. 다음 대상은 원본 paragraph index1의 TAC 저장 폭 거부 원인이다.
+
+#### B 진행 — 가운데 정렬 과대폭 TAC와 셀의 물리 영역
+
+2026-09-28 메인테이너가 직전 SQUEEZE 시각 대조군을 통과 판정하고 다음 절편을 승인했다.
+그 판정은 이전 대조군 범위에 반영하며 #6601 전체 완료로 확대하지 않는다.
+
+**원인과 독립 근거.** #6601 paragraph1 자체의 표는 폭50741+바깥여백276=51017HU로
+저장 줄51024HU 안에 든다. 거부 지점은 첫 셀 paragraph0의 가운데 정렬 자식 표다.
+저장 줄49720HU에 자식49855+바깥여백280=50135HU가 놓인다. `tac::object_rows`는
+단일 과대폭 표를 Left/Justify/Right만 수용해 Center를 거부했다.
+원본 한컴 PDF(`unequal-tac/36331407_side_by_side_tac_tables-2020.pdf`)의 부모
+왼쪽43.896pt/자식 왼쪽50.373pt는 안여백510+바깥여백140HU를 반영한다.
+별도 정상 한컴 저장 대조군도 같은 규칙을 보인다. 가운데 여유가 음수일 때 시작점을
+음수로 이동하거나 표를 축소하는 규칙이 아니다.
+
+**생산→소비 추적.** `tac::object_rows`의 정렬 여유→공통 Rect→`tac::compose`의
+ParagraphItem::InlineTables→`ir::bind_table`/`tac::bind`의 불변 InlineTableInput→
+`TableContentPlan::from_grid_rows`의 물리 검사→`FlowCursor::fit_cell_until`의
+area.x+child.x 및 child.plan.width→재귀 paint다. 가운데 정렬도 단일 과대폭 규칙에
+포함했다. 후속 물리 검사는 안여백을 제외한 줄 폭을 clipping 경계로 혼동하고 있었다.
+이를 셀 오른쪽 물리 경계로 수정해 오른쪽 안여백에 걸치는 표를 수용한다.
+측정된 표 폭·높이·여백·그리기 좌표를 바꾸거나 clamp하지 않는다.
+부모 외곽을 넘는 자식은 별도 clipping 계약이 없으므로 여전히 명시적 거부다.
+여러 표/선행 공백/후행 공백만 넘치는 행의 저장 줄 거부와 본문 텍스트 폭 검사는 유지한다.
+
+**검증.** 정상 저장 대조군과 가운데 정렬 후행 공백 계약은 수정 전 각각
+`TAC row exceeds stored width`로 FAIL, 나머지123 PASS였다
+(`frame-after-child/center-before-issue_7353_table_v2_document_flow.log`).
+가운데 정렬 수용만 바꾼 중간 실행은 셀의 `ContentBounds`로 실패해 실제 후속 소비자를
+추가 확인했다. 최종 document_flow126 및 geometry9/nested18/ir_text9/nested_text11/
+split_policy3/headers14/Legacy12 합계 **202 PASS/0 FAIL**이다.
+`center-overwide/tests-final.log`와 해당 `frame-after-child/center-final-*` 로그에 연결한다.
+실제 출력 HWP/HWPX, 부모·자식·뒤 문단 좌표, 오른쪽 물리 경계 정확히 fit 및1HU 초과를
+검사한다. 정상 문서와 합성 경계를 구분한 출처는
+`tests/fixtures/issue7353_center_overwide_review/README.md`다.
+분할 컷·예약·이어받기·종료 코드는 비변경이고 관련 nested/split/header 대조를 실행했다.
+
+최종 Native build17.05s, lib Clippy27.33s, 해당 Rust fmt/diff check PASS.
+Native review를 직접 열어 자식 시작점·너비·외곽·부모 및 뒤 문단 위치를 확인했다.
+Docker fresh WASM 성공(7m10s), `node output/7353/r19/center-overwide/capture.mjs --wasm`
+성공. Native/fresh WASM 각각1쪽, JSON 숫자/기타 차이0 및 SVG 동일이다.
+`center-overwide/review/wasm-review-1.png`와 `wasm-overlay-1.png`를 직접 열어
+자식 표 시작·외곽·너비, 부모와 앞뒤 문단을 대조했다. 인쇄 축척에 따른 미세한 외곽 차이와
+글꼴 외형 차이는 남으며 자동 잉크 보조값40.10%로 시각 통과를 대신하지 않는다.
+에이전트 직접 확인 완료. 2026-09-28 메인테이너가 이 가운데 정렬 과대폭 TAC
+대조군을 시각 통과 판정하고 다음 절편을 승인했다.
+
+source는 HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + 기존 WIP이며,
+`center-overwide/source.sha256` 일치를 확인했다. WASM SHA256은
+`a697b550eae681fd665eac925494914c7016d6d48930569dc48c0d81288f214d`.
+입력/PDF/source/WASM SHA는 `center-overwide/review/run.json`에 연결했다.
+원본 전체 재실행은 기존 폭 거부를 지나 paragraph index1의
+`stored child anchor ownership`에 도달한다(`center-overwide/original-final.log`).
+이 결과는 전체 원본 완료나 B/R5 완료가 아니며 다음 절편의 경계다.
+전체 CI·workspace lint는 미실행이며 Legacy 기본값·원본·baseline/ignore 변경과
+commit/push/PR은 하지 않았다.
+
+#### B 진행 — 셀 시작의 단 정의와 TAC 그림 소유권
+
+2026-09-28 직전 가운데 정렬 과대폭 TAC 판정 통과를 반영하고 다음 경계를 진행했다.
+원본 #6601의 paragraph1/parent cell1/child cell0 첫 문단은 `[ColumnDef, Picture]`다.
+정상 단 정의는1단/동일폭/간격0/구분선 없음이고 그림은7087×7087HU TAC다.
+`ir::initial_cell_column`은 이미 이를 검증하며 `seen[0]`을 구조 슬롯으로 처리한다.
+거부 원인은 `text_ir::compose_items`의 그림 진입 조건이 Picture만 허용한 점이다.
+
+**생산→소비.** 이 조건에 검증된 ColumnDef를 포함하되 슬롯을 삭제하지 않았다.
+`tac::stored_object_rows`가 원래 UTF-16 위치로 그림의 저장 줄과 Rect를 만든다.
+`pictures::compose`는 이 결과로 ObjectRow와 실제 ImageNode를 함께 생성한다.
+`ir::bind_table`은 구조 슬롯과 그림 슬롯을 별도 소유 검사하고 동일 bounds를 Lines로
+전달한다. `FlowCursor`가 그 줄 상자를 수용/이월하며 `text_ir::bind_paint`와 TextPaint는
+같은 payload를 해당 줄 위치에 배치한다. 뒤에서 구조 슬롯 너비·별도 그림 원점을
+추측하거나 덮어쓰지 않는다. 다단·비초기 단 선언/그림 appearance/리소스 검사는 그대로다.
+분할 컷·예약·이어받기·종료 알고리즘은 비변경이며 새 문단은 기존 picture row 경로를 쓴다.
+
+**입력과 독립 기준.** 원본 그림·crop·단 슬롯을 검증 가능한 중첩 표 대조군에 옮기고,
+LineSeg를 비운 후 한컴이 정상 저장/출력한 HWP와 PDF를 만들었다. 생성 절차, 변경 속성,
+job ID, 해시 및 독립 기대 좌표는 `tests/fixtures/issue7353_column_picture_review/README.md`.
+원본의 재저장/수정본이 아니라 독립 대조군이며 원본 전체 통과를 주장하지 않는다.
+
+**수정 전후.** 정상1단을 설정한 정식 export 경계 검사는 수정 전
+`stored child anchor ownership` FAIL/기존27 PASS였다
+(`column-picture/tests-before-valid.log`, `frame-after-child/column-picture-before-valid-*`).
+최초 합성 입력은 ColumnDef 기본값의0단 설정으로 잘못 거부되어1단으로 고친 뒤 다시 실행했다.
+정상 한컴 저장본도 같은 수정 전 코드의 실제 DocumentV2 constructor에서 동일하게 실패했다
+(`column-picture/fixture-before.log`; 출력 생성 전 거부되어 before PNG는 없음).
+최종 export29는 정상 HWP/HWPX96/144DPI의 그림·부모/자식·뒤 문단 좌표와 종료,
+합성 같은 줄/다른 줄 두 그림의 소유권·1회 출력·다단 거부를 검사한다.
+새 PDF 검사의 Rust 소수 리터럴 빌드 오류는 고친 후 export29를 다시 실행해 통과했다.
+이 빌드 오류는 결함 재현으로 세지 않는다.
+
+최종 focused export29/document_flow126/geometry9/nested18/ir_text9/nested_text11/
+split_policy3/headers14/cell_column_insets3/local_column_anchor6/Legacy12 = **240 PASS/0 FAIL**.
+`column-picture/tests-final.log`(초기 export 빌드 오류 포함), `tests-export-final.log`,
+`tests-legacy.log` 및 `frame-after-child/column-picture-final-*`의 최종 개별 로그를 연결한다.
+Native build16.84s, lib Clippy27.68s, 변경 Rust fmt/diff check PASS.
+Native review를 직접 열어 그림 중앙 위치·크기·내용, 자식/부모 외곽, CELL BEFORE/AFTER와
+뒤 본문을 확인했다. 미세한 인쇄 축척·glyph 차이를 자동 픽셀 보조값으로 통과 처리하지 않는다.
+
+원본 전체는 이번 조건을 통과하고 paragraph index2의 `body control or multiple anchors`에
+도달했다(`column-picture/original.log`). 원본 앞 두 문단만 보존한 별도 진단 출력은2쪽으로
+기준 PDF 표지1쪽과 차이가 남아 있다(`column-picture/excerpt/native.json`). 이 원본의
+페이지 배치 경계는 별도 후속 대상이며 대조군 통과로 해소했다고 보고하지 않는다.
+Legacy 기본값, 원본, baseline/ignore를 변경하지 않았고 전체 CI·workspace lint는 미실행이다.
+commit/push/PR은 하지 않았다. fresh WASM 대조는 아래 최종 검증으로 연결한다.
+
+Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm` 성공(7m17s),
+`node output/7353/r19/column-picture/capture.mjs --wasm` 성공.
+Native/fresh WASM 각각1쪽, JSON 숫자 차이0/기타 차이0, SVG 동일이다.
+`column-picture/review/wasm-review-1.png`와 `wasm-overlay-1.png`를 직접 열어
+그림 중앙 위치·크기·crop 내용, 부모/자식 외곽, 앞뒤 문단을 대조했다.
+미세한 인쇄 축척·글꼴 외형/래스터 차이는 남는다. 2026-09-28 메인테이너가 이번
+대조군의 시각 판정 통과와 다음 절편 진행을 승인했다.
+source는 HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + 기존 WIP,
+`column-picture/source.sha256` 일치 확인. fresh WASM SHA256은
+`aad67a9d4ffeef7c6ecf4783dce037e9741af067766c4b60265f973a202daca8`.
+입력/PDF/source/WASM SHA는 `column-picture/review/run.json`에 연결한다.
+최종 production 변경 뒤에 Native·WASM·시각 대조를 수행했고 이후 production은 바꾸지 않았다.
+
+#### B 진행 — 본문 TAC 종료 줄간격과 빈 페이지
+
+원본 #6601의 표지 앞 두 문단을 그대로 보존한 HWPX에서 내용이 없는2쪽이 생성됐다.
+원본 PDF1쪽과 대응하며 추출은 뒤 문단만 제거한다. 입력 생성 방식·해시·독립 기대 좌표는
+`tests/fixtures/issue7353_body_tac_tail_review/README.md`에 기록했다.
+본문 높이71428HU 중 실제 두 줄과 사이 간격은71222HU다. 마지막 TAC의 다음 줄 간격
+780HU를 물리 내용처럼 이월하여574HU만 있는 빈2쪽을 만들던 문제다.
+
+**규칙과 실제 경로.** `tac::compose`가 만든 ParagraphEnd의 마지막 줄간격을
+`document_input.rs`의 TAC lowering에서만 문서 끝/다음 명시적 Page break 조건으로
+소비하지 않게 한다. 기존 `into_flow_items_at_end`를 사용하며 문단 뒤 간격·표 여백·
+작성된 빈 문단·일반 후속 줄 간격은 유지한다. 결과 FlowBlock을 BodyCursor가 수용/이월하고
+FlowCursor의 기존 InlineTables 줄 상자와 TextPaint가 같은 실제 점유를 배치한다.
+뒤에서 높이를 축소하거나 원점을 덮어쓰지 않는다. 페이지 나눔의 블록 인덱스는 lowering 뒤
+확정된다. 중첩 표의 컷·rowspan·예약·clipping 알고리즘과 일반 텍스트/앵커 호스트 종료는
+비변경이다. 마지막 줄간격을 실제 빈 문단이나 임의 Space와 동일시하지 않는다.
+
+**수정 전후와 반례.** 정식 `tests/cases/issue_7353_table_v2_document_flow.rs`의
+추가3건을 수정 전 production에서 실행해127 PASS/2 FAIL을 확인했다
+(`output/7353/r19/body-tac-tail/before-final.log`). 원본 표지는2쪽→1쪽,
+합성 문서 끝/명시적 쪽 나눔은[2,3]쪽→[1,2]쪽이다. 일반 다음 문단 간격과 작성된 빈 문단은
+전후 모두 보존된다. 최초 합성 입력의 Justify 거부는 Left로 바로잡고 재실행했으며
+그 입력 오류를 결함 재현으로 세지 않는다. `body-tac-tail/before-after.json`은
+수정 전2쪽의 Body가 비었고 **전후1쪽 JSON/SVG가 완전히 동일**함을 확인한다.
+표6개·그림1개·제목/부서명·부모 위치/높이 및 뒤 본문의 실제 좌표와 종료를 검사했다.
+
+최종 document_flow129/export29/geometry9/nested18/ir_text9/nested_text11/
+split_policy3/headers14/page_number_timeline5/Legacy12 = **239 PASS/0 FAIL**.
+로그는 `body-tac-tail/tests-final.log`, `tests-document-final.log`와
+`frame-after-child/body-tail-final-*`의 개별 결과를 연결한다. 종합 로그에 포함된 초기
+HWP 라운드트립 거부는 최종 document_flow 재실행129 PASS로 구분한다.
+이 별도 rhwp HWP 직렬화본의 picture appearance/resource 거부는 수정 전후 동일하다
+(`roundtrip-before.log`, `roundtrip-after.log`). 해당 경로는 개선/통과 범위에서 제외했다.
+Native build27.35s, lib Clippy28.85s, 변경 Rust fmt/diff check PASS.
+
+Native review에서 결재란·부모/자식 외곽·제목·로고·부서명의 보존을 직접 확인했다.
+원본 PDF와 남는 대체 글꼴 외형 및 미세한 인쇄 축척 차이를 해소했다고 주장하지 않는다.
+원본 전체의 다음 경계는 paragraph index2의 ClickHere+TAC 혼재
+`body control or multiple anchors`이며 이번 표지 발췌 통과는 원본 전체/B/R5 완료가 아니다.
+Legacy 기본값·원본·baseline/ignore는 변경하지 않았다. 전체 CI/workspace lint는 미실행,
+commit/push/PR은 하지 않았다. 2026-09-28 메인테이너가 이 절편의 시각 판정 통과와
+다음 절편 진행을 승인했다.
+
+Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm` 성공(7m21s).
+`node output/7353/r19/body-tac-tail/capture.mjs --wasm`으로 실제 Chrome에서 검증했다.
+Native/fresh WASM 모두1쪽, JSON 숫자 차이0/기타 차이0, SVG 동일이다.
+`body-tac-tail/review/wasm-review-1.png`와 `wasm-overlay-1.png`를 직접 열어 결재란,
+제목 상자, 로고, 부서명의 위치와 내용 보존을 확인했다. 기존 글꼴 차이는 남는다.
+source는 HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + 기존 WIP이며
+`body-tac-tail/source.sha256` 일치 확인. fresh WASM SHA256은
+`e4e7859e8e78ac993de8f3641ada49051f362bf742216344a03df3129ed1ba83`.
+입력·기준 PDF·source·WASM 해시는 `body-tac-tail/review/run.json`, backend 대조는
+`backend-comparison.json`에 기록했다. 최종 production 변경 후 검증이며 이후 production은
+바꾸지 않았다. 표지1쪽 보존과 불필요한 빈2쪽 제거가 이번 시각 판정의 범위다.
+
+#### B/C 진행 — 저장 누름틀 시작과 TAC 표의 원본 슬롯 소유
+
+원본 #6601 paragraph2는 `[ClickHere(본문, dirty=1), TAC Table]`, char_count17,
+표시 문자열 없음, LineSeg 시작0이다. 로컬 field_ranges/orphan ends는 없다.
+공공기관 문서의 삽입 콘텐츠 앞에 남는 누름틀 시작 슬롯을 표시 객체와 혼동하지 않는다.
+필드·저장 줄을 삭제하지 않고 원래 table control index1과 UTF-16 offset8을 보존한다.
+
+**규칙·소비 경로.** `fields::stored_tac_prefix`가 저장된 채워진 ClickHere 시작 접두부와
+TAC 표의 조합을 검증한다. body `document_input`과 cell `ir::bind_table`/`text_ir`가
+같은 조건으로 진입하며 필드만 비가시 소유 슬롯으로 계상한다. `tac::object_rows`는
+완전한 슬롯 스트림과 기존 저장 축을 검증하고 필드를 가로 점유에 더하지 않는다.
+원본 표 인덱스로 StoredTacRow의 Rect를 만들어 `tac::compose` → InlineTables →
+body/recursive FlowCursor의 요구 높이·컷 → 기존 paint로 전달한다. 줄 소속·최종 원점은
+뒤에서 다시 추측하지 않는다. child 컷/rowspan/반복 제목/예약·이어받기 알고리즘은 비변경이다.
+날짜/계산 필드, dirty=0, 표 뒤 시작, 닫힌 범위, fresh 필드+TAC는 계속 거부한다.
+누름틀 명령을 평가하거나 문단 밖 끝 범위를 만들어내지 않는다.
+
+**독립 입력과 제한.** 원본 앞 네 문단을 보존한 `prefix.hwpx`와 한컴 재저장
+`prefix-saved.hwp`는 필드 진입을 통과한 다음 표 안의 `text preview run outside occupied line`에서
+거부된다. 이 검사를 완화하지 않았다. 두 진단본과 실패 로그를 보존하며 원본 전체 통과로
+보고하지 않는다. 이번 규칙만 검증할 독립 대조군은 원본 표지 둘째 TAC 앞에 원본 필드
+시작을 추가하고 LineSeg를 비워 **한컴이 정상 저장**한 `control-saved.hwp`다.
+동일 HWP에서 만든 `control-2020.pdf`와1쪽을 대조한다. 생성 과정·변경 속성·job ID·
+해시·독립 기대 좌표는 `tests/fixtures/issue7353_body_field_tac_review/README.md`.
+PDF 없이 합성 슬롯 추가만으로 시각 통과를 주장하지 않는다.
+
+**수정 전후와 반례.** 최초 경계 실행은130 PASS/1 FAIL로 body 필드 거부를 확인했다
+(`body-field/tests-before.log`, `frame-after-child/body-field-before-*`).
+최종 정상 저장 fixture도 이전 production의 정적 probe에서 동일 거부가 재현된다
+(`body-field/control-before.log`). 동일 bytes의 새 production 출력은1쪽이다.
+정식 document_flow는 해당 fixture의 field/table 인덱스·표6개·그림1개·부모 y/높이·
+제목/부서명·안내문 없음·종료를 검사한다. 합성 본문/중첩 셀 각각 시작1/2개와
+같은 줄/다른 줄 표의 최종 Table/Cell/TextLine/TextRun 상자가 필드 없는 대조군과 같고,
+AFTER가1회만 출력되는지도 검사한다. 잘못된 슬롯 수·fresh·다른 필드·guide 상태·
+빈 명령·interleaved 시작은 public source query와 실제 DocumentV2에서 거부한다.
+
+초기 테스트 작성의 타입/API 빌드 오류는 수정했으며 결함 재현으로 세지 않는다.
+첫 문단 자동 구조 슬롯의 다중 줄 축 모호성과 합성 HWP 직렬화 높이 차이는 테스트 입력을
+선행 BEFORE 문단이 있는 HWPX로 정리했다. production의 저장 축/높이 검사를 느슨하게
+바꾸지 않았다. 정상 저장본 검사에서 private accessor 참조 오류도 공개 query로 고친 뒤
+최종132건을 재실행했다. 이 중간 빌드 실패는 `tests-document-final.log`의 최종 결과와 구분한다.
+
+최종 document_flow132/export29/geometry9/nested18/ir_text9/nested_text11/
+split_policy3/headers14/open_field_markers3/filled_field5/nested_field3/Legacy12
+= **248 PASS/0 FAIL**. `body-field/tests-final.log`와 `tests-document-final.log`,
+`frame-after-child/body-field-final-*`를 연결한다. Native build21.89s,
+lib Clippy29.42s, 변경 Rust fmt/diff check PASS.
+
+Native review/standalone overlay를 직접 확인했다. 누름틀 안내문 없이 원래 표·제목·로고·
+부서명을 유지한다. 자동 내용 픽셀 보조값35.33%는 남는 글꼴 외형/미세한 인쇄 차이를 포함하며
+시각 승인 근거를 대신하지 않는다. 이번 대조군은 메인테이너가 시각 판정 통과와
+다음 절편 진행을 승인했다.
+원본 전체의 다음 거부는 paragraph2의 표 내부 text run/line 경계다. 정상 저장 대조군만의
+통과를 원본의 일치나 B/C/R5 전체 완료로 승격하지 않는다. Legacy 기본값·baseline/ignore·
+원본 샘플은 비변경, 전체 CI/workspace lint는 미실행이며 commit/push/PR은 하지 않았다.
+
+Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm` 성공(7m18s),
+`node output/7353/r19/body-field/capture.mjs --wasm`으로 실제 Chrome 출력 확인.
+Native/fresh WASM 모두1쪽, JSON 숫자 차이0/기타 차이0, SVG 동일이다.
+`body-field/review/wasm-review-1.png`와 `wasm-overlay-1.png`를 직접 열어 표지 내용과
+위치를 대조했다. compare는 `wasm-compare-1.png`, 픽셀 보조값은35.33%이며
+대체 글꼴 외형 차이를 포함한다. 원래 source 슬롯이 남은 상태에서 표를 출력하고 안내문을
+추가하지 않는지 보는 판정 자료다. 수정 전은 출력 생성 전 명시적 거부여서 before PNG가 없다.
+source HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + 기존 WIP,
+`body-field/source.sha256` 일치. WASM SHA256은
+`c49facc7d86ce6ae94468ec9c9d26b045d26bce1e8eba3252b60a1b3eb3ad306`.
+입력/PDF/source/WASM 해시와 backend 대조는 `body-field/review/run.json`,
+`backend-comparison.json`에 연결했다. 최종 production 변경 뒤의 검증 결과이며
+이후 production 변경은 없다.
+
+#### B/C 진행 — 배분 정렬 마지막 글리프와 caret 전진 폭의 분리
+
+앞선 누름틀+TAC 대조군의 시각 판정 통과를 반영하고 원본 paragraph2의 내부 연락처
+행을 추적했다. `사회복지과장…오치호☎2573`의 마지막 run 끝650.900529px가 저장 줄
+끝648.32px를 넘었지만, 차이2.580529px는 양수 배분 간격1회분과 정확히 같았다.
+규칙상 배분 정렬의 가시 N글자에는 N-1개 간격이 있다. caret 전진의 말미 간격을
+실제 glyph 점유로 간주한 V2 qualification 결함이며 셀 폭이나 폰트 크기 문제는 아니다.
+
+**소비 경로.** 공통 `paragraph_layout::compute_line_extra_spacing`의 Distribute 계산 →
+TextRun의 `extra_char_spacing`/replay positions → `table_v2/text::painted_inline_ends`가
+기존 `TextStyle::glyph_fit_advance`로 cluster 점유 끝을 확인 → 기존 Lines의 높이·advance와
+payload를 그대로 FlowCursor/paint에 전달한다. 실제 SVG의 `svg_cluster_text_length_attrs`와
+Canvas의 `canvas_cluster_fit_scale`가 소비하는 공통 projection을 재사용한다.
+run bbox·줄 폭·원점·표 크기·뒤 표 위치를 줄이거나 덮어쓰지 않는다. 양수 배분 간격이 있는
+장식 없는 끝 run에만 적용하며, 밑줄/취소선/배경 등 advance 자체를 그리는 효과는 전체 경계를
+유지한다. 기존 plain 말미 공백 처리와 음수 간격은 비변경이다. pagination·rowspan·컷·
+누적 예약·continuation 알고리즘은 이번 절편 비해당이다.
+
+**독립 근거와 수정 전후.** 원본 앞 네 문단만 보존한 `prefix.hwpx`(줄 정보 수정 없음)에서
+기존 명시적 거부를 확인했다. 합성 배분 정렬 계약도 수정 전37 PASS/1 FAIL로 같은 원인을
+재현했다(`run-extent/before.log`, `frame-after-child/run-extent-before-issue_7353_table_v2_text.log`).
+최종 text38건은 단일/분리 run의 실제 SVG 마지막 glyph 끝이 독립 줄 오른쪽 경계에 닿는지,
+논리 advance 보존, 다음 줄18HU 전진, 장식 오버플로우 거부를 검사한다. document_flow의
+정상 fixture 계약은 연락처 전체 문자열·48324HU 저장 폭·1200HU 높이·두 표8500/6234HU와
+후속 표 위치·종료를 검사한다. 수정 후 발췌 HWPX와 독립 한컴 재저장 HWP 모두2쪽이다.
+
+동일 `prefix.hwpx`로 한컴 PDF를 생성했다: job `688605b1-8cfb-4624-8571-3f38e3289358`,
+한컴11.0.0.9136/engine2020/direct DLL/32bit/preprocess none/2쪽.
+`tests/fixtures/issue7353_body_field_tac_review/prefix-2020.pdf`이며 상세 생성 근거는 fixture
+README와 `run-extent/pdf-{start,status,download}.json`이다. PDF SHA256
+`c3589223be35eacd409f4ec3737bf4c36258cd03779cbafc4eb2d4ee6d3e3056`.
+Native 2쪽 review/standalone overlay를 직접 열어 제목·연락처2573·셀 외곽·뒤 요약 표를
+확인했다. 대체 글꼴 외형 차이는 남는다. 1쪽은 이전 승인된 body-tac-tail 출력과 JSON/SVG 동일.
+
+최종 text38/document_flow133/export29/geometry9/nested18/ir_text9/nested_text11/
+split_policy3/headers14/open_field_markers3/filled_field5/nested_field3/Legacy12
+= **287 PASS/0 FAIL**. `run-extent/tests-final.log`의 document_flow 초기 빌드 오류는
+테스트 helper 타입을 수정한 `tests-related.log`133 PASS로 대체하며 결함 재현으로 세지 않는다.
+각 최종 로그는 `frame-after-child/run-extent-final-*`다. Native build11.52s,
+lib Clippy28.27s, 변경 Rust fmt/diff check PASS.
+
+중간 Native 빌드의 디스크 부족 후 stale library로 실행한 `tests-after.log`는 검증에서 제외했다.
+소스/입력/증적은 보존하고 비사용 증분 캐시
+`/home/edward/mygithub/rhwp/target/pr-review/debug/incremental/rhwp-0wymmoghcdain`
+한 폴더(약2GB, 빌드로 재생성 가능)를 정리한 뒤 최종 build와 테스트를 다시 실행했다.
+
+원본 전체의 다음 미지원은 paragraph index8의 `stored text requires intact single-segment rows`
+(`run-extent/original.log`)다. 이번 2쪽 발췌 통과를 원본 전체 또는 B/C/R5 완료로 보고하지 않는다.
+Legacy 기본값·원본·baseline/ignore 비변경. 전체 CI/workspace lint 미실행,
+commit/push/PR 없음. fresh WASM 시각 증적은 아래에서 최종 기록한다.
+
+Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm` 성공(7m14s,
+Rust release4m16s). `node output/7353/r19/run-extent/capture.mjs --wasm`으로 실제 Chrome에서
+fresh WASM DocumentV2 출력을 얻었다. Native/WASM 모두2쪽, JSON 숫자 차이0/기타 차이0,
+양쪽 페이지 SVG 동일(`run-extent/review/backend-comparison.json`). WASM SHA256
+`31b2ae2c4d0eb14da7fcb27004de3e09da683d23003aa7403b886a719c879368`.
+source HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + 기존 WIP,
+`run-extent/source.sha256` 검증 일치. 입력/PDF/source/WASM은 `run-extent/review/run.json`에 고정했다.
+`wasm-review-2.png` 및 standalone `wasm-overlay-2.png`를 직접 열어 마지막2573,
+제목 셀·뒤 요약 표·줄바꿈을 대조했다. compare는 `wasm-compare-2.png`다.
+1쪽 표지는 Native review 확인과 backend 동일성으로 보존을 확인했다. 2쪽 픽셀 보조값68.14%는
+글꼴 외형 차이를 포함하며 판정 기준이 아니다. Canvas 직접 paint 실행은 이번 증거가 아니며
+공통 projection의 호출 경로만 대조했다. 메인테이너가 이 절편의 시각 판정 통과와 다음 진행을 승인했다.
+
+#### B/C 진행 — 저장 Shift+Enter의 줄 소유권과 빈 줄 보존
+
+앞선 배분 정렬 연락처 행의 승인 뒤 원본 paragraph index8을 조사했다. 원본 XML의
+`hp:lineBreak`가 IR LF로 파싱되며, 저장 LineSeg는 시작0/31, vpos32046/34598HU,
+높이1500HU로 두 줄을 지정한다. 문단13에도 정상 강제 개행이 있으며 두 줄의 높이가
+1400/1200HU로 다르다. 기존 V2 `stored_text::localize`가 LF를 일반 제어문자와 함께
+일괄 거부한 것이 원인이다. 줄 정보 손상이나 폰트 fallback 문제가 아니다.
+
+**규칙·독립 입력.** LF는 가시 glyph가 아니라 줄 경계다. 각 LF 바로 다음 UTF-16 위치에
+저장 줄 시작이 있는 경우만 재사용하고, 어긋난/누락된 저장 경계는 계속 거부한다.
+연속/선두 LF의 빈 줄도 줄 상자를 가진다. 마지막 LF 뒤의 명시적 빈 저장 줄은
+paragraph terminator 앞의 경계일 때만 수용한다. 원본 앞15문단을 보존한
+`tests/fixtures/issue7353_stored_break_review/prefix.hwpx`는 뒤 문단만 제거하며
+텍스트·스타일·LineSeg를 변경하지 않는다. 같은 입력의 한컴 PDF는 job
+`44d60f06-c26d-4653-bb9f-270afb4207bd`, engine2020/11.0.0.9136/direct DLL/32bit/
+preprocess none으로 생성한2쪽이다. 입력/PDF 해시와 생성 스크립트는 fixture README,
+서버 영수증은 `stored-break/pdf-{start,status,download}.json`에 연결했다.
+
+**생산·소비 경로.** `stored_text::localize`327행의 경계 수용 → `text.rs`512행에서
+원래 줄 구성을 공통 composer에 전달 → 공통 paragraph layout의 TextLine/TextRun과
+`is_line_break_end` → `stored_text::validate_paint`456행이 LF를 구조적 경계로 재구성해
+원문 전체 소유권·행 메트릭·최종 전진량을 검증한다. `text.rs`587–673행은 이 최종
+노드에서 높이·advance·payload를 함께 생성한다. 셀은 content plan, 본문은
+`document_input.rs`513행의 FlowBlock::Lines로 전달한다. `flow.rs`356행은 전체 줄 높이로
+fit 판단 후 같은 소유 유닛과 advance를 수용하며, `text.rs`234행/`document.rs`146행은
+그 소유 키의 기존 payload를 실제 줄 원점으로 평행 이동한다. paint의 재줄바꿈·clamp·
+별도 높이 증가는 없다. 이번 변경은 원점/높이 생산식을 바꾸지 않고 저장 경계의 수용과
+내용 검증만 수정한다. TAC/앵커·rowspan·caption·header 분기는 비변경이다.
+
+**경계 계약.** `saved_forced_breaks_preserve_blank_rows_and_fragment_ownership`는
+선두/연속/말미 LF의 줄 높이12HU, 간격6HU, 뒤 문단과 총 소유권을 검사한다.
+첫 예산21HU(상단3+첫 줄12+간격6)만 수용한 후 다음 페이지에 남은 빈 줄·텍스트를
+중복 없이 배치하고 종료하는지 검사하며, 저장 경계 누락/오정렬은 실패해야 한다.
+초기 수정 전38 PASS/1 FAIL은 준비 단계의 동일한 LF 거부로 재현했다.
+수정 직후 시험에서 사용한 CellBreak는 셀 전체 원자성을 요구하므로 작은 예산이
+의도대로 거부되었다. 행 내부 줄 분할을 시험하도록 기존 RowBreak 입력으로 정정한
+후 최종39 PASS다. 이 시험 설정 오류를 production 회귀로 분류하지 않는다.
+선두/연속/말미 조합은 합성 계약이며 한컴 실물 출력의 검증으로 승격하지 않는다.
+기존 fresh 명시적 개행/빈 줄 계약도 함께 통과한다.
+
+실물 fixture의 `saved_body_forced_breaks_keep_indented_rows_blank_and_successor`는
+최종 DocumentV2의 두 개행 문단, 저장 들여쓰기3000/3918HU, 줄 높이1500/1400/1200HU,
+중간 빈 문단500HU, 뒤 `점검 개요`/`자활근로사업단` 위치와 종료를 검사한다.
+수정 전 발췌는 paragraph8에서 명시적 거부하여 before PNG가 없다
+(`stored-break/before.log`); 수정 후2쪽이다. 원본 전체는 이제 paragraph23의
+`text preview run outside occupied line`까지 진행한다(`stored-break/original.log`).
+원본 전체 통과나 R5 완료가 아니다.
+
+최종 text39/document_flow134/export29/geometry9/nested18/ir_text9/nested_text11/
+split_policy3/headers14/open_field_markers3/filled_field5/nested_field3/Legacy12
+= **289 PASS/0 FAIL**. `stored-break/tests-final.log` 및
+`frame-after-child/stored-break-final-*`에 결과를 보존했다. Native build25.78s,
+lib Clippy28.34s, 변경 Rust fmt/diff check PASS. 전체 CI/workspace lint 미실행,
+Legacy 기본값·baseline/ignore·원본 샘플 비변경, commit/push/PR 없음.
+
+Native review와 standalone overlay2쪽을 직접 열어 공문번호 줄·※ 주석·중간 빈 문단·
+뒤 사업단 줄의 위치를 대조했다. 저장 줄바꿈과 위치는 보존되고 대체 글꼴 외형 차이는
+남는다. 픽셀 보조값49.85%는 시각 판정 대신 사용하지 않는다. Docker fresh WASM
+빌드와 실제 Chrome 결과는 아래에 최종 기록한다. 메인테이너가 이 절편의 시각 판정 통과와 다음 진행을 승인했다.
+
+Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm` 성공(7m20s,
+Rust release4m21s). `node output/7353/r19/stored-break/capture.mjs --wasm`으로 실제 Chrome의
+fresh WASM DocumentV2를 실행했다. Native/WASM 모두2쪽, JSON 숫자/기타 차이0,
+두 페이지 SVG 동일(`stored-break/review/backend-comparison.json`). WASM SHA256
+`98a33d194b5b66c7ccc9a7f907d7aa8febadf9e4d84164ac137bcd0815dd169d`.
+source HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + 기존 WIP,
+`stored-break/source.sha256` 일치 확인. 입력/PDF/source/WASM은 `stored-break/review/run.json`에
+고정했다. `wasm-review-2.png`와 standalone `wasm-overlay-2.png`를 직접 열어 대상 줄과
+후속 배치의 보존을 확인했고 compare는 `wasm-compare-2.png`다. Native1쪽도 직접 확인했고
+이전 승인 run-extent1쪽과 JSON 전체가 동일하다(`stored-break/source-observation.json`).
+Canvas 직접 paint는 이번 실행 범위가 아니며 실제 WASM에서 생성한 SVG의 Chrome 출력이다.
+남은 대체 글꼴 차이와 원본 paragraph23의 미지원은 유지한다. 최종 production 변경 뒤 검증이며
+검증 이후 production 변경은 없다.
+
+#### B/C 진행 — 배분 정렬 제목 셀의 말미 공백과 실제 glyph 끝점
+
+앞선 저장 Shift+Enter 절편은 메인테이너 시각 판정 통과다. 다음 원본 paragraph index23의
+6×10 표는 `안전\n교육 ` 및 `하절기 재난` 제목 셀에서 V2 수용이 거부되었다.
+원본은 배분 정렬, 13pt, 저장 줄 높이1300HU, 가용 너비3572/4140HU다.
+말미 공백 처리 분기가 배분 간격 처리보다 먼저 실행되어 마지막 글자 뒤 caret 간격까지
+가시 glyph 끝점으로 판단한 것이 원인이다. 셀 너비·글자 크기·줄 높이의 문제가 아니다.
+
+**공통 결과와 적용 경로.** 공통 `paragraph_layout::compute_line_extra_spacing`1784행이
+만든 TextRun 간격 → `TextRun::replay_positions_for`의 원래 문자 위치 →
+`text.rs::painted_inline_ends`325행이 같은 `glyph_fit_advance`로 가시 끝점을 계산 →
+`text.rs`615행의 수용 검사로 연결된다. 논리 말미 공백은 그대로 두고 원래 run의 위치를
+사용해 공백 이전 glyph의 실제 끝점을 검사한다. 문자열을 잘라 다시 배분하거나 너비를
+줄이지 않는다. 별도 style run으로 분리된 말미 공백도 같은 규칙을 적용한다.
+밑줄·취소선·배경 등 가시 장식은 기존 별도 경계를 유지한다.
+
+이 값은 V2의 overflow 수용 판정만 바꾼다. 실제 TextLine/TextRun bbox·위치·높이·
+advance·payload는 수정하지 않는다. 이후 flow가 동일 줄 높이로 fit/소유 유닛을 확정하고
+기존 payload를 평행 이동한다. SVG/Canvas의 기존 replay projection을 재사용하며,
+실제 backend 직접 실행 증거는 Native와 fresh WASM의 SVG/Chrome 경로다.
+rowspan·컷·예약 높이·pagination·앵커 분기는 이번 수정 대상이 아니다.
+
+**검출 계약.** `distributed_saved_suffix_spaces_keep_glyph_edges_and_following_rows`는
+저장 줄의 배분 정렬, soft wrap/LF, 단일/분리 run과 마지막 숫자 glyph 끝점, 다음 줄·
+뒤 문단 및21HU 예산의 continuation 소유권을 검사한다. 밑줄까지 셀을 넘으면 계속
+거부해야 한다. 수정 전39 PASS/1 FAIL은 의도한 `text preview run outside occupied line`;
+수정 후40 PASS다. 합성 경계는 실물 한컴 검증과 구분한다.
+
+실물 `distributed_header_spaces_preserve_table_rows_and_following_heading`는
+최종 DocumentV2의 대상 셀 두 줄·공백 보존·원래 glyph 크기·표 너비50465HU와
+높이1582+2882+4×3274HU·뒤 `□ 점검 사진`을 검사한다. 초기 검사에서 CJK SVG의
+없는 textLength를 요구하고 같은 `기` 글자를 다른 셀까지 선택한 시험 코드 오류를
+정정했다. production 변경 없이 최종135 PASS이며 이 초기 실패는 조판 회귀가 아니다.
+
+**독립 출력과 범위.** `tests/fixtures/issue7353_distributed_header_review/table.hwpx`는
+원본 문단0,1,2,3,22,23,24만 남긴2쪽 발췌다. 문단 내부·표·저장 줄은 수정하지 않는다.
+앞25문단 전체 진단본 `prefix.hwpx`도3쪽으로 보존한다. 각각 같은 입력의 한컴 PDF를
+생성했다(engine2020/11.0.0.9136/direct DLL/32bit/preprocess none).
+job·해시·재현 명령은 fixture README와 `header-runs/*pdf-*.json`에 기록했다.
+생성 스크립트 namespace 변수와 옵션 변수의 이름 충돌을 정리한 뒤 재생성한 두 입력은
+기존 PDF 생성 입력과 SHA256이 동일하다.
+
+Native 직접 판독에서 대상 표의 제목 두 줄·외곽·뒤 제목 위치가 대응한다. 그러나 진단본
+3쪽 위쪽의 원본 paragraph21 별표 마스킹 문단에는 줄바꿈·위치 차이가 남는다.
+이 문단은 저장 LineSeg가 없어 재조판된다. 이번 셀 수용 수정과 구분하고 진단본의
+전체 페이지 일치로 보고하지 않는다. 표 중심 발췌의 통과를 원본 전체로 확장하지 않는다.
+원본 전체 다음 미지원은 index34의 `text preview stored rows or controls`다
+(`header-runs/original.log`). 수정 전 표 발췌도 명시적 거부했으므로 before PNG는 없다.
+
+최종 text40/document_flow135/export29/geometry9/nested18/ir_text9/nested_text11/
+split_policy3/headers14/open_field_markers3/filled_field5/nested_field3/Legacy12
+= **291 PASS/0 FAIL**. `header-runs/tests-final.log`의 document_flow 초기 검사 실패는
+`header-runs/tests-document-verified.log` 및
+`frame-after-child/header-runs-final-verified-issue_7353_table_v2_document_flow.log`의
+최종135 PASS로 대체한다. 나머지 source/test는 해당 실행 후 비변경이다.
+Native build24.54s, lib Clippy28.64s PASS, 변경 Rust fmt/diff check PASS.
+Legacy 기본값·원본·baseline/ignore 비변경. 전체 CI/workspace lint 미실행, commit/push/PR 없음.
+
+Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm` 성공(7m22s,
+Rust release4m19s). `node output/7353/r19/header-runs/capture-table.mjs --wasm`과
+`capture.mjs --wasm`으로 실제 Chrome fresh WASM DocumentV2를 실행했다.
+표 발췌2쪽 및 진단본3쪽 모두 Native/WASM JSON 숫자/기타 차이0, 각 페이지 SVG 동일하다
+(`header-runs/{table-review,review}/backend-comparison.json`). WASM SHA256은
+`88b851561cbea32007a7be16bb7d29d8dc70a0a3900719165b583b96266ec663`이다.
+source HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + 기존 WIP,
+`header-runs/source.sha256` 일치. 각 `run.json`에 입력/PDF/source/WASM을 고정했다.
+
+`header-runs/table-review/wasm-review-2.png`와 standalone `wasm-overlay-2.png`를
+직접 열어 두 줄 제목·셀 및 표 외곽·후속 제목의 대응을 확인했다. compare는
+`wasm-compare-2.png`다. 진단본 `header-runs/review/wasm-review-3.png`도 직접 확인했으며
+표 위 별표 문단의 차이가 유지됨을 기록한다. 대체 글꼴 외형 차이는 남고, 픽셀 보조값을
+판정 대신 사용하지 않는다. 메인테이너가 이번 제목 셀 절편의 시각 판정을 통과시키고
+다음 진행을 승인했다. 기호 글리프 차이는 별도 처리 범위로 남기되, 지시에 따라 이슈는
+등록하지 않는다. 셀 여백 및 기준선 대조는 `header-runs/vertical-diagnosis.json`에 보존한다.
+
+#### B/C 진행 — 본문 누름틀의 문단 간 종료와 빈 줄 점유
+
+앞 절편의 시각 판정 통과를 반영했다. 기호 글리프 차이에 대한 이슈는 등록하지 않았다.
+다음 원본 #6601의 마지막 paragraph34는 paragraph2의 ClickHere 시작을 닫는 빈 문단이다.
+V2가 `orphan_field_ends`를 문단 단독으로 거부하여 원본 전체를 수용하지 못했다.
+입력의 beginIDRef1561678090과 ctrlID627272811을 같은 본문 story에서 대응시켜야 하며,
+마커가 비가시여도 저장 줄1600HU와 뒤 간격1280HU는 실제 점유로 남아야 한다.
+
+**공통 결과와 실제 경로.** `fields.rs::body_ends`15행은 본문 순서로 시작 ID를 추적하고
+지역적으로 닫힌 range 및 셀 story를 제외한다. ID·컨트롤 종류·역순 종료·저장 문단의
+무결성이 확인된 마커 전용 문단에만 자격을 부여한다. `document_input.rs`119행이
+문단별 결과를 만들고470행에서 `text.rs::compose_text_with_body_end`446행으로 전달한다.
+기존 저장 줄 composer가 같은 TextLine/높이/간격 payload를 생산하고 기존 body flow가
+이를 소비한다. 높이·원점·컷·예약·pagination·paint는 변경하지 않았다. 셀/기본 compose는
+자격 없이 호출하므로 셀의 orphan 종료를 허용하지 않는다. 문자열·IR 마커를 지우거나
+누름틀 결과를 재평가하지 않는다. 가시 텍스트와 종료가 섞인 문단은 여전히 미지원이다.
+
+**검출/반례.** `tests/cases/issue_7353_body_field_end.rs`는 종료 빈 줄의 실제1600HU 높이,
+후속 줄 원점2880HU 전진 및 완전 소진을 검사한다. 잘못된 ID·중복 종료·가시 텍스트
+혼합·무효 줄 높이는 거부한다. 두 중첩 시작의 역순 종료는 빈 줄 하나만 만들고 교차
+종료는 거부한다. 최초2개 계약 수정 전1 PASS/1 FAIL(의도한 paragraph34 미지원),
+수정 후 추가 중첩 경계 포함3 PASS다. `header-runs/body-end-before.log` 및
+`body-end/contract-final.log`에 기록했다. 합성 AFTER FIELD의 저장 좌표를 실물 독립
+출력으로 취급하지 않는다. 이전 초기 진단 harness의 컴파일 오류는 결함 재현이 아니다.
+
+**독립 시각 자료.** 원본 전체는 이제4쪽을 끝까지 생성한다. `issue7353_body_end_review`
+fixture의 `after.hwpx`는 원본 문단을 보존하고 저장 LineSeg 없는 가시 후속 문단을
+덧붙인 대조군이다. `bounded.hwpx`는 문단0,1,2,3,32,33,34와 이 후속 문단만 남긴2쪽
+발췌다. 원본 내부 저장 줄·표는 비변경이다. 두 입력 각각의 한컴 PDF를 MCP로 생성했고
+생성 절차·작업 ID·SHA256은 fixture README에 기록했다. 발췌를 원본 전체로 부르지 않는다.
+
+bounded2쪽의 붙임2→후속 문단 기준선 간격은 rhwp74.40px, 한컴74.31875px다.
+빈 줄 높이21.3333px와 뒤 간격17.0667px가 보존된다. 기준선 절대 위치 차이는 약0.47px
+이하이며 review/standalone overlay를 직접 열어 표 외곽·붙임 줄·후속 문단을 확인했다.
+전체 after4쪽에는 기존 붙임과 후속 줄이 약8.6px 아래에 배치되는 차이가 남는다.
+수정 전 바이너리의 앞34문단 prefix와 수정 후 원본의4쪽 가시 SVG는 모두 동일하다
+(`body-end/before-comparison.json`). 이 차이는 이번 종료 처리로 발생한 이동이 아니다.
+3쪽의 별표 문단 재조판과 글꼴 외형 차이도 남으며 원본 전체 일치를 선언하지 않는다.
+
+**검증.** 기존 집중291 + 신규3 = **294 PASS / 0 FAIL**.
+`body-end/regressions-final.log`가 개별 suite 로그를 연결한다. Native build36.04s,
+lib Clippy29.57s, 변경 Rust fmt/diff check PASS. 전체 CI/workspace lint 미실행.
+Legacy 기본값·baseline/ignore·원본 샘플 비변경, commit/push/PR 없음.
+
+Docker `docker compose --env-file .env.docker -p rhwp run --rm wasm`의 wasm-pack은
+7m31s(Rust release4m30s)에 산출을 완료했다. 외부 실행 세션은 종료코드143을 반환했으므로
+셸 성공으로 기록하지 않는다. 완료 로그·새 산출 시각과 실제 브라우저 실행으로 산출물을
+검증했다. WASM SHA256 `8680ee90bec1ea4b9e80fbd234fc80d0d53644fe88bfde45502d9de9248f0d03`.
+`node output/7353/r19/body-end/capture-bounded.mjs --wasm` 및 `capture.mjs --wasm` 성공.
+Native/fresh WASM JSON 숫자/기타 차이0, 발췌2쪽/전체 대조군4쪽 SVG 모두 동일하다.
+`body-end/{bounded-review,review}/backend-comparison.json` 및 `run.json`에 고정했다.
+source HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + WIP,
+`body-end/source.sha256`36파일 일치 확인. 검증 후 production 변경 없음.
+
+대표 `body-end/bounded-review/wasm-review-2.png`, `wasm-overlay-2.png`와
+전체 `body-end/review/wasm-review-4.png`를 직접 판독했다. 앞의 두 이미지는 종료 빈 줄과
+뒤 문단 점유의 판정 자료이며, 전체4쪽 이미지는 남은 위치 차이를 보존하는 자료다.
+Canvas 직접 paint가 아닌 실제 WASM 생성 SVG의 Chrome 출력이다.
+다음 확인 대상은 남은 본문 재조판/페이지 시작 위치 차이이며 이번 절편의 완료 범위와 구분한다.
+
+메인테이너가 본문 누름틀 종료 빈 줄 절편의 시각 판정을 통과시키고 다음 진행을 승인했다.
+
+#### B/C 진행 — 본문 문단 말미 줄간격의 페이지 경계 소유
+
+원본 #6601의4쪽 첫 줄은 수정 전 y103.04px였다. 본문 상단은7088HU/75=94.506667px이고,
+저장 baseline1275HU를 더하면111.506667px다. 독립 원본 PDF의 첫 baseline111.398253px와
+대응해야 하는데, 이전 문단31의 줄간격 잔여가8.533333px 이월되어 있었다.
+문단31 자체는3쪽에20px 높이의 빈 줄로 정상 배치된다. 실제 빈 줄 누락이 아니라
+`ParagraphEnd`의 following-line gap을 물리 `Space`로 낮추면서 발생한 다음 쪽 원점 오류다.
+
+**경로와 범위.** 저장/재조판 composer → `ParagraphEnd::from_composed` → 본문
+`into_body_tail` → `FlowBlock::FollowingLineGap` → `FlowCursor::fit_cell_until` →
+`DocumentV2Session::next_page_json`의 `fit.lines`/`translate`로 이어진다.
+composer가 구분한 문단 뒤 간격은 `Space`로 유지하고 다음 글줄까지의 간격만 현재 본문
+페이지에서 한 번 소비한다. 다음 페이지에 잔여 간격을 재예약하지 않는다. fit이 확정한
+줄 원점이 paint 원점이며 paint에서 별도 clamp하거나 문단을 지우지 않는다.
+본문 일반 텍스트와 TAC의 문단 종료가 공통 경로를 쓴다. TAC의 명시적 쪽 나눔/문서 끝에서
+줄간격을 생략하던 기존 분기는 유지한다. 음수 줄간격은 기존 row advance 소유를 유지한다.
+셀 IR·중첩 표·padding·명시적 물리 Space·실제 빈 줄·저장 cell frame tail 경로는 비변경이다.
+문단 중간 줄 간격의 일반 페이지 경계 정책은 이번 말미 간격 수정 범위가 아니다.
+
+**검출과 대조군.** `issue_7353_body_field_end`의
+`body_page_start_does_not_inherit_previous_paragraph_line_gap`는 원본의3쪽 빈 문단31 보존,
+4쪽 문단32의 본문 상단 일치, 다음 문단33까지36px, 종료 후 추가 페이지 없음을 검사한다.
+수정 전3 PASS/1 FAIL은 실제 원점 assertion 실패이며 수정 후 통과한다.
+`fresh_body_gap_preserves_blank_lines_and_separate_paragraph_after`는 새 조판의12px 빈 줄과
+18px pitch를 본문14/30/36px에서 대조하고, 별도4px paragraph-after는 본문18px 경계에서
+다음 원점에 보존함을 검사한다. 첫 대조군은14px 본문에4px 물리 공간과12px 줄까지 함께
+fit한다고 잘못 기대했으므로18px로 정정했다. 테스트 입력 오류이며 production 수정은 없었다.
+최종 계약5 PASS(`body-end/contract-page-gap-verified.log`). 다음 절편에서 로그를 재확인한
+결과, `body-page-gap/tests.log`는 실제 **289 PASS/2 FAIL**이었다. 앞서 기록·보고한
+총296 PASS/0 FAIL은 잘못된 집계이며 **294 PASS/2 FAIL**로 정정한다. 실패 두 건은
+아래 탭 절편에서 추적했다. 기존 baseline/ignore는 비변경이다.
+
+**현재 관측.** 원본4쪽 첫 y94.506667px로 정상화, 문단33 y130.506667px, 종료 빈 줄
+y166.506667px다.3쪽 첫 줄에 이월되던0.08px도 같은 규칙으로 제거되었고 내용 전체가
+그만큼 이동했다.1–2쪽 SVG 동일,3–4쪽 내용·줄 소유·순서와4쪽 종료는 보존된다.
+`body-page-gap/before-after.json`에 전후 bbox를 보존한다. 원본/기준 PDF SHA는
+기존과 동일하며 신규 발췌·재저장·PDF 재변환 없이 같은 원본으로 검증한다.
+
+Native build29.91s/lib Clippy30.00s PASS. Native4쪽 review를 직접 열어 첫 붙임 줄과
+다음 줄 위치 개선을 확인했다.3쪽 별표 문단의 기존 재조판/대체 글꼴 차이는 남기며,
+페이지 수 일치만으로 원본 전체 피델리티 통과를 선언하지 않는다.
+기존 WIP 및 Legacy 기본값 유지, commit/push/PR/이슈 등록 없음. 전체 CI는 미실행이다.
+최종 Docker fresh WASM과 Native/WASM·직접 시각 판독 결과는 아래에 연결한다.
+
+Docker 표준 빌드는7m27s에 종료코드0으로 완료했다(`body-page-gap/wasm-build.log`).
+WASM lib Clippy도 PASS(`body-page-gap/clippy-wasm.log`). 새 WASM SHA256은
+`81cd4e66145b8adef7e78d4cc400e069aba21f5a7010f19c08890cd3439038e8`이다.
+`node output/7353/r19/body-page-gap/capture.mjs --wasm`을 실행해 실제 브라우저 WASM의
+DocumentV2 결과를 생성했다. Native/WASM 숫자·기타 차이0, 전체4쪽 SVG 동일이다
+(`body-page-gap/review/backend-comparison.json`, `run.json`). Canvas 직접 paint가 아닌
+WASM 생성 SVG의 Chrome 출력임을 구분한다.
+
+`body-page-gap/review/wasm-review-4.png`, `wasm-overlay-4.png`, `wasm-review-3.png`를
+직접 열어 확인했다.4쪽 붙임 첫 줄의 세로 시작과 두 줄 간격은 기준 PDF에 대응하며,
+3쪽 표 외곽과 뒤 문단은 보존된다. 기존3쪽 별표 문단의 정렬·줄바꿈 및 대체 글꼴 외형
+차이는 남으므로 전체 원본 일치로 판정하지 않는다. 전후 전체 노드의 내용·순서·소유·크기
+보존과1–2쪽 이동0,3쪽 이동−0.08px,4쪽 이동−8.533333px는
+`body-page-gap/placement-preservation.json`에 별도로 기록했다(정식 테스트 건수에 미포함).
+source HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + WIP이며
+`body-page-gap/source.sha256`의 production36파일 일치 및 diff check를 확인했다.
+검증 뒤 production 변경 없음. 메인테이너가 페이지 시작 간격 수정의 시각 판정을 통과시키고
+다음 절편을 승인했다. 이 승인은 아래에서 발견한 다른 앵커 경계의 무회귀까지 뜻하지 않는다.
+
+#### B/C 진행 — TAC 표 사이 저장 LEFT 탭의 원문 슬롯과 가로 간격
+
+**원인/공통 결과.** `tac_spaces::compose`가 탭을 허용하지 않아 정상 한컴 저장본의
+두 결재표 문단을 거부했다. 저장 LEFT 탭의 확정 advance799HU를 기존
+`compute_char_positions`로 읽고 동일 `layout_positions`를 측정·paint가 소비하도록 했다.
+원문 슬롯은 일반 공백1과 탭8을 구분하며 `tac::object_rows`가 coverage를 검사한다.
+또한 `Paragraph::control_utf16_positions`의 마지막 문자 끝/이전 문자 끝 계산은 탭을
+UTF-16 1칸으로 세고 있었다. 기존 공통 `char_stream_len`을 사용하여 탭 뒤 표의 source
+시작을25가 아닌32로 복원한다. parser 속성이나 원문을 임의로 바꾸지 않는다.
+저장 마지막 줄의 Justify는 분배하지 않는 기존 문단 정렬 의미로 두 표를 배치한다.
+
+수용 범위는96dpi, 한 저장 줄의 유효한 LEFT 탭1개이며 RIGHT/leader/무효 advance는
+거부한다. fresh tab-stop solver나 가시 문자열 혼합 TAC로 범위를 확장하지 않았다.
+`issue_7353_table_v2_document_flow`에 신규3계약을 추가했다. HWP/HWPX의 body/cell,
+네 정렬, 뒤 내용의 단일 보존, 거부 대조군 및 정상 한컴 저장본의 두 표 좌표를 검사한다.
+모델 원문축 변경의 Legacy 소비 경계도 별도7계약으로 확인했다.
+
+**입력과 독립 기준.** `issue7353_tac_tab_review/README.md`에 source·발췌 절차·정상
+저장 HWP와 동일 입력의 한컴 PDF·MCP job·해시를 고정했다. 원본 첫 부모 표 첫 셀의
+문단을 분리 후 한컴으로 정상 저장한1쪽 대조군이다. 원본 전체 피델리티의 증거가 아니다.
+표 왼쪽 원점은 source의 body5385HU, 첫 표폭18921HU, 좌우 margin140HU 및
+tab799HU로 각각73.666667/340.333333px다. 같은 HWP를 이전 Native와 이전 WASM
+(`81cd4e66…`)에 넣으면 qualified space advances 거부, 수정 Native는 두 표를 출력한다
+(`tac-tabs/saved-before.log`, `before-wasm.json`, `after/native.json`).
+초기 raw 발췌본은 cell→body 이동 후 저장 폭이 맞지 않아 거부되며 탭 결함 검출로 세지 않는다.
+
+원본 전체의 paragraph22 field-end 거부는 조판 전 입력 검사다. 이를 근거로 앞 부모 표가
+통과했다고 할 수 없다. parent-prefix도 stored frame 미지원으로 남는다. 해당 입력·실패를
+`tac-tabs/parent-prefix.hwpx`, `parent-after.log`, `original.log`에 보존했다.
+
+**기존 실패 정정/분리.** 이번16 suite는292 PASS/2 FAIL이며 신규3계약은 모두 PASS다
+(`tac-tabs/tests-final.log`). 직전 같은 suite는289 PASS/2 FAIL이었다. 누락했던 실패는:
+
+- `nonterminal_tac_gap_and_authored_blank_still_advance_the_body`: 예전 기대값은 잔여
+  following-line gap8px를 다음 쪽에 이월한다. 승인된 새 정책에서는 실제 빈 줄이 다음
+  본문 상단30px, 뒤 문단48px에 있다. 계약 기대값과 정책의 충돌로 분류하며 이 절편에서
+  assertion을 바꾸거나 ignore하지 않았다.
+- `stored_anchor_gap_crossing_page_uses_deferred_origin_without_duplicate_host`: 실제
+  좌표 결함도 확인했다. host가y30px이고 offset9+margin6px이면 표 원점은45px여야
+  하지만33px다. `BodyAnchor::resolve`가 비절단 host.next_origin84에서 만든
+  tail_overlap69를 `body_flow`가 페이지 끝으로 줄어든pen72에서 빼기 때문이다.
+  생산 결과→예약 소비에서12px가 어긋난다. `tac-tabs/boundary/anchor-gap-boundary.native.json`
+  에 실행 노드를 보존했다. 탭 변경 전에 이미 실패하던 별도 경계이며 다음 수정 우선 대상이다.
+
+따라서 이번 상태를 전체 회귀 통과로 보고하지 않는다. 기준값/ignore/Legacy 기본 엔진은
+변경하지 않았다. native build, native/WASM lib Clippy 통과; 전체 CI/workspace lint는
+미실행이다. fresh Docker WASM 및 시각 비교 결과는 아래에 연결한다.
+
+**최종 증적.** Docker 표준 빌드는7m19s, 종료코드0으로 완료했다
+(`tac-tabs/wasm-build.log`). WASM SHA256은
+`a47da5aadf68477a3439b95a2d7fccf624548732b97898b355ca3570e6e5fe60`이다.
+`node output/7353/r19/tac-tabs/capture.mjs --wasm`은 첫 Chrome 시작 실패 후 같은 명령
+재실행으로 성공했다. Native/fresh WASM 숫자·기타 차이0,1쪽 SVG 동일이다
+(`review/backend-comparison.json`, `run.json`). 실제 WASM 생성 SVG의 Chrome 출력이며
+Canvas 직접 paint 검증은 아니다. `review/wasm-review-1.png`와
+`review/wasm-overlay-1.png`를 직접 열어 두 표 외곽·간격·셀 보존을 확인했다.
+대체 글꼴 굵기·글립 세부 위치 차이는 남는다. 전체 원본 조판의 승인 자료로 사용하지 않는다.
+
+추가 Legacy7계약 PASS(`tests-additional.log`), 기존 body-field5계약 PASS
+(`body-field-contract-results.log`)로 중복을 제외한 최종 **304 PASS/2 FAIL**이다.
+body-field 첫 직접 harness는 zip extern 누락으로 빌드 실패했으며 기존 전용
+`body-end/run-contract.sh`로 재실행했다. 환경 실패를 결함 재현으로 세지 않는다.
+추적용 capture를 추가한 document_flow도136 PASS/2 FAIL로 재확인했다.
+변경 Rust fmt, diff check, production37파일 source manifest 일치 확인.
+검증 head는`50823731af6050c60ec3cfcc898abf36daa6b35a`+WIP다. 빌드 뒤 production 변경 없음.
+다음 우선 절편은 위 앵커의 host 원점/소비한 following gap 좌표 일치와 관련 계약 정리다.
+commit/push/PR/이슈 등록은 수행하지 않았다.
+
+#### B/C 진행 — 페이지에서 소비한 줄간격과 표 앵커 원점 분리
+
+메인테이너가 앞 TAC 탭 절편의 시각 판정을 통과시키고 다음 절편을 승인했다.
+이번에는 그때 남긴 두 실패를 처리한다. 신규 서식 기능이나 Legacy 표 경로로 범위를 넓히지 않는다.
+
+**규칙과 실제 호출 경로.** 문단 상대 표의 위치는 선언 문단의 점유 줄과 원문 offset/바깥여백에
+귀속된다. 페이지 끝에서 following-line gap이 덜 소비되었다고 그 표를 위로 이동시키지 않는다.
+기존 `BodyAnchor::resolve`는 `host.next_origin()`에서 구한 tail_overlap을 반환하고,
+`BodyCursor::fit`은 페이지 끝으로 줄어든 story pen에서 그 값을 빼고 있었다.
+합성 경계의 host12+gap72=84, object top15는 overlap69가 되지만 실제 pen72에서 빼면
+3이 되어 source의15보다12px 작았다. 앞 절편에서 기록한 실제 y33/기대45의 원인이다.
+
+이제 `BodyAnchor::resolve`는 `top - host.occupied_end()`를 initial band로 생산한다.
+`document_input`이 이를 `AnchoredFlow.initial`의 Space+Table로 전달하고,
+`BodyCursor::fit`이 실제 수용된 host `LinePlacement.bounds`의 끝에서 예약한다.
+같은 line placement가 `DocumentV2Session`의 paint에도 쓰인다. 선언 줄간격이나 가시 문자열로
+원점을 다시 추측하지 않는다. `anchor.fit`→`FlowCursor`가 컷/실제 요구 높이와 아래여백을
+예약한 결과를 `BodyFit::accept`가 수용하고, story pen은 이미 소비한 점유보다 후퇴하지 않는다.
+
+원 host가 없는 새 페이지(물리 paragraph-after가 이월된 경계)는 deferred frame의 위여백만
+적용한다. 첫 조각이 안 들어가면 initial band를 commit하지 않고 기존 pending queue로
+넘긴다. 이미 분할 수용한 표는 기존 cursor/cut와 restart_top으로 이어받는다. continuation의
+컷·제목 반복·rowspan·cell clip·표 외곽 paint는 변경하지 않았다. 일반 TAC/셀 앵커/어울림의
+원점 생산 경로에도 이번 변경은 적용되지 않는다.
+
+**정식 계약.** 기존 잘못된 간격 이월 기대값38/56은 승인된 body-gap 정책과 실제 빈 줄의
+12px 높이·18px pitch에 따라30/48로 정정했다. 물리 paragraph-after는 별도 계약으로 계속
+보존한다. 앵커 테스트는 페이지 수만 바꾸지 않고 독립 source offset으로 y45를 검사한다.
+수정 전 새 기대값과 gap/빈 문단 경계 둘 다33≠45로 실패했다(`anchor-gap-origin/tests-before.log`와
+연결된 suite 로그). 수정 후에는 다음 경계를 추가해 문서 흐름142 PASS다.
+
+- 빈/가시 host, 앞 문단 유무, gap6/60/72/144px, HWP/HWPX에서 같은 상대 원점.
+- gap이 잘려도 RowBreak 표의 A/B/C→D 컷, 본문 하단·위여백·남은 내부 간격·뒤 문단 보존.
+- paragraph-after80px가 이월되면 잔여26px를 보존하고 source offset을 반복하지 않음.
+- 정상 한컴 저장본의 제목·두 표 행·2쪽 후속 문단의 실제 최종 좌표와 종료.
+
+`tests-final-split.log`142 + `tests-other.log`156 +
+`body-end/contract-anchor-origin.log`5 = **303 PASS/0 FAIL**.
+이번 선택 집합의 실행 수이며 이전 절편의 별도 source-axis7건을 재실행으로 합산하지 않았다.
+초기 after 진단은 Native build 완료 전에 기존 rlib에 연결되어 before와 같은 실패를 반환했다.
+`tests-built.log` 이후는 완료된 새 rlib 기준이다. 새 실물 계약의 첫 텍스트 assertion은 한컴의
+run 분할을 문단 분할로 잘못 가정해 실패했으므로 run 결합+실제 TextLine3개 검사로 정정했다.
+이 두 진단 실패를 production 결함이나 최종 통과 수에 섞지 않았다.
+
+**독립 시각 증거.** `tests/fixtures/issue7353_anchor_gap_review/README.md`에 생성 절차와
+입력/한컴 저장/PDF 해시·job ID를 남겼다. 제목에 긴 줄간격과 문단 상대 표를 둔 독립
+대조군이며 원본 발췌가 아니다. 같은 정상 저장 HWP에서 이전 Native 및 WASM은 첫 페이지
+`InconsistentAtomicPlan`으로 실패한다(`before.log`, `before-wasm.json`).
+수정 Native는2쪽을 생성한다. PDF 표 위/아래117.130667/179.217333px,
+rhwp117.16/179.186667px로 약0.03px 차이다. 제목 기준선 차이는 약0.05px다.
+1–2쪽 review를 직접 열어 제목→표 거리·두 행·뒤 문단의 페이지 시작과 무중복을 확인했다.
+대체 글꼴 잉크 위치·폭·굵기는 여전히 다르다. 초기 용지 방향이 모순인 생성본은 정상 입력으로
+간주하지 않고 별도 보존했으며 수정 과정은 fixture README에 공개했다.
+
+**대조군/검증 범위.** 이전/현재 Native로 #6601 원본4쪽, 기존 defer2쪽, 탭1쪽을 비교해
+모든 노드와 SVG 동일을 확인했다. 기존 anchor split2쪽은 최대2.84e-14px의 부동소수 차이,
+내용 차이0이며2쪽 SVG는 동일하다(`controls-comparison.json`). 첫 쪽 SVG 문자열 차이는
+이 수치 변화이며 새로운 행/경계 이동이 아니다. source HEAD50823731…+WIP,
+`anchor-gap-origin/source.sha256`37파일로 고정했다. Native build28.06s,
+native lib Clippy26.24s/WASM lib Clippy31.74s, 변경 Rust fmt/diff check PASS.
+전체 CI·workspace all-target lint는 이번 내부 절편에서 실행하지 않았다. baseline/ignore,
+Legacy 기본값·원본 샘플 비변경. fresh Docker WASM 최종 증적은 아래에 기록한다.
+
+**fresh WASM 완료.** `docker compose --env-file .env.docker -p rhwp run --rm wasm`
+종료0, wasm-pack7분16초(`anchor-gap-origin/wasm-build.log`). WASM SHA256은
+`5be1cab6d0cc4d4ca7cd8a0f59fc5c866304e222a94f91319166aaadea36beb9`다.
+`capture.mjs --wasm`, `capture-control.mjs --wasm`으로 새 바이너리를 브라우저에서 실행했다.
+새 경계 대조군과 기존 anchor split 각각2쪽에서 Native/WASM 노드 차이0, SVG 모두 동일이다
+(`review/backend-comparison.json`, `control-review/backend-comparison.json`). 각 `run.json`에
+source/input/PDF/WASM 식별 정보를 고정했다. 이는 브라우저 WASM DocumentV2→SVG 경로이며
+별도 Canvas paint 전체 검증을 의미하지 않는다.
+
+직접 확인한 대표 이미지는 `anchor-gap-origin/review/wasm-review-1.png`,
+`wasm-overlay-1.png`, `wasm-review-2.png`와
+`anchor-gap-origin/control-review/wasm-overlay-2.png`다. 새 대조군의 제목→표 원점과
+두 행 외곽, 다음 쪽 후속 문단을 확인했고, 기존 분할 대조군의 이어받기 외곽·후속 문단도
+유지된다. 남은 글꼴 잉크 차이는 위 범위 설명과 같다. 메인테이너가 이번 새 대조군의
+시각 판정 통과와 다음 절편 진행을 승인했다. 커밋·push·PR·이슈 등록은 하지 않았다.
+
+#### B/C 진행 — 본문 텍스트 말미의 문단 간 누름틀 종료
+
+다음 원본은 앞 TAC 탭 작업의 `samples/issue2470/36382471_masked.hwpx`다. 본문22의
+“붙임 … 끝.”27문자 뒤 종료8슬롯과 문단 끝1슬롯(char_count36), 시작 문단2의
+ClickHere ID1553175006/ctrl627272811을 확인했다. 기존 `body_ends`는 빈 종료 문단만
+수용하여 전체 조판 이전에 거부했다. 문자 뒤의 구조 종료를 가시 객체/빈 문단으로 바꾸지 않는다.
+
+변경은 `fields::body_ends`의 소유 증명이며 저장 줄·실제 점유/분할 알고리즘은 바꾸지 않는다.
+문자 offset의 연속 UTF-16 축(탭8슬롯), 말미 종료의 scalar 경계, char_count와 열린 시작의
+역순 ID를 확인한다. 이 증명을 `document_input`→`compose_text_with_body_end`가 소비하고
+기존 stored localization/공통 composer의 동일 TextLine이 FlowCursor의 점유와 실제 paint에
+쓰인다. 종료 슬롯을 없애거나 줄 메트릭을 재계산하지 않는다. 텍스트 중간/시작의 종료,
+짝 불일치/교차/중복, 편집 후 무효 캐시는 이 확장의 수용 대상이 아니다.
+
+수정 전 신규 정식 경계는 `unqualified body field end`로 실패하고 기존5건은 통과했다
+(`body-end/contract-trailing-before.log`). 이 합성 경계는 문자·공백·UTF-16 surrogate와
+독립 저장1600HU 줄 높이/앞 문단의2700HU pitch를 검사하며 정상 한컴 시각 증거와 구분한다.
+
+**실행 결과.** `body-end/contract-trailing-complete.log`8 PASS,
+`body-field-tail/tests-selected.log`12 suite286 PASS로 **294 PASS/0 FAIL**이다.
+문자/공백/surrogate 말미 종료, 중첩 종료의 역순 및 교차 거부, LF 두 줄과 뒤 문단의
+독립 pitch, 정상 한컴 저장 HWP의2쪽 두 줄과 종료를 실제 최종 노드에서 검사했다.
+앞 절편의 Legacy12건은 이번 변경에서 재실행한 수에 합산하지 않았다.
+
+합성 다중 줄 테스트를 처음 HWP/HWPX round-trip으로 만들었을 때 원본 그림의 직렬화
+경계와 축약된 Field-only host/section 진입이 현재 수용 범위와 충돌했다. 이를 production
+완화로 통과시키지 않고 원본 HWPX의 종료 문단만 수정하는 명시적 합성 계약으로 분리했다.
+중간 실패 로그는 `body-end/contract-trailing-multiline*.log`에 보존하며 한컴 HWP round-trip
+검증으로 세지 않는다. HWP 증거는 별도로 정상 저장한 실물 대조군 계약에서 확인했다.
+
+**독립 대조군.** `tests/fixtures/issue7353_body_field_tail_review/README.md`에 생성 절차,
+동일 HWP→PDF 출처·job ID·해시·저장 메트릭을 남겼다. 기존 승인된 누름틀+표지 대조군에
+종료 문장과 뒤 문단을 추가한2쪽 문서로, 원본 #2470의 전체 일치 증거가 아니다.
+동일 정상 저장 HWP가 이전 정적 Native에서는 index2 `unqualified body field end`로
+거부되지만 현재는2쪽 출력된다(`body-field-tail/before.log`, `after.log`). Native1–2쪽
+review를 직접 열어 표지 보존, 종료 문장·후속 문단의 위치와 무중복을 확인했다.
+대체 글꼴의 잉크 외형 차이는 남는다. PDF/저장 메트릭과 V2 좌표는 fixture README에 연결한다.
+
+**대조군과 남은 범위.** #6601 원본4쪽, 기존 anchor split2쪽/defer2쪽, TAC 탭1쪽을
+전후 비교해 모든 노드와 SVG가 동일했다(`body-field-tail/controls-comparison.json`).
+#2470 원본은 종료 소유 검사를 통과한 뒤 paragraph0의
+`stored TAC carrier requires unambiguous intact rows`에서 거부된다(`original.log`).
+앞서 보존한 parent-prefix의 동일 경계이며 다음 종단 연결 대상이다. 원본 전체 수용/일치를
+완료했다고 하지 않는다. Legacy 기본값, baseline/ignore, 원본 파일은 변경하지 않았다.
+
+Native build23.31s, native/WASM lib Clippy27.93/32.29s, 변경 Rust fmt/diff check PASS.
+source HEAD50823731…+WIP와37파일 manifest(`body-field-tail/source.sha256`)를 고정했다.
+전체 CI/workspace all-target lint는 이번 내부 절편에서 미실행이다. 최종 fresh Docker WASM
+증적은 빌드 완료 후 아래에 연결한다.
+
+**fresh WASM/직접 판독.** 표준 Docker 빌드는7분16초, 종료0으로 완료했다
+(`body-field-tail/wasm-build.log`). WASM SHA256은
+`b0c4529887afc7dc414380df2f5cd677856b2eeec7a5d25f92c40eb6168d9603`다.
+`node output/7353/r19/body-field-tail/capture.mjs --wasm`과 `detail.mjs`를 실행했다.
+동일 저장 HWP의2쪽 전체에서 Native/fresh WASM 노드 차이0/SVG 모두 동일이다
+(`review/backend-comparison.json`). source37파일, 입력/PDF/WASM 해시는 `review/run.json`에
+연결했다. 이는 실제 Chrome의 WASM DocumentV2→SVG 출력이며 Studio Canvas 직접 paint
+및 편집 경로 검증은 아니다.
+
+`review/wasm-overlay-1.png`와 `wasm-detail-2.png`를 직접 열어 표지 외곽 보존,
+종료 문장·뒤 문단의 위치와 무중복을 확인했다. 상세 이미지는 같은2쪽 y65~215px만 표시하며
+원점 정합 이동은 하지 않았다. 전체 compare/review/standalone overlay1–2쪽도 보존했다.
+남은 글꼴 외형 차이는 fixture README와 같다. 메인테이너가 이번 절편의 시각 판정 통과와
+다음 절편 진행을 승인했다.
+Rust 변경 뒤 다시 생성한 출력이며, 빌드 이후 production 변경 없음과 manifest 일치를 확인했다.
+커밋·push·PR·이슈 등록은 수행하지 않았다.
+
+#### B/C 진행 — 셀의 서로 다른 높이 TAC 그림과 공백 전진
+
+앞 누름틀 종료 절편의 메인테이너 시각 통과를 반영했다. #2470 원본의 다음 거부를
+추적한 결과, 문단0의 부모 TAC나 첫 셀의 두 표가 아니라 **부모 두 번째 셀 첫 문단의
+그림2개+공백58개**가 원인이었다. 부모69128HU 줄은 선언68562HU+위아래283HU와
+일치하고 첫 셀 TAC 탭도 통과한다. 공통 오류 문구가 이 경로를 구별하지 못했다.
+임시 호출 진단은 제거했으며 `body-field-tail/parent.log`, `parent-trace.log`에 경계를
+보존했다. 부모 표의 높이·여백·분할 조건은 변경하지 않았다.
+
+**규칙과 공통 결과.** 가시 잉크가 없는 공백/탭도 원래 source 슬롯·가로 전진을 소유한다.
+서로 다른 높이의 TAC 그림은 동일 줄의 기준선에 배치하며, 모든 그림이 저장 줄 높이와
+개별적으로 같을 필요는 없다. 기존 TableBand와 저장 줄 높이를 대조하여 전체 점유를
+검증한다. 근거는 아래 정상 한컴 저장 대조군의 실제 두 그림 위치다.
+
+`tac_spaces::compose`의 source 위치/폭 → `tac::object_rows`의 그림 rect와 공백 rect →
+`pictures::compose`의 단일 TextLine/`ObjectRow.bounds`가 공통 결과다.
+`ir.rs`의 ObjectRow 분기는 같은 bounds.height로 FlowBlock::Lines를 만들고,
+`flow.rs`의 Lines fit은 전체 줄이 예산에 맞지 않으면 유닛을 소비하지 않는다.
+`text_ir::record_items/bind_paint`는 동일 line payload를 최종 줄 원점으로 이동해 그린다.
+그림마다 별도 높이를 합하거나 paint에서 높이/앵커를 덮어쓰지 않는다. 공백만 있는 선행
+줄도 Lines로 소유하고 이미지 줄과 분리해 보존한다. 그림 변환/리소스 guard는 유지한다.
+그림의 문단 프레임도 기존 TAC physical_frame 검사를 함께 소비한다.
+
+**수정 전후/반례.** `tests/cases/issue_7353_table_v2_export.rs`의 신규 혼합 줄 검사는
+변경 전 명시적 미지원으로 FAIL, 기존29건은 PASS였다
+(`frame-after-child/picture-space-before-issue_7353_table_v2_export.log`). 최초 테스트
+작성 시 배열 길이/helper 누락으로 발생한 컴파일 오류는 재현 성공으로 세지 않는다.
+수정 뒤 좌/중앙/우 정렬, 저장1500HU 탭, 높이1800/1200HU의85% 기준선,
+24px가 fit/23px만 남아 다음 쪽으로 전부 이월되는 경계, 앞의900HU 공백 줄,
+그림2개/탭1개/뒤 문단1회의 최종 좌표를 검사했다. 저장 줄 자체보다 큰 그림과
+잘못된 source/리소스/변환/visible text의 기존 거부 검사도 유지한다.
+기존 “작은 그림 하나만1HU 낮추면 거부”는 잘못된 동등 높이 가정이므로,
+“저장 줄을 가장 큰 그림보다1HU 작게 만들면 거부”로 의미를 수정했다.
+
+**독립 시각 대조군.** `tests/fixtures/issue7353_picture_space_review/README.md`에
+생성 코드, HWP→PDF job/해시, 저장 줄과 PDF 그림 위치를 기록했다. 기존 정상 그림
+대조군의 자식 셀에 작은 그림과 탭을 추가하고 한컴이 새로 저장한1쪽 문서다.
+이 입력은 이전 정적 Native에서 동일 미지원으로 거부되고 현재는1쪽 출력된다
+(`picture-space/before.log`, `after.log`). 원본을 수정하거나 이 대조군을 원본 일치로
+보고하지 않는다. Native review/overlay를 직접 열어 두 그림·탭 간격·상대 높이,
+부모/자식 외곽, CELL BEFORE/AFTER와 뒤 본문을 확인했다. PDF의 인쇄 양자화와
+대체 글꼴 잉크 차이는 남으며 큰 위치·내용 누락은 관찰하지 않았다.
+
+**검증.** 출력 계약32건과 나머지6 suite217건, 앞 누름틀 종료8건으로 **257 PASS/0 FAIL**.
+로그는 `picture-space/tests-boundary-final.log`, `tests-selected.log`,
+`body-end/contract-picture-space.log`다. 중복 실행한 export31건은 다시 합산하지 않는다.
+정상 저장 HWP와 그 IR의 HWPX에서 그림/부모/자식/앞뒤 문단의 좌표와 종료도 검사했다.
+기존 그림1쪽, TAC 탭1쪽, 누름틀 종료2쪽, #6601 원본4쪽은 변경 전후 모든 노드/SVG가
+동일하다(`picture-space/controls-comparison.json`). 최초 진단 probe의 불필요한 JSON
+재파싱에서 생긴 약1e-13 반올림 차이는 engine 원문을 저장하는 probe로 제거했다.
+
+Native build13.41s, native/WASM lib Clippy30.15/30.41s, 변경 Rust fmt/diff check PASS.
+전체 CI/workspace all-target 검증, Studio Canvas 편집 경로는 이번 내부 절편에서 미실행이다.
+원본 #2470은 이제 `V2 stored picture appearance or resource`에서 거부된다
+(`picture-space/original.log`). 해당 그림의 shape offset/변환을 별도로 추적해야 하며,
+원본 전체 수용이나 R5 완료는 아니다. Legacy 기본값·baseline·ignore·원본은 변경하지 않았다.
+**fresh WASM/직접 판독.** 표준 Docker 빌드는7분19초, 종료0이다
+(`picture-space/wasm-build.log`). WASM SHA256은
+`f50168e49c3aa1c5f33a41cada7f84fc88ebcb275bb8a953d93036e4487b4ba8`이다.
+`node output/7353/r19/picture-space/capture.mjs --wasm`으로 동일 정상 저장 HWP를
+브라우저에서 실행했다. Native/fresh WASM1쪽의 숫자·기타 노드 차이0, SVG 동일이다
+(`review/backend-comparison.json`). source HEAD50823731…+WIP의37파일 manifest와
+입력/PDF/WASM 해시는 `review/run.json`에 연결했다. 초기 Chrome 실행은 실패했고
+검증으로 세지 않는다. `--disable-dev-shm-usage --disable-gpu`를 추가한 실제 브라우저
+실행으로 compare/standalone overlay/review를 모두 새로 생성했다.
+
+`review/wasm-review-1.png`와 `wasm-overlay-1.png`를 직접 열어 두 그림의 상대 높이와
+간격, 표 외곽 및 후속 문단을 확인했다. 남은 PDF 인쇄 양자화/글꼴 잉크 차이는 위 범위와
+같다. 메인테이너가 이번 절편 시각 판정 통과와 다음 절편 진행을 승인했다. 검증 뒤 production 변경 없음과
+source manifest 일치를 확인했다. 별도 Canvas paint/편집은 미검증이다.
+커밋·push·PR·이슈 등록은 하지 않았다.
+
+#### B/C 진행 — 빈 그림 참조의 프레임 보존
+
+앞 그림/공백 절편의 메인테이너 시각 통과를 반영했다. #2470의 두 그림은
+`binaryItemIDRef=""`, BinData 파일 없음, IR ID0/외부 경로 없음이다. 파싱 중 정상
+리소스를 잃은 경우가 아니다. 기존 `picture_footnote.rs`의 #2225 MissingPicture 규칙과
+`serializer/hwpx/picture.rs`의 #1567 빈 참조 보존 규칙을 따른다. 원본에 동봉된 PDF는
+로고가 보여 현재 마스킹 입력과 내용이 다르므로 이번 절편의 기준 출력으로 쓰지 않았다.
+
+**규칙/공통 결과.** 빈 참조도 글줄에 참여하는 그림 프레임이다. 인쇄에서 잉크가
+없다는 이유로 높이·너비·source 소유를 제거하지 않는다. `tac::object_rows`의 rect →
+`pictures::compose`의 동일 TextLine/ObjectRow.bounds → `ir.rs`의 Lines 높이 →
+`flow.rs`의 원자적 fit/이월 → `text_ir`의 같은 payload 배치 경로를 유지하고,
+그림 payload만 기존 `Placeholder(MissingPicture)`로 만든다. `svg.rs`는 인쇄 profile에서
+이 노드의 잉크를 내보내지 않는다. 프레임 원점/높이의 후속 재계산은 추가하지 않았다.
+분할·rowspan·컷 알고리즘 변경은 비해당이며 줄 전체가 fit하지 않을 때 소비하지 않는
+기존 경계를 실행했다. V2 읽기 전용 snapshot에 가짜 편집용 DocumentCore 주소를 넣지 않는다.
+
+비영 group-local offset은 ungrouped 빈 그림의 픽셀 변환이 아니므로 그 프레임 위치에
+더하지 않는다. 실제 이미지에는 기존 offset guard를 유지한다. nonzero 리소스 누락,
+외부 경로, 회전, 그룹, 행렬 이동은 빈 참조라는 이유로 허용하지 않는다.
+
+**독립 기준/전후.** `tests/fixtures/issue7353_missing_picture_review/README.md`에 생성
+코드와 한컴 정상 저장 HWP/PDF job·해시·관측값을 연결했다. 왼쪽 빈 프레임과 오른쪽
+정상 그림이 있는 중첩 표이며, 한컴 재저장에도 ID0와 `(3745,-1509)` group-local offset이
+그대로 남는다. 정상 그림은 이전 두 그림 대조군과 같은 위치에 인쇄된다.
+변경 전 신규 합성 계약은 `V2 stored picture appearance or resource`로 FAIL, 기존32건은
+PASS(`frame-after-child/missing-picture-before-issue_7353_table_v2_export.log`).
+이전 정적 Native도 정상 저장 대조군을 같은 이유로 거부했다(`missing-picture/before.log`).
+생성기의 최초 잘못된 control index로 인한 panic은 수정했으며 결함 재현으로 세지 않는다.
+
+변경 후 합성24px 줄의 fit/1px 부족 이월, 빈 프레임·정상 그림의 최종 좌표, 뒤 문단
+유일 출력, 인쇄 SVG의 정상 그림만 출력, 정상 HWP/HWPX의 부모·자식 외곽과 종료를
+검사했다. 집중7suite266건과 누름틀 종료8건으로 **274 PASS/0 FAIL**이다.
+`missing-picture/tests-selected.log`, `tests-boundary-final.log`,
+`body-end/contract-missing-picture.log`가 결과이며 export34건의 재실행은 중복 합산하지 않는다.
+정상 대조군5개(그림1개/그림2개/탭/누름틀/#6601)는 전후 모든 노드·SVG가 같다
+(`missing-picture/controls-comparison.json`).
+
+Native review/overlay를 직접 열어 빈 자리와 오른쪽 그림, 부모·자식 외곽·앞뒤 문단의
+위치를 확인했다. 새 대조군의 PDF 인쇄 양자화와 글꼴 잉크 차이는 남는다.
+원본은 이제 문단0의 그림 경계를 통과하고 문단2의
+`SQUEEZE requires intact stored text rows`에서 거부된다(`missing-picture/original.log`).
+이는 다음 종단 연결 대상이며 원본 전체 수용/R5 완료를 뜻하지 않는다.
+Legacy 기본값·baseline·ignore·원본은 변경하지 않았다.
+Native build14.42s, native/WASM lib Clippy30.10/30.44s, 변경 Rust fmt/diff check PASS.
+전체 CI/workspace all-target 검증과 Studio Canvas 편집 경로는 미실행이다.
+**fresh WASM/직접 판독.** 표준 Docker 빌드7분28초, 종료0
+(`missing-picture/wasm-build.log`). WASM SHA256은
+`11fda6e1064d37cf3705193ec314bb362a89c44e541e24680b9c937b97b8a1a1`이다.
+`node output/7353/r19/missing-picture/capture.mjs --wasm`으로 동일 정상 저장 HWP를
+실제 Chrome DocumentV2에서 실행했다. Native/fresh WASM1쪽의 노드 차이0, SVG 동일
+(`review/backend-comparison.json`). source HEAD50823731…+WIP37파일 manifest와
+입력/PDF/WASM 해시는 `review/run.json`에 보존했다. 검증 뒤 production 변경 없음과
+manifest 일치를 확인했다.
+
+`missing-picture/review/wasm-review-1.png`와 `wasm-overlay-1.png`를 직접 열어 왼쪽 빈
+프레임 공간, 오른쪽 정상 그림, 부모/자식 외곽, CELL BEFORE/AFTER 및 뒤 본문 위치를
+확인했다. PDF 인쇄 양자화와 글꼴 잉크 차이는 남고 메인테이너가 시각 통과와 다음 진행을 승인했다.
+별도 Canvas paint/편집은 미검증이며 커밋·push·PR·이슈 등록은 하지 않았다.
+
+#### B/C 진행 — SQUEEZE 셀 첫 문단의 정상 1단 정의
+
+앞 빈 그림 절편의 메인테이너 시각 통과를 기록했다. 다음 원인은 원본 #2470의
+`s0:p2/t1/c0/p0` 제목 문단이다. SQUEEZE 셀이고 저장 줄1개, dirty=false,
+높이2700HU/폭42076HU가 유효하지만 `controls=[ColumnDef(normal,1)]` 때문에
+`stored_text::validate_cell_wrap`에서 거부됐다. 이 컨트롤은 인라인 점유 개체가 아니라
+셀 story의 단 선언이다. 저장 줄이 잘못됐거나 글자가 넘쳤다는 근거로 해석하지 않는다.
+
+**호출 경로/범위.** `ir::initial_cell_column`이 첫 문단·첫 source 슬롯·정상1단을
+검증하고 `bind_table`이 column break 의미와 소유 상태를 처리한다. 그 뒤
+`IrTextComposer::compose_with_cell_wrap`의 SQUEEZE 경로에서 이 선언만 제거한
+읽기 전용 text view를 만든다. 실제 Document IR/char_offsets/LineSeg/char_count는
+수정하지 않는다. 기존 BREAK 경로의 동일 구조 해석을 사용하되 SQUEEZE 플래그는 보존한다.
+`TextComposer::compose_with_cell_wrap → compose_text`의 단일 줄 결과를
+`record_items`와 `bind_paint`가 함께 소비한다. 너비/기준선/높이를 별도로 추측하거나
+paint에서 덮어쓰지 않는다. 분할·이어받기 알고리즘은 비해당이며 기존 소유 유닛은 그대로다.
+다단/후속 문단 단 정의는 상위 IR 검증에서 거부하고, 다른 컨트롤·dirty·없는 저장 줄은
+기존 SQUEEZE 검증을 우회하지 않는다. 글리프 축소 알고리즘은 변경하지 않았다.
+
+**독립 기준/전후.** `tests/fixtures/issue7353_column_squeeze_review/README.md`에
+정상 저장 생성 코드, HWP/PDF job·해시·기대값을 기록했다. 기존 SQUEEZE 대조군의
+자식 첫 문단에 정상1단 선언만 추가하고 한컴에서 줄 메트릭을 다시 저장한 파일이다.
+새 PDF와 선언이 없던 기존 PDF의96DPI 래스터는 동일하다. 이 비교와 별도로 Native
+review/overlay의 한 줄 유지·셀 시작·외곽·뒤 문단도 확인한다.
+
+정식 신규 source 슬롯 계약은 변경 전 명시적 미지원 FAIL/기존142 PASS
+(`frame-after-child/column-squeeze-before-issue_7353_table_v2_document_flow.log`).
+이전 정적 Native도 새 정상 저장 HWP를 같은 이유로 거부했다(`column-squeeze/before.log`).
+변경 후 source 슬롯 전후 및 정상 HWP/HWPX의 전체 노드·SVG가 독립 plain-story 저장본과
+같고, 다단·없는 저장 줄은 올바른 원인으로 거부한다. 집중7suite268건과 누름틀 종료8건,
+**276 PASS/0 FAIL**. `column-squeeze/tests-selected.log`, `tests-boundary-final.log`,
+`body-end/contract-column-squeeze.log`에 연결하며 document_flow144 재실행은 중복 합산하지 않는다.
+기존 SQUEEZE/빈 그림/정상 그림/탭/누름틀/#6601 등6개 대조군의 모든 노드·SVG도 전후
+동일하다(`column-squeeze/controls-comparison.json`).
+
+Native build19.66s, native/WASM lib Clippy30.32/29.37s, 변경 Rust fmt/diff check PASS.
+원본은 이제 이 제목 문단을 통과하고 같은 표의 하단 `ThinThickDouble` 테두리에서
+`V2 cell border style`로 거부된다(`column-squeeze/original.log`, `next-borders.log`).
+원본 전체 수용/R5 완료는 아니다. 기존 SQUEEZE glyph 외형 차이는 이번에 변경하지 않았고
+한컴 glyph와 완전 일치로 보고하지 않는다. baseline·ignore·원본·Legacy 기본값은 유지했다.
+전체 CI/workspace all-target와 별도 Canvas 편집은 미실행이다.
+
+**fresh WASM/시각 자료.** Docker 빌드7분24초, 종료0
+(`column-squeeze/wasm-build.log`), WASM SHA256은
+`10170a53f4d31a3eae0e8bd1396cee7d5c3d8ffb8f68355b0c5928f6fa2bb08f`다.
+`node output/7353/r19/column-squeeze/capture.mjs --wasm`으로 실제 Chrome DocumentV2의
+1쪽 Native/fresh WASM compare·standalone overlay·review를 생성했다. 노드 차이0/SVG
+동일이며 `review/run.json`에 HEAD50823731…+WIP37파일 manifest, 입력/PDF/WASM 해시를
+연결했다. production 고정 후 생성했고 검증 뒤 source manifest도 일치한다.
+
+`column-squeeze/review/wasm-review-1.png`와 `wasm-overlay-1.png`를 직접 열어
+ONE TWO THREE FOUR FIVE의 한 줄 유지·셀 시작과 안여백·부모/자식 외곽·뒤 문단을
+확인했다. 기존 글리프 외형 차이는 이미지 상단에도 명시했다. 이번 구조 선언 처리의
+메인테이너가 시각 통과와 다음 진행을 승인했다. 커밋·push·PR·이슈 등록은 하지 않았다.
+
+#### B/C 진행 — 독립된 ThinThickDouble 셀 테두리
+
+앞 SQUEEZE 절편의 시각 통과 후 원본 `samples/issue2470/36382471_masked.hwpx`의
+root-p2 제목 표 하단선에서 막히던 `V2 cell border style`을 처리한다. 표 borderFill17은
+Solid이지만 셀 borderFill6의 명시적 None/ThinThickDouble이 소유권을 가진다.
+하단 폭index9는0.7mm다. 문서ID나 제목 문구에 따른 분기는 추가하지 않았다.
+
+**규칙·독립 근거.** 표의 가는·굵은 이중선은 일반 shape 비율이나 같은 두 펜을 쓰는
+Double과 다르다. 한컴 정상 저장 대조군에서 전체16굵기의 펜·중심 offset을 계측했다.
+가장 가는 index0은 중심 단선이고, 나머지는 위/왼쪽 가는 선과 아래/오른쪽 굵은 선이다.
+오른쪽/아래 변에서도 순서를 반전하지 않는다. index9는600DPI 단위로 선폭4/9,
+중심offset-6/+4다. 다른 굵기도 임의 비율로 추측하지 않고 표준 폭 catalog에 대응하는
+독립 관측표를 사용한다. `tests/fixtures/issue7353_thin_thick_review/README.md`에 생성
+과정·HWP/PDF job과 해시·16종 기대값·판정 범위를 기록했다. 모든 저장 줄은 한컴이 만들었다.
+
+**실제 소비 경로.** `CellBorders::prepare/resolve_edges`가 명시적 셀 edge를 보존하고
+`CellBorders::append`가 수용된 `TablePlacement.cells.bounds`에서 동일한 물리 경계와
+공유 edge union을 만든다. `borders/thin_thick.rs::append`는 이 경계로 최종 LineNode 두
+펜과 ink_bbox만 생성한다. 측정/분할/이어받기 유닛·필요 높이·예약 높이·셀 원점은 바꾸지
+않으며 실제 paint 뒤 좌표 덮어쓰기나 clamp도 없다. SVG와 WASM DocumentV2는 동일
+RenderTree를 사용한다. 모서리·T/십자 교차 및 다른 collinear 스타일 접합, zone 이중선은
+아직 검증되지 않아 명시적 Unsupported로 남긴다. 원본 제목의 독립된 하단선은 해당하지 않는다.
+
+**전후 계약.** 새 네 방향 최종 좌표 검사는 변경 전 기존28 PASS/신규1 FAIL로
+`V2 cell border style`을 검출했다(`frame-after-child/thin-thick-before-issue_7353_table_v2_borders.log`).
+이전 정적 Native도 새 정상 저장 HWP를 같은 이유로 거부했다(`thin-thick/before.log`).
+변경 후 정식 `tests/cases/issue_7353_table_v2_borders.rs`는16굵기·96/192DPI의
+선폭/중심/ink bounds, 네 방향, 반복 제목/중첩 분할의 셀 외곽·내용·뒤 문단 보존,
+교차점의 retryable 거부, 정상 HWP/HWPX 전달 경로와 종료를 검사한다.
+신규 정상 저장 테스트는 cell의 자식이 아니라 소유 Table에 붙는 실제 LineNode를 검사한다.
+
+border33 + split_borders11 + headers14 + export34 + document_flow144 + body-end8,
+**244 PASS / 0 FAIL**. `thin-thick/tests-selected.log`의 초기 border32건 중 zone fixture
+주소 오류는 셀 주소(병합 셀의 시작col0)로 바로잡았으며, 최종 border33건 결과는
+`thin-thick/tests-boundary-final.log`로 대체한다. 구현 코드 보정으로 테스트를 맞춘 것이 아니다.
+누름틀은 `body-end/contract-thin-thick.log`; SQUEEZE/빈 그림/정상 그림/기존 Double
+4개 대조군의 전체 JSON/SVG 전후 동일은 `thin-thick/controls-comparison.json`이다.
+
+Native build23.16s, Native/WASM lib Clippy28.86/30.85s, 변경 Rust fmt/diff check PASS.
+원본은 p2 테두리를 통과해 root-p10의 `TAC content changed stored occupied box`까지
+진행한다(`thin-thick/original.log`). 이 후속 제한은 이번 선 paint 절편에서 완화하지 않는다.
+원본 전체 수용/R5 완료가 아니다. baseline·ignore·Legacy 기본 경로는 변경하지 않았다.
+전체 CI/workspace all-target, Studio Canvas 편집은 이번 절편에서 미실행이다.
+
+Native의 동일 HWP/PDF1쪽 review·standalone overlay와384DPI 가로/세로 확대 자료를
+`thin-thick/review/`에 생성했다. 전체 표·뒤 문단·선의 방향/굵기를 직접 확인했으며 미세
+좌표 반올림/래스터 및 대체 글꼴 차이는 남는다. catalog PDF2쪽은16종 펜 계측 자료이지
+그 문서 전체 조판 일치 판정 자료가 아니다.
+
+**fresh WASM 최종 증적.** Docker 빌드7분20초, 종료0(`thin-thick/wasm-build.log`).
+WASM SHA256 `996e959e417f15e1d43bb618b4d50254c7917c5085f42aeb95f70e173cf23238`.
+`node output/7353/r19/thin-thick/capture.mjs --wasm` 및 `highdpi.mjs --wasm`으로
+Chrome DocumentV2의 동일 정상 저장 HWP1쪽을 다시 출력했다. Native/WASM 노드 차이0,
+SVG 동일(`review/backend-comparison.json`). HEAD50823731…+WIP38파일 manifest와
+입력/PDF/WASM 해시는 `review/run.json`에 연결했다. 빌드 이후 source manifest도 전부 일치한다.
+
+`review/wasm-review-1.png`와 `wasm-overlay-1.png`를 직접 열어 선 방향·굵기·부모 외곽과
+뒤 문단을 확인했다. 확대본은 `wasm-horizontal-review.png`, `wasm-vertical-review.png`다.
+모서리/교차점은 계속 미지원이며 글꼴·미세 래스터 차이를 전체 일치로 보고하지 않는다.
+이 절편은 메인테이너 시각 판정 통과이며 다음 진행을 승인받았다. 커밋·push·PR·이슈 등록은 하지 않았다.
+
+#### B/C 진행 — 저장 줄 없는 본문 TAC의 실제 자식 높이 공유
+
+ThinThickDouble 절편 시각 통과 후 원본 `samples/issue2470/36382471_masked.hwpx`의
+root-p10에서 `TAC content changed stored occupied box`가 발생하는 원인을 추적했다.
+이 문단에는 **저장 LineSeg가 없다**. common.height11565HU와 달리 세 셀에는 마스킹된
+`*` 한 글자만 있으며 실제 계산 높이는1282HU다. `tac_fresh`가 선언 높이로 먼저 호스트
+줄을 만들고, 이후 child plan의 실제 높이와 대조하면서 거부했던 문제다. 원본의 내용이
+바뀐 사실과 저장 줄 유효성을 혼동하지 않는다. 마스킹 이전 PDF를 같은 내용의 정답지로
+사용하지 않고 독립 대조군을 만들었다.
+
+**규칙·공통 결과와 범위.** 저장 줄 없는 본문 문단은 자식 셀/내용의 계산 결과를 먼저
+확정하고 동일 결과로 TAC 줄의 기준선·바깥여백·높이·소속을 결정한다.
+`document_input::prepare`의 fresh TAC 분기 → `PreparedTextTable`의 plan.width/height
+→ `tac_fresh::compose_with_dimensions` → 기존 `TableBand`/InlineTables의 height와 advance
+→ `tac::bind` → FlowBlock/paint가 같은 준비 결과를 한 번 소비한다. body fit은 이 줄의
+점유 높이를 사용하고 안 맞는 줄은 통째로 이월한다. 출력에서 높이를 다시 늘리거나 clamp하지 않는다.
+저장 LineSeg 분기는 기존 compose/bind 불일치 검사를 유지한다. 셀 내부 fresh TAC의
+선행 준비 방식 확장, child 내부 분할/rowspan/cut 변경은 이번 범위가 아니다.
+
+**독립 증거.** `tests/fixtures/issue7353_fresh_tac_box_review/carrier.hwpx`는 저장 줄이 없는
+본문 SHORT/TALL TAC를 만들며 선언 높이는 둘 다11565HU, 셀 최소 높이는2700/5400HU다.
+그 입력 자체를 MCP2020 job `9a3a3282-a877-4cf6-bdf8-cecd8cc2b662`로 PDF 출력했다.
+한컴도36/72px 높이와 기준선 정렬을 적용했다. 재저장한 파일을 원래 입력인 것처럼 바꾸지
+않았으며 fixture README에 생성기·입력/PDF 해시·독립 테두리/뒤 문단 좌표를 연결했다.
+
+**전후 실행과 회귀.** 이전 ThinThick Native 실행 파일
+SHA256 `39d579ae6bfe310a19cc64d2f75d8ef0da63c0edf55e40409bea1c3b35ca1cdb`는 동일 HWPX의
+문단1에서 위 불일치로 거부했고 새 실행 파일은1쪽으로 완료한다(`tac-box/before.log`,
+`after-final.log`). 정식 document_flow 계약은 이 입력의 실제 테두리·내용 순서·뒤 문단
+기준선·종료를 독립 PDF에 대조한다. 합성 HWP로 선언 높이 확대/축소, 명시적 개행,
+너비에 따른 줄바꿈, 페이지 소유/누락·중복을 별도로 검사한다. 초기 손작성 HWPX 계약의
+구조 슬롯 오류는 수정 전후 모두 거부되는 입력 오류였으므로 결함 재현으로 세지 않는다.
+정상 converter HWPX와 구조 슬롯이 보존되는 HWP 계약으로 검증 대상을 구분했다.
+
+document_flow147 + fresh_full1 + ir_text9 + nested18 + borders33 + export34 + body-end8,
+**250 PASS / 0 FAIL**. 최종 로그는 `tac-box/tests-final.log`, `tests-document-final.log`,
+`body-end/contract-tac-box.log`다. 기존6개 대조군(총12쪽)의 전체 JSON/SVG 전후 동일은
+`tac-box/controls-comparison.json`으로 확인했다. Native build20.26s,
+Native/WASM lib Clippy29.30/30.37s, 변경 Rust fmt/diff check PASS.
+
+원본은 이 문단 거부를 넘겨 문서 준비를 완료하지만 실제 첫 페이지 실행에서
+`DoesNotFit { page:0, required_height:921.7066666666667 }`가 남는다(`tac-box/original.log`).
+이 후속 제한과 원본 전체 수용은 완료하지 않았다. baseline/ignore/Legacy 기본 경로는
+바꾸지 않았다. 전체 CI/workspace all-target와 Studio Canvas 편집은 이번 절편에서 미실행이다.
+
+Native same-input review/standalone overlay를 직접 열어 두 표의 다른 높이·기준선 정렬과
+뒤 문단을 확인했다. 대체 글꼴 외형 및 미세한 인쇄 축척/래스터 차이는 남는다.
+**fresh WASM 최종 증적.** source manifest를 고정한 뒤 Docker 빌드7분26초, 종료0.
+WASM SHA256 `4c5b2eecc844a761da1ab6c9afecf88b90dcfd59fc4bd395adfe22c399487cf1`.
+`node output/7353/r19/tac-box/capture.mjs --wasm`으로 같은 HWPX/PDF1쪽을 Chrome DocumentV2에서
+대조했다. 최초 Chrome 프로세스 시작이 일시 실패해 동일 명령을 한 번 재실행했고 종료0
+(`capture-wasm.log`, `capture-wasm-retry.log`). 코드·입력·WASM을 바꿔 오류를 우회하지 않았다.
+Native/WASM 노드 차이0, SVG 동일(`review/backend-comparison.json`). HEAD50823731…와
+WIP37파일 manifest·입력/PDF/WASM 해시는 `review/run.json`에 기록했고 빌드 후 source
+manifest도 전부 일치했다. 테스트 source 해시는 `tac-box/tests.sha256`에 있다.
+
+`review/wasm-review-1.png`와 `wasm-overlay-1.png`를 직접 열어 SHORT/TALL의 다른 높이,
+기준선 배치, 앞뒤 문단과 외곽을 확인했다. 메인테이너가 시각 판정 통과와 다음 진행을 승인했다.
+커밋·push·PR·이슈 등록은 하지 않았다.
+
+#### B/C 후속 진단 — 첫 TAC 줄의 본문 초과와 한컴 출력 경계
+
+앞 절편 시각 통과 후 같은 원본 `samples/issue2470/36382471_masked.hwpx`의 첫 페이지
+`DoesNotFit`를 조사했다. 아직 구현 수정이나 시각 통과가 아니다. 산출은
+`output/7353/r19/oversize-body/`에 있다.
+
+입력 SHA256 `43572dad5e17395aa02d1b0000b736b8467278931086604776ef30393dd0f54b` 자체를
+MCP2020 job `587082bc-0852-458c-8b14-529369b94214`로 PDF 출력했다(전처리none,
+한컴11.0.0.9136, 물리2쪽). PDF SHA256
+`70b137b9d69496fab4dc7170ccb81b64f7f596e07260b70af4f58b68170c0d46`.
+원본 첫 부모 표의 행 분할 속성만 보고 분할 미구현으로 추정했으나, 한컴은 이 표를
+첫 페이지에 온전히 배치한다. 따라서 이번 입력의 기대값을 임의의 분할로 정하지 않았다.
+
+| 측정 대상 | 원본 HU | 96dpi px |
+| --- | ---: | ---: |
+| 본문 높이 | 68600 | 914.666667 |
+| 준비된 부모 표 높이 / common.height | 68562 | 914.160000 |
+| 위·아래 바깥여백 포함 저장 TAC 줄 높이 | 69128 | 921.706667 |
+| 본문 하단 절대 위치 | 77103 | 1028.040000 |
+| 위 바깥여백 포함 부모 표 하단 절대 위치 | 77348 | 1031.306667 |
+
+소비 경로는 `tac::object_rows`의 저장 줄/바깥여백 → `TableBand` 공통 점유 →
+`document_input::prepare`의 `InlineTables` → `FlowCursor::fit_until`의 원자 줄 예산 검사
+→ `BodyCursor::fit` → `DocumentV2Session::next_page_json`의 진행 없음 오류다.
+자식 표의 `TableCursor`는 이 첫 줄 예산 실패 이후 호출되지 않는다. 준비된 자식 표 자체는
+행 분할이 가능하지만 이 사실이 호스트 TAC 줄의 분할 규칙을 입증하지 않는다.
+
+원래 부모 테두리가 보이지 않아, `reveal.rs`로 **부모 셀 border_fill_id만 기존 가시 테두리로
+바꾼 관측 대조군**을 만들었다. 치수·여백·내용·저장 줄은 유지했고 원본 파일은 수정하지 않았다.
+MCP2020 job `a53b89ce-9db8-4b6d-85a8-a83e45c633a5`의 `reveal-2020.pdf`에서도2쪽이며,
+원본 PDF와 대조군 PDF의92개 word bbox/문자열이 모두 동일하다(`verify.mjs`,
+`observations.json`). 이 대조군을 원본 자체나 조판 수정 결과로 부르지 않는다.
+
+`reveal-trace.xml`의 부모 아래 테두리는 페이지 위에서772.675pt다. 같은 한컴 인쇄 축척으로
+환산한 본문 하단은770.224058pt여서 **한컴도 약3.27px 본문 초과**가 관측된다.
+`current-hancom-1.png`, `reveal-1.png`를 직접 확인했다. `paint.rs`의 `unbounded-white.png`는
+페이지 예산을 적용하지 않은 표 단독 진단 출력으로, 내부 주요 위치 대조용일 뿐 실제 문서
+페이지네이션 성공/시각 승인 증거가 아니다.
+
+현재 Native와 이미 빌드된 동일 소스 WASM 모두 첫 줄에서 동일한921.706667px 요구 높이로
+거부한다(`native.log`, `observations.json`). WASM 재호출2회도 page0에서 같은 오류를 내며
+페이지를 발행하지 않았다. 직전 `tac-box/source.sha256`37개 소스는 전부 일치하므로 변경 없는
+WASM을 재사용했으며 재빌드·전체 회귀를 반복하지 않았다.
+
+이번 진단에서 renderer/test 계약·baseline·기본 경로는 바꾸지 않았다. 한컴의 첫 oversized
+TAC를 본문 밖까지 배치하는 동작을 V2의 본문 내 점유 계약에 허용할지, 본문 초과를 허용하지
+않고 별도 분할 규칙으로 다룰지는 메인테이너 판정이 필요한 경계로 남긴다. 소폭 허용치,
+표 축소, 바깥여백 생략으로 원본 수용을 강제하지 않는다. R3/R5 완료로 세지 않는다.
+
+#### B/C 후속 구현 — 빈 본문 페이지의 oversized TAC 줄 유지
+
+메인테이너는 같은 샘플의 마지막 셀 내용을 증가시켜도 표가 다음 쪽으로 분할되지 않는다고
+확인하고 구현 진행을 승인했다. 위의 정책 선택 대기는 해소됐으며, 앞서 제안했던 **한 줄
+높이 이내 overflow 허용 가정은 폐기**한다. 임계값·문서 ID·쪽 수로 분기하지 않는다.
+
+**적용 규칙과 독립 근거.** 본문 TAC 줄은 이미 준비된 원자적 줄 구성 그대로 소비한다.
+현재 쪽이 차 있으면 다음 빈 쪽으로 넘기고, 빈 쪽의 본문보다 줄이 높더라도 그 쪽에서
+실제 높이를 유지한다. 이 허용은 셀 내부/자리차지/앵커 표에 전달하지 않는다.
+`tests/fixtures/issue7353_oversize_tac_review/`의 HWPX3건을 한컴 PDF로 출력해,
+first/grown은 표→후속 문단2쪽, preceded는 앞 문단→표→후속 문단3쪽임을 확인했다.
+grown의 테두리 끝718.174pt는595pt 종이 밖이며 후속 쪽에 표 조각을 만들지 않는다.
+입력 생성 방식·job·PDF trace 좌표·해시·HWP 계약과 HWPX 독립 출력의 구분은 fixture README에 있다.
+
+**실제 소비 경로.** `document_input::prepare`가 `TableBand`의 동일 줄 메트릭을
+`InlineTables {height, advance, ...}`로 보낸다. `BodyCursor::fit`의 본문 story 호출만
+`FlowCursor::fit_body_until`을 사용한다. 잔여 높이가 전체 본문 높이와 같고 선행 점유가
+없는 첫 InlineTables만 초과를 수용한다. 각 자식은 자기 준비 높이 전체로
+`TableCursor::fit`하며 continuation 완료를 확인한 뒤 한꺼번에 수용한다. 컷·유닛을 재추측하지 않는다.
+실제 occupied height/advance와 `body_inline_overflow`를 `BodyFit::accept`가 그대로 전달하고,
+`DocumentV2Session::next_page_json`은 그 수용 결과만 body 높이 불변식의 명시적 예외로 사용한다.
+`paint.build_node`는 수용한 placement를 사용하며 본문 clip은 추가하지 않는다. 본문 bbox는
+원래 편집 영역을 유지하고 표 bbox는 실제 높이다. paint 단계에서 늘리거나 축소하지 않는다.
+뒤 gap/0공간은 같은 쪽에서 소비하되 다음 실제 내용은 다음 쪽으로 보낸다.
+일반 셀/앵커의 `fit_cell_until`/`fit_until`은 overflow 허용false여서 기존 예산·분할 계약을 유지한다.
+
+**검출과 회귀.** 수정 전 원본 HWPX와 높이80/160px 합성 TAC 계약2건이 각각
+`DoesNotFit`로 실패했다(`frame-after-child/oversize-before-issue_7353_table_v2_document_flow.log`:
+147 PASS /2 FAIL). 변경 후 원본은 실제 DocumentV2에서2쪽 끝까지 완료한다.
+표 원점8786/75px·전체 높이68562/75px, 표지 기관명 보존과 다음 본문을 검사한다.
+합성 계약은 앞 문단 유무·늘어난 높이·실제 표 원점·뒤 문단 원점·유닛 중복/누락·종료를 검사한다.
+셀 내부50px TAC가49px 예산을 초과하지 않는 반례도 추가했다.
+최종 집중 회귀는 document_flow150 + fresh_full1 + ir_text9 + nested19 + borders33 + export34
++ body-end8 = **254 PASS /0 FAIL**다. 로그는 `oversize-body/tests-final.log`,
+`fresh-final.log`, `controls-final.log`, `nested-final.log`, `body-end/contract-oversize-final.log`.
+최초 fresh_full의 잘못된 파일명으로 인한 build 실패는 정확한 target으로 재실행했고,
+결함 검출 건수로 세지 않았다.
+
+Native build는 첫 링크가SIGBUS로 실패했으나 같은 소스로 재시도해23.35s에 성공했다.
+Native/WASM lib Clippy는34.65/34.53s, 변경 Rust fmt/diff check PASS.
+Native `oversize-body/probe`로 원본 전체2쪽을 생성했고 같은 원본 PDF와 직접 비교했다.
+`review/native-review-{1,2}.png`에서 첫 쪽 표·제목·하단 기관명과 다음 쪽 본문을 확인했다.
+대체 글꼴의 굵기/폭·일부 기호 위치·미세 인쇄 축척 차이는 남으며 이번 정책 수용과 구분한다.
+
+**범위.** 이 구현은 본문 원점에 오는 indivisible TAC 줄에 한정한다. 양수 문단 앞 간격을
+동반한 oversized TAC, 일반 TAC 줄의 분할 가능성 전체, Studio Canvas 편집, 전체CI는
+미검증이다. Legacy 기본 경로·baseline·ignore는 변경하지 않았고 R3/R5 전체 완료를 주장하지 않는다.
+HWPX 첫 문단의 구조 축 이동 거부를 완화하지 않았다. 별도 HWP 합성 계약의 한컴 PDF
+변환 요청은 지연 중이며 독립 출력 완료로 세지 않는다. 같은 입력의 원본 HWPX/PDF 비교와
+이 보조 대조군을 혼동하지 않는다. Docker fresh WASM의 최종 결과는 아래에 이어 기록한다.
+
+**fresh WASM 완료.** Docker 빌드7분30초, 종료0. WASM SHA256
+`285376977e42aecbf6c06ba7112516e8adb4b7998f1ffd1467445e42c819b292`.
+`node output/7353/r19/oversize-body/capture.mjs --wasm`과 `check-controls.mjs` 종료0.
+원본2쪽의 Native/WASM 노드 차이0·SVG 동일, 보조 HWP3건(2/3/2쪽)도 노드/SVG 차이0이다.
+`review/run.json`에 HEAD50823731… + WIP37파일 source manifest, 동일 원본/PDF/WASM 해시를
+고정했고 빌드 뒤 manifest37건 전부 일치했다. `review/wasm-review-{1,2}.png`와
+`wasm-overlay-1.png`를 직접 열어 첫 쪽 표 배치·하단 기관명·다음 쪽 본문을 확인했다.
+이것은 표 단독 unlimited 진단이 아니라 실제 DocumentV2의 처음부터 끝까지 출력이다.
+앞서 명시한 글꼴/기호 차이는 남는다. 이후 메인테이너가 “시각 판정 통과입니다”로 승인했다.
+
+보조 HWP3건도 보존한 수정 전 `tac-box/probe`로 실행해 각각page0/1/0의
+682.533333/682.533333/882.533333px `DoesNotFit`를 확인했다(`*-before.log`,
+`probes.sha256`). 현재 출력은 동일 입력에서2/3/2쪽으로 완료한다. 외부 HWP→PDF 작업은
+`first/preceded/grown-hwp-start.json`의job으로 추적하며, 지연 결과를 기다려 이 절편을
+반복 확장하지 않는다. 원본 및 정상 완료된 HWPX3건의 독립 PDF 증거는 이미 확보했다.
+
+### 다음 묶음: #7158 셀 내부 쪽번호 선언의 소유 줄
+
+이전 oversized 본문 TAC 절편의 시각 승인을 반영하고 #7158 원본을 진행한다.
+#6601 원본은 현재 Native DocumentV2에서4쪽 종료하며, #7158 원본은 첫 표의 셀 안
+`PageNumberPos`를 미지원 컨트롤로 거부한다. #7008의 section decoration/grid 제약과 구분한다.
+
+입력은 `samples/issue4090/156492236_규제샌드박스_min.hwpx`이며 수동 수정하지 않았다.
+`s0/p0/c2/cell1/p0`의 “보도참고자료” 뒤 쪽번호 선언은 저장 첫 줄에 속한다.
+글자 offsets는0..5, 저장 첫 줄 높이2900HU·baseline2465HU다. 쪽번호는 셀 글자나
+공간이 아니며, 해당 줄의 실제 수용 페이지부터 footer story를 활성화해야 한다.
+기존 PDF의 출처는 `pr_4763_review.md`의 한컴2020 MCP 대응 기록을 확인했다.
+
+추적: `page_number::collect_cell_stories`의 표/셀/문단/줄 소유 경로 →
+`ir::bind_table`의 구조 선언 수용 → `text_ir`의 UTF-16/LineSeg를 보존한 글줄 구성 →
+기존 recursive fit의 `CellPlacement.lines/tables` → `PageNumberHost::accepted` →
+`DocumentV2Session`의 성공한 페이지에만 footer 활성화. 본문 높이나 표 컷은 바꾸지 않는다.
+부모 표가 시작했다는 이유로 뒤쪽 셀 문단의 선언을 앞 쪽에 적용하지 않는다.
+저장 줄이 없는 재조판 문장 중간 선언·여러 컨트롤 혼재는 아직 거부한다.
+
+첫 경계 테스트는 수정 전11 PASS/1 FAIL이며 실패 원인은 `non-table cell control`이다.
+로그: `output/7353/r19/frame-after-child/cell-number-before-issue_7353_table_v2_page_number.log`.
+분할 문단의 뒤 줄·빈 문단·중첩 자식 셀·HWP/HWPX 경계를 추가해 검증 중이다.
+전체 #7158 어울림 해결이나 최종 시각 통과로 미리 판정하지 않는다.
+
+**집중 검증 결과.** 셀 쪽번호15 + 쪽번호 timeline5 + document_flow150 + ir_text9 +
+nested19 + borders33 + export34 + fresh_full1 + 기존 Legacy #7158 계약3 = **269 PASS/0 FAIL**.
+로그는 `frame-after-child/cell-number-final-*`, `cell-number-final-export-*`,
+`cell-number-controls-*`다. `cell-number-final`의 최초 저장 줄 합성 계약1건은
+`TAG_SINGLE_SEGMENT_LINE`을 누락하여 실패했다. 입력의 누락된 유효성 태그를 보완했으며
+엔진 수용 조건을 완화하지 않았다. 최종15건은 `cell-number-final-export`에 기록했다.
+최초 수정 전 결함 검출11/1과 이 합성 입력 오류를 구분한다.
+Native build26.44s, Native/WASM lib Clippy33.07/33.50s 성공, 변경 Rust fmt·diff check PASS.
+#6601 전체4쪽과 #7150 전체2쪽은 수정 전 Native JSON과 `cmp` 동일하다.
+`next-flow/source.sha256`/`tests.sha256`에 최종 소스를 고정했다.
+
+**남은 경계.** #7158 원본은 쪽번호 선언 수용 후 `V2 stored picture appearance or resource`에서
+멈춘다(`next-flow/7158-after.log`). 첫 표의 그림들에 그룹 로컬 offset 등 별도 변환 속성이 있다.
+이 속성을 삭제하거나 원본 그림을 지워 통과시키지 않았다. 목표9쪽 어울림은 아직 미검증이다.
+셀 저장 LineSeg의 프레임 리셋과 page-number 혼재, 다른 컨트롤과의 혼재는 이번 확장의
+완료 범위로 주장하지 않는다. 기본 Legacy 경로·baseline·ignore·원본 샘플 변경은 없다.
+
+`next-flow/fixtures/`는 경계 테스트가 생성한 HWP/HWPX 합성 입력이다. 독립 한컴 출력이
+필요한 late-cell 선언은 `split-cell-number.hwp`로 MCP2020 PDF를 요청했다
+(job `666f9948-2392-4526-9d66-825a522a0941`, `next-flow/pdf-start.json`).
+현재 서버 queue2 대기이며 합성 계약 통과를 한컴 시각 일치로 바꾸어 보고하지 않는다.
+Docker fresh WASM와 backend 대조 결과는 아래에 추가한다. 원본 #7158 전체 시각 판정을
+요청할 준비가 끝난 것은 아니다.
+
+**fresh WASM 결과.** Docker 빌드7분26초 종료0, WASM SHA256
+`9e3c538668c586f8d12e50d80c664d1a24d28ef37e5f9d94cbb1c5cb105a7570`.
+`node output/7353/r19/next-flow/check-wasm.mjs` 종료0. HWP/HWPX7입력·총19쪽의
+전체 Native/WASM 노드·SVG 차이0 (`backend-comparison.json`), source37파일 해시도
+빌드 전후 동일하다. 분할 셀은2쪽, 중첩/빈 문단/저장 두 번째 줄은각3쪽이다.
+`split-cell-diagnostic-wasm.png`를 직접 열어 첫 쪽 before/A/B/C에 쪽번호가 없고,
+다음 쪽 D/E/host/after와 `- 2 -`가 표시됨을 확인했다. 이미지 제목에도 명시했듯
+이는 합성 경계 진단이며 한컴 비교용 승인 이미지가 아니다.
+최종 추가 assertion은 중첩 입력의 중간2쪽 활성화와3쪽 후속 본문에서 번호 유지까지
+검사한다(`cell-number-final-assertions-issue_7353_table_v2_page_number.log`:15 PASS).
+PDF 작업은 마지막 확인에서 `running/converting`으로 독립 출력이 아직 없다.
+이번 구현의 시각 피델리티는 미검증으로 남기며 원본 전체 통과를 주장하지 않는다.
+
+### 다음 묶음: #7158 비그룹 TAC 그림의 그룹 내부 offset 해석
+
+원본 첫 표 `s0/p0/c2/cell2/p0/c0`는 `group_level=0`, `offset_x=320`이며
+회전·이동·shear 행렬 성분은0이다. HWP5.0 revision1.3 표83은 offset_x/y를
+**개체가 속한 그룹 내부 좌표**로 정의한다. `model/shape.rs`의 IR 의미와 기존
+`layout/picture_footnote.rs::layout_picture_full`의 TAC 배치도 이를 페이지 이동으로
+사용하지 않는다. 그룹 없는 TAC의 이 속성을 이유로 그림을 거부하던 V2 조건만 제거했다.
+실제 그룹·render_tx/ty·회전·shear는 계속 거부한다. 원본 속성·그림 데이터는 수정하지 않았다.
+
+소비 경로: `pictures::payload`의 수용 조건 → `pictures::compose`의
+`tac::object_rows` 저장 줄별 객체 rect → `ParagraphItem::ObjectRow.bounds` →
+기존 fit의 줄 수용/이월 → `fragment`의 `CellPlacement.lines` → `text::paint`의
+동일 line node 이동과 Image bbox다. 새 원점 보정·덮어쓰기·clamp는 없다.
+그룹 내부 좌표를 이 흐름의 페이지 원점에 더하지 않는 것이 이번 변경의 전부이며,
+컷·예약 높이·종료 로직은 변경하지 않았다.
+
+`issue_7353_table_v2_export`에 양/음 로컬 offset, 같은 줄/별도 줄,
+그림 줄24px에 대해 남은23/24px 예산을 비교하는 계약을 추가했다. 그림의 실제 최종 좌표,
+표 외곽, 다음 문단, 페이지 수와 SVG를 포함한 **전체 결과**가 offset0 대조군과 같아야 한다.
+기대 위치는 기존 저장 LineSeg 계약의 baseline/정렬/점유에서 정하며 새 구현이 재산출한
+숫자를 정답으로 쓰지 않는다. 그룹 그림과 실제 affine 이동은 비적용 반례로 남겼다.
+수정 전34 PASS/1 FAIL은 해당 그림 거부 오류로 실패했고, 수정 후 통과했다
+(`frame-after-child/picture-offset-before-issue_7353_table_v2_export.log`).
+
+정상 한컴 저장 `issue7353_picture_space_review/picture-saved.hwp`의 두 그림을 그대로
+사용한 추가 불변성 계약도 작성했다. 메타데이터 변경 입력은 사양 기반 합성이며 새 한컴
+저장본이라고 주장하지 않는다. 처음 전체 JSON 비교는 HWP→HWPX 변환 시 예약 tab word
+3개의32→0 정규화 때문에 실패했다. 두 대조군을 같은 HWPX 직렬화 경로로 만들어 해당
+별도 변수를 통제했고, 좌표·SVG assertion을 완화하지 않고 전체 동일 검사를 통과했다.
+원래 HWP 정상 대조군은 수정 전/후 Native JSON이 byte-identical이다.
+
+집중 검증: export36 + page_number15 + timeline5 + document_flow150 + ir_text9 +
+nested19 + borders33 + fresh_full1 + 기존 Legacy #7158 계약3 = **271 PASS/0 FAIL**.
+로그: `frame-after-child/picture-offset-{after,final-normalized,legacy}-*`.
+Native build20.68s, Native/WASM lib Clippy28.85/29.09s, 변경 파일fmt·diff check PASS.
+push/PR 전 전체workspace lint 및 전체CI 검증을 실행했다는 뜻은 아니다.
+source HEAD는 `50823731af6050c60ec3cfcc898abf36daa6b35a` + WIP이며
+`picture-offset/source.sha256`, `tests.sha256`로 실제 내용을 고정했다.
+
+같은 정상 HWP와 독립 `picture-2020.pdf`를 대상으로 Native compare/overlay/review를
+새로 산출해 직접 확인했다(`picture-offset/review/native-{compare,overlay,review}-1.png`).
+두 그림의 기준선·크기·간격, 부모/자식 표 외곽과 뒤 문단 위치는 보존된다.
+글꼴 외형·인쇄 래스터 가장자리 차이는 남으며 이 절편에서 보정하지 않는다.
+#7158 원본은 그림 리소스가 흰색 placeholder로 최소화되어 있어 이것만으로 그림 시각
+피델리티를 판정하지 않았다. 전체 원본은 그림 차단을 넘어 **문단 index9의
+`stored text requires intact single-segment rows`**로 진행했다
+(`next-flow/picture-after.log`). 이 저장 글줄 경계가 다음 대상이며 전체 문서 완료는 아니다.
+기본 Legacy 선택·ignore·baseline·원본 파일은 변경하지 않았다.
+
+이전 셀 쪽번호 합성 입력의 MCP PDF job은 이번 확인에서600초 초과로 실패했다
+(`next-flow/pdf-status-latest.json`, output0bytes). 이전 기록의 running은 당시 상태이며,
+현재도 그 입력의 한컴 출력 일치는 미검증이다. 이번 정상 그림 대조군의 기존 독립 PDF와
+해당 변환 실패를 혼동하지 않는다.
+
+다음 대상의 입력 증거는 `picture-offset/next-paragraph.log`에 남겼다. 본문index9는
+텍스트와 저장4줄만 있고 control0·dirty=false이며, 줄의vpos는67001→69401→0→2400HU다.
+`stored_text::localize`는 문단 첫 줄 대비 음수가 되는 세 번째 줄을 거부한다.
+저장된 페이지/프레임 좌표 리셋을 보존할 계약이 다음 구현 대상이다. 단순 글줄 상자 겹침을
+페이지 경계라고 추정하는 예외를 추가한 것은 아니다.
+
+**fresh WASM 최종 확인.** Docker 빌드7분18초·종료0. WASM SHA256
+`a82a3ed9542089a87a67bf6ee863343aec6b9dcfc3a3741cdf9b38df24ea5c11`.
+`node output/7353/r19/picture-offset/check-wasm.mjs`와
+`node output/7353/r19/picture-offset/capture.mjs --wasm` 모두 종료0이다.
+경계4입력3/2/4/3쪽 + 그림이 보이는 속성변경 문서1쪽 + 정상 대조군1쪽 =
+**6입력14쪽**의 Native/fresh WASM 전체 노드·SVG 차이0. source manifest도 전후 동일하다.
+`picture-offset/local-offset-invariance.png` 및
+`picture-offset/review/wasm-review-1.png`를 직접 열어 그림2개의 위치·크기와
+부모/자식 외곽·후속 문단을 확인했다. 전자는 사양 기반 속성 불변성 비교이며,
+후자만 동일 정상 한컴 저장 입력/기존 독립 PDF 비교다. 정상 대조군의 대체 글꼴 외형과
+인쇄 가장자리 차이는 남는다. 변경된 offset 입력의 별도 한컴 PDF, #7158 전체 출력,
+전체CI는 이번 결과로 검증됐다고 주장하지 않는다.
+
+### R19 — 본문 문단 내부 저장 페이지 좌표 리셋 (2026-09-28)
+
+#7158 문단9는 편집되지 않은 본문4줄이며 저장vpos가67001→69401→0→2400HU다.
+기존 로컬 변환은 세 번째 줄의 음수 원점을 거부했다. LineSeg 표준의 본문 쪽 기준 좌표와
+정상 한컴 저장 대조군의 실제 리셋을 근거로, 단일 단 본문의 문단 내부 페이지 경계를
+보존했다. 줄 상자의 바닥 겹침만으로 경계를 추정하지 않는다.
+
+`body_text::frame_starts`는 원점 감소와0복귀를 검증한다. 편집된 저장 분할,
+별도 원본좌표 배열, 필드, 비구조 컨트롤, 비0리셋은 여전히 미지원이다.
+section/column/page-number 선언은 상위 문서 검증을 거친 비점유 선언만 허용한다.
+문단 간 리셋이나 앵커가 있는 문단으로 지원 범위를 확장하지 않는다.
+
+소비 경로: `document_input.rs` 원본 LineSeg → `body_text::frame_starts`의 다음 쪽
+첫 LineOwner → `stored_text::continuous_paragraph` 연속 로컬 좌표 → TextComposer
+공통 줄 노드/점유 상자 → 같은 owner의 FlowBlock 앞 page_break → BodyCursor
+fit/이월 → 수용된 같은 줄의 실제 paint다. 셀용 연속화 helper는 이름만 일반화했다.
+앞 쪽 마지막 interline gap은 FollowingLineGap으로 소비하여 새 쪽으로 이월하지 않는다.
+실제 빈 줄은 LineOwner/상자로 보존한다. paint clamp나 문단 앞 간격 반복은 없다.
+
+정식 `issue_7353_table_v2_document_flow.rs`에4계약을 추가했다. 작은/큰 본문 예산,
+반복 리셋, 이어받는 첫 빈 줄, 문단 앞 간격, 뒤 문단, 원본 IR 불변성, 겹치는 줄,
+비0리셋 거부, 정상 저장 HWP/HWPX의 최종 위치를 검사한다. 기대값은 저장 줄 메트릭과
+쪽 원점에서 정했다. 초기 합성 입력의 첫 문단 section슬롯/UTF16 축 작성 오류는
+PREFIX 문단으로 분리해 수정했으며 LineSeg 수용 검증을 완화하지 않았다.
+수정 전 실행파일 `next-flow/picture-probe`는 유효한 합성 빈 줄 입력과 정상 한컴
+저장본 모두 문단1의 `stored text requires intact single-segment rows`로 실패한다
+(`body-reset/before.log`, `portrait-before.log`). 수정 후 각각3/2쪽이며 계약 통과다.
+
+독립 대조군의 생성·MCP job·SHA256은
+`tests/fixtures/issue7353_body_frame_review/README.md`에 기록했다.
+한컴 저장 vpos는1800→3600→5400(빈 줄)→7200→0→1800HU다.
+첫 쪽 BRAVO 뒤 빈 줄과 CHARLIE, 다음 쪽 DELTA/ECHO/AFTER 위치를 동일 입력 PDF와
+대조했다. 초기 가로 용지의 인쇄 방향 차이는 부적절한 대조군으로 보존하고 채택하지 않았다.
+
+집중 검증: document_flow154 + page_number15 + timeline5 + ir_text9 + nested19 +
+borders33 + export36 + fresh_full1 + Legacy #7158 3 = **275 PASS/0 FAIL**.
+로그 `frame-after-child/body-reset-{normal,focused}-*.log`.
+최종 Native lib build15.04초, Native/WASM lib Clippy28.79/30.28초 PASS,
+변경 파일rustfmt와diff check PASS. 전체workspace/CI 검증을 뜻하지 않는다.
+source HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + WIP이며
+`body-reset/source.sha256`으로 실제 V2 소스를 고정했다.
+
+원본 #7158의 입력 준비는 문단9를 지나 문단21의
+`text preview paragraph decoration or keep`에서 멈춘다(`next-flow/body-reset-full.log`).
+앞10문단만 보존한 진단 입력의 실제 렌더링에는 첫 표의
+`conflicting shared V2 cell borders`도 남는다. 이 거부를 끄지 않았고,
+대조군 통과를 원본 전체 통과로 보고하지 않는다. Legacy 기본 선택·baseline·ignore·
+원본 샘플은 변경하지 않았다.
+
+**fresh WASM 최종 확인:** Docker 빌드7분20초·종료0. SHA256
+`7fbf686ac3b979f3ee4d18459fc2bab7e74481e66b8dd96b3705ba2b914b5611`.
+`node output/7353/r19/body-reset/check-wasm.mjs` 및
+`node output/7353/r19/body-reset/capture.mjs --wasm` 종료0.
+빈 줄/반복 리셋 합성 입력3쪽과 정상 한컴 저장 대조군2쪽, 총5쪽의
+Native/fresh WASM 최종 노드·SVG 차이0이다. source manifest도 변경 없이 일치한다.
+`body-reset/review/wasm-review-{1,2}.png`와2쪽 standalone overlay를 직접 열어
+첫 쪽의 의도적 빈 줄, CHARLIE 위치, 다음 쪽 DELTA/ECHO/AFTER 시작을 확인했다.
+Native/fresh WASM compare·standalone overlay·review와 SHA는 같은 review 폴더에 있다.
+대체 글꼴 폭/모양과 인쇄 가장자리 차이는 남으며 이 절편에서 보정하지 않았다.
+2026-09-28 메인테이너가 이 절편의 시각 판정 통과와 다음 진행을 승인했다.
+전체 원본 #7158과 전체CI는 미완료다.
+
+### R19 — 일반 텍스트 문단 보호(keep_lines) 수용
+
+문단21의 실제 거부는 문단 자체의 장식이 아니라 내부 표cell7/p0("632")의
+ParaShape34 `attr1 bit18`이었다. resolved `keep_lines=true`, 그 외 keep/장식은
+비활성이다(`next-flow/paragraph-properties.log`). HWP 사양 bit18의 문단 보호,
+정상 한컴 저장/PDF의 전체 문단 이월을 독립 근거로 사용했다.
+
+`paragraph_keep::group`은 TextComposer가 확정한 줄 상자와 간격을 하나의 Lines
+단위로 묶는다. 시작 공백과 내부 빈 줄·줄간격을 포함하고 높이는 실제 줄 상자 끝의
+최댓값, 전진은 기존 합성 결과의 pen이다. 줄 높이를 단순 합산하지 않는다.
+ParagraphEnd는 그대로 별도 소유여서 셀 말미 정책/뒤 문단을 변경하지 않는다.
+
+소비 경로: ParaShape bit18 → resolved keep_lines → TextComposer의 실제 paint 노드와
+ParagraphItem 줄/Space → paragraph_keep 공통 그룹의 height/advance/owner별 y →
+본문 document_input 또는 셀 ir의 FlowBlock::Lines → FlowCursor fit의 전체 높이 수용 →
+같은 owner별 bounds를 옮기는 paint다. 부족하면 그룹 전체를 미소비 상태로 남겨 다음
+영역에서 재시도한다. 새 clamp·행 높이 상수·별도 backend 배치는 없다.
+문단 내부 저장 frame cut을 그룹으로 삼켜서는 안 되므로 본문에도 원자 그룹 내부 컷
+거부를 추가했고, 셀의 기존 같은 거부를 유지했다. 한 페이지보다 큰 보호 문단,
+keep_with_next/widow_orphan, 개체 혼합은 이번 지원/한컴 일치로 주장하지 않는다.
+
+정식 회귀6건 추가: 본문 이월/비보호 대조, 정상 한컴 HWP, 모순된 저장 컷 거부,
+실제 문서 셀 조각/표 외곽/후속 본문, 셀의47/48px 경계·빈 줄·종료,
+음수 줄간격으로 겹치는 상자와 문단 앞뒤 간격(전체 출력 불변성)이다.
+기대값은 입력의12px 줄 상자와18px pitch/간격, 정상 저장본16px/24px 메트릭이다.
+추정된 그룹 높이만 검사하지 않고 최종 줄 위치와 표 조각 높이·후속 문단을 확인한다.
+
+수정 전 새 본문/셀 계약은 각각 keep 미지원으로 실패했다
+(`frame-after-child/keep-before-*.log`: 기존154/40 PASS, 새1/1 FAIL).
+이전 실행파일의 정상 HWP도 동일 거부다(`keep-lines/normal-before.log`).
+수정 후 document_flow158 + text42 + page_number15 + timeline5 + ir_text9 + nested19 +
+borders33 + export36 + fresh_full1 + Legacy #7158 3 = **321 PASS/0 FAIL**.
+`frame-after-child/keep-export-final-issue_7353_table_v2_document_flow.log` 및
+`keep-final-*`에서 현재 실행 결과를 확인한다. 추가 테스트의 초기 참조 타입 오류는
+테스트 작성 오류이며 엔진 결함 재현으로 세지 않았다.
+
+첫 Native 빌드는 여유134MB에서 linker signal7로 실패했다. 빌드 실패 직후 이전
+rlib를 소비한 `keep-after-*`는 수정 후 검증에서 제외했다. 과거 `frame-end/`의
+export/document_flow/borders/text 실행파일4개만 gzip 압축해 공간을 확보했다.
+소스·로그·이미지는 변경하지 않았고 실행파일은 gunzip으로 정확히 복원할 수 있다.
+재빌드12.03초 PASS 뒤 계약을 재실행했다. Native/WASM lib Clippy29.39/29.64초 PASS.
+전체workspace/PR CI는 실행하지 않았다.
+
+독립2쪽 대조군은 `tests/fixtures/issue7353_keep_lines_review/README.md`의
+입력·MCP job·SHA256을 따른다. Native review를 직접 열어1쪽의 남은 공간과
+2쪽 ALPHA/빈 줄/CHARLIE/AFTER 위치를 확인했다. 한컴 글꼴 외형 차이는 남는다.
+정상 HWP를 rhwp에서 HWPX로 재직렬화하면 보호 문단 전 p0의 저장 줄 검증에서
+거부된다. 초기 정상 fixture 테스트의 이 경로 실패는 기록하고 HWPX round-trip
+성공 주장에서는 제외했다. fresh HWPX의 본문·셀 경로는 별도 정식 계약으로 통과한다.
+
+원본 #7158은 keep 거부를 지나 같은 표의 `mixed-em CENTER text`에서 멈춘다
+(`keep-lines/full-after.log`). 앞 표의 공유 테두리 거부도 이번 변경 범위 밖이다.
+Legacy 선택·ignore·baseline과 원본 속성을 변경하지 않았으며 전체 문서 완료가 아니다.
+
+**fresh WASM 확인:** Docker 빌드7분23초·종료0. WASM SHA256
+`7593e09954218b690ecd1a0aa840858c5b5d23a8cd8844e9b44a1ffcdde0d365`.
+최종 Native lib build15.00초 뒤 정상 대조군을 재출력했다.
+`node output/7353/r19/keep-lines/check-wasm.mjs`와
+`node output/7353/r19/keep-lines/capture.mjs --wasm` 모두 종료0.
+fresh HWPX 본문2쪽·분할 셀3쪽, 정상 한컴 HWP2쪽 = **3입력7쪽**의
+Native/fresh WASM 전체 노드와SVG 차이0이다. 합성 입력의 backend 동등성과
+정상 HWP의 독립 PDF 대조를 구별한다.
+`keep-lines/review/wasm-review-{1,2}.png`와2쪽 standalone overlay를 직접 열어
+문단 전체 이월·빈 줄·뒤 문단 위치를 확인했다. 같은 폴더에 Native/WASM
+compare·overlay·review와run.json이 있다. 한컴과의 대체 글꼴 폭/외형 차이는 남는다.
+source HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + WIP,
+`keep-lines/source.sha256`와`tests.sha256`은 빌드/검증 전후 동일하다.
+이번 절편은 메인테이너가 시각 판정 통과 및 다음 절편 진행을 승인했다. 전체 #7158 출력, HWP→HWPX 재직렬화
+대조군의 첫 문단, 전체CI가 완료됐다는 뜻은 아니다.
+
+### R19 — 혼합 글자 크기의 문단 세로 CENTER
+
+승인된 다음 절편이다. 원본 문단21/cell12의 `135 (21%)`는12pt/10pt,
+문단 세로 CENTER, 저장 text_height1200HU/reference600HU다.
+기존 새 경로는 균일 em만 처리해서 `mixed-em CENTER text`로 거부했다.
+단순히 거부를 제거하면 작은 글자까지 큰 글자 기준선에 놓여 CENTER 의미가 사라진다.
+
+독립 근거: `tests/fixtures/issue7353_mixed_center_review/README.md`의 정상
+한컴 HWP/PDF2쌍. 24pt/12pt 대조군에서 CENTER 작은 글자 기준선은 큰 글자보다
+약5.60px 위, BASELINE 대조 문단은 같은 기준선이다. 원본 표를 분리한 대조군은
+41개 셀/42개 저장 줄과 혼합 크기 승인합계 열을 보존한다. 분리·정상 저장한 입력이며
+원본 전체 문서와 동일하다고 주장하지 않는다. 수동 저장 메트릭으로 수용 조건을 풀지 않았다.
+
+생산→소비 경로는 `stored_text::resolve_vertical_alignment`의 각 줄 max-em
+검증/중심 → `text::compose_text_with_body_end`의 공통 LayoutEngine 호출 → `align_center_runs`의
+최종 run 기준선 → 같은 최종 노드에서 ParagraphItem 높이/전진/owner 생성 →
+본문·셀 FlowBlock/fit → 해당 payload의 실제 paint다. glyph 기준선은
+`line origin + line center + own nominal baseline - own em/2`다.
+Legacy·backend별 별도 규칙은 변경하지 않았다. 저장 줄의 높이/기준 검증,
+줄 구성과 전진은 보존하고, 큰 글자가 뒤에 있어도 max-em 중심은 같다.
+위/아래 첨자는 별도로 명시 거부한다. 분할 컷/rowspan/예약 정책 자체는 비변경이며
+변경된 payload가 셀 분할을 지나도 위치와 후속 문단을 보존하는지는 실행했다.
+
+수정 전 새 formal 셀 계약은 `Unsupported("mixed-em CENTER text")`로 실패했다
+(`frame-after-child/mixed-center-before-issue_7353_table_v2_text.log`). 기존 script
+거부의 오류명 변경 assertion 실패는 결함 재현과 구별한다. 변경 전 실행파일의
+정상 HWP2개도 같은 거부였다(`mixed-center/{normal,table}-before.log`).
+수정 후 document_flow160 + text43 + ir_text9 + nested19 + borders33 + export36 +
+page_number15 + timeline5 + fresh_full1 + Legacy7158 3 = **324 PASS/0 FAIL**.
+`frame-after-child/mixed-center-after-*`, `mixed-center-final-*`,
+`mixed-center-regression-*` 로그를 따른다. 초기에 잘못 지정한 Legacy 파일명 및
+새 테스트의 control index/cell_context 가정 오류는 테스트 작성 오류이며 엔진 회귀가 아니다.
+
+Native build 성공, Native/WASM lib Clippy29.64/30.93초 PASS.
+Native compare/review/overlay를 직접 열어 CENTER/BASELINE 차이, 원본 표 분리본의
+행과 외곽·혼합 글자 위치를 확인했다. 대체 글꼴 외형 차이는 남는다.
+실제 표 PDF의 큰/작은 글자 baseline 차이는 약0.799px, 공통 nominal 메트릭을
+쓰는 rhwp는0.933px로 약0.134px 잔차가 있다. 대조 문단의5.60px 일치와 구별하며
+글꼴별 세부 메트릭까지 완전히 일치한다고 주장하지 않는다.
+원본은 문단21을 지나 문단30 `ContentBounds { row:1,column:0 }`로 진행한다
+(`mixed-center/full-after.log`). 이 다음 차단 지점이나 원본 앞 표의 기존 테두리
+문제를 이번 절편에서 함께 완료했다고 주장하지 않는다.
+
+**최종 fresh WASM/Visual Sweep:** Docker 빌드7분21초·종료0.
+WASM SHA256 `5105d64275321c0ab42e16e34f3642b02952d018045a0ee63c997bdb0d6cb3ac`.
+`node output/7353/r19/mixed-center/capture.mjs --wasm`,
+`capture-table.mjs --wasm`, `check-fresh.mjs` 모두 종료0이다.
+정상 HWP2개와 저장 줄 정보 없는 fresh HWPX1개, 총3입력3쪽에서
+Native/fresh WASM 전체 노드·SVG 차이0이다. `review/`, `table-review/`에
+각 Native/WASM compare·standalone overlay·review·run.json을 남겼다.
+WASM review2종과 표 standalone overlay를 직접 열어 글자 세로 위치·행·외곽을
+확인했다. 글꼴 차이와 위의 미세 baseline 잔차는 남긴다. 메인테이너가 후속 응답에서
+시각 판정 통과와 다음 절편 진행을 승인했다. source HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + WIP이며
+`mixed-center/source.sha256`와 `tests.sha256`을 검증했고 코드의 빌드 후 변경은 없다.
+명시 파일 rustfmt check 및 git diff check PASS. 전체CI는 이번 절편에서 미실행이다.
+
+### 2026-09-28 — 문단30 자식 표의 실제 높이 예약과 Dot 테두리
+
+이전 혼합 글자 CENTER는 메인테이너 시각 통과로 닫고, 승인된 다음 절편으로
+원본 문단30 `ContentBounds {row:1,column:0}`를 처리했다. 모든 증적은
+`output/7353/r19/inline-bounds/` 및 `frame-after-child/inline-dot-*`에 있다.
+
+원인은 bind 전 slot155.40000000000001px에 실제 자식 plan155.40000000000003px를
+그대로 담은 것이다. 원본 실행의 gdb 값은 `values-before.log`에 보존했다.
+두 값은 기존 bind의 동일 기하 검증을 통과하지만, content의 실제 자식 끝점
+검사는 올바르게 큰 값을 거부했다. `ContentBounds` 허용치를 늘리지 않았다.
+
+생산/소비 경로: `tac::bind`의 slot/plan 검증 → `tac::bound_height`의 실제
+`child.y + child.plan.height` → `ir.rs`의 셀 및 `document_input.rs`의 본문
+InlineTables 예약 높이 → `content.rs`의 경계 검사 → `flow.rs:423`의 예산 검사/
+자식 전체 fit/실제 placement다. bind 후 결과를 공통으로 쓰며 글줄 advance,
+줄 소속, TAC 분할 규칙, Legacy는 변경하지 않았다. 실제 크기가 다른0.29/0.31
+slot은 기존 거부를 유지한다. rowspan 컷/종료와 캡션·각주 경로는 비변경이다.
+
+경계 계약은 실제0.1+0.2 높이, 시작 offset0/0.1, 실제 끝점보다1ULP 작은 예산과
+정확한 예산, 다음 조각의 AFTER 소유/완전 종료를 검사한다. 원래 작은 예약만
+수용한 뒤 paint에서 늘리는 방식이 아니다. 최초 계약 실행1FAIL/1PASS 이후
+후속 문단 이월 검증을 RowBreak에 명시해 최종2PASS다. 최초 CellBreak 실행과
+최종 RowBreak 검사의 범위 차이를 숨기지 않는다. 동일 정상 HWP의 변경 전
+실행은 `normal-before.log`에 ContentBounds로, 변경 후는1쪽으로 남겼다.
+
+높이 처리 후 같은 표의 부모 Dot 테두리가 미지원으로 드러나, 원본 테두리를
+삭제하지 않고 같은 표의 Dot paint를 함께 구현했다. 독립 정상 저장 카탈로그의
+16개 표준 펜과 두 축의 PDF stroke를 근거로 기존 Dash 공통 physical-stroke
+생성기에 Dot 펜 정의를 추가했다. backend별 점선 속성을 따로 사용하지 않는다.
+`borders::resolve_edges` → 공유 경계 union → `dash::append` → Solid LineNode →
+공통 출력 경로다. 표준 폭 인덱스 외의 문서별 수치 예외는 없다. 생성과 기대값,
+입력/PDF SHA는 `tests/fixtures/issue7353_inline_bounds_review/README.md`에 있다.
+
+새 정상 입력 검사2건은 Dot 구현 전 명시적 미지원으로 실패하고 후 통과했다.
+기존 borders/export 음성 계약의 Dot은 이제 지원하므로 DashDot으로 변경했다.
+초기 회귀 export1FAIL은 이 오래된 거부 기대값이며 실행 결함과 구별한다.
+Dot16종 최종 획 길이/주기는96/192dpi에서 검사하고, 추가 분할 계약으로 일반/
+중첩 표의 반복 제목·후속 내용·외곽/텍스트 좌표 보존과 중복 획 부재도 검사한다.
+
+Native 정상 표의 compare/review/standalone overlay를 직접 열어 내부 표3개의
+전체 행·합계·주석·외곽을 확인했다. 대체 글꼴 폭/굵기·잉크 위치 차이는 남는다.
+원본 전체 실행은 문단30을 지나 문단44 `stored body anchor mode`로 진행하며,
+이는 다음 절편 대상으로 남겼다. 카탈로그 전체 본문은 기존 단일 LineSeg 수용
+조건에 걸리므로 선택 표의16종 펜 검증을 전체 카탈로그 조판 통과로 바꾸지 않는다.
+
+**최종 검증:** document_flow160 + text43 + ir_text9 + nested19 + borders34 +
+export36 + page_number15 + timeline5 + fresh_full1 + Legacy7158 3 +
+rowspan_roundoff2 + cell_dash2 + inline_bound2 + cell_dot2 = **333 PASS/0 FAIL**.
+`run-policies.sh inline-dot-regression ...` 및 변경된 borders/export의
+`inline-dot-final` 로그가 최종 결과다. Native build19.66초, Native/WASM lib
+Clippy31.19/30.35초 PASS. 명시 변경 파일 rustfmt check, git diff check PASS.
+전체 CI와 workspace/all-target Clippy는 이번 절편에서 실행하지 않았다.
+
+Docker fresh WASM 빌드7분21초·종료0,
+SHA256 `da7737e58d1e104d128b02c20c41339d0b70ac5d315572aa1d22f5d1fbbbd46b`.
+`node output/7353/r19/inline-bounds/capture.mjs --wasm` 종료0.
+동일 정상 HWP1쪽의 Native/fresh WASM 전체 노드 차이0, SVG동일이다.
+`review/wasm-review-1.png`, `wasm-overlay-1.png`를 직접 열어 내부 표3개의
+행/합계, 부모 외곽, 아래 주석을 확인했다. 한컴 PDF와의 글꼴 외형 차이는 남는다.
+원본 전체 통과는 아니다. 메인테이너가 후속 응답에서 시각 판정 통과와
+다음 절편 진행을 승인했다.
+source HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + WIP,
+`inline-bounds/source.sha256`, `tests.sha256`, `review/run.json`으로 입력/기준PDF/
+코드/WASM을 고정했다. 빌드 후 production 변경 없이 SHA 검증을 완료했다.
+
+### 2026-09-28 — 문단44 본문 어울림 표와 후속 저장 줄
+
+이전 문단30 높이/Dot 절편의 시각 통과를 반영했다. 다음 차단 지점은 원본
+문단44의 Square/BothSides 표였다. Legacy는 변경하지 않고 V2의 저장 줄
+경로에 같은 쪽의 온전한 어울림 표 배치를 추가했다. 증적은
+`output/7353/r19/body-column-anchor/`에 있다. 폴더 이름과 달리 실제 속성은
+Column 기준이 아니라 Para/Left 및 Para/Top이다.
+
+독립 입력은 원본 문단43~46을 분리해 한컴에서 정상 저장하고, 그 HWP를
+인쇄한 PDF1쪽이다. 생성 변경점·job·SHA·저장 메트릭은
+`tests/fixtures/issue7353_body_wrap_review/README.md`에 연결했다. 첫 초안의
+앞쪽 나눔 잔존 오류는 정상 입력의 엔진 결함 증거와 구별한다. 최종 정상
+HWP의 이전 실행파일은 `before3.log`에서 `stored body anchor mode`로 거부하며,
+수정 후 동일 HWP는1쪽을 생성한다. 새 formal4개를 모두 이전 library에서
+실행한 것은 아니므로 그 전체를 수정 전 FAIL 증거로 주장하지 않는다.
+
+규칙/실제 경로: `body_anchor::resolve`가 저장 호스트 줄의 실제 끝점에서
+Para offset·바깥여백을 반영한 객체 원점을 만든다. `document_input`은
+Square 객체 query 폭만 용지 우측까지 허용하고, 본문 줄 폭은 유지한다.
+`body_flow::AnchoredFlow::fit`과 `BodyCursor::fit`은 동일 객체 결과를 받아
+물리 점유 끝점을 예약하되 후속 본문 pen을 표 아래로 밀지 않는다.
+`validate_side_wraps`가 최종 배치된 표+여백과 본문 줄/다른 표의 교차를
+검사하며 `document::next_page`에서 paint/commit 전에 소비한다. 같은 helper
+호출만을 공통 결과로 간주하지 않고 마지막 좌표에서 저장 좁은 줄의 유효성을
+확인한다. 호스트 빈 줄과 후속 빈 줄의 높이도 유지한다.
+
+첫6줄은 표 왼쪽 저장 폭을, 마지막 줄은 전체 본문 폭을 사용한다. 표가
+본문 우측을 조금 넘는 정상 출력은 용지 내부 객체 배치와 구별했다. 기존
+TopAndBottom의 본문 경계는 완화하지 않았다. 쪽을 건너는 Square 객체,
+부분 fit, 호스트와의 겹침 및 fresh 어울림 재조판은 이번 구현 범위가 아니며
+명시 거부한다. 행 컷/rowspan/캡션·각주 정책은 비변경이다. 예산 실패는
+표 일부나 저장 좁은 줄만 먼저 commit하지 않는 것으로 검사한다.
+
+정식 회귀4개는 정상 HWP 및 HWPX round-trip의96/192dpi 최종 좌표,7개 줄의
+내용·폭·소유, 빈 줄·쪽 번호·종료를 검사한다. 반례는 좁은 줄을 전체 폭으로
+변경하거나 객체를 왼쪽으로 침범시킨 경우, 용지 밖/저장 호스트 없음 및
+객체 전체가 못 들어가는 페이지 예산이다. 실패 후 emitted_pages=0과 반복
+호출 거부를 확인한다. 기존 document_flow의 Square 미지원 기대값1FAIL은
+지원 확장으로 바뀐 계약이다. 해당 음성 항목을 여전히 미지원인 Tight로
+바꾸고 새 Square 양성·음성 계약을 별도 유지했다. baseline 완화가 아니다.
+
+집중 검사 최종 document_flow160 + body_square4 + body_exclusion10 + text43 +
+ir_text9 + nested19 + borders34 + export36 + page_number15 + timeline5 +
+fresh_full1 + Legacy7158 3 + inline_bound2 + cell_dot2 = **343 PASS/0 FAIL**.
+`frame-after-child/body-square-regression-*`와 document_flow 재실행
+`body-square-final-*`을 따른다. Native build 및 Native/WASM lib
+Clippy33.50/30.32초 PASS. 전체 CI·workspace/all-target Clippy는 미실행이다.
+
+원본 전체 입력은 문단44를 지나 문단52 `stored body anchor intersects host
+flow`에서 준비가 멈춘다(`full-after.log`). 전체 문서 통과나 다음 앵커의
+지원 완료로 보고하지 않는다. Native review/standalone overlay에서 제목,
+오른쪽 빈 표, 왼쪽6줄/전체 폭 마지막 줄, 쪽 번호를 직접 확인했으며
+대체 글꼴 굵기·잉크 baseline 차이는 남는다. fresh WASM 검증은 아래에 기록한다.
+
+**최종 fresh WASM/Visual Sweep:** Docker 빌드7분25초·종료0,
+WASM SHA256 `5527daedbd801af98073d9eac9235ace30f2dc0f2faa97330559415d158b8666`.
+`node output/7353/r19/body-column-anchor/capture.mjs --wasm` 종료0.
+동일 정상 저장 HWP1쪽에서 Native/fresh WASM 전체 노드 차이0, SVG동일이다.
+`review/wasm-review-1.png`, `wasm-overlay-1.png`를 직접 열어 제목 표, 오른쪽
+빈 표와 왼쪽6줄, 표 아래 전체 폭 마지막 줄, 쪽 번호를 확인했다. 글꼴 외형
+차이는 남는다. 메인테이너가 시각 판정 통과를 확인했다. 제목 셀의 시작 위치
+차이에 대한 후속 확인은 따옴표 `“`, `”`의 글자 폭·글립 차이로 정리했고,
+셀 여백/좌표 보정을 추가하지 않는다.
+source HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + WIP이며
+`source.sha256`, `tests.sha256`, `review/run.json`으로 코드/입력/PDF/WASM을
+고정했다. 빌드 후 production 변경은 없으며 manifest 검증, 명시 파일
+rustfmt check와 git diff check는 PASS다. Legacy 기본 경로는 비변경이다.
+
+### 2026-09-28 — 문단52 빈 호스트 줄 옆의 Square 앵커
+
+앞 절편의 시각 통과와 다음 진행 승인에 따라 문단52의 거부 조건을 처리했다.
+증적은 `output/7353/r19/host-side-wrap/`이다. 원본의 빈 호스트 줄800HU와
+표 상단498+138=636HU가 세로로 겹치지만, 호스트의 저장 폭26319HU는 표의
+왼쪽 제외 영역 시작에 접한다. 기존 `body_anchor::resolve`는 두 차원의
+영역을 확인하기 전에 TopAndBottom과 같은 세로 분리 조건으로 거부했다.
+
+입력/기준은 원본 문단51~55 분리본을 한컴에 저장하고 같은 HWP를 인쇄한
+PDF1쪽이다. `tests/fixtures/issue7353_host_wrap_review/README.md`에 생성
+변경점·job·SHA·독립 메트릭을 기록했다. 표의 y 구간이 호스트와 공유되어도
+왼쪽 줄은 살아 있어야 한다. 줄을 지우거나 객체 원점을 호스트 아래로 clamp하지 않는다.
+
+생산/소비 경로: `body_anchor.rs:resolve`의 `host_end_offset`은
+`표 offset+위여백 - 호스트 occupied_end`라는 부호 있는 **객체 좌표**다.
+`document_input.rs`가 Square의 선행 Space를0으로 하고 같은 값을
+`AnchoredFlow`에 전달한다. `body_flow.rs:BodyCursor::fit`은 수용된 호스트
+전체 줄의 실제 끝점에 이 값을 더해 query 원점/남은 예산을 결정한다.
+`AnchoredFlow::fit`은 실제 표+아래여백을 예약하고 `BodyFit::accept`는 그
+객체 끝점으로 본문 점유를 갱신하되 본문 pen은 전진시키지 않는다.
+기존 `validate_side_wraps`가 최종 줄·표+여백의2차원 겹침을 검사하고
+`document.rs:next_page_json`이 paint/commit 전에 소비한다.
+
+TopAndBottom의 세로 분리 조건은 유지한다. Square 호스트가 이전 페이지에서
+이어진 일부 줄이면 저장 문단 원점으로 환산할 수 없으므로 온전한 host의
+소유 줄 수를 대조해 명시 거부한다. 일반/rowspan 표의 컷·반복 제목·paint
+높이는 비변경이고, 이 절편의 Square는 온전한 같은 쪽 객체만 수용한다.
+
+새 정식 계약6개는 정상 HWP/HWPX 96/192dpi 최종 좌표,5개 본문 줄·주석의
+누락/중복과 빈 줄/쪽 번호/종료를 검사한다. 빈/가시 HOST 줄의 안전한 옆
+공간과 전체 폭 침범, TopAndBottom 반례, 실제 점유 끝의 ±1HU 예산,
+host5줄이 나뉘는 경계를 포함한다. 비수용 페이지의 emitted_pages 불변과
+재호출 거부도 확인했다. 가시 HOST 변이에서 PageNumberPos를 함께 두었던
+초기2FAIL은 별도 미지원 선언 조합의 테스트 작성 오류로, 선언을 제외해
+이 계약이 겨냥한 가시성/점유 차이만 검사했다.
+
+정상 저장 입력의 핵심 계약은 수정 전 `anchor intersects host flow`로 실패하고
+수정 후 통과했다(`frame-after-child/host-square-before-*`, `host-square-final-*`).
+6개 최종 계약 전부를 이전 library에서 실행한 것은 아니다. 변경 전 실행파일도
+동일 정상 HWP를 같은 이유로 거부한다(`normal-before.log`). 수정 후1쪽 출력이다.
+원본 전체의 다음 차단은 문단61 `stored TAC carrier requires unambiguous intact
+rows`다(`full-after.log`). 원본 전체 통과로 보고하지 않는다.
+
+Native review에서 제목 표, 실제 빈 줄 높이와 오른쪽 표 시작·하단, 왼쪽5줄,
+작은 빈 줄·주석·쪽 번호를 직접 확인했다. 따옴표를 비롯한 글꼴 폭/글립·굵기
+차이는 별개로 남긴다. 최종 회귀/fresh WASM 결과는 아래에 연결한다.
+
+집중 회귀 최종 host_square6 + body_square4 + body_exclusion10 + host_anchor_gap4 +
+document_flow160 + text43 + ir_text9 + nested19 + borders34 + export36 +
+page_number15 + timeline5 + fresh_full1 + Legacy7158 3 = **349 PASS/0 FAIL**.
+`frame-after-child/host-square-regression-*`와 가시 다중 줄 host의 온전한 배치
+대조까지 추가한 `host-square-final-issue_7353_host_square_wrap.log`를 따른다.
+Native build와 Native/WASM lib Clippy29.78/33.13초 PASS다. 전체 CI와
+workspace/all-target Clippy는 이번 절편에서 미실행이다.
+
+이전 문단44 대조군도 현재 코드로 다시 출력했다. 이전 승인 입력의
+`body-column-anchor/normal-after/native.json`과 이번
+`host-side-wrap/control-after/native.json`은 `cmp`로 완전히 동일하다.
+이 검사는 현재 최종 코드의 새 원점 계산이 호스트 다음에 시작하는 기존
+Square 배치를 바꾸지 않았다는 근거이며, 다음 문단61의 지원 증거가 아니다.
+
+**최종 fresh WASM/Visual Sweep:** Docker 빌드7분23초·종료0,
+WASM SHA256 `fc619b46a03e8459deecc25b51ffb338b36bd8a606baaa395647bcd2b6baba11`.
+`node output/7353/r19/host-side-wrap/capture.mjs --wasm` 및
+`control-capture.mjs --wasm` 종료0. 정상 저장 후보/이전 대조군 각1쪽에서
+Native/fresh WASM 전체 노드 차이0, SVG동일이다. 후보 `review/wasm-review-1.png`,
+`wasm-overlay-1.png`와 대조군 `control-review/wasm-review-1.png`를 직접 열어
+빈 줄 옆 표의 시작·하단, 제목/본문/주석, 기존 옆6줄·전체 폭 복귀 보존을
+확인했다. 글꼴 차이는 남기며 메인테이너가 시각 판정 통과를 확인했다.
+source HEAD `50823731af6050c60ec3cfcc898abf36daa6b35a` + WIP를 기준으로
+`source.sha256`, `tests.sha256`, 각 `run.json`에 코드·입력·PDF·WASM을
+고정했다. 빌드 후 production 변경 없이 해시 검사, 명시 파일 rustfmt check,
+git diff check를 통과했다. PR/push/기본 엔진 전환과 전체CI는 수행하지 않았다.
+
+### 2026-09-28 — 승인 상태 baseline 커밋과 과거 worktree 정리
+
+작업지시자는 현재 승인 상태를 `task_m100_7353`에 커밋하여 후속 작업의
+기준점으로 보존하고, 과거 검토용 worktree 7개의 변경은 각각 로컬 보존
+브랜치에 기록한 뒤 제거하도록 승인했다. devel 및 원격은 변경하지 않는다.
+이 커밋은 위 검증된 소스와 현재 작업 자료의 checkpoint이며 R5 완료나
+전체 CI 통과를 의미하지 않는다. 문단61 TAC 줄 구성은 다음 작업으로 남는다.
+
+과거 검토용 WIP는 현재 승인된 조판 상태와 섞지 않는다. 해당 HEAD·보존
+커밋·ignored 증적의 보관 위치와 삭제 결과는 기본 저장소의
+`output/cleanup-20260928/`에 남긴다. #7353의 원본·시각 증적과 실행파일은
+그대로 유지한다. 불필요한 검증 재실행이나 baseline 기대값 변경은 하지 않는다.

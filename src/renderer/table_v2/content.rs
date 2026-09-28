@@ -19,6 +19,12 @@ pub struct TableContentPlan {
     /// Atomic leading prefix, replayed in physical space without advancing the
     /// body cursor. Qualified by the IR adapter; zero for caller-composed flows.
     pub(super) header_rows: usize,
+    /// Corroborated whole-row source cuts owned by this child, not its follower.
+    pub(super) stored_row_starts: Vec<usize>,
+    /// Saved physical end-row bands, independently qualified against both
+    /// fragments. These are not changes to caller-authored minimum heights.
+    pub(super) stored_row_bands: Vec<(usize, f64)>,
+    pub(super) stored_cell_frames: Vec<super::stored_child_frames::StoredRowFrames>,
     depth: usize,
 }
 
@@ -45,9 +51,32 @@ pub(super) struct CellTrack {
     pub text_width: Option<f64>,
     /// Leading space resolved from the intact row's final physical height.
     pub content_offset_y: f64,
+    /// Unaligned occupied extent including the cell's one-time padding.
+    pub content_height: f64,
 }
 
 impl FlowBlock {
+    /// A saved frame cut remains inside its owning child cursor. Propagate only
+    /// its availability to the parent; never flatten the child's cut into an
+    /// unrelated parent paragraph. Inline/never-split children remain atomic.
+    pub(super) fn has_stored_frame_cut(&self) -> bool {
+        match self {
+            Self::StoredFrameStart => true,
+            Self::Table { plan, .. } | Self::AnchoredTable { plan, .. } => {
+                plan.policy != SplitPolicy::Never
+                    && (!plan.stored_row_starts.is_empty()
+                        || plan.rows.iter().enumerate().any(|(index, row)| {
+                            plan.grid[index].iter().all(|track| track.row_span == 1)
+                                && row
+                                    .cells
+                                    .iter()
+                                    .any(|cell| cell.blocks.iter().any(Self::has_stored_frame_cut))
+                        }))
+            }
+            _ => false,
+        }
+    }
+
     pub(super) fn advance(&self) -> f64 {
         match self {
             Self::AnchoredTable { host_advance, .. } => self.height().max(*host_advance),
@@ -57,17 +86,21 @@ impl FlowBlock {
     }
     pub(super) fn height(&self) -> f64 {
         match self {
+            Self::StoredFrameStart => 0.0,
+            Self::StoredFrameTail { spaces, .. } => spaces.iter().sum(),
             Self::AnchoredTable {
                 host,
+                offset_y,
                 top,
                 bottom,
                 plan,
                 ..
             } => host
                 .as_ref()
-                .map_or(0.0, |h| h.bounds.height)
-                .max(top + plan.height + bottom),
+                .map_or(0.0, |h| h.bounds.y + h.bounds.height)
+                .max(offset_y + top + plan.height + bottom),
             Self::Space(height)
+            | Self::FollowingLineGap(height)
             | Self::Lines { height, .. }
             | Self::InlineTables { height, .. } => *height,
             Self::Table { plan, .. } => plan.height,
@@ -79,6 +112,13 @@ fn physical_extent(blocks: &[FlowBlock]) -> f64 {
     let mut pen: f64 = 0.0;
     let mut end: f64 = 0.0;
     for block in blocks {
+        if let FlowBlock::StoredFrameTail { spaces, .. } = block {
+            for space in spaces {
+                pen += space;
+                end = end.max(pen);
+            }
+            continue;
+        }
         end = end.max(pen + block.height());
         pen += block.advance();
         end = end.max(pen);
@@ -155,6 +195,7 @@ impl TableContentPlan {
                     alignment: VerticalAlignment::Top,
                     text_width: None,
                     content_offset_y: 0.0,
+                    content_height: 0.0,
                 };
                 left += width;
                 cell
@@ -181,12 +222,9 @@ impl TableContentPlan {
             let mut height: f64 = 0.0;
             for (slot, cell) in input.cells.iter_mut().enumerate() {
                 let track = &grid[row][slot];
-                if track.row_span > 1 && policy == SplitPolicy::WithinCells {
-                    return Err(GeometryError::Unsupported("rowspan cell-internal cuts"));
-                }
-                if policy == SplitPolicy::WithinCells && track.alignment != VerticalAlignment::Top {
-                    return Err(GeometryError::Unsupported("split-cell vertical alignment"));
-                }
+                // A permission to split does not mean this cell is already
+                // split. Intact alignment and spanning owners use the same
+                // measured plan; fragment admission checks the actual cut.
                 let column = track.column;
                 let p = cell.padding;
                 for v in [p.left, p.right, p.top, p.bottom] {
@@ -210,25 +248,37 @@ impl TableContentPlan {
                             host,
                             host_advance,
                             offset_x,
+                            offset_y,
+                            available_width,
                             top,
                             bottom,
                             plan,
                         } => {
                             depth = depth.max(plan.depth + 1);
-                            for v in [*host_advance, *offset_x, *top, *bottom] {
+                            for v in [
+                                *host_advance,
+                                *offset_x,
+                                *offset_y,
+                                *available_width,
+                                *top,
+                                *bottom,
+                            ] {
                                 nonnegative(v, "anchored cell geometry")?;
                             }
                             if depth > 64
                                 || (host.is_none() && *host_advance != 0.0)
                                 || !(*offset_x + plan.width).is_finite()
                                 || *offset_x + plan.width > inner_width
+                                || *offset_x + *available_width > inner_width
+                                || plan.width > *available_width
                             {
                                 return Err(GeometryError::ContentBounds { row, column });
                             }
                             if let Some(host) = host {
                                 nonnegative(host.bounds.height, "anchored host height")?;
-                                if host.bounds.x != 0.0
-                                    || host.bounds.y != 0.0
+                                nonnegative(host.bounds.x, "anchored host x")?;
+                                nonnegative(host.bounds.y, "anchored host y")?;
+                                if host.bounds.x > inner_width
                                     || host.bounds.width != 0.0
                                     || host.bounds.height <= 0.0
                                 {
@@ -322,7 +372,14 @@ impl TableContentPlan {
                             for child in tables {
                                 nonnegative(child.x, "inline table x")?;
                                 super::contracts::finite(child.y, "inline table y")?;
-                                if child.x + child.plan.width > inner_width
+                                // Padding narrows the composition lane, not the
+                                // physical cell. An unbreakable inline object
+                                // may occupy its trailing padding (normal saved
+                                // Hancom centered/overwide TAC). Its x already
+                                // includes the composer-resolved outside margin.
+                                // Beyond the cell edge still needs the separate
+                                // nested clipping contract; do not resize it here.
+                                if child.x + child.plan.width > track.width - p.left
                                     || child.y + child.plan.height > *height
                                 {
                                     return Err(GeometryError::ContentBounds { row, column });
@@ -335,7 +392,18 @@ impl TableContentPlan {
                                 }
                             }
                         }
-                        FlowBlock::Space(_) => {}
+                        FlowBlock::StoredFrameTail {
+                            spaces,
+                            paragraph_after,
+                        } => {
+                            for space in spaces {
+                                nonnegative(*space, "stored frame tail space")?;
+                            }
+                            nonnegative(*paragraph_after, "stored frame paragraph after")?;
+                        }
+                        FlowBlock::Space(_)
+                        | FlowBlock::FollowingLineGap(_)
+                        | FlowBlock::StoredFrameStart => {}
                     }
                 }
                 cell.blocks.insert(0, FlowBlock::Space(p.top));
@@ -357,10 +425,13 @@ impl TableContentPlan {
         for (row, input) in rows.iter().enumerate() {
             // The whole row height is known only after EVERY cell was measured.
             // Empty line boxes and nested tables are physical content, not ink.
-            // Do not center each page fragment or change declared minimum height.
+            // This is the intact-row result, not permission to change declared
+            // minima. A saved-frame split can separately align a fully accepted
+            // companion cell in its first physical fragment.
             for (slot, cell) in input.cells.iter().enumerate() {
                 let physical = physical_extent(&cell.blocks);
                 let track = &mut grid[row][slot];
+                track.content_height = physical;
                 let height = row_heights[row..row + track.row_span].iter().sum::<f64>();
                 // Intact non-spanning cells establish the row boundaries. A
                 // spanning cell cannot silently resize an arbitrary covered row.
@@ -397,6 +468,9 @@ impl TableContentPlan {
             policy,
             height,
             header_rows: 0,
+            stored_row_starts: Vec::new(),
+            stored_row_bands: Vec::new(),
+            stored_cell_frames: Vec::new(),
             depth,
         })
     }

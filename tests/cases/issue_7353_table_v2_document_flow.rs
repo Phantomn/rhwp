@@ -17,6 +17,220 @@ use rhwp::{
 use serde_json::{json, Value};
 
 #[test]
+fn normal_hancom_mixed_center_uses_run_centers_not_a_common_baseline() {
+    let data = include_bytes!("../fixtures/issue7353_mixed_center_review/mixed-saved.hwp");
+    let d = rhwp::parse_document(data).unwrap();
+    assert_eq!(
+        d.sections[0].paragraphs[0].line_segs[0].baseline_distance,
+        1200
+    );
+    assert_eq!(d.sections[0].paragraphs[0].line_segs[0].text_height, 2400);
+    let pages = drain(&mut DocumentV2Session::from_bytes(data, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    let lines = nodes(&pages[0], "TextLine");
+    assert_eq!(lines.len(), 2);
+    // Source normal-save pitch1800HU=24px and em2400HU=32px.
+    // PDF small glyph is4.20168pt above the large one under CENTER,
+    // and shares its baseline under BASELINE (PDF device rounding retained).
+    for (i, line) in lines.iter().enumerate() {
+        near(&line["bbox"]["y"], 20.0 + 24.0 * i as f64);
+        near(&line["bbox"]["height"], 32.0);
+        let runs: Vec<_> = line["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r["node_type"]["TextRun"].is_object())
+            .collect();
+        assert_eq!(runs.len(), 2);
+        near(&runs[0]["node_type"]["TextRun"]["baseline"], 27.2);
+        near(
+            &runs[1]["node_type"]["TextRun"]["baseline"],
+            if i == 0 { 21.6 } else { 27.2 },
+        );
+    }
+}
+
+#[test]
+fn mixed_center_real_table_retains_rows_and_run_owned_baselines() {
+    let data = include_bytes!("../fixtures/issue7353_mixed_center_review/table-saved.hwp");
+    let d = rhwp::parse_document(data).unwrap();
+    let table = d.sections[0].paragraphs[0]
+        .controls
+        .iter()
+        .find_map(|c| {
+            if let Control::Table(t) = c {
+                Some(t)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert_eq!(table.cells.len(), 41);
+    let pages = drain(&mut DocumentV2Session::from_bytes(data, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    let runs = nodes(&pages[0], "TextRun");
+    let large = runs
+        .iter()
+        .find(|r| {
+            r["node_type"]["TextRun"]["text"]
+                .as_str()
+                .is_some_and(|s| s.contains("135"))
+        })
+        .unwrap();
+    let small = runs
+        .iter()
+        .find(|r| {
+            r["node_type"]["TextRun"]["text"]
+                .as_str()
+                .is_some_and(|s| s.contains("(21%)"))
+        })
+        .unwrap();
+    // Normal Hancom source: max em1200HU, center600HU; own em1000HU,
+    // baseline850HU => small baseline950HU, vs large1020HU.
+    near(&large["node_type"]["TextRun"]["baseline"], 13.6);
+    near(&small["node_type"]["TextRun"]["baseline"], 950.0 / 75.0);
+    assert_eq!(large["bbox"]["y"], small["bbox"]["y"]);
+    assert_eq!(
+        runs.iter()
+            .filter(|r| r["node_type"]["TextRun"]["text"]
+                .as_str()
+                .is_some_and(|s| s.contains("135")))
+            .count(),
+        1
+    );
+    let cells = nodes(&pages[0], "TableCell");
+    assert_eq!(cells.len(), 41);
+    // Every saved row is preserved, including the intentionally empty cell.
+    let expected: usize = table
+        .cells
+        .iter()
+        .flat_map(|c| &c.paragraphs)
+        .map(|p| p.line_segs.len())
+        .sum();
+    fn count_lines(node: &Value) -> usize {
+        usize::from(node["node_type"]["TextLine"].is_object())
+            + node["children"]
+                .as_array()
+                .map_or(0, |children| children.iter().map(count_lines).sum())
+    }
+    let actual: usize = cells.iter().map(|c| count_lines(c)).sum();
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn kept_body_paragraph_moves_all_lines_including_blank_to_next_page() {
+    let mut kept = p("A\n\nB");
+    kept.para_shape_id = 1;
+    let mut d = source(vec![p("BEFORE1"), p("BEFORE2"), kept, p("AFTER")]);
+    d.doc_info.para_shapes.push(ParaShape {
+        attr1: 1 << 18,
+        ..d.doc_info.para_shapes[0].clone()
+    });
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), ["BEFORE1", "BEFORE2"]);
+    assert_eq!(labels(&pages[1]), ["A", "", "B", "AFTER"]);
+    for (i, line) in nodes(&pages[1], "TextLine").iter().enumerate() {
+        near(&line["bbox"]["y"], 30.0 + 18.0 * i as f64);
+    }
+    if let Ok(dir) = std::env::var("ISSUE7353_KEEP_DIR") {
+        std::fs::write(format!("{dir}/body.hwpx"), bytes(&d)).unwrap();
+        std::fs::write(
+            format!("{dir}/body.native.json"),
+            serde_json::to_vec(&pages).unwrap(),
+        )
+        .unwrap();
+    }
+    d.doc_info.para_shapes[1].attr1 = 0;
+    let normal = drain(&mut open(&d));
+    assert_eq!(labels(&normal[0]), ["BEFORE1", "BEFORE2", "A", ""]);
+    assert_eq!(labels(&normal[1]), ["B", "AFTER"]);
+}
+
+#[test]
+fn normal_hancom_kept_paragraph_retries_at_next_body_origin() {
+    let data = include_bytes!("../fixtures/issue7353_keep_lines_review/keep-saved.hwp");
+    let d = rhwp::parse_document(data).unwrap();
+    let p = &d.sections[0].paragraphs[1];
+    assert_ne!(
+        d.doc_info.para_shapes[p.para_shape_id as usize].attr1 & (1 << 18),
+        0
+    );
+    assert_eq!(
+        p.line_segs
+            .iter()
+            .map(|s| s.vertical_pos)
+            .collect::<Vec<_>>(),
+        [0, 1800, 3600]
+    );
+    {
+        let pages = drain(&mut DocumentV2Session::from_bytes(data, TERMINAL_OPTIONS).unwrap());
+        assert_eq!(pages.len(), 2);
+        assert_eq!(labels(&pages[0]), ["BEFORE", "BEFORE2", "BEFORE3"]);
+        assert_eq!(labels(&pages[1]), ["ALPHA", "", "CHARLIE", "AFTER"]);
+        for (i, line) in nodes(&pages[1], "TextLine").iter().enumerate() {
+            near(&line["bbox"]["y"], 20.0 + 24.0 * i as f64);
+            near(&line["bbox"]["height"], 16.0);
+        }
+    }
+}
+
+#[test]
+fn protected_paragraph_does_not_swallow_a_stored_internal_page_cut() {
+    // Deliberately contradictory edited metadata is NOT a normal-save oracle.
+    let mut d = rhwp::parse_document(include_bytes!(
+        "../fixtures/issue7353_body_frame_review/portrait-saved.hwp"
+    ))
+    .unwrap();
+    let id = d.sections[0].paragraphs[1].para_shape_id as usize;
+    d.doc_info.para_shapes[id].attr1 |= 1 << 18;
+    let error = DocumentV2Session::from_bytes(&bytes(&d), TERMINAL_OPTIONS)
+        .err()
+        .unwrap();
+    assert!(format!("{error:?}").contains("stored body frame inside atomic paragraph"));
+}
+
+#[test]
+fn kept_paragraph_in_document_cell_preserves_fragment_and_following_body() {
+    let mut t = table(
+        &["BEFORE1", "BEFORE2", "A\n\nB", "AFTER CELL"],
+        TablePageBreak::RowBreak,
+    );
+    t.cells[0].paragraphs[2].para_shape_id = 1;
+    let mut d = source(vec![host("", t), p("AFTER BODY")]);
+    d.doc_info.para_shapes.push(ParaShape {
+        attr1: 1 << 18,
+        ..d.doc_info.para_shapes[0].clone()
+    });
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 3, "36px first fragment,72px second,then body");
+    assert_eq!(labels(&pages[0]), ["BEFORE1", "BEFORE2"]);
+    assert_eq!(labels(&pages[1]), ["A", "", "B", "AFTER CELL"]);
+    for (i, line) in nodes(&pages[1], "TextLine").iter().enumerate() {
+        near(&line["bbox"]["y"], 30.0 + 18.0 * i as f64);
+    }
+    near(&nodes(&pages[0], "Table")[0]["bbox"]["height"], 36.0);
+    near(&nodes(&pages[1], "Table")[0]["bbox"]["height"], 72.0);
+    assert_eq!(*labels(pages.last().unwrap()).last().unwrap(), "AFTER BODY");
+    assert_eq!(
+        pages
+            .iter()
+            .flat_map(labels)
+            .filter(|s| *s == "AFTER BODY")
+            .count(),
+        1
+    );
+    if let Ok(dir) = std::env::var("ISSUE7353_KEEP_DIR") {
+        std::fs::write(format!("{dir}/cell.hwpx"), bytes(&d)).unwrap();
+        std::fs::write(
+            format!("{dir}/cell.native.json"),
+            serde_json::to_vec(&pages).unwrap(),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
 fn saved_market_table_keeps_original_shared_width_intervals_and_following_text() {
     let data = std::fs::read(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -165,6 +379,611 @@ fn source(paragraphs: Vec<Paragraph>) -> Document {
 }
 fn bytes(d: &Document) -> Vec<u8> {
     rhwp::serializer::hwpx::serialize_hwpx(d).unwrap()
+}
+
+fn cell_column_document(blank: bool) -> Document {
+    use rhwp::model::{page::ColumnDef, paragraph::ColumnBreakType};
+    let mut t = table(
+        &[if blank { "" } else { "FIRST" }, "SECOND"],
+        TablePageBreak::RowBreak,
+    );
+    let first = &mut t.cells[0].paragraphs[0];
+    first.column_type = ColumnBreakType::MultiColumn;
+    first.controls.push(Control::ColumnDef(ColumnDef {
+        column_count: 1,
+        same_width: true,
+        ..Default::default()
+    }));
+    first.char_count += 8;
+    first.char_offsets.iter_mut().for_each(|p| *p += 8);
+    source(vec![host("HOST", t), p("AFTER")])
+}
+
+#[test]
+fn initial_cell_single_column_preserves_real_blank_and_following_line() {
+    for blank in [false, true] {
+        let d = cell_column_document(blank);
+        let encoded = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+        let parsed = rhwp::parse_document(&encoded).unwrap();
+        let t = parsed.sections[0].paragraphs[0]
+            .controls
+            .iter()
+            .find_map(|c| {
+                if let Control::Table(t) = c {
+                    Some(t)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        assert_eq!(
+            t.cells[0].paragraphs[0].column_type,
+            rhwp::model::paragraph::ColumnBreakType::MultiColumn
+        );
+        let pages = drain(&mut DocumentV2Session::from_bytes(&encoded, TERMINAL_OPTIONS).unwrap());
+        assert_eq!(pages.len(), 1);
+        let lines = nodes(&pages[0], "TextLine");
+        // A normal single lane has the same geometry as an implicit cell lane.
+        // Compare final paint against that control, not the new helper's output.
+        let mut control = d.clone();
+        let Control::Table(t) = &mut control.sections[0].paragraphs[0].controls[0] else {
+            panic!()
+        };
+        let first = &mut t.cells[0].paragraphs[0];
+        first.controls.clear();
+        first.column_type = rhwp::model::paragraph::ColumnBreakType::None;
+        first.char_count -= 8;
+        first.char_offsets.iter_mut().for_each(|p| *p -= 8);
+        let control_bytes = rhwp::serializer::cfb_writer::serialize_hwp(&control).unwrap();
+        let control_pages =
+            drain(&mut DocumentV2Session::from_bytes(&control_bytes, TERMINAL_OPTIONS).unwrap());
+        assert_eq!(pages.len(), control_pages.len());
+        let control_lines = nodes(&control_pages[0], "TextLine");
+        assert_eq!(lines.len(), control_lines.len());
+        for (a, b) in lines.iter().zip(control_lines) {
+            assert_eq!(a["bbox"], b["bbox"]);
+        }
+        near(&lines[0]["bbox"]["y"], 30.0);
+        assert!(lines[1]["bbox"]["y"].as_f64().unwrap() > lines[0]["bbox"]["y"].as_f64().unwrap());
+        let text = labels(&pages[0]);
+        assert_eq!(text.iter().filter(|s| **s == "SECOND").count(), 1);
+        assert_eq!(text.iter().filter(|s| **s == "AFTER").count(), 1);
+    }
+}
+
+#[test]
+fn initial_cell_column_rejects_real_breaks_other_zones_and_noninitial_declarations() {
+    use rhwp::model::{page::ColumnType, paragraph::ColumnBreakType};
+    for case in 0..9 {
+        let mut d = cell_column_document(false);
+        let Control::Table(t) = &mut d.sections[0].paragraphs[0].controls[0] else {
+            panic!()
+        };
+        let p = &mut t.cells[0].paragraphs[0];
+        let Control::ColumnDef(cd) = &mut p.controls[0] else {
+            panic!()
+        };
+        match case {
+            0 => cd.column_count = 2,
+            1 => cd.spacing = 100,
+            2 => cd.column_type = ColumnType::Distribute,
+            3 => {
+                cd.same_width = false;
+                cd.widths = vec![100];
+            }
+            4 => cd.separator_type = 1,
+            5 => p.column_type = ColumnBreakType::Page,
+            6 => p.column_type = ColumnBreakType::Column,
+            7 => p.column_type = ColumnBreakType::Section,
+            _ => t.cells[0].paragraphs.swap(0, 1),
+        }
+        let encoded = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+        assert!(
+            DocumentV2Session::from_bytes(&encoded, TERMINAL_OPTIONS).is_err(),
+            "case {case}"
+        );
+    }
+}
+
+#[test]
+fn initial_cell_column_saved_text_and_nested_table_match_independent_pdf_origins() {
+    let data = include_bytes!("../fixtures/issue7353/cell-column/cells-v2-saved.hwp");
+    let d = rhwp::parse_document(data).unwrap();
+    for pi in [1, 3] {
+        let Control::Table(t) = &d.sections[0].paragraphs[pi].controls[0] else {
+            panic!()
+        };
+        let p = &t.cells[0].paragraphs[0];
+        assert_eq!(
+            p.column_type,
+            rhwp::model::paragraph::ColumnBreakType::MultiColumn
+        );
+        assert!(matches!(p.controls[0], Control::ColumnDef(_)));
+        if pi == 1 {
+            assert!(matches!(p.controls[1], Control::Table(_)));
+        }
+    }
+    let pages = drain(&mut DocumentV2Session::from_bytes(data, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    let tables = nodes(&pages[0], "Table");
+    assert_eq!(tables.len(), 3);
+    // Hancom PDF path coordinates in points, y axis flipped at mediabox 841.
+    // Compare origins and extents, not merely the presence of cell text.
+    for (table, (left, top, right, bottom)) in tables.iter().zip([
+        (58.049, 758.89, 408.62, 699.914),
+        (63.086, 753.735, 399.505, 705.069),
+        (58.049, 673.064, 151.239, 626.315),
+    ]) {
+        for (key, expected) in [
+            ("x", left * 4.0 / 3.0),
+            ("y", (841.0 - top) * 4.0 / 3.0),
+            ("width", (right - left) * 4.0 / 3.0),
+            ("height", (top - bottom) * 4.0 / 3.0),
+        ] {
+            assert!(
+                (table["bbox"][key].as_f64().unwrap() - expected).abs() < 0.5,
+                "{key}"
+            );
+        }
+    }
+    let lines = nodes(&pages[0], "TextLine");
+    let text_of = |line: &Value| {
+        let mut runs = Vec::new();
+        collect(line, "TextRun", &mut runs);
+        runs.iter()
+            .map(|n| n["node_type"]["TextRun"]["text"].as_str().unwrap())
+            .collect::<String>()
+    };
+    for (needle, pdf_y) in [
+        ("INITIAL SINGLE COLUMN / TEXT", 1295.0),
+        ("15.규제정비", 1547.0),
+        ("계획", 1720.0),
+    ] {
+        let matching: Vec<_> = lines.iter().filter(|n| text_of(n) == needle).collect();
+        assert_eq!(matching.len(), 1, "{needle}");
+        let n = matching[0];
+        let baseline = n["bbox"]["y"].as_f64().unwrap()
+            + n["node_type"]["TextLine"]["baseline"].as_f64().unwrap();
+        assert!(
+            (baseline - pdf_y * 0.119869 * 4.0 / 3.0).abs() < 0.5,
+            "{needle}"
+        );
+    }
+    let text = labels(&pages[0]).join("");
+    for value in [
+        "유 형",
+        "인원수 또는 규모",
+        "피규제자",
+        "참여하는 주민",
+        "다양하여 특정하기 곤란",
+    ] {
+        assert_eq!(text.matches(value).count(), 1, "{value}");
+    }
+}
+
+#[test]
+fn initial_cell_column_fresh_nested_control_retains_ownership_and_lane_geometry() {
+    fn reflow(p: &mut Paragraph, remove: bool) {
+        p.line_segs.clear();
+        if remove && matches!(p.controls.first(), Some(Control::ColumnDef(_))) {
+            p.controls.remove(0);
+            p.column_type = rhwp::model::paragraph::ColumnBreakType::None;
+            p.raw_break_type = 0;
+            p.char_count -= 8;
+            p.char_offsets.iter_mut().for_each(|p| *p -= 8);
+            p.char_shapes
+                .iter_mut()
+                .for_each(|s| s.start_pos = s.start_pos.saturating_sub(8));
+        }
+        for c in &mut p.controls {
+            if let Control::Table(t) = c {
+                for cell in &mut t.cells {
+                    for p in &mut cell.paragraphs {
+                        reflow(p, remove);
+                    }
+                }
+            }
+        }
+    }
+    let d = rhwp::parse_document(include_bytes!(
+        "../fixtures/issue7353/cell-column/cells-v2-saved.hwp"
+    ))
+    .unwrap();
+    let mut renders = Vec::new();
+    for remove in [false, true] {
+        let mut fresh = d.clone();
+        // Only cell stories are edited here; the body remains a stored owner.
+        for p in &mut fresh.sections[0].paragraphs {
+            for c in &mut p.controls {
+                if let Control::Table(t) = c {
+                    for cell in &mut t.cells {
+                        for p in &mut cell.paragraphs {
+                            reflow(p, remove);
+                        }
+                    }
+                }
+            }
+        }
+        let encoded = rhwp::serializer::cfb_writer::serialize_hwp(&fresh).unwrap();
+        renders.push(drain(
+            &mut DocumentV2Session::from_bytes(&encoded, TERMINAL_OPTIONS).unwrap(),
+        ));
+    }
+    assert_eq!(renders[0].len(), renders[1].len());
+    for (a, b) in renders[0].iter().zip(&renders[1]) {
+        assert_eq!(labels(a), labels(b));
+        for kind in ["Table", "TextLine"] {
+            let a = nodes(a, kind);
+            let b = nodes(b, kind);
+            assert_eq!(a.len(), b.len());
+            for (a, b) in a.iter().zip(b) {
+                assert_eq!(a["bbox"], b["bbox"]);
+            }
+        }
+    }
+}
+
+#[test]
+fn stored_body_reset_preserves_line_owners_and_does_not_carry_gap() {
+    use rhwp::model::paragraph::LineSeg;
+    for capacity in [36, 37, 72] {
+        let mut para = p("ABCD");
+        para.line_segs = [9000, 10800, 0, 1800]
+            .into_iter()
+            .enumerate()
+            .map(|(i, y)| LineSeg {
+                text_start: i as u32,
+                vertical_pos: y,
+                line_height: 900,
+                text_height: 900,
+                baseline_distance: 765,
+                line_spacing: 900,
+                column_start: 0,
+                segment_width: 22500,
+                tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+            })
+            .collect();
+        let mut d = source(vec![p("PREFIX"), para, p("AFTER")]);
+        d.sections[0].section_def.page_def.height = (9600 + (capacity + 18) * 75) as u32;
+        let pages = drain(&mut open(&d));
+        assert_eq!(labels(&pages[0]), ["PREFIX", "A", "B"]);
+        assert_eq!(labels(&pages[1])[..2], ["C", "D"]);
+        for (i, page) in pages[..2].iter().enumerate() {
+            let lines = nodes(page, "TextLine");
+            let lines = if i == 0 { &lines[1..] } else { &lines[..] };
+            near(&lines[0]["bbox"]["y"], if i == 0 { 48.0 } else { 30.0 });
+            near(&lines[1]["bbox"]["y"], if i == 0 { 72.0 } else { 54.0 });
+            for line in &lines[..2] {
+                near(&line["bbox"]["height"], 12.0);
+            }
+        }
+        assert_eq!(
+            pages.iter().flat_map(labels).collect::<Vec<_>>(),
+            ["PREFIX", "A", "B", "C", "D", "AFTER"]
+        );
+        assert_eq!(pages.len(), if capacity == 72 { 2 } else { 3 });
+    }
+}
+
+#[test]
+fn stored_body_resets_keep_blank_rows_and_do_not_repeat_paragraph_before() {
+    use rhwp::model::paragraph::LineSeg;
+    let mut para = p("A\n\nB\nC");
+    para.line_segs = [(0, 9000), (2, 0), (3, 1800), (5, 0)]
+        .into_iter()
+        .map(|(text_start, vertical_pos)| LineSeg {
+            text_start,
+            vertical_pos,
+            line_height: 900,
+            text_height: 900,
+            baseline_distance: 765,
+            line_spacing: 900,
+            column_start: 0,
+            segment_width: 22500,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+        })
+        .collect();
+    let mut d = source(vec![p("PREFIX"), para, p("AFTER")]);
+    d.doc_info
+        .para_shapes
+        .push(d.doc_info.para_shapes[0].clone());
+    d.doc_info.para_shapes[1].spacing_before = 900; // URC: 450HU = 6px
+    d.sections[0].paragraphs[1].para_shape_id = 1;
+    let before = serde_json::to_value(&d.sections[0].paragraphs[1]).unwrap();
+    let encoded = bytes(&d);
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 3);
+    assert_eq!(labels(&pages[0]), ["PREFIX", "A"]);
+    assert_eq!(labels(&pages[1]), ["", "B"]);
+    assert_eq!(labels(&pages[2]), ["C", "AFTER"]);
+    near(&nodes(&pages[0], "TextLine")[1]["bbox"]["y"], 54.0);
+    assert_eq!(nodes(&pages[1], "TextLine").len(), 2);
+    near(&nodes(&pages[1], "TextLine")[0]["bbox"]["y"], 30.0);
+    near(&nodes(&pages[1], "TextLine")[1]["bbox"]["y"], 54.0);
+    near(&nodes(&pages[2], "TextLine")[0]["bbox"]["y"], 30.0);
+    assert_eq!(
+        before,
+        serde_json::to_value(&d.sections[0].paragraphs[1]).unwrap()
+    );
+    if let Ok(dir) = std::env::var("ISSUE7353_BODY_RESET_DIR") {
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(format!("{dir}/blank-reset.hwpx"), encoded).unwrap();
+        std::fs::write(
+            format!("{dir}/blank-reset.native.json"),
+            serde_json::to_vec(&pages).unwrap(),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
+fn stored_body_overlap_is_not_a_reset_and_nonzero_reset_is_not_admitted() {
+    use rhwp::model::paragraph::LineSeg;
+    let mut para = p("AB");
+    para.line_segs = [0, 450]
+        .into_iter()
+        .enumerate()
+        .map(|(i, y)| LineSeg {
+            text_start: i as u32,
+            vertical_pos: y,
+            line_height: 900,
+            text_height: 900,
+            baseline_distance: 765,
+            line_spacing: -450,
+            column_start: 0,
+            segment_width: 22500,
+            tag: LineSeg::TAG_SINGLE_SEGMENT_LINE,
+        })
+        .collect();
+    let mut d = source(vec![p("PREFIX"), para]);
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 1);
+    assert_eq!(labels(&pages[0]), ["PREFIX", "A", "B"]);
+    near(&nodes(&pages[0], "TextLine")[1]["bbox"]["y"], 48.0);
+    near(&nodes(&pages[0], "TextLine")[2]["bbox"]["y"], 54.0);
+    d.sections[0].paragraphs[1].line_segs[0].vertical_pos = 9000;
+    assert!(matches!(
+        DocumentV2Session::from_bytes(&bytes(&d), r#"{"dpi":96,"max_pages":20}"#),
+        Err(DocumentV2Error::Paragraph { .. })
+    ));
+}
+
+#[test]
+fn normal_hancom_body_frame_reset_keeps_saved_rows_and_following_paragraph() {
+    let input = include_bytes!("../fixtures/issue7353_body_frame_review/portrait-saved.hwp");
+    let doc = rhwp::parse_document(input).unwrap();
+    let paragraph = &doc.sections[0].paragraphs[1];
+    assert_eq!(
+        paragraph
+            .line_segs
+            .iter()
+            .map(|s| s.vertical_pos)
+            .collect::<Vec<_>>(),
+        [1800, 3600, 5400, 7200, 0, 1800]
+    );
+    let hwpx = bytes(&doc);
+    for input in [input.as_slice(), hwpx.as_slice()] {
+        let pages = drain(&mut DocumentV2Session::from_bytes(input, TERMINAL_OPTIONS).unwrap());
+        assert_eq!(pages.len(), 2);
+        assert_eq!(
+            labels(&pages[0]),
+            ["BEFORE", "ALPHA", "BRAVO", "", "CHARLIE"]
+        );
+        assert_eq!(labels(&pages[1]), ["DELTA", "ECHO", "AFTER"]);
+        // Source body top1500HU, normal saved line pitch1800HU, box1200HU.
+        // Page two starts at its own body origin; the empty third row remains.
+        for (i, page) in pages.iter().enumerate() {
+            let lines = nodes(page, "TextLine");
+            assert_eq!(lines.len(), if i == 0 { 5 } else { 3 });
+            for (li, line) in lines.iter().enumerate() {
+                near(&line["bbox"]["y"], 20.0 + li as f64 * 24.0);
+                near(&line["bbox"]["height"], 16.0);
+            }
+        }
+    }
+}
+
+#[test]
+fn explicit_body_page_break_keeps_the_next_paragraph_and_blank_line_on_new_page() {
+    use rhwp::model::paragraph::ColumnBreakType;
+    let mut blank = p("");
+    blank.column_type = ColumnBreakType::Page;
+    let d = source(vec![p("BEFORE"), blank, p("AFTER")]);
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), ["BEFORE"]);
+    assert_eq!(labels(&pages[1]), ["", "AFTER"]);
+    let lines = nodes(&pages[1], "TextLine");
+    assert_eq!(lines.len(), 2);
+    near(&lines[0]["bbox"]["y"], 30.0);
+    near(&lines[1]["bbox"]["y"], 48.0);
+}
+
+#[test]
+fn explicit_body_break_after_exact_page_fit_does_not_create_an_extra_page() {
+    use rhwp::model::paragraph::ColumnBreakType;
+    let mut after = p("AFTER");
+    after.column_type = ColumnBreakType::Page;
+    let d = source(vec![p("A"), p("B"), p("C"), p("D"), after]);
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), ["A", "B", "C", "D"]);
+    assert_eq!(labels(&pages[1]), ["AFTER"]);
+    near(&nodes(&pages[1], "TextLine")[0]["bbox"]["y"], 30.0);
+}
+
+#[test]
+fn explicit_body_break_drains_deferred_anchor_before_new_story() {
+    use rhwp::model::paragraph::ColumnBreakType;
+    let mut after = p("AFTER");
+    after.column_type = ColumnBreakType::Page;
+    let d = source(vec![
+        stored_anchor("host", TablePageBreak::None, &["A", "B", "C"]),
+        after,
+    ]);
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 3);
+    assert_eq!(labels(&pages[0]), ["host"]);
+    assert_eq!(labels(&pages[1]), ["A", "B", "C"]);
+    assert_eq!(labels(&pages[2]), ["AFTER"]);
+    near(&nodes(&pages[2], "TextLine")[0]["bbox"]["y"], 30.0);
+}
+
+#[test]
+fn explicit_body_breaks_preserve_consecutive_authored_empty_pages_and_snapshot() {
+    use rhwp::model::paragraph::ColumnBreakType;
+    let mut blank = p("");
+    blank.column_type = ColumnBreakType::Page;
+    let mut after = p("AFTER");
+    after.column_type = ColumnBreakType::Page;
+    let d = source(vec![p("BEFORE"), blank, after]);
+    let mut session = open(&d);
+    let first: Value = serde_json::from_str(&session.next_page_json().unwrap().unwrap()).unwrap();
+    assert_eq!(labels(&first), ["BEFORE"]);
+    let mut fork = session.clone();
+    let mut pages = Vec::<Value>::new();
+    while let Some(raw) = session.next_page_json().unwrap() {
+        assert_eq!(Some(raw.clone()), fork.next_page_json().unwrap());
+        pages.push(serde_json::from_str(&raw).unwrap());
+        assert!(pages.len() <= 2);
+    }
+    assert!(fork.next_page_json().unwrap().is_none());
+    assert_eq!(session.emitted_pages(), 3);
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), [""]);
+    near(&nodes(&pages[0], "TextLine")[0]["bbox"]["y"], 30.0);
+    assert_eq!(labels(&pages[1]), ["AFTER"]);
+}
+
+#[test]
+fn explicit_body_break_normal_saved_heading_matches_hancom_new_page_origin() {
+    use rhwp::model::paragraph::ColumnBreakType;
+    let data = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue7353/page-break/prefix13-saved.hwp"
+    ))
+    .unwrap();
+    let d = rhwp::parse_document(&data).unwrap();
+    assert_eq!(d.sections[0].paragraphs.len(), 13);
+    let heading = &d.sections[0].paragraphs[12];
+    assert_eq!(heading.column_type, ColumnBreakType::Page);
+    assert_eq!(heading.line_segs[0].vertical_pos, 0);
+    let pages = drain(&mut DocumentV2Session::from_bytes(&data, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 2);
+    assert!(!labels(&pages[0]).iter().any(|s| s.contains("규제 개요")));
+    assert_eq!(labels(&pages[1]), ["< 규제 개요 >", "- 2 -"]);
+    let first = nodes(&pages[1], "TextLine")[0];
+    assert_eq!(first["node_type"]["TextLine"]["para_index"], 12);
+    assert_eq!(first["node_type"]["TextLine"]["vpos"], 0);
+    // Source PageDef body origin and independent PDF trace: text baseline
+    // (472*.119935,579*.119869) pt, converted at96dpi. Not a page-count oracle.
+    let page = &d.sections[0].section_def.page_def;
+    near(
+        &first["bbox"]["y"],
+        f64::from(page.margin_top + page.margin_header) / 75.0,
+    );
+    let baseline = first["bbox"]["y"].as_f64().unwrap()
+        + first["node_type"]["TextLine"]["baseline"].as_f64().unwrap();
+    assert!((baseline - 579.0 * 0.119869 * 4.0 / 3.0).abs() < 1.0);
+    assert!((first["bbox"]["x"].as_f64().unwrap() - 472.0 * 0.119935 * 4.0 / 3.0).abs() < 1.0);
+    assert!(nodes(&pages[1], "Table").is_empty());
+    // The preceding authored space-only paragraph must remain on page1.
+    assert!(nodes(&pages[0], "TextLine")
+        .iter()
+        .any(|n| n["node_type"]["TextLine"]["para_index"] == 11));
+}
+
+#[test]
+fn explicit_body_break_does_not_admit_unqualified_section_column_or_initial_breaks() {
+    use rhwp::model::paragraph::ColumnBreakType;
+    for kind in [
+        ColumnBreakType::Section,
+        ColumnBreakType::MultiColumn,
+        ColumnBreakType::Column,
+    ] {
+        let mut after = p("AFTER");
+        after.column_type = kind;
+        let encoded =
+            rhwp::serializer::cfb_writer::serialize_hwp(&source(vec![p("BEFORE"), after])).unwrap();
+        assert_eq!(
+            rhwp::parse_document(&encoded).unwrap().sections[0].paragraphs[1].column_type,
+            kind
+        );
+        assert!(DocumentV2Session::from_bytes(&encoded, TERMINAL_OPTIONS).is_err());
+    }
+    let mut first = p("FIRST");
+    first.column_type = ColumnBreakType::Page;
+    assert!(DocumentV2Session::from_bytes(&bytes(&source(vec![first])), TERMINAL_OPTIONS).is_err());
+}
+
+#[test]
+fn explicit_body_break_waits_for_previous_split_table_and_starts_before_next_table() {
+    use rhwp::model::paragraph::ColumnBreakType;
+    let mut next = host("NEXT HOST", table(&["NEXT CELL"], TablePageBreak::RowBreak));
+    next.column_type = ColumnBreakType::Page;
+    let d = source(vec![
+        host(
+            "PREVIOUS HOST",
+            table(&["R1", "R2", "R3", "R4", "R5"], TablePageBreak::RowBreak),
+        ),
+        next,
+        p("AFTER"),
+    ]);
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 3);
+    assert_eq!(labels(&pages[0]), ["R1", "R2", "R3", "R4"]);
+    assert_eq!(labels(&pages[1]), ["R5", "PREVIOUS HOST"]);
+    assert_eq!(labels(&pages[2]), ["NEXT CELL", "NEXT HOST", "AFTER"]);
+    near(&nodes(&pages[2], "Table")[0]["bbox"]["y"], 30.0);
+}
+
+#[test]
+fn explicit_body_break_precedes_the_whole_tac_row_without_splitting_its_owners() {
+    let mut carrier = inline_carrier(false);
+    carrier.column_type = rhwp::model::paragraph::ColumnBreakType::Page;
+    let mut d = source(vec![p("BEFORE"), carrier, p("AFTER")]);
+    d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Left;
+    let pages = drain(&mut open(&d));
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), ["BEFORE"]);
+    assert_eq!(labels(&pages[1]), ["A", "a", "B", "b", "AFTER"]);
+    let tables = nodes(&pages[1], "Table");
+    assert_eq!(tables.len(), 2);
+    for t in tables {
+        near(&t["bbox"]["y"], 32.0); // body30 + source outer margin2
+    }
+}
+
+#[test]
+fn explicit_body_break_precedes_the_zero_width_exclusion_host_and_its_table() {
+    let mut d = rhwp::parse_document(include_bytes!(
+        "../fixtures/issue7353/body-exclusion/contents-saved.hwp"
+    ))
+    .unwrap();
+    d.sections[0].paragraphs[8].column_type = rhwp::model::paragraph::ColumnBreakType::Page;
+    let pages = drain(&mut DocumentV2Session::from_bytes(&bytes(&d), TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 2);
+    let lines = nodes(&pages[1], "TextLine");
+    let host = lines
+        .iter()
+        .find(|n| n["node_type"]["TextLine"]["para_index"] == 8)
+        .unwrap();
+    let page = &d.sections[0].section_def.page_def;
+    let origin = f64::from(page.margin_top + page.margin_header) / 75.0;
+    near(&host["bbox"]["y"], origin);
+    near(&host["bbox"]["width"], 0.0);
+    let tables = nodes(&pages[1], "Table");
+    assert_eq!(tables.len(), 1);
+    let Control::Table(t) = &d.sections[0].paragraphs[8].controls[0] else {
+        panic!()
+    };
+    near(
+        &tables[0]["bbox"]["y"],
+        origin + f64::from(t.common.margin.top) / 75.0,
+    );
+    assert!(lines
+        .iter()
+        .any(|n| n["node_type"]["TextLine"]["para_index"] == 9));
 }
 
 #[test]
@@ -324,7 +1143,7 @@ fn terminal_paragraph_after_matches_hancom_table_and_following_body() {
 #[test]
 fn document_terminal_policy_keeps_body_paragraph_advance_after_anchored_table() {
     let d = source(vec![
-        host("host", table(&["A", "B"], TablePageBreak::CellBreak)),
+        host("host", table(&["A", "B"], TablePageBreak::RowBreak)),
         p("after"),
     ]);
     let data = bytes(&d);
@@ -436,18 +1255,57 @@ fn document_terminal_policy_original_full_admission_advances_without_fallback() 
     ))
     .unwrap();
     let mut session = DocumentV2Session::from_bytes(&data, TERMINAL_OPTIONS).unwrap();
-    assert!(session.next_page_json().unwrap().is_some());
-    let error = session.next_page_json().unwrap_err();
-    eprintln!("original terminal admission: {error}");
-    // Stored formula replay completes preparation, but the original second
-    // physical page cannot place its requested fragment. This is an admission
-    // diagnostic, NOT a successful full-document layout or page-count baseline.
-    assert!(matches!(error, DocumentV2Error::DoesNotFit { page: 1, .. }));
+    let pages = drain(&mut session);
+    // Geometry/admission contract, NOT a page-count or Hancom fidelity pass.
+    // The original PDF proves the parent continues across physical pages.
+    let mut fragments = 0;
+    for page in &pages {
+        let body = nodes(page, "Body")[0];
+        let bottom = body["bbox"]["y"].as_f64().unwrap() + body["bbox"]["height"].as_f64().unwrap();
+        for table in nodes(page, "Table") {
+            if table["node_type"]["Table"]["para_index"] == 5 {
+                fragments += 1;
+                assert!(
+                    table["bbox"]["y"].as_f64().unwrap()
+                        + table["bbox"]["height"].as_f64().unwrap()
+                        <= bottom + 1e-9
+                );
+            }
+        }
+        fn check_cell_lines(node: &Value, cell: Option<&Value>) {
+            let cell = if node["node_type"].get("TableCell").is_some() {
+                Some(&node["bbox"])
+            } else {
+                cell
+            };
+            if node["node_type"].get("TextLine").is_some() {
+                if let Some(cell) = cell {
+                    let b = &node["bbox"];
+                    assert!(b["y"].as_f64().unwrap() >= cell["y"].as_f64().unwrap() - 1e-9);
+                    assert!(
+                        b["y"].as_f64().unwrap() + b["height"].as_f64().unwrap()
+                            <= cell["y"].as_f64().unwrap()
+                                + cell["height"].as_f64().unwrap()
+                                + 1e-9
+                    );
+                }
+            }
+            for child in node["children"].as_array().unwrap() {
+                check_cell_lines(child, cell);
+            }
+        }
+        check_cell_lines(&page["render_tree"]["root"], None);
+    }
+    assert!(fragments > 1);
+    assert!(session.next_page_json().unwrap().is_none());
     if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(
             format!("{dir}/6923-terminal-admission.txt"),
-            error.to_string(),
+            format!(
+                "{} pages; parent fragments {fragments}; geometry only, visual review pending",
+                pages.len()
+            ),
         )
         .unwrap();
         let original = rhwp::parse_document(&data).unwrap();
@@ -470,7 +1328,7 @@ fn open(d: &Document) -> DocumentV2Session {
 fn document_noop_border_reference_preserves_body_and_cell_lines() {
     let mut d = source(vec![
         p(""),
-        host("host", table(&["A", ""], TablePageBreak::CellBreak)),
+        host("host", table(&["A", ""], TablePageBreak::RowBreak)),
         p("after"),
     ]);
     let reference = drain(&mut open(&d));
@@ -586,7 +1444,7 @@ fn document_noop_border_does_not_admit_visible_or_lost_effects() {
         let bad_style = d.doc_info.para_shapes[0].clone();
         d.doc_info.para_shapes[0].border_fill_id = 0;
         d.doc_info.para_shapes.push(bad_style);
-        let mut nested = table(&["inside"], TablePageBreak::CellBreak);
+        let mut nested = table(&["inside"], TablePageBreak::RowBreak);
         nested.cells[0].paragraphs[0].para_shape_id = 1;
         d.sections[0].paragraphs = vec![host("host", nested)];
         assert!(
@@ -846,7 +1704,7 @@ fn stored_anchor_reserves_offset_once_and_preserves_host_and_following_rows() {
     // It is not a normal Hancom saved specimen or a PDF fidelity assertion.
     for text in ["", "host"] {
         let d = source(vec![
-            stored_anchor(text, TablePageBreak::CellBreak, &["A", "B", "C", "D"]),
+            stored_anchor(text, TablePageBreak::RowBreak, &["A", "B", "C", "D"]),
             p("after"),
         ]);
         for hwp in [false, true] {
@@ -859,12 +1717,13 @@ fn stored_anchor_reserves_offset_once_and_preserves_host_and_following_rows() {
                 DocumentV2Session::from_bytes(&encoded, r#"{"dpi":96,"max_pages":20}"#).unwrap();
             let pages = drain(&mut session);
             assert_eq!(pages.len(), 2);
-            assert_eq!(labels(&pages[0]), vec![text, "A", "B", "C"]);
-            assert_eq!(labels(&pages[1]), ["D", "after"]);
-            // Three12px line boxes at18px pitch occupy48px exactly. The last
-            //6px paragraph tail is a physical band on the continuation page,
-            // not a reason to discard C or repeat its glyphs.
-            for (page, (y, height)) in pages.iter().zip([(54.0, 48.0), (36.0, 24.0)]) {
+            assert_eq!(labels(&pages[0]), vec![text, "A", "B"]);
+            assert_eq!(labels(&pages[1]), ["C", "D", "after"]);
+            // Source body ends at102; table starts54; every fragment owns8px
+            // outer bottom margin, leaving40px. C would end102, outside the
+            // table budget94. Preserve C on the next page, not in the margin.
+            // Each accepted pair consumes two18px paragraph advances.
+            for (page, (y, height)) in pages.iter().zip([(54.0, 36.0), (36.0, 36.0)]) {
                 let t = nodes(page, "Table");
                 assert_eq!(t.len(), 1);
                 near(&t[0]["bbox"]["x"], 28.0);
@@ -878,7 +1737,7 @@ fn stored_anchor_reserves_offset_once_and_preserves_host_and_following_rows() {
             near(&line["bbox"]["height"], 12.0);
             for (page, ys) in pages
                 .iter()
-                .zip([vec![30.0, 54.0, 72.0, 90.0], vec![42.0, 68.0]])
+                .zip([vec![30.0, 54.0, 72.0], vec![36.0, 54.0, 80.0]])
             {
                 for (line, y) in nodes(page, "TextLine").iter().zip(ys) {
                     near(&line["bbox"]["y"], y);
@@ -894,6 +1753,143 @@ fn stored_anchor_reserves_offset_once_and_preserves_host_and_following_rows() {
                     &d,
                     &pages,
                 );
+            }
+        }
+    }
+}
+
+#[test]
+fn stored_anchor_in_line_gap_preserves_host_and_uses_object_origin() {
+    // Independent synthetic geometry: host12 + gap6; object top=15
+    // (offset9 + outer6). The table may occupy3px of trailing gap, not ink.
+    for text in ["", "host"] {
+        let mut host = stored_anchor(text, TablePageBreak::RowBreak, &["A", "B", "C", "D"]);
+        let Control::Table(t) = &mut host.controls[0] else {
+            unreachable!()
+        };
+        t.common.vertical_offset = 675;
+        let pages = drain(&mut open(&source(vec![host, p("after")])));
+        assert_eq!(pages.len(), 2);
+        // C starts81 and its12px box ends93, inside the94px table budget.
+        // The6px following gap is not required to paint that final line here.
+        assert_eq!(labels(&pages[0]), vec![text, "A", "B", "C"]);
+        assert_eq!(labels(&pages[1]), ["D", "after"]);
+        near(&nodes(&pages[0], "TextLine")[0]["bbox"]["y"], 30.);
+        near(&nodes(&pages[0], "TextLine")[0]["bbox"]["height"], 12.);
+        near(&nodes(&pages[0], "Table")[0]["bbox"]["y"], 45.);
+        near(&nodes(&pages[1], "Table")[0]["bbox"]["y"], 36.);
+        // C ends93; only1px of its6px gap fits before budget94. The
+        // remaining5px is physical continuation space, then D18 + margin8.
+        near(&nodes(&pages[1], "TextLine")[0]["bbox"]["y"], 41.);
+        near(
+            &nodes(&pages[1], "TextLine").last().unwrap()["bbox"]["y"],
+            67.,
+        );
+    }
+}
+
+#[test]
+fn stored_anchor_gap_overlap_does_not_rewind_story_when_atomic_fit_fails() {
+    let mut host = stored_anchor("host", TablePageBreak::None, &["A", "B", "C"]);
+    let Control::Table(t) = &mut host.controls[0] else {
+        unreachable!()
+    };
+    t.common.vertical_offset = 675;
+    let pages = drain(&mut open(&source(vec![p("before"), host, p("after")])));
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), ["before", "host", "after"]);
+    assert_eq!(labels(&pages[1]), ["A", "B", "C"]);
+    near(&nodes(&pages[0], "TextLine")[2]["bbox"]["y"], 66.);
+    near(&nodes(&pages[1], "Table")[0]["bbox"]["y"], 36.);
+}
+
+#[test]
+fn stored_host_indent_moves_flagged_text_not_its_paragraph_anchor() {
+    use rhwp::model::paragraph::LineSeg;
+    for indent in [-750, 0, 750] {
+        let mut host = stored_anchor("host", TablePageBreak::None, &["A"]);
+        if indent > 0 {
+            host.line_segs[0].tag |= LineSeg::TAG_INDENTATION;
+        }
+        let mut d = source(vec![host, p("after")]);
+        let shape = d.doc_info.para_shapes.len() as u16;
+        let mut style = d.doc_info.para_shapes[0].clone();
+        style.indent = indent;
+        d.doc_info.para_shapes.push(style);
+        d.sections[0].paragraphs[0].para_shape_id = shape;
+        let pages = drain(&mut open(&d));
+        assert_eq!(pages.len(), 1);
+        near(&nodes(&pages[0], "Table")[0]["bbox"]["x"], 28.);
+        near(&nodes(&pages[0], "Table")[0]["bbox"]["y"], 54.);
+        near(
+            &nodes(&pages[0], "TextLine")[0]["bbox"]["x"],
+            // Source paragraph margins use URC:750URC=375HU=5px.
+            if indent > 0 { 25. } else { 20. },
+        );
+        assert_eq!(labels(&pages[0]), ["host", "A", "after"]);
+    }
+}
+
+#[test]
+fn stored_anchor_gap_crossing_page_keeps_source_origin_without_duplicate_host() {
+    let mut host = stored_anchor("host", TablePageBreak::None, &["A"]);
+    host.line_segs[0].line_spacing = 5400; //72px tail > remaining page
+    let Control::Table(t) = &mut host.controls[0] else {
+        unreachable!()
+    };
+    t.common.vertical_offset = 675;
+    let d = source(vec![host, p("after")]);
+    let pages = drain(&mut open(&d));
+    capture("anchor-gap-boundary", &d, &pages);
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[0]), ["host", "A"]);
+    assert_eq!(labels(&pages[1]), ["after"]);
+    // The following-line gap ends at the page boundary; it cannot move the
+    // object away from host origin30 + source offset9 + outer top6.
+    near(&nodes(&pages[0], "Table")[0]["bbox"]["y"], 45.);
+    near(
+        &nodes(&pages[1], "TextLine").last().unwrap()["bbox"]["y"],
+        30.,
+    );
+}
+
+#[test]
+fn stored_anchor_origin_is_independent_of_clipped_host_gap_and_text_visibility() {
+    for text in ["", "host"] {
+        for prefix in [false, true] {
+            for gap in [450, 4500, 5400, 10800] {
+                let mut host = stored_anchor(text, TablePageBreak::None, &["A"]);
+                host.line_segs[0].line_spacing = gap;
+                let Control::Table(t) = &mut host.controls[0] else {
+                    unreachable!()
+                };
+                t.common.vertical_offset = 675;
+                let mut paras = if prefix { vec![p("before")] } else { vec![] };
+                paras.extend([host, p("after")]);
+                let d = source(paras);
+                for hwp in [false, true] {
+                    let data = if hwp {
+                        rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap()
+                    } else {
+                        bytes(&d)
+                    };
+                    let pages = drain(
+                        &mut DocumentV2Session::from_bytes(&data, r#"{"dpi":96,"max_pages":20}"#)
+                            .unwrap(),
+                    );
+                    let table = nodes(&pages[0], "Table");
+                    assert_eq!(table.len(), 1, "gap={gap}, prefix={prefix}");
+                    near(&table[0]["bbox"]["y"], 45. + if prefix { 18. } else { 0. });
+                    near(&table[0]["bbox"]["height"], 18.);
+                    let all: Vec<_> = pages.iter().flat_map(labels).collect();
+                    let expected = if prefix {
+                        vec!["before", text, "A", "after"]
+                    } else {
+                        vec![text, "A", "after"]
+                    };
+                    assert_eq!(all, expected);
+                    assert!(pages.len() <= 2, "no gap-only page");
+                }
             }
         }
     }
@@ -918,6 +1914,91 @@ fn stored_anchor_atomic_defer_does_not_repeat_host_or_initial_band() {
     near(&t["bbox"]["height"], 54.0);
     near(&nodes(&pages[0], "TextLine")[2]["bbox"]["y"], 66.0);
     capture("document-anchor-defer", &d, &pages);
+}
+
+#[test]
+fn clipped_host_gap_preserves_split_anchor_cuts_and_following_story() {
+    for text in ["", "host"] {
+        let mut host = stored_anchor(text, TablePageBreak::RowBreak, &["A", "B", "C", "D"]);
+        host.line_segs[0].line_spacing = 5400;
+        let Control::Table(t) = &mut host.controls[0] else {
+            unreachable!()
+        };
+        t.common.vertical_offset = 675;
+        let pages = drain(&mut open(&source(vec![host, p("after")])));
+        assert_eq!(pages.len(), 2);
+        assert_eq!(labels(&pages[0]), [text, "A", "B", "C"]);
+        assert_eq!(labels(&pages[1]), ["D", "after"]);
+        let first = nodes(&pages[0], "Table")[0];
+        near(&first["bbox"]["y"], 45.);
+        let bottom =
+            first["bbox"]["y"].as_f64().unwrap() + first["bbox"]["height"].as_f64().unwrap();
+        assert!(bottom <= 94. + 1e-9); //body102 minus outer bottom8.
+        near(&nodes(&pages[1], "Table")[0]["bbox"]["y"], 36.);
+        near(&nodes(&pages[1], "TextLine")[0]["bbox"]["y"], 41.);
+        near(
+            &nodes(&pages[1], "TextLine").last().unwrap()["bbox"]["y"],
+            67.,
+        );
+    }
+}
+
+#[test]
+fn carried_physical_paragraph_after_defers_anchor_without_replaying_source_offset() {
+    for offset in [1350, 9000] {
+        let mut host = stored_anchor("host", TablePageBreak::None, &["A"]);
+        let Control::Table(t) = &mut host.controls[0] else {
+            unreachable!()
+        };
+        t.common.vertical_offset = offset;
+        let mut d = source(vec![host, p("after")]);
+        let mut style = d.doc_info.para_shapes[0].clone();
+        style.spacing_after = 12000; //80px physical paragraph-after, not line gap.
+        let id = d.doc_info.para_shapes.len() as u16;
+        d.doc_info.para_shapes.push(style);
+        d.sections[0].paragraphs[0].para_shape_id = id;
+        let pages = drain(&mut open(&d));
+        assert_eq!(pages.len(), 2);
+        assert_eq!(labels(&pages[0]), ["host"]);
+        assert_eq!(labels(&pages[1]), ["A", "after"]);
+        //Host12 + gap6 + after80 consumes72 on p1 and26 on p2.
+        //The source host is not on p2: only its deferred6px table margin applies.
+        near(&nodes(&pages[1], "Table")[0]["bbox"]["y"], 62.);
+        near(
+            &nodes(&pages[1], "TextLine").last().unwrap()["bbox"]["y"],
+            88.,
+        );
+    }
+}
+
+#[test]
+fn hancom_long_host_gap_preserves_anchor_and_next_page_prose() {
+    let input = include_bytes!("../fixtures/issue7353_anchor_gap_review/anchor-saved.hwp");
+    let mut session = DocumentV2Session::from_bytes(input, TERMINAL_OPTIONS).unwrap();
+    let pages = drain(&mut session);
+    assert_eq!(pages.len(), 2);
+    assert_eq!(
+        labels(&pages[0]).join(""),
+        [
+            "표 시작 위치 확인",
+            "자료 01 : 표 안의 문단과 페이지 연결 확인",
+            "자료 02 : 표 안의 문단과 페이지 연결 확인",
+        ]
+        .concat()
+    );
+    assert_eq!(nodes(&pages[0], "TextLine").len(), 3);
+    assert_eq!(labels(&pages[1]), ["표 종료 후 본문입니다."]);
+    let table = nodes(&pages[0], "Table");
+    assert_eq!(table.len(), 1);
+    // Untouched Hancom save: body5669 + paragraph offset2835 + outer top283.
+    // The4000% host line pitch exceeds this page's body, but it is not an anchor.
+    near(&table[0]["bbox"]["y"], (5669. + 2835. + 283.) / 75.);
+    near(&table[0]["bbox"]["height"], 4652. / 75.);
+    near(&nodes(&pages[0], "TextLine")[0]["bbox"]["y"], 5669. / 75.);
+    near(&nodes(&pages[1], "TextLine")[0]["bbox"]["y"], 5669. / 75.);
+    assert!(nodes(&pages[1], "Table").is_empty());
+    assert!(session.next_page_json().unwrap().is_none());
+    capture_terminal("hancom-long-host-gap", input, &pages);
 }
 
 #[test]
@@ -1016,6 +2097,27 @@ fn fitting_anchor_reserves_table_and_bottom_margin_before_following_story() {
 }
 
 #[test]
+fn atomic_anchor_cannot_emit_a_table_then_a_margin_only_page() {
+    let mut para = stored_anchor("host", TablePageBreak::None, &["A"]);
+    let Control::Table(t) = &mut para.controls[0] else {
+        unreachable!()
+    };
+    t.common.margin.bottom = 4500; //60px +6px top +18px table >72px body
+    t.outer_margin_bottom = 4500;
+    let mut session = open(&source(vec![para, p("after")]));
+    let first: Value = serde_json::from_str(&session.next_page_json().unwrap().unwrap()).unwrap();
+    assert_eq!(labels(&first), ["host", "after"]);
+    for _ in 0..2 {
+        assert!(
+            matches!(session.next_page_json(), Err(DocumentV2Error::DoesNotFit {
+            page: 1, required_height
+        }) if (required_height - 84.0).abs() < 1e-8)
+        );
+        assert_eq!(session.emitted_pages(), 1);
+    }
+}
+
+#[test]
 fn deferred_table_survives_story_end_and_offset_outside_page() {
     let mut para = stored_anchor("host", TablePageBreak::None, &["A"]);
     let Control::Table(table) = &mut para.controls[0] else {
@@ -1058,14 +2160,16 @@ fn multiple_deferred_tables_preserve_owners_without_repeating_story() {
 #[test]
 fn stored_anchor_rejects_overlap_and_other_placement_modes_without_erasing_rows() {
     for variant in 0..6 {
-        let mut para = stored_anchor("", TablePageBreak::CellBreak, &["A"]);
+        let mut para = stored_anchor("", TablePageBreak::RowBreak, &["A"]);
         let Control::Table(t) = &mut para.controls[0] else {
             unreachable!()
         };
         match variant {
             0 => t.common.vertical_offset = 0, //blank line still occupies12px
             1 => t.common.flow_with_text = false,
-            2 => t.common.text_wrap = TextWrap::Square,
+            // Stored Square/BothSides now has a final-geometry contract.
+            // Tight still needs contour-aware composition and stays unsupported.
+            2 => t.common.text_wrap = TextWrap::Tight,
             3 => t.common.horz_align = HorzAlign::Center,
             4 => t.common.horizontal_offset = 22500,
             5 => t.common.vertical_offset = (-1_i32) as u32,
@@ -1104,7 +2208,7 @@ fn stored_anchor_original_host_isolation_preserves_source_offset_and_blank() {
     // Explicit isolation derivative, NOT original-table admission: its87 cell
     // paragraphs/189665HU cell height are replaced by one fresh18px text row.
     // Keep the actual host, common anchor and both margin representations.
-    let mut probe = table(&["anchor-probe"], TablePageBreak::RowBreak);
+    let mut probe = table(&["anchor-probe"], TablePageBreak::CellBreak);
     probe.common = original_table.common.clone();
     probe.outer_margin_left = original_table.outer_margin_left;
     probe.outer_margin_right = original_table.outer_margin_right;
@@ -1340,15 +2444,23 @@ fn near(value: &Value, expected: f64) {
 #[test]
 fn unqualified_cell_internal_diagonal_is_not_silently_redrawn() {
     let input = diagonal_fixture("diagonal-cell-saved.hwp");
-    assert!(matches!(
-        DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS),
-        Err(DocumentV2Error::Paragraph {
-            reason: rhwp::renderer::table_v2::GeometryError::Unsupported(
-                "V2 cell-internal diagonal split"
-            ),
-            ..
-        })
-    ));
+    let mut session = DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap();
+    let mut rejected = false;
+    for _ in 0..10 {
+        match session.next_page_json() {
+            Ok(Some(_)) => {}
+            Err(DocumentV2Error::Geometry(
+                rhwp::renderer::table_v2::GeometryError::Unsupported(
+                    "V2 cell-internal diagonal split",
+                ),
+            )) => {
+                rejected = true;
+                break;
+            }
+            other => panic!("expected rejection at the actual partial cell: {other:?}"),
+        }
+    }
+    assert!(rejected);
     // Direct resolved entrypoint retains invalid width rather than the HWPX
     // serializer normalizing it to a supported width name.
     let d = source(vec![]);
@@ -1361,7 +2473,7 @@ fn unqualified_cell_internal_diagonal_is_not_silently_redrawn() {
     };
     assert!(matches!(
         rhwp::renderer::table_v2::PreparedTextTable::prepare(
-            &table(&["text"], TablePageBreak::RowBreak),
+            &table(&["text"], TablePageBreak::CellBreak),
             &styles,
             96.0
         ),
@@ -1369,6 +2481,61 @@ fn unqualified_cell_internal_diagonal_is_not_silently_redrawn() {
             "V2 diagonal pen"
         ))
     ));
+}
+
+#[test]
+fn oversize_row_does_not_repaint_intact_only_cell_decorations() {
+    use rhwp::renderer::table_v2::*;
+    for diagonal in [false, true] {
+        let d = source(vec![]);
+        let mut styles = rhwp::renderer::style_resolver::resolve_styles(&d.doc_info, 96.0);
+        let expected = if diagonal {
+            styles.border_styles[0].diagonal_attr = 8;
+            styles.border_styles[0].diagonal = rhwp::model::style::DiagonalLine {
+                diagonal_type: 1,
+                width: 1,
+                color: 0,
+            };
+            "V2 cell-internal diagonal split"
+        } else {
+            styles.border_styles[0].gradient = Some(Box::new(rhwp::renderer::GradientFillInfo {
+                gradient_type: 1,
+                angle: 90,
+                center_x: 0,
+                center_y: 0,
+                colors: vec![0, 0xffffff],
+                positions: vec![0.0, 1.0],
+            }));
+            "V2 split gradient background"
+        };
+        let prepared = PreparedTextTable::prepare(
+            &table(&["A", "B", "C"], TablePageBreak::CellBreak),
+            &styles,
+            96.0,
+        )
+        .unwrap();
+        let viewport = |height| TablePreviewPages {
+            width: 400.0,
+            height: 200.0,
+            body: Rect {
+                x: 20.0,
+                y: 30.0,
+                width: 300.0,
+                height,
+            },
+            first_y: 30.0,
+        };
+        let mut small = TablePreviewSession::new(&prepared, viewport(24.0), 20).unwrap();
+        for _ in 0..2 {
+            assert!(
+                matches!(small.next_page(), Err(TablePreviewError::Geometry(GeometryError::Unsupported(reason))) if reason == expected)
+            );
+            assert_eq!(small.emitted_pages(), 0);
+        }
+        let mut whole = TablePreviewSession::new(&prepared, viewport(90.0), 20).unwrap();
+        assert!(whole.next_page().unwrap().is_some());
+        assert!(whole.next_page().unwrap().is_none());
+    }
 }
 
 fn zone_fixture() -> Vec<u8> {
@@ -1501,9 +2668,9 @@ fn diagonal_paint_does_not_change_stored_geometry_or_line_membership() {
 
 #[test]
 fn nested_diagonal_consumes_final_child_origin_once() {
-    let mut child = table(&["child"], TablePageBreak::RowBreak);
+    let mut child = table(&["child"], TablePageBreak::CellBreak);
     child.cells[0].border_fill_id = 2;
-    let mut parent = table(&[], TablePageBreak::CellBreak);
+    let mut parent = table(&[], TablePageBreak::RowBreak);
     parent.cells[0].width = 18000;
     parent.cells[0].apply_inner_margin = true;
     parent.cells[0].padding.left = 750;
@@ -1682,7 +2849,7 @@ fn synthetic_zone_source() -> Document {
         style::{Fill, FillType, SolidFill},
         table::TableZone,
     };
-    let mut t = table(&[], TablePageBreak::RowBreak);
+    let mut t = table(&[], TablePageBreak::CellBreak);
     t.row_count = 2;
     t.col_count = 2;
     t.cells = (0..2)
@@ -2045,7 +3212,7 @@ fn same_zone_style_cannot_hide_conflicting_opposite_edges_at_a_shared_boundary()
 fn nested_zone_uses_child_page_coordinates_once() {
     let mut d = synthetic_zone_source();
     let child = d.sections[0].paragraphs.remove(0);
-    let mut parent = table(&[], TablePageBreak::CellBreak);
+    let mut parent = table(&[], TablePageBreak::RowBreak);
     parent.cells[0].width = 18000;
     parent.cells[0].apply_inner_margin = true;
     parent.cells[0].padding.left = 750;
@@ -2120,7 +3287,7 @@ fn zone_background_tracks_cell_internal_cut_without_repeating_lines() {
     };
     t.row_count = 1;
     t.col_count = 1;
-    t.page_break = TablePageBreak::CellBreak;
+    t.page_break = TablePageBreak::RowBreak;
     t.cells.truncate(1);
     t.cells[0].width = 15000;
     t.cells[0].height = 0;
@@ -2216,7 +3383,7 @@ fn source_body_page_budget_and_table_continuation_share_final_geometry() {
         p("before"),
         host(
             "host",
-            table(&["A", "B", "C", "D", "E"], TablePageBreak::CellBreak),
+            table(&["A", "B", "C", "D", "E"], TablePageBreak::RowBreak),
         ),
         p("after"),
     ]);
@@ -2268,7 +3435,7 @@ fn hwp_container_uses_the_same_document_body_contract() {
         p("before"),
         host(
             "host",
-            table(&["A", "B", "C", "D", "E"], TablePageBreak::CellBreak),
+            table(&["A", "B", "C", "D", "E"], TablePageBreak::RowBreak),
         ),
         p("after"),
     ]);
@@ -2302,8 +3469,8 @@ fn hwp_container_uses_the_same_document_body_contract() {
 
 #[test]
 fn nested_continuation_preserves_body_prose_blank_lines_and_child_host() {
-    let mut parent = table(&[], TablePageBreak::CellBreak);
-    let mut child = table(&["A", "B", "C", "D"], TablePageBreak::CellBreak);
+    let mut parent = table(&[], TablePageBreak::RowBreak);
+    let mut child = table(&["A", "B", "C", "D"], TablePageBreak::RowBreak);
     child.cells[0].width = 7500;
     parent.cells[0].paragraphs = vec![p(""), host("inner", child), p("tail")];
     let d = source(vec![p("before"), host("host", parent), p("after")]);
@@ -2385,7 +3552,7 @@ fn empty_page_decoration_records_preserve_body_and_split_table_output() {
         p("before"),
         host(
             "host",
-            table(&["A", "B", "C", "D", "E"], TablePageBreak::CellBreak),
+            table(&["A", "B", "C", "D", "E"], TablePageBreak::RowBreak),
         ),
         p("after"),
     ]);
@@ -2568,7 +3735,7 @@ fn unpainted_page_border_references_preserve_full_output() {
         p("before"),
         host(
             "host",
-            table(&["A", "B", "C", "D"], TablePageBreak::CellBreak),
+            table(&["A", "B", "C", "D"], TablePageBreak::RowBreak),
         ),
         p("after"),
     ]);
@@ -2987,7 +4154,7 @@ fn inline_carrier(separate: bool) -> Paragraph {
     let mut para = p("");
     para.char_count = 17; // two eight-unit controls and paragraph terminator
     for texts in [["A", "a"], ["B", "b"]] {
-        let mut t = table(&texts, TablePageBreak::CellBreak);
+        let mut t = table(&texts, TablePageBreak::RowBreak);
         t.common.treat_as_char = true;
         t.common.width = 6000;
         t.common.height = 2700;
@@ -3018,6 +4185,899 @@ fn inline_carrier(separate: bool) -> Paragraph {
         })
         .collect();
     para
+}
+
+#[test]
+fn terminal_tac_line_gap_does_not_publish_an_empty_body_page() {
+    use rhwp::model::paragraph::ColumnBreakType;
+    let mut counts = Vec::new();
+    for page_break in [false, true] {
+        let mut carrier = inline_carrier(false);
+        carrier.line_segs[0].line_spacing = 3000; //40px gap, not another line.
+        let mut paragraphs = vec![carrier];
+        if page_break {
+            let mut after = p("AFTER");
+            after.column_type = ColumnBreakType::Page;
+            paragraphs.push(after);
+        }
+        let mut d = source(paragraphs);
+        d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Left;
+        let pages = drain(&mut open(&d));
+        counts.push(pages.len());
+        let tables = nodes(&pages[0], "Table");
+        assert_eq!(tables.len(), 2);
+        for table in tables {
+            near(&table["bbox"]["y"], 32.0);
+            near(&table["bbox"]["height"], 36.0);
+        }
+        assert_eq!(labels(&pages[0]), ["A", "a", "B", "b"]);
+        if page_break {
+            let last = pages.last().unwrap();
+            assert_eq!(labels(last), ["AFTER"]);
+            near(&nodes(last, "TextLine")[0]["bbox"]["y"], 30.0);
+        }
+    }
+    assert_eq!(
+        counts,
+        [1, 2],
+        "terminal and explicit page break boundaries"
+    );
+}
+
+fn prefix_tac_fields(para: &mut Paragraph, count: usize) {
+    use rhwp::model::control::{Field, FieldType};
+    for i in 0..count {
+        para.controls.insert(
+            i,
+            Control::Field(Field {
+                field_type: FieldType::ClickHere,
+                command: "Enter content;".into(),
+                properties: 1 << 15,
+                field_id: 100 + i as u32,
+                ..Default::default()
+            }),
+        );
+    }
+    para.char_count += count as u32 * 8;
+    for offset in &mut para.char_offsets {
+        *offset += count as u32 * 8;
+    }
+    for row in para.line_segs.iter_mut().skip(1) {
+        row.text_start += count as u32 * 8;
+    }
+}
+
+#[test]
+fn filled_open_field_prefix_keeps_tac_rows_in_body_and_nested_cell() {
+    for nested in [false, true] {
+        for separate in [false, true] {
+            for count in [1, 2] {
+                let carrier = inline_carrier(separate);
+                let make = |carrier: Paragraph| {
+                    let mut d = if nested {
+                        let mut parent = table(&[], TablePageBreak::CellBreak);
+                        parent.cells[0].width = 22500;
+                        parent.cells[0].paragraphs = vec![carrier];
+                        source(vec![p("BEFORE"), host("", parent), p("AFTER")])
+                    } else {
+                        source(vec![p("BEFORE"), carrier, p("AFTER")])
+                    };
+                    d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Left;
+                    d
+                };
+                let expected = drain(&mut open(&make(carrier.clone())));
+                let mut marked = carrier;
+                prefix_tac_fields(&mut marked, count);
+                let actual = drain(&mut open(&make(marked)));
+                assert_eq!(actual.len(), expected.len());
+                for (a, e) in actual.iter().zip(&expected) {
+                    assert_eq!(labels(a), labels(e));
+                    for kind in ["Table", "TableCell", "TextLine", "TextRun"] {
+                        let boxes = |page: &Value| {
+                            nodes(page, kind)
+                                .iter()
+                                .map(|n| n["bbox"].clone())
+                                .collect::<Vec<_>>()
+                        };
+                        assert_eq!(boxes(a), boxes(e), "{nested}/{separate}/{count}/{kind}");
+                    }
+                }
+                assert_eq!(
+                    actual
+                        .iter()
+                        .flat_map(labels)
+                        .filter(|s| *s == "AFTER")
+                        .count(),
+                    1
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn tac_field_prefix_does_not_admit_other_or_incomplete_streams() {
+    use rhwp::model::control::FieldType;
+    for case in 0..6 {
+        let mut carrier = inline_carrier(false);
+        prefix_tac_fields(&mut carrier, 1);
+        match case {
+            0 => {
+                if let Control::Field(f) = &mut carrier.controls[0] {
+                    f.field_type = FieldType::Date;
+                }
+            }
+            1 => {
+                if let Control::Field(f) = &mut carrier.controls[0] {
+                    f.properties = 0;
+                }
+            }
+            2 => {
+                carrier.controls.swap(0, 1);
+            }
+            3 => {
+                carrier.line_segs.clear();
+            }
+            4 => {
+                carrier.char_count -= 8;
+            }
+            5 => {
+                if let Control::Field(f) = &mut carrier.controls[0] {
+                    f.command.clear();
+                }
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            rhwp::renderer::table_v2::stored_tac_rows(
+                &carrier,
+                22500.0,
+                rhwp::model::style::Alignment::Left
+            )
+            .is_err(),
+            "source stream case {case}"
+        );
+        let mut d = source(vec![carrier]);
+        d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Left;
+        assert!(
+            DocumentV2Session::from_bytes(&bytes(&d), TERMINAL_OPTIONS).is_err(),
+            "case {case}"
+        );
+    }
+}
+
+#[test]
+fn distributed_header_spaces_preserve_table_rows_and_following_heading() {
+    let input = include_bytes!("../fixtures/issue7353_distributed_header_review/table.hwpx");
+    let mut session = DocumentV2Session::from_bytes(input, TERMINAL_OPTIONS).unwrap();
+    let pages = drain(&mut session);
+    assert_eq!(pages.len(), 2);
+    let page = &pages[1];
+    let tables = nodes(page, "Table");
+    assert_eq!(tables.len(), 3);
+    let table = tables[2];
+    let top = table["bbox"]["y"].as_f64().unwrap();
+    // Source rows: 1582 + 2882 + four 3274HU rows; no shrink or hidden suffix.
+    near(
+        &table["bbox"]["height"],
+        (1582.0 + 2882.0 + 4.0 * 3274.0) / 75.0,
+    );
+    near(&table["bbox"]["width"], 50465.0 / 75.0);
+    let lines = nodes(page, "TextLine");
+    let text = |n: &Value| -> String {
+        n["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["node_type"]["TextRun"]["text"].as_str().unwrap())
+            .collect()
+    };
+    let svg = roxmltree::Document::parse(page["svg"].as_str().unwrap()).unwrap();
+    for (label, glyph, row, width) in [("교육 ", "육", 1, 3572.0), ("하절기 ", "기", 0, 4140.0)]
+    {
+        let matched: Vec<_> = lines.iter().filter(|n| text(n) == label).collect();
+        assert_eq!(matched.len(), 1);
+        let line = matched[0];
+        near(&line["bbox"]["width"], width / 75.0);
+        near(&line["bbox"]["height"], 1300.0 / 75.0);
+        near(
+            &line["bbox"]["y"],
+            top + (1582.0 + 141.0 + row as f64 * 1300.0) / 75.0,
+        );
+        let left = line["bbox"]["x"].as_f64().unwrap();
+        let right = left + width / 75.0;
+        let y = line["bbox"]["y"].as_f64().unwrap();
+        let painted: Vec<_> = svg
+            .descendants()
+            .filter(|n| n.has_tag_name("text") && n.text() == Some(glyph))
+            .filter(|n| {
+                n.attribute("y")
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .is_some_and(|v| v >= y && v < y + 1300.0 / 75.0)
+                    && n.attribute("x")
+                        .and_then(|v| v.parse::<f64>().ok())
+                        .is_some_and(|v| v >= left && v < right)
+            })
+            .collect();
+        assert_eq!(painted.len(), 1);
+        // These unscaled CJK glyphs have no SVG textLength override. Their
+        // original 13pt em must fit, while the logical suffix may extend out.
+        let x = painted[0].attribute("x").unwrap().parse::<f64>().unwrap();
+        let em = painted[0]
+            .attribute("font-size")
+            .unwrap()
+            .parse::<f64>()
+            .unwrap();
+        assert!((em - 1300.0 / 75.0).abs() < 1e-7);
+        assert!(x >= left && x + em <= right + 1e-7);
+        assert!(painted[0].attribute("textLength").is_none());
+        let last = line["children"].as_array().unwrap().last().unwrap();
+        assert!(
+            last["bbox"]["x"].as_f64().unwrap() + last["bbox"]["width"].as_f64().unwrap() > right
+        );
+    }
+    let following = lines.iter().find(|n| text(n) == "□ 점검 사진").unwrap();
+    assert!(following["bbox"]["y"].as_f64().unwrap() > top + 17560.0 / 75.0);
+    assert!(session.next_page_json().unwrap().is_none());
+}
+
+#[test]
+fn saved_body_forced_breaks_keep_indented_rows_blank_and_successor() {
+    let input = include_bytes!("../fixtures/issue7353_stored_break_review/prefix.hwpx");
+    let doc = rhwp::parse_document(input).unwrap();
+    let paragraphs = &doc.sections[0].paragraphs;
+    assert_eq!(paragraphs.len(), 15);
+    let mut session = DocumentV2Session::from_bytes(input, TERMINAL_OPTIONS).unwrap();
+    let pages = drain(&mut session);
+    assert_eq!(pages.len(), 2);
+    let lines = nodes(&pages[1], "TextLine");
+    let text = |n: &Value| -> String {
+        n["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["node_type"]["TextRun"]["text"].as_str().unwrap())
+            .collect()
+    };
+    // Original XML has hp:lineBreak at each source LF. No line or style was
+    // synthesized in this fixture. Hancom PDF independently preserves these
+    // two rows, including the hanging indent and the 14pt -> 12pt change.
+    for (pi, heights, starts, indent) in [
+        (8, [1500, 1500], [32046, 34598], 3000.0),
+        (13, [1400, 1200], [48734, 51254], 3918.0),
+    ] {
+        let expected: Vec<_> = paragraphs[pi].text.split('\n').collect();
+        assert_eq!(expected.len(), 2);
+        for i in 0..2 {
+            let matches: Vec<_> = lines.iter().filter(|n| text(n) == expected[i]).collect();
+            assert_eq!(matches.len(), 1, "paragraph {pi}, row {i}");
+            let line = matches[0];
+            near(&line["bbox"]["y"], (7088.0 + f64::from(starts[i])) / 75.0);
+            near(&line["bbox"]["height"], f64::from(heights[i]) / 75.0);
+            near(
+                &line["bbox"]["x"],
+                (4252.0 + if i == 1 { indent } else { 0.0 }) / 75.0,
+            );
+            near(
+                &line["bbox"]["width"],
+                (51024.0 - if i == 1 { indent } else { 0.0 }) / 75.0,
+            );
+            assert_eq!(
+                line["children"].as_array().unwrap().last().unwrap()["node_type"]["TextRun"]
+                    ["is_line_break_end"],
+                i == 0
+            );
+        }
+    }
+    // The explicit blank paragraph between the reference and heading remains
+    // a 500HU line box, not a zero-size invisible placeholder.
+    let blank: Vec<_> = lines.iter().filter(|n| text(n).is_empty()).collect();
+    assert_eq!(blank.len(), 1);
+    near(&blank[0]["bbox"]["y"], (7088.0 + 37150.0) / 75.0);
+    near(&blank[0]["bbox"]["height"], 500.0 / 75.0);
+    for (pi, start) in [(10, 39102.0), (14, 53414.0)] {
+        let matched: Vec<_> = lines
+            .iter()
+            .filter(|n| text(n) == paragraphs[pi].text)
+            .collect();
+        assert_eq!(matched.len(), 1);
+        near(&matched[0]["bbox"]["y"], (7088.0 + start) / 75.0);
+    }
+    assert_eq!(lines.len(), 18);
+    assert_eq!(nodes(&pages[1], "Table").len(), 2);
+    assert!(session.next_page_json().unwrap().is_none());
+}
+
+#[test]
+fn saved_distributed_contact_row_keeps_its_line_and_following_table() {
+    fn near(actual: f64, expected: f64) {
+        assert!((actual - expected).abs() < 1e-7, "{actual} != {expected}");
+    }
+    let input = include_bytes!("../fixtures/issue7353_body_field_tac_review/prefix.hwpx");
+    let mut session = DocumentV2Session::from_bytes(input, TERMINAL_OPTIONS).unwrap();
+    let pages = drain(&mut session);
+    assert_eq!(pages.len(), 2);
+    let page = &pages[1];
+    let lines = nodes(page, "TextLine");
+    let contact = lines
+        .iter()
+        .find(|n| {
+            n["children"].as_array().unwrap().iter().any(|r| {
+                r["node_type"]["TextRun"]["text"]
+                    .as_str()
+                    .is_some_and(|t| t.contains("사회복지과장"))
+            })
+        })
+        .unwrap();
+    // Source LineSeg owns this unchanged lane (48324HU) and 1200HU em.
+    near(contact["bbox"]["width"].as_f64().unwrap(), 48324.0 / 75.0);
+    near(contact["bbox"]["height"].as_f64().unwrap(), 1200.0 / 75.0);
+    let runs = contact["children"].as_array().unwrap();
+    let text: String = runs
+        .iter()
+        .map(|r| r["node_type"]["TextRun"]["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        text,
+        "사회복지과장:박상근☎2550 자활주거팀장:고민정☎2571 담당:설영은☎2572,\u{2007}오치호☎2573"
+    );
+    let last = runs.last().unwrap();
+    let right = contact["bbox"]["x"].as_f64().unwrap() + 48324.0 / 75.0;
+    let advance_end = last["bbox"]["x"].as_f64().unwrap() + last["bbox"]["width"].as_f64().unwrap();
+    let gap = last["node_type"]["TextRun"]["style"]["extra_char_spacing"]
+        .as_f64()
+        .unwrap();
+    assert!(gap > 0.0);
+    near(advance_end - gap, right); // N-1 distribution gaps, not N painted gaps.
+    let tables = nodes(page, "Table");
+    assert_eq!(tables.len(), 2);
+    near(tables[0]["bbox"]["height"].as_f64().unwrap(), 8500.0 / 75.0);
+    near(tables[1]["bbox"]["height"].as_f64().unwrap(), 6234.0 / 75.0);
+    assert!(
+        contact["bbox"]["y"].as_f64().unwrap() + 16.0
+            <= tables[0]["bbox"]["y"].as_f64().unwrap() + 8500.0 / 75.0
+    );
+    assert!(
+        tables[1]["bbox"]["y"].as_f64().unwrap()
+            >= tables[0]["bbox"]["y"].as_f64().unwrap() + 8500.0 / 75.0
+    );
+    assert_eq!(lines.len(), 5); // title two lines, contact one, following summary two.
+    assert!(session.next_page_json().unwrap().is_none());
+}
+
+#[test]
+fn hancom_saved_field_tac_keeps_cover_geometry_and_marker_ownership() {
+    let input = include_bytes!("../fixtures/issue7353_body_field_tac_review/control-saved.hwp");
+    let d = rhwp::parse_document(input).unwrap();
+    let carrier = &d.sections[0].paragraphs[1];
+    assert_eq!(carrier.controls.len(), 2);
+    assert!(carrier.char_offsets.is_empty());
+    assert_eq!(carrier.line_segs[0].text_start, 0);
+    assert!(matches!(&carrier.controls[0], Control::Field(f) if f.is_dirty()));
+    assert!(carrier.field_ranges.is_empty());
+    assert_eq!(carrier.char_count, 17);
+    let rows = rhwp::renderer::table_v2::stored_tac_rows(
+        carrier,
+        51024.0,
+        rhwp::model::style::Alignment::Center,
+    )
+    .unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].tables.len(), 1);
+    assert_eq!(rows[0].tables[0].0, 1); // marker keeps index0; table owns index1.
+    let mut s = DocumentV2Session::from_bytes(input, TERMINAL_OPTIONS).unwrap();
+    let pages = drain(&mut s);
+    assert_eq!(pages.len(), 1); // independent Hancom PDF
+    assert_eq!(nodes(&pages[0], "Table").len(), 6);
+    assert_eq!(nodes(&pages[0], "Image").len(), 1);
+    let parent = nodes(&pages[0], "Table")
+        .into_iter()
+        .find(|n| n["node_type"]["Table"]["para_index"] == 1)
+        .unwrap();
+    // Unchanged source envelope: 7088 +13136 +1320 +138 HU.
+    near(&parent["bbox"]["y"], 21682.0 / 75.0);
+    near(&parent["bbox"]["height"], 56490.0 / 75.0);
+    let text = labels(&pages[0]).join("");
+    assert!(text.contains("지역자활센터·노숙인시설 안전점검 결과 보고"));
+    assert!(text.contains("(사 회 복 지 과)"));
+    assert!(!text.contains("이곳에 내용을 입력하세요"));
+    assert!(s.next_page_json().unwrap().is_none());
+}
+
+#[test]
+fn original_cover_tac_ends_without_a_gap_only_page() {
+    let input = include_bytes!("../fixtures/issue7353_body_tac_tail_review/cover.hwpx");
+    let d = rhwp::parse_document(input).unwrap();
+    assert_eq!(d.sections[0].paragraphs.len(), 2);
+    assert_eq!(d.sections[0].paragraphs[1].line_segs[0].line_spacing, 780);
+    let mut s = DocumentV2Session::from_bytes(
+        input,
+        r#"{"dpi":96,"max_pages":10,"cell_end_policy":"omit_final_paragraph_gap"}"#,
+    )
+    .unwrap();
+    let pages = drain(&mut s);
+    assert_eq!(pages.len(), 1); // Independent original Hancom PDF cover.
+    assert!(s.next_page_json().unwrap().is_none());
+    let tables = nodes(&pages[0], "Table");
+    assert_eq!(tables.len(), 6);
+    let parent = tables
+        .iter()
+        .find(|n| n["node_type"]["Table"]["para_index"] == 1)
+        .unwrap();
+    // Body top7088 + preceding row13136/gap1320 + table margin138 HU.
+    near(&parent["bbox"]["y"], 21682.0 / 75.0);
+    near(&parent["bbox"]["height"], 56490.0 / 75.0);
+    assert_eq!(nodes(&pages[0], "Image").len(), 1);
+    let text = labels(&pages[0]).join("");
+    assert!(text.contains("지역자활센터·노숙인시설 안전점검 결과 보고"));
+    assert!(text.contains("복 지 교 육 국"));
+    assert!(text.contains("(사 회 복 지 과)"));
+}
+
+#[test]
+fn nonterminal_tac_gap_and_authored_blank_still_advance_the_body() {
+    let source = |paras| {
+        let mut d = source(paras);
+        d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Left;
+        d
+    };
+    let mut carrier = inline_carrier(false);
+    carrier.line_segs[0].line_spacing = 300; //4px between real paragraphs.
+    let pages = drain(&mut open(&source(vec![carrier.clone(), p("AFTER")])));
+    assert_eq!(pages.len(), 1);
+    let after = nodes(&pages[0], "TextRun")
+        .into_iter()
+        .find(|n| n["node_type"]["TextRun"]["text"] == "AFTER")
+        .unwrap();
+    near(&after["bbox"]["y"], 74.0); //body30 + row40 + gap4
+    carrier.line_segs[0].line_spacing = 3000;
+    let pages = drain(&mut open(&source(vec![carrier, p(""), p("AFTER")])));
+    assert_eq!(pages.len(), 2);
+    assert_eq!(labels(&pages[1]), ["", "AFTER"]);
+    let lines = nodes(&pages[1], "TextLine");
+    // Following-line spacing is not an authored blank line or a physical
+    // paragraph-after band. Its remainder does not carry to the next page.
+    // Preserve the actual blank paragraph at body top and its18px advance.
+    near(&lines[0]["bbox"]["y"], 30.0);
+    near(&lines[1]["bbox"]["y"], 48.0);
+}
+
+#[test]
+fn fresh_tac_rows_use_width_and_explicit_breaks_not_paragraph_membership() {
+    for mode in ["same", "narrow", "break"] {
+        let mut carrier = inline_carrier(false);
+        carrier.line_segs.clear();
+        carrier.para_shape_id = 1;
+        for control in &mut carrier.controls {
+            if let Control::Table(t) = control {
+                t.cells[0].height = 2700;
+            }
+        }
+        if mode == "break" {
+            carrier.text = "\n".into();
+            carrier.char_offsets = vec![8];
+            carrier.char_count = 18;
+        }
+        let mut d = source(vec![carrier, p("after")]);
+        let mut style = d.doc_info.para_shapes[0].clone();
+        style.line_spacing_type = LineSpacingType::Percent;
+        style.line_spacing = 100;
+        d.doc_info.para_shapes.push(style);
+        if mode == "narrow" {
+            d.sections[0].section_def.page_def.margin_right = 21000;
+        }
+        fresh_tac_structure(&mut d);
+        // Each independent table occupies36px, plus2px top/bottom/side
+        // margins. 2*84px fits300px but not100px. Body height72px admits
+        // one40px row, not two. A hard break forces the same page boundary.
+        let input = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+        assert_eq!(
+            rhwp::parse_document(&input).unwrap().sections[0].paragraphs[0].char_offsets,
+            d.sections[0].paragraphs[0].char_offsets
+        );
+        let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+        assert_eq!(pages.len(), if mode == "same" { 1 } else { 2 }, "{mode}");
+        let first = nodes(&pages[0], "Table");
+        near(&first[0]["bbox"]["x"], 22.0);
+        near(&first[0]["bbox"]["y"], 32.0);
+        near(&first[0]["bbox"]["height"], 36.0);
+        let second = if mode == "same" {
+            first[1]
+        } else {
+            nodes(&pages[1], "Table")[0]
+        };
+        near(
+            &second["bbox"]["x"],
+            if mode == "same" { 106.0 } else { 22.0 },
+        );
+        near(&second["bbox"]["y"], 32.0);
+        let labels: Vec<_> = pages.iter().flat_map(labels).collect();
+        assert_eq!(labels, ["A", "a", "B", "b", "after"]);
+        let after = nodes(pages.last().unwrap(), "TextRun")
+            .into_iter()
+            .find(|n| n["node_type"]["TextRun"]["text"] == "after")
+            .unwrap();
+        near(&after["bbox"]["y"], 70.0);
+    }
+}
+
+fn fresh_tac_structure(d: &mut Document) {
+    // Explicit raw slots avoid the serializer's missing-section fallback
+    // consuming the first object's gap in hand-authored source.
+    add_leading_structure(d);
+    for offset in &mut d.sections[0].paragraphs[0].char_offsets {
+        *offset += 16;
+    }
+}
+
+#[test]
+fn oversized_body_tac_keeps_full_geometry_and_defers_following_content() {
+    // Authored fresh inputs, not invented saved LineSegs. Body is72px;
+    // cell minima set the physical table heights independently of pagination.
+    for preceded in [false, true] {
+        for height in [6000, 12000] {
+            let mut carrier = inline_carrier(false);
+            carrier.line_segs.clear();
+            carrier.controls.truncate(1);
+            carrier.char_count = 9;
+            let Control::Table(t) = &mut carrier.controls[0] else {
+                panic!()
+            };
+            t.common.height = height;
+            t.cells[0].height = height;
+            t.page_break = TablePageBreak::RowBreak;
+            let mut ps = if preceded { vec![p("before")] } else { vec![] };
+            ps.extend([carrier, p("after")]);
+            let mut d = source(ps);
+            fresh_tac_structure(&mut d);
+            let input = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+            let mut session = DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap();
+            let pages = drain(&mut session);
+            assert_eq!(pages.len(), if preceded { 3 } else { 2 });
+            let page = &pages[usize::from(preceded)];
+            let tables = nodes(page, "Table");
+            assert_eq!(tables.len(), 1);
+            near(&tables[0]["bbox"]["y"], 32.0); // body30 + outer top2
+            near(&tables[0]["bbox"]["height"], f64::from(height) / 75.0);
+            assert!(32.0 + f64::from(height) / 75.0 > 102.0);
+            assert_eq!(labels(page), ["A", "a"]);
+            let last = pages.last().unwrap();
+            assert_eq!(labels(last), ["after"]);
+            near(&nodes(last, "TextLine")[0]["bbox"]["y"], 30.0);
+            if preceded {
+                assert_eq!(labels(&pages[0]), ["before"]);
+            }
+            assert!(session.next_page_json().unwrap().is_none());
+        }
+    }
+}
+
+#[test]
+fn oversized_saved_cover_tac_remains_on_first_page_without_shrinking() {
+    let input = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/samples/issue2470/36382471_masked.hwpx"
+    ))
+    .unwrap();
+    let mut session = DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap();
+    let pages = drain(&mut session);
+    assert_eq!(pages.len(), 2);
+    let parent = nodes(&pages[0], "Table")[0];
+    // Original IR and same-input Hancom PDF, oversize-body/observations.json.
+    near(&parent["bbox"]["y"], 8786.0 / 75.0);
+    near(&parent["bbox"]["height"], 68562.0 / 75.0);
+    let cover = labels(&pages[0]).join("");
+    assert!(cover.contains("중랑물재생센터"));
+    assert!(cover.contains("(운영과)"));
+    assert!(!labels(&pages[1]).join("").contains("중랑물재생센터"));
+    assert!(session.next_page_json().unwrap().is_none());
+}
+
+#[test]
+fn oversized_tac_controls_preserve_page_ownership_and_after_paragraph() {
+    for (name, before, extra) in [
+        ("first", false, 3000.),
+        ("preceded", true, 3000.),
+        ("grown", false, 18000.),
+    ] {
+        let path = format!(
+            "{}/tests/fixtures/issue7353_oversize_tac_review/{name}.hwp",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let input = std::fs::read(path).unwrap();
+        let mut session = DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap();
+        let pages = drain(&mut session);
+        // Authored HWP contracts. Independent HWPX/PDF counterparts establish
+        // the policy, not same-byte HWP fidelity: first/grown = table -> after;
+        // preceded = before -> table -> after. See fixture README.
+        assert_eq!(pages.len(), if before { 3 } else { 2 });
+        let p = &pages[usize::from(before)];
+        let table = nodes(p, "Table")[0];
+        near(&table["bbox"]["y"], 5669. / 75.);
+        near(&table["bbox"]["x"], (41953. - 15000.) / 150.);
+        near(&table["bbox"]["height"], (48190. + extra) / 75.);
+        assert_eq!(labels(p), ["SHORT TABLE"]);
+        assert_eq!(labels(pages.last().unwrap()), ["AFTER TABLES"]);
+        near(
+            &nodes(pages.last().unwrap(), "TextLine")[0]["bbox"]["y"],
+            5669. / 75.,
+        );
+        if before {
+            assert_eq!(labels(&pages[0]), ["BEFORE TABLES"]);
+        }
+        assert_eq!(
+            pages.iter().map(|p| nodes(p, "Table").len()).sum::<usize>(),
+            1
+        );
+        assert!(session.next_page_json().unwrap().is_none());
+    }
+}
+
+#[test]
+fn fresh_nested_tac_recomposes_against_independent_saved_hancom_rows() {
+    let data = std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/issue7353_tac_noop_review/noop-saved.hwp"
+    ))
+    .unwrap();
+    let mut d = rhwp::parse_document(&data).unwrap();
+    let Control::Table(parent) = d.sections[0].paragraphs[0]
+        .controls
+        .iter_mut()
+        .find(|c| matches!(c, Control::Table(_)))
+        .unwrap()
+    else {
+        panic!()
+    };
+    let carrier = &mut parent.cells[0].paragraphs[1];
+    assert_eq!(carrier.line_segs[0].line_height, 5000);
+    assert_eq!(carrier.line_segs[0].line_spacing, 660);
+    carrier.line_segs.clear(); // Derived reflow input, not an unchanged saved-input claim.
+    let input = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+    let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+    let tables = nodes(&pages[0], "Table");
+    // Independent Hancom fixture README: parent y8787, padding283,
+    // prior line advance1760, child5000HU, following gap660HU.
+    assert_eq!(pages.len(), 1);
+    assert_eq!(tables.len(), 2);
+    near(&tables[0]["bbox"]["x"], 3969.0 / 75.0);
+    near(&tables[0]["bbox"]["y"], 8787.0 / 75.0);
+    near(&tables[0]["bbox"]["height"], 18000.0 / 75.0);
+    near(
+        &tables[1]["bbox"]["x"],
+        // Reflow uses physical32000 - 2*283 =31434HU, not the
+        // removed31432HU stored segment. Centering differs by1HU.
+        (3969.0 + 283.0 + (32000.0 - 2.0 * 283.0 - 24000.0) / 2.0) / 75.0,
+    );
+    near(&tables[1]["bbox"]["width"], 24000.0 / 75.0);
+    near(&tables[1]["bbox"]["y"], (8787.0 + 283.0 + 1760.0) / 75.0);
+    near(&tables[1]["bbox"]["height"], 5000.0 / 75.0);
+    let after = nodes(&pages[0], "TextRun")
+        .into_iter()
+        .find(|n| n["node_type"]["TextRun"]["text"] == "CELL AFTER")
+        .unwrap();
+    near(&after["bbox"]["y"], (8787.0 + 283.0 + 7420.0) / 75.0);
+    let following = nodes(&pages[0], "TextRun")
+        .into_iter()
+        .find(|n| n["node_type"]["TextRun"]["text"] == "AFTER PARENT TABLE")
+        .unwrap();
+    near(&following["bbox"]["y"], (5669.0 + 21685.0) / 75.0);
+    if let Ok(dir) = std::env::var("ISSUE7353_EXPORT_DIR") {
+        std::fs::write(format!("{dir}/fresh-nested.hwp"), input).unwrap();
+    }
+}
+
+#[test]
+fn fresh_tac_leading_empty_line_remains_an_owned_line() {
+    let mut carrier = inline_carrier(false);
+    carrier.line_segs.clear();
+    carrier.text = "\n".into();
+    carrier.char_offsets = vec![0];
+    carrier.char_count = 18;
+    carrier.para_shape_id = 1;
+    for control in &mut carrier.controls {
+        if let Control::Table(t) = control {
+            t.cells[0].height = 2700;
+        }
+    }
+    let mut d = source(vec![carrier, p("after")]);
+    let mut style = d.doc_info.para_shapes[0].clone();
+    style.line_spacing_type = LineSpacingType::Percent;
+    style.line_spacing = 100;
+    d.doc_info.para_shapes.push(style);
+    fresh_tac_structure(&mut d);
+    let input = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+    let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    let lines = nodes(&pages[0], "TextLine");
+    near(&lines[0]["bbox"]["y"], 30.0);
+    near(&lines[0]["bbox"]["height"], 12.0);
+    near(&nodes(&pages[0], "Table")[0]["bbox"]["y"], 44.0);
+}
+
+#[test]
+fn fresh_tac_does_not_accept_unknown_baselines_or_visible_text() {
+    for kind in ["text", "offset", "indent"] {
+        let mut carrier = inline_carrier(false);
+        carrier.line_segs.clear();
+        if kind == "text" {
+            carrier.text = "X".into();
+            carrier.char_offsets = vec![0];
+            carrier.char_count = 18;
+        }
+        if let Control::Table(t) = &mut carrier.controls[1] {
+            if kind == "offset" {
+                t.common.vertical_offset = 75;
+            }
+        }
+        let mut d = source(vec![carrier]);
+        if kind == "indent" {
+            d.doc_info.para_shapes[0].indent = 150;
+        }
+        fresh_tac_structure(&mut d);
+        let input = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+        assert!(
+            DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).is_err(),
+            "{kind}"
+        );
+    }
+}
+
+#[test]
+fn fresh_tac_spaces_keep_source_order_and_positive_inline_advance() {
+    let mut carrier = inline_carrier(false);
+    carrier.line_segs.clear();
+    carrier.text = "  ".into();
+    carrier.char_offsets = vec![0, 9];
+    carrier.char_count = 19;
+    for c in &mut carrier.controls {
+        if let Control::Table(t) = c {
+            t.cells[0].height = 2700;
+        }
+    }
+    let mut d = source(vec![carrier, p("after")]);
+    d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Left;
+    fresh_tac_structure(&mut d);
+    let input = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+    let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+    let spaces: Vec<_> = nodes(&pages[0], "TextRun")
+        .into_iter()
+        .filter(|n| n["node_type"]["TextRun"]["text"] == " ")
+        .collect();
+    assert_eq!(spaces.len(), 2);
+    let w = spaces[0]["bbox"]["width"].as_f64().unwrap();
+    assert!(w > 0.0);
+    near(&spaces[0]["bbox"]["x"], 20.0);
+    near(&spaces[1]["bbox"]["x"], 20.0 + w + 84.0);
+    let tables = nodes(&pages[0], "Table");
+    near(&tables[0]["bbox"]["x"], 22.0 + w);
+    near(&tables[1]["bbox"]["x"], 106.0 + 2.0 * w);
+    near(&tables[0]["bbox"]["y"], 32.0);
+    near(&tables[1]["bbox"]["y"], 32.0);
+}
+
+#[test]
+fn fresh_body_tac_uses_prepared_child_height_not_stale_object_height() {
+    // Each cell's authored minimum is 2700 HU = 36px. An old object height
+    // is not a stored line contract when the host has no LineSeg at all.
+    // Both an undersized and oversized old box must produce the same final
+    // outlines, baseline alignment and following paragraph as the valid box.
+    let mut reference = None;
+    for old_height in [2700, 1350, 9000] {
+        let mut carrier = inline_carrier(false);
+        carrier.line_segs.clear();
+        for c in &mut carrier.controls {
+            if let Control::Table(t) = c {
+                t.common.height = old_height;
+                t.cells[0].height = 2700;
+            }
+        }
+        let mut d = source(vec![carrier, p("after")]);
+        d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Left;
+        fresh_tac_structure(&mut d);
+        let input = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+        let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+        assert_eq!(pages.len(), 1);
+        assert_eq!(labels(&pages[0]), ["A", "a", "B", "b", "after"]);
+        for table in nodes(&pages[0], "Table") {
+            near(&table["bbox"]["height"], 36.0);
+            near(&table["bbox"]["y"], 32.0);
+        }
+        if let Some(expected) = &reference {
+            assert_eq!(&pages, expected, "old height {old_height}");
+        } else {
+            reference = Some(pages);
+        }
+    }
+}
+
+#[test]
+fn fresh_body_tac_changed_boxes_keep_explicit_and_width_driven_row_ownership() {
+    for explicit in [true, false] {
+        let mut reference = None;
+        for old_height in [2700, 9000] {
+            let mut carrier = inline_carrier(false);
+            carrier.line_segs.clear();
+            if explicit {
+                carrier.text = "\n".into();
+                carrier.char_offsets = vec![8];
+                carrier.char_count = 18;
+            }
+            for control in &mut carrier.controls {
+                if let Control::Table(t) = control {
+                    t.common.height = old_height;
+                    t.cells[0].height = 2700;
+                }
+            }
+            let mut d = source(vec![carrier, p("after")]);
+            d.doc_info.para_shapes[0].alignment = rhwp::model::style::Alignment::Left;
+            if !explicit {
+                // 100px body: each 80px table with 4px margins fits alone.
+                d.sections[0].section_def.page_def.margin_right = 21000;
+            }
+            fresh_tac_structure(&mut d);
+            let input = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+            let pages =
+                drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+            assert_eq!(pages.len(), 2);
+            assert_eq!(labels(&pages[0]), ["A", "a"]);
+            assert_eq!(labels(&pages[1]), ["B", "b", "after"]);
+            for page in &pages {
+                let tables = nodes(page, "Table");
+                assert_eq!(tables.len(), 1);
+                near(&tables[0]["bbox"]["height"], 36.0);
+                near(&tables[0]["bbox"]["y"], 32.0);
+            }
+            if let Some(expected) = &reference {
+                assert_eq!(&pages, expected);
+            } else {
+                reference = Some(pages);
+            }
+        }
+    }
+}
+
+#[test]
+fn fresh_body_tac_actual_cells_match_same_input_hancom_pdf() {
+    let input = include_bytes!("../fixtures/issue7353_fresh_tac_box_review/carrier.hwpx");
+    let d = rhwp::parse_document(input).unwrap();
+    let carrier = &d.sections[0].paragraphs[1];
+    assert!(carrier.line_segs.is_empty());
+    for control in &carrier.controls {
+        if let Control::Table(t) = control {
+            assert_eq!(t.common.height, 11565);
+        }
+    }
+    let mut session = DocumentV2Session::from_bytes(input, TERMINAL_OPTIONS).unwrap();
+    let pages = drain(&mut session);
+    assert_eq!(pages.len(), 1);
+    assert_eq!(
+        labels(&pages[0]),
+        ["BEFORE TABLES", "SHORT TABLE", "TALL TABLE", "AFTER TABLES"]
+    );
+    let tables = nodes(&pages[0], "Table");
+    assert_eq!(tables.len(), 2);
+    // Independent PDF stroke centerlines, in points from top left. Compare at
+    // the 96dpi visual resolution (1px), without aligning or scaling output.
+    for (t, (x, top, bottom, height)) in tables.iter().zip([
+        (59.686, 97.148, 124.133, 36.0),
+        (209.5, 74.24, 128.211, 72.0),
+    ]) {
+        let b = &t["bbox"];
+        near(&b["height"], height);
+        near(&b["width"], 200.0);
+        assert!((b["x"].as_f64().unwrap() - x * 4.0 / 3.0).abs() < 1.0);
+        assert!((b["y"].as_f64().unwrap() - top * 4.0 / 3.0).abs() < 1.0);
+        assert!((b["y"].as_f64().unwrap() + height - bottom * 4.0 / 3.0).abs() < 1.0);
+    }
+    let lines = nodes(&pages[0], "TextLine");
+    let after = lines.last().unwrap();
+    let after_y = after["bbox"]["y"].as_f64().unwrap();
+    let baseline = after_y + after["node_type"]["TextLine"]["baseline"].as_f64().unwrap();
+    // PDF text origin y1202 * transform .119935 points.
+    assert!((baseline - 1202.0 * 0.119935 * 4.0 / 3.0).abs() < 1.0);
+    assert!(after_y > tables[1]["bbox"]["y"].as_f64().unwrap() + 72.0);
+    assert!(session.next_page_json().unwrap().is_none());
 }
 
 #[test]
@@ -3052,7 +5112,7 @@ fn oversized_single_saved_tac_preserves_start_width_and_following_flow() {
 
         // The same overhang inside a cell has a distinct physical containment
         // contract. Body admission must not relax that downstream consumer.
-        let mut parent = table(&[], TablePageBreak::CellBreak);
+        let mut parent = table(&[], TablePageBreak::RowBreak);
         parent.cells[0].width = 22500;
         parent.cells[0].paragraphs = vec![carrier];
         d.sections[0].paragraphs = vec![host("", parent)];
@@ -3346,7 +5406,9 @@ fn stored_formula_admission_does_not_admit_other_field_types() {
     let Control::Field(field) = &mut sales_formula_mut(&mut d).controls[0] else {
         panic!()
     };
-    field.field_type = FieldType::ClickHere;
+    // Hyperlink replay is now covered by its normal-save contract; Date
+    // evaluation remains outside the stored-result preview scope.
+    field.field_type = FieldType::Date;
     assert!(matches!(
         sales_preview(&d),
         Err(TablePreviewError::Geometry(GeometryError::Unsupported(
@@ -3358,7 +5420,7 @@ fn stored_formula_admission_does_not_admit_other_field_types() {
 #[test]
 fn saved_overwide_tac_keeps_trailing_space_owned_and_following_origin() {
     use rhwp::model::style::Alignment;
-    for alignment in [Alignment::Justify, Alignment::Right] {
+    for alignment in [Alignment::Justify, Alignment::Right, Alignment::Center] {
         let mut carrier = inline_carrier(false);
         carrier.controls.truncate(1);
         carrier.text = " ".into();
@@ -3404,7 +5466,12 @@ fn saved_overwide_tac_keeps_trailing_space_owned_and_following_origin() {
 #[test]
 fn saved_overwide_tac_does_not_admit_leading_space_or_trailing_only_overflow() {
     use rhwp::model::style::Alignment;
-    for leading in [false, true] {
+    for (leading, alignment) in [
+        (false, Alignment::Left),
+        (true, Alignment::Left),
+        (false, Alignment::Center),
+        (true, Alignment::Center),
+    ] {
         let mut carrier = inline_carrier(false);
         carrier.controls.truncate(1);
         carrier.text = " ".into();
@@ -3423,7 +5490,8 @@ fn saved_overwide_tac_does_not_admit_leading_space_or_trailing_only_overflow() {
                 + i32::from(t.common.margin.left)
                 + i32::from(t.common.margin.right);
         }
-        let d = source(vec![p("before"), carrier]);
+        let mut d = source(vec![p("before"), carrier]);
+        d.doc_info.para_shapes[0].alignment = alignment;
         let input = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
         assert!(matches!(
             DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS),
@@ -3435,17 +5503,125 @@ fn saved_overwide_tac_does_not_admit_leading_space_or_trailing_only_overflow() {
             })
         ));
     }
-    let mut carrier = inline_carrier(false);
-    carrier.controls.truncate(1);
-    carrier.char_count = 9;
-    let Control::Table(t) = &mut carrier.controls[0] else {
-        panic!()
-    };
-    t.common.width = 24000;
-    t.cells[0].width = 24000;
-    let mut d = source(vec![carrier]);
-    d.doc_info.para_shapes[0].alignment = Alignment::Center;
-    assert!(DocumentV2Session::from_bytes(&bytes(&d), TERMINAL_OPTIONS).is_err());
+}
+
+#[test]
+fn saved_center_overwide_child_keeps_line_origin_width_and_following_content() {
+    let input = include_bytes!("../fixtures/issue7353_center_overwide_review/contained-saved.hwp");
+    let d = rhwp::parse_document(input).unwrap();
+    let parent = d.sections[0].paragraphs[0]
+        .controls
+        .iter()
+        .find_map(|c| {
+            if let Control::Table(t) = c {
+                Some(t)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let carrier = &parent.cells[0].paragraphs[1];
+    assert_eq!(
+        d.doc_info.para_shapes[carrier.para_shape_id as usize].alignment,
+        rhwp::model::style::Alignment::Center
+    );
+    assert_eq!(carrier.line_segs[0].segment_width, 31432);
+    for bytes in [
+        input.to_vec(),
+        rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap(),
+    ] {
+        let pages = drain(&mut DocumentV2Session::from_bytes(&bytes, TERMINAL_OPTIONS).unwrap());
+        assert_eq!(pages.len(), 1);
+        let tables = nodes(&pages[0], "Table");
+        assert_eq!(tables.len(), 2);
+        // Independent Hancom PDF: no negative half-overflow centering. Source
+        // parent left + cell padding283 + table outside left100 HU.
+        near(
+            &tables[1]["bbox"]["x"],
+            tables[0]["bbox"]["x"].as_f64().unwrap() + 383.0 / 75.0,
+        );
+        near(&tables[1]["bbox"]["y"], 10830.0 / 75.0);
+        near(&tables[1]["bbox"]["width"], 31500.0 / 75.0);
+        near(&tables[1]["bbox"]["height"], 5000.0 / 75.0);
+        near(&tables[0]["bbox"]["height"], 18000.0 / 75.0);
+        for (label, y) in [
+            ("INLINE CHILD TABLE", 11113.0),
+            ("CELL AFTER", 16490.0),
+            ("AFTER PARENT TABLE", 27354.0),
+        ] {
+            let matches: Vec<_> = nodes(&pages[0], "TextRun")
+                .into_iter()
+                .filter(|n| n["node_type"]["TextRun"]["text"] == label)
+                .collect();
+            assert_eq!(matches.len(), 1, "{label}");
+            near(&matches[0]["bbox"]["y"], y / 75.0);
+        }
+    }
+}
+
+#[test]
+fn centered_tac_padding_overhang_stops_at_physical_cell_edge() {
+    for (width, fits) in [(31617, true), (31618, false)] {
+        let mut d = rhwp::parse_document(include_bytes!(
+            "../fixtures/issue7353_center_overwide_review/contained-saved.hwp"
+        ))
+        .unwrap();
+        let parent = d.sections[0].paragraphs[0]
+            .controls
+            .iter_mut()
+            .find_map(|c| {
+                if let Control::Table(t) = c {
+                    Some(t)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let child = parent.cells[0].paragraphs[1]
+            .controls
+            .iter_mut()
+            .find_map(|c| {
+                if let Control::Table(t) = c {
+                    Some(t)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        child.common.width = width;
+        child.cells[0].width = width;
+        child.cell_grid.clear();
+        // Synthetic boundary contract: parent32000 - left padding283 -
+        // child outside left100 =31617HU. No Hancom fidelity claim for edits.
+        let encoded = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+        let result = DocumentV2Session::from_bytes(&encoded, TERMINAL_OPTIONS);
+        if fits {
+            let pages = drain(&mut result.unwrap());
+            let tables = nodes(&pages[0], "Table");
+            let right =
+                |n: &Value| n["bbox"]["x"].as_f64().unwrap() + n["bbox"]["width"].as_f64().unwrap();
+            assert!((right(tables[0]) - right(tables[1])).abs() < 1e-9);
+            near(&tables[1]["bbox"]["width"], 31617.0 / 75.0);
+            assert_eq!(
+                labels(&pages[0])
+                    .iter()
+                    .filter(|s| **s == "AFTER PARENT TABLE")
+                    .count(),
+                1
+            );
+        } else {
+            assert!(matches!(
+                result,
+                Err(DocumentV2Error::Paragraph {
+                    index: 0,
+                    reason: rhwp::renderer::table_v2::GeometryError::ContentBounds {
+                        row: 0,
+                        column: 0
+                    }
+                })
+            ));
+        }
+    }
 }
 
 #[test]
@@ -3479,7 +5655,7 @@ fn inline_spaces_and_tables_share_the_row_cut_and_physical_insets() {
                     style.indent = -3000;
                     d.doc_info.para_shapes.push(style);
                     if nested {
-                        let mut parent = table(&[], TablePageBreak::CellBreak);
+                        let mut parent = table(&[], TablePageBreak::RowBreak);
                         parent.cells[0].width = 22500;
                         parent.cells[0].paragraphs =
                             vec![p("before"), p("before2"), carrier, p("after")];
@@ -3902,7 +6078,7 @@ fn following_anchor_cuts_preserve_negative_gap_host_and_child_tail() {
     };
     let styles = resolve_styles(&d.doc_info, 96.0);
     let mut t = t.clone();
-    t.page_break = TablePageBreak::CellBreak;
+    t.page_break = TablePageBreak::RowBreak;
     t.cells[0].height = 0;
     t.padding = Default::default();
     t.cells[0].padding = Default::default();
@@ -3910,7 +6086,7 @@ fn following_anchor_cuts_preserve_negative_gap_host_and_child_tail() {
     let Control::Table(child) = &mut t.cells[0].paragraphs[1].controls[0] else {
         panic!()
     };
-    child.page_break = TablePageBreak::CellBreak;
+    child.page_break = TablePageBreak::RowBreak;
     child.padding = Default::default();
     child.cells[0].padding = Default::default();
     child.cells[0].vertical_align = rhwp::model::table::VerticalAlign::Top;
@@ -3932,18 +6108,19 @@ fn following_anchor_cuts_preserve_negative_gap_host_and_child_tail() {
     };
     for budget in [20.0, 30.0, 40.0, 1000.0] {
         let mut cursor = prepared.start();
+        let mut available = budget;
         let mut text = Vec::new();
         let mut done = false;
         let mut child_height = 0.0;
         let mut parts = 0;
         for _ in 0..30 {
-            match cursor.fit(area(budget)).unwrap() {
+            match cursor.fit(area(available)).unwrap() {
                 TextFragmentFit::Complete => {
                     done = true;
                     break;
                 }
                 TextFragmentFit::Placed(part) => {
-                    assert!(part.geometry().reserved_height() <= budget + 1e-9);
+                    assert!(part.geometry().reserved_height() <= available + 1e-9);
                     if parts == 0 && budget <= 30.0 {
                         // Only BEFORE fits. Do not consume a top-margin-only
                         // fragment when the first child line cannot fit with it.
@@ -3968,12 +6145,22 @@ fn following_anchor_cuts_preserve_negative_gap_host_and_child_tail() {
                         assert!(b["y"].as_f64().unwrap() >= 30.0 - 1e-9);
                         assert!(
                             b["y"].as_f64().unwrap() + b["height"].as_f64().unwrap()
-                                <= 30.0 + budget + 1e-9
+                                <= 30.0 + available + 1e-9
                         );
                     }
                     cursor = part.continuation();
                 }
-                _ => panic!("unexpected blocked cut at {budget}"),
+                TextFragmentFit::DoesNotFit {
+                    required_height, ..
+                } if available == 20.0 => {
+                    // Source line1200HU plus both283HU outer margins needs
+                    // 23.5467px. BEFORE is accepted, but child-only19.773px
+                    // must not bypass the physical bottom inset.
+                    assert_eq!(parts, 1);
+                    assert!((required_height - (1200.0 + 566.0) / 75.0).abs() < 1e-9);
+                    available = 30.0;
+                }
+                _ => panic!("unexpected blocked cut at {available}"),
             }
         }
         assert!(done);
@@ -4020,14 +6207,14 @@ fn excluded_cell_anchor_cuts_preserve_host_child_tail_and_following_lines() {
     };
     let styles = resolve_styles(&d.doc_info, 96.0);
     let mut t = t.clone();
-    t.page_break = TablePageBreak::CellBreak;
+    t.page_break = TablePageBreak::RowBreak;
     t.cells[0].height = 0;
     t.padding = Default::default();
     t.cells[0].padding = Default::default();
     let Control::Table(child) = &mut t.cells[0].paragraphs[0].controls[0] else {
         panic!()
     };
-    child.page_break = TablePageBreak::CellBreak;
+    child.page_break = TablePageBreak::RowBreak;
     child.padding = Default::default();
     child.cells[0].padding = Default::default();
     let prepared = PreparedTextTable::prepare_with_end_policy(
@@ -4147,7 +6334,7 @@ fn unpainted_tac_carrier_reference_keeps_body_and_nested_geometry() {
             let mut d = source(vec![p("before"), inline_carrier(separate), p("after")]);
             d.doc_info.para_shapes[0].alignment = Alignment::Center;
             if nested {
-                let mut outer = table(&[], TablePageBreak::CellBreak);
+                let mut outer = table(&[], TablePageBreak::RowBreak);
                 outer.cells[0].width = 22500;
                 outer.cells[0].paragraphs = vec![inline_carrier(separate)];
                 d.sections[0].paragraphs[1] = host("host", outer);
@@ -4504,7 +6691,7 @@ fn signed_table_margins_preserve_source_rows_and_final_table_boxes() {
 fn signed_nested_inline_rows_reserve_the_complete_physical_envelope() {
     let mut carrier = inline_carrier(false);
     carrier.line_segs[0].line_spacing = -75;
-    let mut outer = table(&[], TablePageBreak::CellBreak);
+    let mut outer = table(&[], TablePageBreak::RowBreak);
     outer.cells[0].width = 22500;
     outer.cells[0].paragraphs = vec![carrier];
     let mut d = source(vec![host("tail", outer)]);
@@ -4526,7 +6713,7 @@ fn terminal_policy_nested_tac_preserves_physical_budget_and_validates_children()
     for spacing in [-75, 300] {
         let mut carrier = inline_carrier(false);
         carrier.line_segs[0].line_spacing = spacing;
-        let mut outer = table(&[], TablePageBreak::CellBreak);
+        let mut outer = table(&[], TablePageBreak::RowBreak);
         outer.cells[0].width = 22500;
         // Synthetic declared minimum36px makes the child envelope independent
         // of whether its final line advances by6px. Do not weaken TAC binding.
@@ -4636,7 +6823,7 @@ fn stored_inline_distinct_rows_and_nested_path_preserve_source_ownership() {
         near(&ts[0]["bbox"]["y"], if i == 0 { 50.0 } else { 32.0 });
     }
     capture("document-inline-rows", &d, &pages);
-    let mut outer = table(&[], TablePageBreak::CellBreak);
+    let mut outer = table(&[], TablePageBreak::RowBreak);
     outer.cells[0].width = 22500;
     outer.cells[0].paragraphs = vec![inline_carrier(false)];
     d.sections[0].paragraphs = vec![host("tail", outer)];
@@ -4764,6 +6951,723 @@ fn first_body_inline_rows_keep_structural_slots_and_final_geometry() {
         assert!(stored_tac_rows(&bad, 22500.0, Alignment::Center).is_err());
         bad.hwpx_axis_shift = 7;
         assert!(stored_tac_rows(&bad, 22500.0, Alignment::Center).is_err());
+    }
+}
+
+#[test]
+fn saved_left_tab_between_tac_tables_preserves_slot_advance_and_following_flow() {
+    use rhwp::model::style::Alignment;
+    // Stored LEFT tab advance 799HU, eight source units; it is not a space
+    // and must not be measured again using a replacement font's tab stops.
+    for nested in [false, true] {
+        for alignment in [
+            Alignment::Left,
+            Alignment::Center,
+            Alignment::Right,
+            Alignment::Justify,
+        ] {
+            let mut carrier = inline_carrier(false);
+            carrier.text = "\t".into();
+            carrier.char_offsets = vec![8];
+            carrier.char_count = 25;
+            carrier.tab_extended = vec![[799, 0, 0x0100, 0, 0, 0, 9]];
+            let mut d = if nested {
+                let mut parent = table(&[], TablePageBreak::CellBreak);
+                parent.cells[0].width = 22500;
+                parent.cells[0].paragraphs = vec![carrier];
+                source(vec![host("", parent), p("after")])
+            } else {
+                let mut d = source(vec![carrier, p("after")]);
+                add_leading_structure(&mut d);
+                d.sections[0].paragraphs[0].char_offsets[0] += 16;
+                d
+            };
+            d.doc_info.para_shapes[0].alignment = alignment;
+            for input in [
+                bytes(&d),
+                rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap(),
+            ] {
+                let pages = drain(
+                    &mut DocumentV2Session::from_bytes(&input, r#"{"dpi":96,"max_pages":20}"#)
+                        .unwrap(),
+                );
+                let tables: Vec<_> = nodes(&pages[0], "Table")
+                    .into_iter()
+                    .filter(|n| (n["bbox"]["width"].as_f64().unwrap() - 80.).abs() < 1e-6)
+                    .collect();
+                assert_eq!(tables.len(), 2, "nested={nested} {alignment:?}");
+                let tab: Vec<_> = nodes(&pages[0], "TextRun")
+                    .into_iter()
+                    .filter(|n| n["node_type"]["TextRun"]["text"] == "\t")
+                    .collect();
+                assert_eq!(tab.len(), 1);
+                let x = tables[0]["bbox"]["x"].as_f64().unwrap();
+                let factor = match alignment {
+                    Alignment::Center => 0.5,
+                    Alignment::Right => 1.0,
+                    _ => 0.0,
+                };
+                near(
+                    &tables[0]["bbox"]["x"],
+                    22. + factor * (300. - 168. - 799. / 75.),
+                );
+                near(&tab[0]["bbox"]["x"], x + 82.);
+                near(&tab[0]["bbox"]["width"], 799. / 75.);
+                near(&tables[1]["bbox"]["x"], x + 84. + 799. / 75.);
+                near(
+                    &tables[1]["bbox"]["y"],
+                    tables[0]["bbox"]["y"].as_f64().unwrap(),
+                );
+                assert_eq!(
+                    pages
+                        .iter()
+                        .flat_map(|page| nodes(page, "TextRun"))
+                        .filter(|n| n["node_type"]["TextRun"]["text"] == "after")
+                        .count(),
+                    1
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn hancom_saved_tac_tab_keeps_both_approval_tables_at_source_positions() {
+    let input = include_bytes!("../fixtures/issue7353_tac_tab_review/carrier-saved.hwp");
+    let document = rhwp::parse_document(input).unwrap();
+    let para = &document.sections[0].paragraphs[0];
+    assert_eq!(para.text, "\t");
+    assert_eq!(para.char_offsets, [24]); // secd, cold, first table, tab, second table
+    assert_eq!(para.tab_extended[0][0], 799);
+    let source_tables: Vec<_> = para
+        .controls
+        .iter()
+        .filter_map(|c| {
+            if let Control::Table(t) = c {
+                Some(t)
+            } else {
+                None
+            }
+        })
+        .collect();
+    let mut session = DocumentV2Session::from_bytes(input, TERMINAL_OPTIONS).unwrap();
+    let pages = drain(&mut session);
+    assert_eq!(pages.len(), 1);
+    let tables = nodes(&pages[0], "Table");
+    assert_eq!(tables.len(), 2);
+    // Independent saved sizes and tab advance; paragraph LEFT origin5385HU.
+    // Same input's Hancom PDF verifies the two external borders and gap.
+    near(&tables[0]["bbox"]["x"], (5385. + 140.) / 75.);
+    near(
+        &tables[1]["bbox"]["x"],
+        (5385. + 18921. + 280. + 799. + 140.) / 75.,
+    );
+    for (node, source) in tables.iter().zip(&source_tables) {
+        near(&node["bbox"]["width"], source.common.width as f64 / 75.);
+        near(&node["bbox"]["height"], source.common.height as f64 / 75.);
+    }
+    assert_eq!(
+        nodes(&pages[0], "TableCell").len(),
+        source_tables.iter().map(|t| t.cells.len()).sum::<usize>()
+    );
+    assert!(session.next_page_json().unwrap().is_none());
+}
+
+#[test]
+fn saved_tac_tabs_reject_missing_or_unqualified_advance() {
+    for extension in [
+        None,
+        Some([0, 0, 0x100, 0, 0, 0, 9]),
+        Some([799, 0, 0x200, 0, 0, 0, 9]),
+        Some([799, 0, 0x101, 0, 0, 0, 9]),
+    ] {
+        let mut carrier = inline_carrier(false);
+        carrier.text = "\t".into();
+        carrier.char_offsets = vec![8];
+        carrier.char_count = 25;
+        carrier.tab_extended = extension.into_iter().collect();
+        let mut d = source(vec![carrier]);
+        add_leading_structure(&mut d);
+        d.sections[0].paragraphs[0].char_offsets[0] += 16;
+        assert!(DocumentV2Session::from_bytes(&bytes(&d), TERMINAL_OPTIONS).is_err());
+    }
+}
+
+#[test]
+fn first_body_space_separated_tac_preserves_common_ir_order_in_both_formats() {
+    // Synthetic source-axis contract corresponding to #6601's actual ordering:
+    // secd, cold, table A, three spaces, table B. Independent physical rule:
+    // structural controls occupy no width; horizontal advances preserve order.
+    let options = r#"{"dpi":96,"max_pages":20}"#;
+    for alignment in [
+        rhwp::model::style::Alignment::Left,
+        rhwp::model::style::Alignment::Center,
+        rhwp::model::style::Alignment::Right,
+    ] {
+        let mut carrier = inline_carrier(false);
+        carrier.text = "   ".into();
+        carrier.char_offsets = vec![8, 9, 10];
+        carrier.char_count = 20;
+        let mut d = source(vec![carrier, p("after")]);
+        d.doc_info.para_shapes[0].alignment = alignment;
+        add_leading_structure(&mut d);
+        for offset in &mut d.sections[0].paragraphs[0].char_offsets {
+            *offset += 16;
+        }
+        let hwpx = bytes(&d);
+        let parsed = rhwp::parse_document(&hwpx).unwrap();
+        let para = &parsed.sections[0].paragraphs[0];
+        assert_eq!(para.hwpx_axis_shift, 8);
+        assert_eq!(para.char_offsets, [24, 25, 26]);
+        assert_eq!(para.control_text_positions(), [0, 0, 0, 3]);
+        let mut reference = None;
+        for input in [
+            &hwpx,
+            &rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap(),
+        ] {
+            let pages = drain(&mut DocumentV2Session::from_bytes(input, options).unwrap());
+            assert_eq!(pages.len(), 1);
+            let ts = nodes(&pages[0], "Table");
+            assert_eq!(ts.len(), 2);
+            let spaces: Vec<_> = nodes(&pages[0], "TextRun")
+                .into_iter()
+                .filter(|n| n["node_type"]["TextRun"]["text"] == " ")
+                .collect();
+            assert_eq!(spaces.len(), 3);
+            let coord = |n: &Value, k: &str| n["bbox"][k].as_f64().unwrap();
+            let width: f64 = spaces.iter().map(|s| coord(s, "width")).sum();
+            let factor = match alignment {
+                rhwp::model::style::Alignment::Center => 0.5,
+                rhwp::model::style::Alignment::Right => 1.0,
+                _ => 0.0,
+            };
+            near(
+                &ts[0]["bbox"]["x"],
+                20.0 + factor * (300.0 - 168.0 - width) + 2.0,
+            );
+            near(&spaces[0]["bbox"]["x"], coord(ts[0], "x") + 82.0);
+            for pair in spaces.windows(2) {
+                near(
+                    &pair[1]["bbox"]["x"],
+                    coord(pair[0], "x") + coord(pair[0], "width"),
+                );
+            }
+            near(&ts[1]["bbox"]["x"], coord(ts[0], "x") + 84.0 + width);
+            for t in &ts {
+                near(&t["bbox"]["y"], 32.0);
+            }
+            let after = nodes(&pages[0], "TextLine")
+                .into_iter()
+                .find(|n| {
+                    let mut runs = Vec::new();
+                    collect(n, "TextRun", &mut runs);
+                    runs.iter()
+                        .any(|r| r["node_type"]["TextRun"]["text"] == "after")
+                })
+                .unwrap();
+            near(&after["bbox"]["y"], 74.0);
+            let geometry: Vec<_> = ts.iter().map(|t| t["bbox"].clone()).collect();
+            if let Some(expected) = &reference {
+                assert_eq!(&geometry, expected);
+            } else {
+                reference = Some(geometry);
+            }
+        }
+        if alignment == rhwp::model::style::Alignment::Center {
+            let pages = drain(&mut DocumentV2Session::from_bytes(&hwpx, options).unwrap());
+            capture("structural-spaces", &d, &pages);
+        }
+    }
+}
+
+#[test]
+fn unequal_nested_tac_matches_independent_hancom_saved_geometry() {
+    let bytes = include_bytes!("../fixtures/issue7353_unequal_tac_review/review-saved.hwp");
+    let mut d = rhwp::parse_document(bytes).unwrap();
+    for fresh in [false, true] {
+        let parent = d.sections[0].paragraphs[0]
+            .controls
+            .iter_mut()
+            .find_map(|c| match c {
+                Control::Table(t) => Some(t),
+                _ => None,
+            })
+            .unwrap();
+        let carrier = &mut parent.cells[0].paragraphs[1];
+        assert_eq!(carrier.line_segs[0].vertical_pos, 1760);
+        assert_eq!(carrier.line_segs[0].line_height, 8400);
+        assert_eq!(carrier.line_segs[0].line_spacing, 660);
+        if fresh {
+            carrier.line_segs.clear(); // Derived reflow; not the unchanged saved input.
+        }
+        let input = if fresh {
+            rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap()
+        } else {
+            bytes.to_vec()
+        };
+        let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+        assert_eq!(pages.len(), 1);
+        let tables = nodes(&pages[0], "Table");
+        assert_eq!(tables.len(), 3);
+        // Independent Hancom PDF clips (pt), detailed in fixture README.
+        // Trace text matrix gives the driver's x/y scale relative to .12pt
+        // device units. Normalize that independent print scale, then allow
+        // 0.25pt device quantization; this is not an engine fit tolerance.
+        for (table, expected) in tables.iter().zip([
+            [39.671, 87.793, 319.643, 179.903],
+            [97.559, 135.647, 99.956, 50.013],
+            [201.470, 110.221, 99.836, 79.877],
+        ]) {
+            for (field, pt) in ["x", "y", "width", "height"].into_iter().zip(expected) {
+                let print_scale = if matches!(field, "x" | "width") {
+                    0.119851 / 0.12
+                } else {
+                    0.119935 / 0.12
+                };
+                let actual_pt = table["bbox"][field].as_f64().unwrap() * 0.75 * print_scale;
+                assert!(
+                    (actual_pt - pt).abs() < 0.25,
+                    "{field}: {actual_pt} vs {pt}"
+                );
+            }
+        }
+        // Saved HU plus independently observed .85 table ascent: common row
+        // origin10830, small top2750, tall top200; baseline is17830HU.
+        near(&tables[1]["bbox"]["y"], 13580.0 / 75.0);
+        near(&tables[2]["bbox"]["y"], 11030.0 / 75.0);
+        near(&tables[0]["bbox"]["height"], 18000.0 / 75.0);
+        let runs = nodes(&pages[0], "TextRun");
+        for (text, y) in [
+            ("SHORT TABLE", 13863.0),
+            ("TALL TABLE", 11313.0),
+            ("CELL AFTER", 19890.0),
+            ("AFTER PARENT TABLE", 27354.0),
+        ] {
+            let matched: Vec<_> = runs
+                .iter()
+                .filter(|n| n["node_type"]["TextRun"]["text"] == text)
+                .collect();
+            assert_eq!(matched.len(), 1, "{text}");
+            near(&matched[0]["bbox"]["y"], y / 75.0);
+        }
+    }
+}
+
+fn unequal_inline_carrier(fresh: bool) -> Paragraph {
+    let mut carrier = inline_carrier(false);
+    carrier.para_shape_id = 1;
+    for (ci, c) in carrier.controls.iter_mut().enumerate() {
+        let Control::Table(t) = c else { unreachable!() };
+        t.common.height = if ci == 0 { 2700 } else { 4050 };
+        t.cells[0].height = t.common.height;
+    }
+    if fresh {
+        carrier.line_segs.clear();
+    } else {
+        carrier.line_segs[0].line_height = 4350;
+        carrier.line_segs[0].text_height = 4350;
+        carrier.line_segs[0].baseline_distance = 3697;
+        carrier.line_segs[0].line_spacing = 0;
+    }
+    carrier
+}
+
+fn squeeze_child(d: &mut Document) -> &mut Cell {
+    let parent = d.sections[0].paragraphs[0]
+        .controls
+        .iter_mut()
+        .find_map(|c| {
+            if let Control::Table(t) = c {
+                Some(t)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let child = parent.cells[0].paragraphs[1]
+        .controls
+        .iter_mut()
+        .find_map(|c| {
+            if let Control::Table(t) = c {
+                Some(t)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    &mut child.cells[0]
+}
+
+#[test]
+fn issue6601_first_paragraph_replays_original_squeeze_cells() {
+    let mut d = rhwp::parse_document(include_bytes!(
+        "../../samples/issue6601/36331407_side_by_side_tac_tables.hwpx"
+    ))
+    .unwrap();
+    // Isolated first-paragraph contract. No properties, text, saved rows or
+    // table controls are altered. Not a full-document fidelity claim.
+    d.sections[0].paragraphs.truncate(1);
+    let source: Vec<_> = d.sections[0].paragraphs[0]
+        .controls
+        .iter()
+        .filter_map(|c| {
+            if let Control::Table(t) = c {
+                Some(t)
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(source.len(), 2);
+    assert!(source
+        .iter()
+        .flat_map(|t| &t.cells)
+        .all(|c| c.line_wrap == 1));
+    let input = rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap();
+    let pages = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(pages.len(), 1);
+    let tables = nodes(&pages[0], "Table");
+    assert_eq!(tables.len(), 2);
+    for (actual, original) in tables.iter().zip(&source) {
+        near(
+            &actual["bbox"]["width"],
+            f64::from(original.common.width) / 75.0,
+        );
+        near(
+            &actual["bbox"]["height"],
+            f64::from(original.common.height) / 75.0,
+        );
+    }
+    // Source heights12860/12840HU share a baseline: top delta17HU.
+    near(
+        &tables[1]["bbox"]["y"],
+        tables[0]["bbox"]["y"].as_f64().unwrap() + 17.0 / 75.0,
+    );
+    assert_eq!(
+        nodes(&pages[0], "TableCell").len(),
+        source.iter().map(|t| t.cells.len()).sum::<usize>()
+    );
+    let actual: String = labels(&pages[0])
+        .join("")
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    let expected: String = source
+        .iter()
+        .flat_map(|t| &t.cells)
+        .flat_map(|c| &c.paragraphs)
+        .flat_map(|p| p.text.chars())
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn saved_squeeze_keeps_one_row_padding_and_following_content_in_both_formats() {
+    let input = include_bytes!("../fixtures/issue7353_squeeze_review/squeeze-saved.hwp");
+    let mut d = rhwp::parse_document(input).unwrap();
+    let cell = squeeze_child(&mut d);
+    assert_eq!(cell.line_wrap, 1);
+    assert_eq!(cell.paragraphs[0].line_segs.len(), 1);
+    assert_eq!(cell.paragraphs[0].line_segs[0].segment_width, 9432);
+    for bytes in [
+        input.to_vec(),
+        rhwp::serializer::hwpx::serialize_hwpx(&d).unwrap(),
+    ] {
+        let pages = drain(&mut DocumentV2Session::from_bytes(&bytes, TERMINAL_OPTIONS).unwrap());
+        assert_eq!(pages.len(), 1);
+        let tables = nodes(&pages[0], "Table");
+        assert_eq!(tables.len(), 2);
+        // Unchanged parent/cell positions from normal Hancom saved fixture.
+        near(&tables[0]["bbox"]["height"], 18000.0 / 75.0);
+        near(&tables[1]["bbox"]["y"], 10830.0 / 75.0);
+        near(&tables[1]["bbox"]["width"], 10000.0 / 75.0);
+        near(&tables[1]["bbox"]["height"], 5000.0 / 75.0);
+        let runs = nodes(&pages[0], "TextRun");
+        let matching: Vec<_> = runs
+            .iter()
+            .filter(|n| n["node_type"]["TextRun"]["text"] == "ONE TWO THREE FOUR FIVE")
+            .collect();
+        assert_eq!(matching.len(), 1);
+        let run = matching[0];
+        let left = tables[1]["bbox"]["x"].as_f64().unwrap() + 283.0 / 75.0;
+        near(&run["bbox"]["x"], left);
+        near(&run["bbox"]["y"], 11113.0 / 75.0);
+        assert!(run["bbox"]["width"].as_f64().unwrap() <= 9432.0 / 75.0);
+        assert!(
+            run["node_type"]["TextRun"]["style"]["extra_char_spacing"]
+                .as_f64()
+                .unwrap()
+                < 0.0
+        );
+        for (label, y) in [("CELL AFTER", 16490.0), ("AFTER PARENT TABLE", 27354.0)] {
+            let matches: Vec<_> = runs
+                .iter()
+                .filter(|n| n["node_type"]["TextRun"]["text"] == label)
+                .collect();
+            assert_eq!(matches.len(), 1);
+            near(&matches[0]["bbox"]["y"], y / 75.0);
+        }
+    }
+}
+
+#[test]
+fn squeeze_rejects_fresh_dirty_and_unknown_wrap_instead_of_break_reflow() {
+    for variant in ["fresh", "dirty", "keep", "unknown", "vertical"] {
+        let mut d = rhwp::parse_document(include_bytes!(
+            "../fixtures/issue7353_squeeze_review/squeeze-saved.hwp"
+        ))
+        .unwrap();
+        let cell = squeeze_child(&mut d);
+        match variant {
+            "fresh" => cell.paragraphs[0].line_segs.clear(),
+            "dirty" => cell.paragraphs[0].stored_text_partition_dirty = true,
+            "keep" => cell.line_wrap = 2,
+            "unknown" => cell.line_wrap = 3,
+            "vertical" => cell.text_direction = 1,
+            _ => unreachable!(),
+        }
+        // Dirty is an in-memory edit flag, not a serialized HWP property.
+        let parent = d.sections[0].paragraphs[0]
+            .controls
+            .iter()
+            .find_map(|c| {
+                if let Control::Table(t) = c {
+                    Some(t)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let styles = rhwp::renderer::style_resolver::resolve_styles(&d.doc_info, 96.0);
+        let result = rhwp::renderer::table_v2::PreparedTextTable::prepare(parent, &styles, 96.0);
+        let expected = match variant {
+            "fresh" | "dirty" => "SQUEEZE requires intact stored text rows",
+            "vertical" => "cell text direction",
+            _ => "cell line wrap policy",
+        };
+        assert!(
+            matches!(result, Err(rhwp::renderer::table_v2::GeometryError::Unsupported(s)) if s == expected),
+            "{variant}"
+        );
+    }
+}
+
+#[test]
+fn squeeze_initial_single_column_is_structural_not_an_inline_occupant() {
+    use rhwp::model::page::ColumnDef;
+    let source = include_bytes!("../fixtures/issue7353_squeeze_review/squeeze-saved.hwp");
+    let mut d = rhwp::parse_document(source).unwrap();
+    let expected = drain(&mut DocumentV2Session::from_bytes(source, TERMINAL_OPTIONS).unwrap());
+    let p = &mut squeeze_child(&mut d).paragraphs[0];
+    p.controls.push(Control::ColumnDef(ColumnDef {
+        column_count: 1,
+        same_width: true,
+        ..Default::default()
+    }));
+    p.char_count += 8;
+    for pos in &mut p.char_offsets {
+        *pos += 8;
+    }
+    let input = rhwp::serializer::serialize_hwpx(&d).unwrap();
+    let actual = drain(&mut DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS).unwrap());
+    assert_eq!(
+        actual, expected,
+        "structural source slot must not change geometry or paint"
+    );
+    let Control::ColumnDef(c) = &mut squeeze_child(&mut d).paragraphs[0].controls[0] else {
+        panic!()
+    };
+    c.column_count = 2;
+    let input = rhwp::serializer::serialize_hwpx(&d).unwrap();
+    let err = DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS)
+        .err()
+        .unwrap();
+    assert!(format!("{err:?}").contains("multi-lane cell column definition"));
+}
+
+#[test]
+fn normal_saved_squeeze_with_column_preserves_the_plain_story_output() {
+    let input = include_bytes!("../fixtures/issue7353_column_squeeze_review/squeeze-saved.hwp");
+    let mut d = rhwp::parse_document(input).unwrap();
+    let cell = squeeze_child(&mut d);
+    assert_eq!(cell.line_wrap, 1);
+    assert!(matches!(
+        cell.paragraphs[0].controls.as_slice(),
+        [Control::ColumnDef(_)]
+    ));
+    assert_eq!(cell.paragraphs[0].line_segs.len(), 1);
+    assert_eq!(cell.paragraphs[0].line_segs[0].segment_width, 9432);
+    let old = include_bytes!("../fixtures/issue7353_squeeze_review/squeeze-saved.hwp");
+    let expected = drain(&mut DocumentV2Session::from_bytes(old, TERMINAL_OPTIONS).unwrap());
+    let hwpx = rhwp::serializer::serialize_hwpx(&d).unwrap();
+    for bytes in [input.as_slice(), hwpx.as_slice()] {
+        let actual = drain(&mut DocumentV2Session::from_bytes(bytes, TERMINAL_OPTIONS).unwrap());
+        // Independent normal saves with/without a structural declaration have
+        // the same text line, cell frames, following paragraphs and page end.
+        assert_eq!(actual, expected);
+    }
+    // An initial column does not license recomposition of dirty/missing rows.
+    let cell = squeeze_child(&mut d);
+    cell.paragraphs[0].line_segs.clear();
+    let input = rhwp::serializer::serialize_hwpx(&d).unwrap();
+    let error = DocumentV2Session::from_bytes(&input, TERMINAL_OPTIONS)
+        .err()
+        .unwrap();
+    assert!(format!("{error:?}").contains("SQUEEZE requires intact stored text rows"));
+}
+
+fn unequal_inline_document(fresh: bool, nested: bool, defer: bool) -> Document {
+    let carrier = unequal_inline_carrier(fresh);
+    let mut paragraphs = if nested {
+        let mut parent = table(&[], TablePageBreak::CellBreak);
+        parent.cells[0].width = 22500;
+        parent.cells[0].paragraphs = vec![carrier];
+        vec![host("", parent), p("after")]
+    } else {
+        vec![carrier, p("after")]
+    };
+    if defer {
+        paragraphs.insert(0, p("before"));
+    }
+    let mut d = source(paragraphs);
+    let mut style = d.doc_info.para_shapes[0].clone();
+    style.alignment = rhwp::model::style::Alignment::Left;
+    style.line_spacing_type = LineSpacingType::Percent;
+    style.line_spacing = 100;
+    d.doc_info.para_shapes.push(style);
+    if !defer {
+        d.sections[0].section_def.page_def.margin_bottom = 1500;
+    }
+    fresh_tac_structure(&mut d);
+    d
+}
+
+#[test]
+fn unequal_tac_baselines_share_placement_and_fit_in_body_and_cell() {
+    // Independent #7049/#7150 Hancom observations: baseline divides object
+    // height 85:15. For36/54px objects with2px margins the shared ascent is
+    // 47.9px, descent10.1px, row58px. Small top=17.3px, large top=2px.
+    // The physical group, not either object's own height, is the atomic fit.
+    for fresh in [false, true] {
+        for nested in [false, true] {
+            for defer in [false, true] {
+                let d = unequal_inline_document(fresh, nested, defer);
+                let input = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+                let pages = drain(
+                    &mut DocumentV2Session::from_bytes(&input, r#"{"dpi":96,"max_pages":20}"#)
+                        .unwrap(),
+                );
+                let page = &pages[usize::from(defer)];
+                if defer {
+                    assert!(nodes(&pages[0], "Table").is_empty(), "whole row must defer");
+                }
+                let tables = nodes(page, "Table");
+                let children: Vec<_> = tables
+                    .iter()
+                    .filter(|t| t["bbox"]["width"] == 80.0)
+                    .collect();
+                assert_eq!(children.len(), 2);
+                let origin = if nested {
+                    tables[0]["bbox"]["y"].as_f64().unwrap()
+                } else {
+                    30.0
+                };
+                near(&children[0]["bbox"]["y"], origin + 17.3);
+                near(&children[1]["bbox"]["y"], origin + 2.0);
+                near(&children[0]["bbox"]["height"], 36.0);
+                near(&children[1]["bbox"]["height"], 54.0);
+                if nested {
+                    near(&tables[0]["bbox"]["height"], 58.0);
+                }
+                let all: Vec<_> = pages.iter().flat_map(labels).collect();
+                assert_eq!(
+                    all.iter().filter(|s| s.is_empty()).count(),
+                    usize::from(nested)
+                );
+                let all: Vec<_> = all.into_iter().filter(|s| !s.is_empty()).collect();
+                assert_eq!(
+                    all,
+                    if defer {
+                        vec!["before", "A", "a", "B", "b", "after"]
+                    } else {
+                        vec!["A", "a", "B", "b", "after"]
+                    }
+                );
+                if !nested && !defer {
+                    capture(
+                        if fresh {
+                            "unequal-fresh-hwp"
+                        } else {
+                            "unequal-stored-hwp"
+                        },
+                        &d,
+                        &pages,
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn tac_row_reserves_ascent_and_descent_from_different_siblings() {
+    // 2700HU + top1700 and 4200HU + bottom1700: max individual envelope
+    // is5900HU, but common-baseline union is3995 +2330 =6325HU.
+    for fresh in [false, true] {
+        let mut d = unequal_inline_document(fresh, false, false);
+        let carrier = &mut d.sections[0].paragraphs[0];
+        let mut index = 0;
+        for ctrl in &mut carrier.controls {
+            if let Control::Table(t) = ctrl {
+                t.common.height = if index == 0 { 2700 } else { 4200 };
+                t.cells[0].height = t.common.height;
+                t.outer_margin_top = if index == 0 { 1700 } else { 0 };
+                t.outer_margin_bottom = if index == 0 { 0 } else { 1700 };
+                t.common.margin.top = t.outer_margin_top;
+                t.common.margin.bottom = t.outer_margin_bottom;
+                index += 1;
+            }
+        }
+        if !fresh {
+            let row = &mut carrier.line_segs[0];
+            row.line_height = 6325;
+            row.text_height = 6325;
+            row.baseline_distance = 5376;
+        }
+        let input = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+        let pages = drain(
+            &mut DocumentV2Session::from_bytes(&input, r#"{"dpi":96,"max_pages":20}"#).unwrap(),
+        );
+        let ts = nodes(&pages[0], "Table");
+        near(&ts[0]["bbox"]["y"], 30.0 + 1700.0 / 75.0);
+        near(&ts[1]["bbox"]["y"], 30.0 + 425.0 / 75.0);
+        let after = nodes(&pages[0], "TextRun")
+            .into_iter()
+            .find(|r| r["node_type"]["TextRun"]["text"] == "after")
+            .unwrap();
+        near(&after["bbox"]["y"], 30.0 + 6325.0 / 75.0);
+        assert_eq!(pages.len(), 1);
+        if !fresh {
+            d.sections[0].paragraphs[0].line_segs[0].line_height = 5900;
+            let bad = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+            assert!(
+                DocumentV2Session::from_bytes(&bad, r#"{"dpi":96,"max_pages":20}"#).is_err(),
+                "do not accept just max(object envelopes)"
+            );
+        }
+    }
+}
+
+#[test]
+fn unequal_tac_nonbaseline_alignment_is_not_silently_guessed() {
+    for fresh in [false, true] {
+        for vertical in [1, 2, 3] {
+            let mut d = unequal_inline_document(fresh, false, false);
+            d.doc_info.para_shapes[1].attr1 |= vertical << 20;
+            let input = rhwp::serializer::cfb_writer::serialize_hwp(&d).unwrap();
+            assert!(DocumentV2Session::from_bytes(&input, r#"{"dpi":96,"max_pages":20}"#).is_err());
+        }
     }
 }
 

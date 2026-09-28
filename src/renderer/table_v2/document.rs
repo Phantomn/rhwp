@@ -52,12 +52,21 @@ struct Options {
 pub(super) struct BodyPlan {
     pub flow: FlowCellInput,
     pub anchors: Vec<AnchoredFlow>,
+    /// (story block, preceding anchor count): an explicit paragraph-entry or
+    /// qualified stored-line body frame break.
+    /// The count orders an earlier floating table before a coincident boundary.
+    pub page_breaks: Vec<(usize, usize)>,
     pub lines: HashMap<LineOwner, (usize, RenderNode)>,
     pub tables: HashMap<ControlOwner, (usize, Arc<TextPaint>)>,
     pub body: Rect,
     pub page_width: f64,
     pub page_height: f64,
-    pub page_number: Option<super::page_number::PageNumberStory>,
+    /// Source-ordered declarations. The first accepted host flow unit activates
+    /// a story; a later declaration on the same page supersedes an earlier one.
+    pub page_numbers: Vec<(
+        super::page_number::PageNumberHost,
+        super::page_number::PageNumberStory,
+    )>,
 }
 
 #[derive(Serialize)]
@@ -81,6 +90,7 @@ pub struct DocumentV2Session {
     cursor: BodyCursor,
     emitted: u32,
     max_pages: u32,
+    number_active: Option<usize>,
 }
 
 impl DocumentV2Session {
@@ -107,6 +117,7 @@ impl DocumentV2Session {
             cursor: BodyCursor::default(),
             emitted: 0,
             max_pages: options.max_pages,
+            number_active: None,
         })
     }
 
@@ -124,6 +135,7 @@ impl DocumentV2Session {
             return Err(DocumentV2Error::PageLimit(self.max_pages));
         }
         let fit = self.cursor.fit(&self.plan)?;
+        super::body_flow::validate_side_wraps(&self.plan, &fit)?;
         if !fit.progressed {
             return Err(DocumentV2Error::DoesNotFit {
                 page: self.emitted,
@@ -131,7 +143,7 @@ impl DocumentV2Session {
             });
         }
         let b = self.plan.body;
-        if fit.height > b.height {
+        if fit.height > b.height && !fit.body_inline_overflow {
             return Err(GeometryError::InconsistentAtomicPlan.into());
         }
         let mut children = Vec::new();
@@ -172,8 +184,18 @@ impl DocumentV2Session {
             PageRenderTree::new(self.emitted, self.plan.page_width, self.plan.page_height);
         assign_ids(&mut body, tree.frame_mut());
         tree.root.children.push(body);
-        if let Some(story) = &self.plan.page_number {
-            if let Some(mut node) = story.render(self.emitted)? {
+        // Only accepted geometry activates a declaration, never a pending or
+        // failed fit. Source order, not HashMap/paint order, chooses the last
+        // declaration on this page (normal Hancom timeline fixture). Continuing
+        // an older host cannot rewind the already committed story.
+        let number_active = self.number_active.max(
+            self.plan
+                .page_numbers
+                .iter()
+                .rposition(|(host, _)| host.accepted(&fit.lines, &fit.tables)),
+        );
+        if let Some(index) = number_active {
+            if let Some(mut node) = self.plan.page_numbers[index].1.render(self.emitted)? {
                 assign_ids(&mut node, tree.frame_mut());
                 tree.root.children.push(node);
             }
@@ -190,6 +212,7 @@ impl DocumentV2Session {
         })
         .map_err(|e| DocumentV2Error::Serialize(e.to_string()))?;
         self.cursor = fit.next;
+        self.number_active = number_active;
         self.emitted += 1;
         Ok(Some(result))
     }

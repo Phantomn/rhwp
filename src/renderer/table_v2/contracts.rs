@@ -77,6 +77,16 @@ pub struct InlineTableInput {
 /// Composition owns atomic line groups; pagination never infers them from ink.
 #[derive(Debug)]
 pub enum FlowBlock {
+    /// Boundary of qualified stored cell page frames, not an authored break.
+    /// Only cell-internal pagination consumes it; intact/reflow queries ignore it.
+    StoredFrameStart,
+    /// Producer-owned paragraph tail immediately before a saved frame cut.
+    /// Intact queries keep the ordinary bands; a physical frame ends at its
+    /// occupied line/object envelope plus paragraph-after spacing instead.
+    StoredFrameTail {
+        spaces: Vec<f64>,
+        paragraph_after: f64,
+    },
     /// A stored exclusion host and its floating child share an origin, not a
     /// vertical stack. The child can continue while the host is consumed once.
     AnchoredTable {
@@ -86,11 +96,21 @@ pub enum FlowBlock {
         host: Option<LineBox>,
         host_advance: f64,
         offset_x: f64,
+        /// Paragraph-relative displacement, consumed with the first accepted
+        /// child fragment only. Unlike top margin it is not a continuation inset.
+        offset_y: f64,
+        /// Resolved placement lane from the object origin, independent of the
+        /// surrounding text lane. Cell adapters keep this inside the padded
+        /// cell; a body float may use the paper margin without resizing text.
+        available_width: f64,
         top: f64,
         bottom: f64,
         plan: std::sync::Arc<super::TableContentPlan>,
     },
     Space(f64),
+    /// Distance to the following body line in this page frame, not an authored
+    /// blank line or physical space that continues onto the next page.
+    FollowingLineGap(f64),
     Lines {
         height: f64,
         /// Following origin, distinct from the complete occupied envelope.
@@ -153,8 +173,14 @@ pub struct LinePlacement {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CellPlacement {
+    /// A physical fragment, not an intact source row. Paint must not stretch
+    /// an intact-only gradient or diagonal across each continuation.
+    pub partial: bool,
     pub row: usize,
     pub row_span: usize,
+    /// Logical rows physically present in this fragment. Source ownership above
+    /// remains stable when a spanning cell continues from an earlier row.
+    pub visible_rows: std::ops::Range<usize>,
     pub column: usize,
     pub column_span: usize,
     pub bounds: Rect,

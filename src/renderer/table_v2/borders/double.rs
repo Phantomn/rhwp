@@ -37,6 +37,16 @@ impl Junction<'_> {
         let perpendicular = (!self.horizontal, point);
         let same_side = incident(self.edges, perpendicular, self.boundary, positive);
         let other_side = incident(self.edges, perpendicular, self.boundary, !positive);
+        // A continuous, same-color solid crosses the whole junction. Both
+        // double pens stop at its near ink edge; the solid itself stays intact.
+        // Normal-save mixed-inner grids and the regulatory overview PDF confirm
+        // this T/cross topology. One-sided corners and color precedence are
+        // different rules and remain explicit unsupported cases below.
+        if let (Some(a), Some(b)) = (same_side, other_side) {
+            if a == b && a.line_type == BorderLineType::Solid && a.color == self.style.color {
+                return Ok(border_width_to_px(a.width) * self.dpi / 96.0 / 2.0);
+            }
+        }
         // Color/unequal-width/mixed-style junction precedence is not established
         // by these references. Reject it instead of painting through the gap.
         for other in [same_side, other_side].into_iter().flatten() {

@@ -97,6 +97,45 @@ impl ParagraphEnd {
     pub fn next_origin(&self) -> f64 {
         self.next_origin
     }
+
+    /// Body line spacing is not a carryable physical band. Preserve authored
+    /// paragraph-after independently; cell continuation policy is unchanged.
+    pub(super) fn into_body_tail(self) -> Vec<super::FlowBlock> {
+        let Some(after) = self.paragraph_after else {
+            return self
+                .tail_spaces
+                .into_iter()
+                .map(super::FlowBlock::Space)
+                .collect();
+        };
+        let tail: f64 = self.tail_spaces.iter().sum();
+        if tail < after {
+            return self
+                .tail_spaces
+                .into_iter()
+                .map(super::FlowBlock::Space)
+                .collect();
+        }
+        vec![
+            super::FlowBlock::FollowingLineGap(tail - after),
+            super::FlowBlock::Space(after),
+        ]
+    }
+
+    pub(super) fn into_stored_frame_tail(self) -> Vec<super::FlowBlock> {
+        match self.paragraph_after {
+            Some(paragraph_after) => vec![super::FlowBlock::StoredFrameTail {
+                spaces: self.tail_spaces,
+                paragraph_after,
+            }],
+            // A custom composer's opaque physical space is not a line gap.
+            None => self
+                .tail_spaces
+                .into_iter()
+                .map(super::FlowBlock::Space)
+                .collect(),
+        }
+    }
 }
 
 /// Single lowering boundary for IR cells, explicit cell flows and document

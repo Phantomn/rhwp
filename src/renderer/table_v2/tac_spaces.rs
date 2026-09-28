@@ -11,6 +11,7 @@ use crate::{
 
 pub(super) struct SpaceRun {
     pub position: u32,
+    pub source_len: u32,
     pub width_hu: f64,
     pub node: RenderNode,
 }
@@ -25,11 +26,16 @@ pub(super) fn compose(
     if para.text.is_empty() {
         return Ok(Vec::new());
     }
-    // Tabs, NBSP and visible text have different breaking/painting contracts.
-    if !para.text.bytes().all(|c| c == b' ')
+    // A qualified saved LEFT tab already contains its resolved advance.
+    // Do not resolve its stop again against replacement-font metrics.
+    super::stored_text::validate_tabs(para, dpi)?;
+    if !para.text.bytes().all(|c| c == b' ' || c == b'\t')
         || para.char_offsets.len() != para.text.len()
         || para.char_offsets.windows(2).any(|p| p[0] >= p[1])
-        || para.hwpx_axis_shift != 0
+        // Character offsets already use the common IR source axis. A qualified
+        // leading structural prefix occupies source slots, not inline width.
+        // object_rows separately validates full coverage and stored row ownership.
+        || !super::tac::qualified_structural_axis(para)
     {
         return Err(invalid());
     }
@@ -54,8 +60,13 @@ pub(super) fn compose(
         {
             return Err(invalid());
         }
-        let style = resolved_to_text_style(styles, id, detect_lang_category(' '));
-        let positions = compute_char_positions(" ", &style);
+        let is_tab = para.text.as_bytes()[i] == b'\t';
+        let text = if is_tab { "\t" } else { " " };
+        let mut style = resolved_to_text_style(styles, id, detect_lang_category(' '));
+        if is_tab {
+            style.inline_tabs = para.tab_extended.clone();
+        }
+        let positions = compute_char_positions(text, &style);
         let width = *positions.last().ok_or_else(invalid)?;
         if !width.is_finite() || width < 0.0 {
             return Err(invalid());
@@ -63,11 +74,12 @@ pub(super) fn compose(
         let height = style.font_size;
         runs.push(SpaceRun {
             position,
+            source_len: if is_tab { 8 } else { 1 },
             width_hu: width * 7200.0 / dpi,
             node: RenderNode::new(
                 0,
                 RenderNodeType::TextRun(TextRunNode {
-                    text: " ".into(),
+                    text: text.into(),
                     style,
                     char_shape_id: Some(id),
                     para_shape_id: Some(para.para_shape_id),

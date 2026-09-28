@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use super::{
     FlowBlock, FlowCellInput, FragmentFit, GeometryError, LinePlacement, NestedTablePlacement,
-    PageArea, Rect, TableCursor,
+    PageArea, Rect, SplitPolicy, TableCursor,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -24,6 +24,9 @@ pub(super) struct FlowFit {
     pub required: f64,
     pub lines: Vec<LinePlacement>,
     pub tables: Vec<NestedTablePlacement>,
+    /// Only body composition can admit an indivisible TAC row on an empty
+    /// page. Its real extent is retained; this is not a larger generic budget.
+    pub body_inline_overflow: bool,
 }
 
 /// Preserve a proven complete child extent when subtraction loses a low bit
@@ -40,8 +43,27 @@ fn child_budget(total: f64, pen: f64, prefix: f64, child_height: f64) -> f64 {
 }
 
 impl FlowCursor {
+    pub(super) fn starts_stored_frame(&self, cell: &FlowCellInput) -> bool {
+        matches!(
+            cell.blocks.get(self.block),
+            Some(FlowBlock::StoredFrameStart)
+        ) || self
+            .child
+            .as_ref()
+            .is_some_and(|child| child.starts_stored_frame())
+    }
+
     pub fn fit(&self, cell: &FlowCellInput, area: Rect) -> Result<FlowFit, GeometryError> {
-        self.fit_until(cell, area, cell.blocks.len())
+        self.fit_with_page_height(cell, area, None)
+    }
+
+    pub fn fit_with_page_height(
+        &self,
+        cell: &FlowCellInput,
+        area: Rect,
+        page_height: Option<f64>,
+    ) -> Result<FlowFit, GeometryError> {
+        self.fit_until(cell, area, cell.blocks.len(), page_height)
     }
 
     pub fn fit_until(
@@ -49,6 +71,47 @@ impl FlowCursor {
         cell: &FlowCellInput,
         area: Rect,
         end: usize,
+        page_height: Option<f64>,
+    ) -> Result<FlowFit, GeometryError> {
+        self.fit_cell_until(cell, area, end, page_height, false)
+    }
+
+    pub(super) fn fit_cell_until(
+        &self,
+        cell: &FlowCellInput,
+        area: Rect,
+        end: usize,
+        page_height: Option<f64>,
+        stored_frames: bool,
+    ) -> Result<FlowFit, GeometryError> {
+        self.fit_frame_until(cell, area, end, page_height, stored_frames, false)
+    }
+
+    pub(super) fn fit_body_until(
+        &self,
+        cell: &FlowCellInput,
+        area: Rect,
+        end: usize,
+        page_height: f64,
+    ) -> Result<FlowFit, GeometryError> {
+        self.fit_frame_until(
+            cell,
+            area,
+            end,
+            Some(page_height),
+            false,
+            area.height == page_height,
+        )
+    }
+
+    fn fit_frame_until(
+        &self,
+        cell: &FlowCellInput,
+        area: Rect,
+        end: usize,
+        page_height: Option<f64>,
+        stored_frames: bool,
+        empty_body: bool,
     ) -> Result<FlowFit, GeometryError> {
         let mut result = FlowFit {
             next: self.clone(),
@@ -58,21 +121,123 @@ impl FlowCursor {
             required: 0.0,
             lines: Vec::new(),
             tables: Vec::new(),
+            body_inline_overflow: false,
         };
         let mut pen = 0.0;
+        let initial_frame = stored_frames
+            && self.block == 0
+            && cell
+                .blocks
+                .iter()
+                .any(|block| matches!(block, FlowBlock::StoredFrameStart));
+        if initial_frame {
+            // from_flow_rows inserts the cell top inset as block0. Like the
+            // inset after a saved marker, it is not authored content and must
+            // be accepted with the first real unit, never on its own page.
+            pen = cell.padding.top;
+            result.next.block = 1;
+        }
+        if stored_frames
+            && self
+                .child
+                .as_ref()
+                .is_some_and(|child| child.starts_stored_frame())
+        {
+            // A cut owned by a descendant opens a new physical frame for this
+            // ancestor too. Keep the inset here, not in the child's text origin.
+            pen += cell.padding.top;
+        }
+        let mut required_inset = 0.0;
         while let Some(block) = cell.blocks[..end].get(result.next.block) {
+            // Consume bookkeeping/following-line gap on the owner page, but
+            // never place a second content unit in the overflowing row's tail.
+            if result.body_inline_overflow
+                && !matches!(block, FlowBlock::FollowingLineGap(_))
+                && !matches!(block, FlowBlock::Space(h) if *h == 0.0)
+            {
+                break;
+            }
+            // The last accepted content unit owns its terminating physical
+            // inset. Reserve it BEFORE fitting that unit, not afterwards in
+            // paint and not as an empty padding-only continuation page.
+            let terminal_inset = if stored_frames {
+                match cell.blocks.get(result.next.block + 1) {
+                    Some(FlowBlock::StoredFrameTail {
+                        paragraph_after, ..
+                    }) => cell.padding.bottom + paragraph_after,
+                    Some(FlowBlock::StoredFrameStart)
+                        if !matches!(block, FlowBlock::StoredFrameTail { .. }) =>
+                    {
+                        cell.padding.bottom
+                    }
+                    _ if matches!(
+                        block,
+                        FlowBlock::Table { .. } | FlowBlock::AnchoredTable { .. }
+                    ) && block.has_stored_frame_cut() =>
+                    {
+                        cell.padding.bottom
+                    }
+                    _ => 0.0,
+                }
+            } else {
+                0.0
+            };
+            required_inset = terminal_inset;
+            if terminal_inset > area.height {
+                result.required = block.height();
+                break;
+            }
+            let area = Rect {
+                height: (area.height - terminal_inset).max(0.0),
+                ..area
+            };
             let available = (area.height - pen).max(0.0);
             match block {
+                FlowBlock::StoredFrameStart => {
+                    // Leave the marker with the following content. A retry on
+                    // the next fragment consumes it without creating a blank
+                    // page or duplicating the preceding line/physical space.
+                    if stored_frames && result.progressed {
+                        // Page ownership is the unconsumed marker, not a claim
+                        // on all remaining paper. End at the same occupied
+                        // envelope used by placement, including the cell inset.
+                        pen = result.height.max(pen) + cell.padding.bottom;
+                        result.height = pen;
+                        break;
+                    }
+                    if stored_frames {
+                        // A saved frame restarts at the padded cell origin.
+                        // This is physical inset, not another authored blank
+                        // line. Do not replay it on ordinary content cuts.
+                        pen += cell.padding.top;
+                    }
+                }
+                FlowBlock::StoredFrameTail {
+                    spaces,
+                    paragraph_after,
+                } => {
+                    if stored_frames {
+                        pen = result.height.max(pen) + paragraph_after;
+                    } else {
+                        // Intact/Never queries retain the ordinary tail and
+                        // its original addition order (including zero bands).
+                        for space in spaces {
+                            pen += space;
+                        }
+                    }
+                }
                 FlowBlock::AnchoredTable {
                     owner,
                     host,
                     host_advance,
                     offset_x,
+                    offset_y,
+                    available_width,
                     top,
                     bottom,
                     plan,
                 } => {
-                    let host_height = host.as_ref().map_or(0.0, |h| h.bounds.height);
+                    let host_height = host.as_ref().map_or(0.0, |h| h.bounds.y + h.bounds.height);
                     if result.next.anchor_tail.is_none() {
                         let first = !result.next.anchor_started;
                         // Host and first child fragment are one acceptance transaction.
@@ -86,22 +251,42 @@ impl FlowCursor {
                             .as_deref()
                             .cloned()
                             .unwrap_or_else(|| TableCursor::new(Arc::clone(plan)));
-                        // This rule has zero source vertical offset. Top margin is
-                        // physical on every fragment, including deferred first fit.
-                        if *top > available {
-                            result.required = *top;
+                        // The source paragraph displacement belongs only to the
+                        // first accepted fragment. Margin belongs to every frame.
+                        // A failed query consumes neither the host nor this band.
+                        let initial_top = top + if first { *offset_y } else { 0.0 };
+                        if initial_top > available {
+                            result.required = initial_top;
                             break;
                         }
-                        match cursor.fit(PageArea {
-                            bounds: Rect {
-                                x: area.x + offset_x,
-                                y: area.y + pen + top,
-                                width: area.width - offset_x,
-                                height: child_budget(area.height, pen, *top, plan.height),
+                        // Every floating fragment stays inside its outer
+                        // margin. Line-vs-cell break permission does not make
+                        // that physical inset disappear on continuations.
+                        let fragment_bottom = *bottom;
+                        if initial_top + fragment_bottom > available {
+                            result.required = initial_top + fragment_bottom;
+                            break;
+                        }
+                        let budget = child_budget(
+                            area.height,
+                            pen,
+                            initial_top + fragment_bottom,
+                            plan.height,
+                        );
+                        match cursor.fit_in_frame(
+                            PageArea {
+                                bounds: Rect {
+                                    x: area.x + offset_x,
+                                    y: area.y + pen + initial_top,
+                                    width: *available_width,
+                                    height: budget,
+                                },
                             },
-                        })? {
+                            page_height.map(|h| (h - top - fragment_bottom).max(0.0)),
+                            stored_frames,
+                        )? {
                             FragmentFit::Placed(fragment) => {
-                                let child_end = *top + fragment.reserved_height();
+                                let child_end = initial_top + fragment.reserved_height();
                                 let used = if first {
                                     child_end.max(host_height)
                                 } else {
@@ -112,8 +297,8 @@ impl FlowCursor {
                                         result.lines.push(LinePlacement {
                                             owner: host.owner,
                                             bounds: Rect {
-                                                x: area.x,
-                                                y: area.y + pen,
+                                                x: area.x + host.bounds.x,
+                                                y: area.y + pen + host.bounds.y,
                                                 ..host.bounds
                                             },
                                         });
@@ -123,12 +308,34 @@ impl FlowCursor {
                                     owner: *owner,
                                     placement: Box::new(fragment.placement().clone()),
                                 });
-                                pen += used;
+                                let next = fragment.continuation();
+                                let physical = if next.is_complete() {
+                                    used
+                                } else {
+                                    (child_end + fragment_bottom).max(if first {
+                                        host_height
+                                    } else {
+                                        0.0
+                                    })
+                                };
+                                pen = if fragment.reserved_height() == budget {
+                                    area.height
+                                        - if next.is_complete() {
+                                            fragment_bottom
+                                        } else {
+                                            0.0
+                                        }
+                                } else {
+                                    pen + physical
+                                };
                                 result.height = result.height.max(pen);
                                 result.progressed = true;
                                 result.next.anchor_started = true;
-                                let next = fragment.continuation();
                                 if !next.is_complete() {
+                                    if stored_frames && next.starts_stored_frame() {
+                                        pen += cell.padding.bottom;
+                                        result.height = result.height.max(pen);
+                                    }
                                     result.next.child = Some(Box::new(next));
                                     break;
                                 }
@@ -143,11 +350,8 @@ impl FlowCursor {
                             FragmentFit::DoesNotFit {
                                 required_height, ..
                             } => {
-                                result.required = (*top + required_height).max(if first {
-                                    host_height
-                                } else {
-                                    0.0
-                                });
+                                result.required = (initial_top + fragment_bottom + required_height)
+                                    .max(if first { host_height } else { 0.0 });
                                 break;
                             }
                             FragmentFit::Complete => {
@@ -169,6 +373,11 @@ impl FlowCursor {
                     }
                     result.next.anchor_tail = None;
                     result.next.anchor_started = false;
+                }
+                FlowBlock::FollowingLineGap(height) => {
+                    // Only composition can identify following-line spacing.
+                    // It has no physical remainder in the next page frame.
+                    pen += height.min((area.height - pen).max(0.0));
                 }
                 FlowBlock::Space(height) => {
                     let left = result.next.space_left.unwrap_or(*height);
@@ -227,8 +436,21 @@ impl FlowCursor {
                         ));
                     }
                     if pen + height > area.height {
-                        result.required = *height;
-                        break;
+                        // An unbreakable TAC row cannot be deferred forever
+                        // when it is taller than a fresh page. Hancom keeps
+                        // that first row intact, even beyond the body/paper.
+                        // A partially occupied page still defers the row, and
+                        // cell/anchor fits never receive this permission.
+                        if !empty_body
+                            || pen != 0.0
+                            || !result.lines.is_empty()
+                            || !result.tables.is_empty()
+                            || tables.is_empty()
+                        {
+                            result.required = *height;
+                            break;
+                        }
+                        result.body_inline_overflow = true;
                     }
                     // Fit the entire group transactionally. No child cursor is
                     // committed if any sibling cannot preserve its complete box.
@@ -286,14 +508,19 @@ impl FlowCursor {
                         .as_deref()
                         .cloned()
                         .unwrap_or_else(|| TableCursor::new(Arc::clone(plan)));
-                    match cursor.fit(PageArea {
-                        bounds: Rect {
-                            x: area.x + offset_x,
-                            y: area.y + pen + prefix,
-                            width: area.width - offset_x,
-                            height: child_budget(area.height, pen, prefix, plan.height),
+                    let budget = child_budget(area.height, pen, prefix, plan.height);
+                    match cursor.fit_in_frame(
+                        PageArea {
+                            bounds: Rect {
+                                x: area.x + offset_x,
+                                y: area.y + pen + prefix,
+                                width: area.width - offset_x,
+                                height: budget,
+                            },
                         },
-                    })? {
+                        page_height.map(|h| (h - restart_top).max(0.0)),
+                        stored_frames,
+                    )? {
                         FragmentFit::Placed(fragment) => {
                             let reserved = prefix + fragment.reserved_height();
                             // Child fit already owns the fragment budget check.
@@ -306,7 +533,11 @@ impl FlowCursor {
                                 result.next.child = Some(Box::new(cursor));
                                 break;
                             }
-                            pen += reserved;
+                            pen = if fragment.reserved_height() == budget {
+                                area.height
+                            } else {
+                                pen + reserved
+                            };
                             result.height = result.height.max(pen);
                             result.tables.push(NestedTablePlacement {
                                 owner: *owner,
@@ -315,6 +546,10 @@ impl FlowCursor {
                             result.progressed = true;
                             let next = fragment.continuation();
                             if !next.is_complete() {
+                                if stored_frames && next.starts_stored_frame() {
+                                    pen += cell.padding.bottom;
+                                    result.height = result.height.max(pen);
+                                }
                                 result.next.child = Some(Box::new(next));
                                 break;
                             }
@@ -337,7 +572,21 @@ impl FlowCursor {
             result.next.block += 1;
             // Zero padding is bookkeeping, not enough progress to emit a blank
             // fragment in front of a blocked line/table.
-            result.progressed |= !matches!(block, FlowBlock::Space(h) if *h == 0.0);
+            result.progressed |= !matches!(block, FlowBlock::StoredFrameStart)
+                && !matches!(block, FlowBlock::Space(h) if *h == 0.0)
+                && !matches!(block, FlowBlock::FollowingLineGap(_));
+        }
+        if result.required > 0.0 || required_inset > area.height {
+            result.required += required_inset;
+        }
+        if !result.progressed && stored_frames && (initial_frame || self.starts_stored_frame(cell))
+        {
+            // A frame inset alone cannot commit an empty fragment. A failed
+            // first-unit query keeps both marker and inset for the retry.
+            result.required += pen;
+            result.next = self.clone();
+            result.height = 0.0;
+            pen = 0.0;
         }
         result.advance = pen;
         Ok(result)

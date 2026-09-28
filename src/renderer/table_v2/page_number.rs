@@ -1,7 +1,14 @@
 //! Page stories do not own body space or advance the table/paragraph cursor.
-//! This boundary admits one first-paragraph decimal footer declaration only.
+//! Paragraph-entry decimal footer declarations; document flow activates each
+//! on the first page that accepts its host, not on preceding pages. A position
+//! change (including disabled) does not restart the section's number sequence.
 use crate::{
-    model::{control::PageNumberPos, document::SectionDef},
+    model::{
+        control::{Control, PageNumberPos},
+        document::SectionDef,
+        paragraph::Paragraph,
+        table::Table,
+    },
     renderer::{
         layout::{estimate_text_width, format_page_number},
         page_layout::PageLayoutInfo,
@@ -12,12 +19,169 @@ use crate::{
     },
 };
 
-use super::GeometryError;
+use super::{ControlOwner, GeometryError, LinePlacement, NestedTablePlacement};
+
+/// Source ownership, not coordinates: a declaration in a later cell fragment
+/// must not be activated merely because its enclosing table has started.
+pub(super) struct PageNumberHost {
+    parents: Vec<CellHost>,
+    paragraph: usize,
+    line: Option<usize>,
+}
+
+#[derive(Clone)]
+struct CellHost {
+    table: ControlOwner,
+    row: usize,
+    column: usize,
+}
+
+impl PageNumberHost {
+    pub fn body(paragraph: usize) -> Self {
+        Self {
+            parents: Vec::new(),
+            paragraph,
+            line: None,
+        }
+    }
+
+    pub fn accepted(&self, lines: &[LinePlacement], tables: &[NestedTablePlacement]) -> bool {
+        let mut lines = lines;
+        let mut tables = tables;
+        for parent in &self.parents {
+            let Some(table) = tables.iter().find(|t| t.owner == parent.table) else {
+                return false;
+            };
+            let Some(cell) = table
+                .placement
+                .cells
+                .iter()
+                .find(|c| c.row == parent.row && c.column == parent.column)
+            else {
+                return false;
+            };
+            lines = &cell.lines;
+            tables = &cell.tables;
+        }
+        lines.iter().any(|l| {
+            l.owner.paragraph == self.paragraph && self.line.is_none_or(|line| l.owner.line == line)
+        }) || (self.line.is_none() && tables.iter().any(|t| t.owner.paragraph == self.paragraph))
+    }
+}
+
+/// A standalone page-story declaration is not an inline cell occupant. Keep
+/// its UTF-16 source slot and saved lines when projecting it to text composition.
+/// Other control combinations need their own ordered composition support.
+pub(super) fn cell_declaration(para: &Paragraph) -> Result<bool, GeometryError> {
+    if !para
+        .controls
+        .iter()
+        .any(|c| matches!(c, Control::PageNumberPos(_)))
+    {
+        return Ok(false);
+    }
+    if !matches!(para.controls.as_slice(), [Control::PageNumberPos(_)]) {
+        return Err(GeometryError::Unsupported(
+            "cell page-number declaration within paragraph content",
+        ));
+    }
+    cell_line(para)?;
+    Ok(true)
+}
+
+fn cell_line(para: &Paragraph) -> Result<usize, GeometryError> {
+    let position = para
+        .control_utf16_positions()
+        .first()
+        .copied()
+        .ok_or(GeometryError::InconsistentAtomicPlan)?;
+    if para.line_segs.is_empty() {
+        return if position == 0 {
+            Ok(0)
+        } else {
+            Err(GeometryError::Unsupported(
+                "fresh cell page-number within paragraph content",
+            ))
+        };
+    }
+    if para.stored_text_partition_is_dirty() {
+        return Err(GeometryError::Unsupported(
+            "dirty cell page-number line ownership",
+        ));
+    }
+    // The normal #7158 save puts pgnp after the title text, still in its first
+    // saved line. A later saved line must wait for that exact accepted line.
+    // Text composition independently validates this unchanged line partition.
+    (0..para.line_segs.len())
+        .rfind(|&i| para.line_seg_text_start(i) <= position)
+        .ok_or(GeometryError::Unsupported(
+            "cell page-number has no saved host line",
+        ))
+}
+
+pub(super) fn collect_cell_stories(
+    table: &Table,
+    owner: ControlOwner,
+    section: &SectionDef,
+    layout: &PageLayoutInfo,
+    stories: &mut Vec<(PageNumberHost, PageNumberStory)>,
+) -> Result<(), GeometryError> {
+    fn visit(
+        table: &Table,
+        owner: ControlOwner,
+        parents: &mut Vec<CellHost>,
+        section: &SectionDef,
+        layout: &PageLayoutInfo,
+        stories: &mut Vec<(PageNumberHost, PageNumberStory)>,
+    ) -> Result<(), GeometryError> {
+        if parents.len() >= 64 {
+            return Err(GeometryError::Unsupported("table nesting resource limit"));
+        }
+        for cell in &table.cells {
+            parents.push(CellHost {
+                table: owner,
+                row: cell.row.into(),
+                column: cell.col.into(),
+            });
+            for (pi, para) in cell.paragraphs.iter().enumerate() {
+                cell_declaration(para)?;
+                for (ci, control) in para.controls.iter().enumerate() {
+                    match control {
+                        Control::PageNumberPos(value) => stories.push((
+                            PageNumberHost {
+                                parents: parents.clone(),
+                                paragraph: pi,
+                                line: Some(cell_line(para)?),
+                            },
+                            PageNumberStory::new(value, section, layout)?,
+                        )),
+                        Control::Table(child) => visit(
+                            child,
+                            ControlOwner {
+                                paragraph: pi,
+                                control: ci,
+                            },
+                            parents,
+                            section,
+                            layout,
+                            stories,
+                        )?,
+                        _ => {}
+                    }
+                }
+            }
+            parents.pop();
+        }
+        Ok(())
+    }
+    visit(table, owner, &mut Vec::new(), section, layout, stories)
+}
 
 pub(super) struct PageNumberStory {
     declaration: PageNumberPos,
     layout: PageLayoutInfo,
     first: u32,
+    line_bottom: f64,
 }
 
 impl PageNumberStory {
@@ -39,10 +203,24 @@ impl PageNumberStory {
         {
             return Err(GeometryError::Unsupported("page-number format or position"));
         }
+        // Default automatic footer, independently varied in the Hancom margin
+        // matrix (tests/fixtures/issue7353/footer-position). A footer allocation
+        // places the number just above the bottom paper margin; with no footer,
+        // its line ends halfway through that margin. Test the source value, not
+        // a floating-point subtraction of layout coordinates for zero.
+        let bottom_margin = f64::from(section.page_def.margin_bottom) * layout.dpi / 7200.0;
+        let line_bottom = layout.page_height
+            - bottom_margin
+                * if section.page_def.margin_footer == 0 {
+                    0.5
+                } else {
+                    1.0
+                };
         Ok(Self {
             declaration: declaration.clone(),
             layout: layout.clone(),
             first: u32::from(section.page_num).max(1),
+            line_bottom,
         })
     }
 
@@ -79,19 +257,19 @@ impl PageNumberStory {
                 6 => free,
                 _ => unreachable!(),
             };
-        // The no-border footer convention is body-bottom + footer distance/2
-        // + one-third em. The run baseline is one em below this top. Keep this
-        // outside body fit, with the line bbox enclosing the actual run (unlike
-        // a baseline interpreted a second time as a line top).
-        let footer_distance = self.layout.page_height - (area.y + area.height);
-        let top = area.y + footer_distance / 2.0 + size / 3.0;
-        let height = size * 1.2;
+        // The default10pt HWP line has an850HU baseline in a1000HU line.
+        // PDF text origins, rather than glyph ink bounds, qualify this metric.
+        // Story placement and painting consume the same top/baseline. No body
+        // fit mutation or clamping, even if the author's footer is very small.
+        let top = self.line_bottom - size;
+        let height = size;
+        let baseline = size * 0.85;
         if !top.is_finite() || top < 0.0 || top + height > self.layout.page_height {
             return Err(GeometryError::Unsupported("page-number outside page"));
         }
         let mut line = RenderNode::new(
             0,
-            RenderNodeType::TextLine(TextLineNode::new(height, size)),
+            RenderNodeType::TextLine(TextLineNode::new(height, baseline)),
             BoundingBox::new(x, top, width, height),
         );
         line.children.push(RenderNode::new(
@@ -111,7 +289,7 @@ impl PageNumberStory {
                 is_vertical: false,
                 char_overlap: None,
                 border_fill_id: 0,
-                baseline: size,
+                baseline,
                 field_marker: FieldMarkerType::None,
                 layout_positions: None,
                 display_text: None,

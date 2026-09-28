@@ -64,8 +64,75 @@ struct ParagraphPaint {
 }
 
 impl CellParagraphComposer for IrTextComposer<'_> {
+    fn compose_with_cell_wrap(
+        &self,
+        para: &Paragraph,
+        width: f64,
+        single_column: bool,
+        line_wrap: u8,
+    ) -> Result<Vec<ParagraphItem>, GeometryError> {
+        // bind_table qualified the initial one-column declaration and its
+        // source slot. It establishes the cell lane, not an inline occupant.
+        // SQUEEZE must use the same stored-text projection as BREAK without
+        // dropping its no-wrap policy or shifting the saved UTF-16 positions.
+        let text_only;
+        let para = if super::page_number::cell_declaration(para)?
+            || (line_wrap == crate::model::table::CELL_LINE_WRAP_SQUEEZE
+                && single_column
+                && matches!(para.controls.as_slice(), [Control::ColumnDef(_)]))
+        {
+            text_only = {
+                let mut p = para.clone();
+                p.controls.clear();
+                p.ctrl_data_records.clear();
+                p
+            };
+            &text_only
+        } else {
+            para
+        };
+        super::stored_text::validate_cell_wrap(para, line_wrap)?;
+        if line_wrap == crate::model::table::CELL_LINE_WRAP_SQUEEZE {
+            let items = self
+                .text
+                .compose_with_cell_wrap(para, width, single_column, line_wrap)?;
+            self.record_items(items)
+        } else {
+            self.compose_in_cell(para, width, single_column)
+        }
+    }
+
+    fn stored_child_frame_tails(
+        &self,
+        paragraphs: &[Paragraph],
+    ) -> Result<Vec<(usize, f64)>, GeometryError> {
+        self.text.stored_child_frame_tails(paragraphs)
+    }
+
+    fn stored_frame_starts(
+        &self,
+        paragraphs: &[Paragraph],
+    ) -> Result<Vec<(usize, usize)>, GeometryError> {
+        self.text.stored_frame_starts(paragraphs)
+    }
+
     fn compose(&self, para: &Paragraph, width: f64) -> Result<Vec<ParagraphItem>, GeometryError> {
-        let items = self.compose_items(para, width)?;
+        self.compose_in_cell(para, width, false)
+    }
+
+    fn compose_in_cell(
+        &self,
+        para: &Paragraph,
+        width: f64,
+        single_column: bool,
+    ) -> Result<Vec<ParagraphItem>, GeometryError> {
+        let items = self.compose_items(para, width, single_column)?;
+        self.record_items(items)
+    }
+}
+
+impl IrTextComposer<'_> {
+    fn record_items(&self, items: Vec<ParagraphItem>) -> Result<Vec<ParagraphItem>, GeometryError> {
         // Store the very same ordered ownership recipe that geometry consumes.
         // Paint must not reconstruct slot order from the IR control array later.
         let mut slots = Vec::new();
@@ -108,10 +175,16 @@ impl IrTextComposer<'_> {
         &self,
         para: &Paragraph,
         width: f64,
+        single_column: bool,
     ) -> Result<Vec<ParagraphItem>, GeometryError> {
         if super::cell_anchor::candidate(para) {
-            let (item, node) =
-                super::cell_anchor::compose(para, width, self.text.styles, self.text.dpi)?;
+            let (item, node) = super::cell_anchor::compose(
+                para,
+                width,
+                self.text.styles,
+                self.text.dpi,
+                single_column,
+            )?;
             self.text.payloads.borrow_mut().push(vec![node]);
             return Ok(vec![item]);
         }
@@ -131,14 +204,30 @@ impl IrTextComposer<'_> {
             items.extend(self.text.compose(&text_only, width)?);
             return Ok(items);
         }
-        if para.controls.is_empty() || super::fields::stored_formula_result(para)? {
+        // The IR adapter has qualified the initial cell lane. A structural
+        // slot has no paint/advance, but its source text offsets must survive.
+        if !para.controls.is_empty()
+            && para
+                .controls
+                .iter()
+                .all(|c| matches!(c, Control::ColumnDef(_)))
+        {
+            let mut text_only = para.clone();
+            text_only.controls.clear();
+            text_only.ctrl_data_records.clear();
+            return self.text.compose(&text_only, width);
+        }
+        if para.controls.is_empty() || super::fields::stored_result(para)? {
             return self.text.compose(para, width);
         }
         if para
             .controls
             .iter()
-            .all(|c| matches!(c, Control::Picture(_)))
+            .all(|c| matches!(c, Control::Picture(_) | Control::ColumnDef(_)))
         {
+            // bind_table already qualified an initial one-column cell story.
+            // Keep the structural slot: stored_object_rows maps the remaining
+            // pictures to their original UTF-16 positions and saved lines.
             let (items, nodes) = super::pictures::compose(
                 para,
                 width,
@@ -149,10 +238,11 @@ impl IrTextComposer<'_> {
             self.text.payloads.borrow_mut().push(nodes);
             return Ok(items);
         }
-        if para
-            .controls
-            .iter()
-            .all(|c| matches!(c, Control::Table(t) if t.common.treat_as_char))
+        if super::fields::stored_tac_prefix(para)
+            || para.controls.iter().all(|c| {
+                matches!(c, Control::ColumnDef(_))
+                    || matches!(c, Control::Table(t) if t.common.treat_as_char)
+            })
         {
             let (items, nodes) = super::tac::compose(para, width, self.text.styles, self.text.dpi)?;
             self.text.payloads.borrow_mut().push(nodes);
@@ -231,11 +321,8 @@ fn bind_paint(
     cells.sort_by_key(|c| (c.row, c.col));
     for cell in cells {
         if let Some(diagonal) = super::diagonal::Diagonal::resolve(cell.border_fill_id, styles)? {
-            if table.page_break == crate::model::table::TablePageBreak::CellBreak {
-                return Err(GeometryError::Unsupported(
-                    "V2 cell-internal diagonal split",
-                ));
-            }
+            // The final placement, not split permission, decides whether this
+            // cell is cut. TextPaint rejects partial diagonal cells below.
             paint
                 .diagonals
                 .insert((usize::from(cell.row), usize::from(cell.col)), diagonal);
@@ -245,7 +332,7 @@ fn bind_paint(
             super::decoration::Background::resolve_cell(
                 cell.border_fill_id,
                 styles,
-                table.page_break != crate::model::table::TablePageBreak::CellBreak,
+                true, // Actual partial gradient cells are rejected by TextPaint.
             )?,
         );
         let mut order = 0;

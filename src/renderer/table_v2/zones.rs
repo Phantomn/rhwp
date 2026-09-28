@@ -59,11 +59,8 @@ impl Zone {
             let background = Background::resolve(source.border_fill_id, styles, false)?;
             let diagonal = super::diagonal::Diagonal::resolve(source.border_fill_id, styles)?;
             if diagonal.is_some() {
-                if table.page_break == crate::model::table::TablePageBreak::CellBreak {
-                    return Err(GeometryError::Unsupported(
-                        "V2 cell-internal zone diagonal split",
-                    ));
-                }
+                // Permission to split does not mean this zone was cut. bounds()
+                // rejects an actual partial cell before emitting the diagonal.
                 for cell in &table.cells {
                     if usize::from(cell.row) >= row
                         && usize::from(cell.row) < end_row
@@ -80,11 +77,24 @@ impl Zone {
             }
             let edges = super::borders::resolve_edges(source.border_fill_id, styles)?;
             if edges.is_some_and(|edges| {
-                edges
-                    .iter()
-                    .any(|e| e.line_type == crate::model::style::BorderLineType::Double)
+                edges.iter().any(|e| {
+                    matches!(
+                        e.line_type,
+                        crate::model::style::BorderLineType::Double
+                            | crate::model::style::BorderLineType::ThinThickDouble
+                    )
+                })
             }) {
                 return Err(GeometryError::Unsupported("V2 double zone perimeter"));
+            }
+            if edges.is_some_and(|edges| {
+                edges
+                    .iter()
+                    .any(|e| e.line_type == crate::model::style::BorderLineType::Dash)
+            }) {
+                // Dash zone/cell intersections have not been qualified by the
+                // cell-only pen catalog. Do not widen zone admission implicitly.
+                return Err(GeometryError::Unsupported("V2 dash zone perimeter"));
             }
             // Normal Hancom zones-saved confirms same-paint nested perimeters.
             // They compose without choosing a winner; conflicting effects and
@@ -132,6 +142,11 @@ impl Zone {
         let Some(first) = cells.first() else {
             return Ok(None);
         };
+        if self.diagonal.is_some() && cells.iter().any(|cell| cell.partial) {
+            return Err(GeometryError::Unsupported(
+                "V2 cell-internal zone diagonal split",
+            ));
+        }
         let mut bounds = first.bounds;
         let mut area = 0.0;
         for cell in cells {

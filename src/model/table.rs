@@ -80,15 +80,16 @@ pub struct Table {
 }
 
 /// 표 쪽 나눔 종류
-/// bit 0-1: 0=나누지 않음, 1=셀 단위로 나눔, 2=나눔(행 단위)
+/// bit 0-1: 0=나누지 않음, 1=셀 단위로 나눔, 2=나눔(셀 안 글줄 단위)
+/// Historical variant names preserve the file mapping; they are not algorithms.
 #[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize)]
 pub enum TablePageBreak {
     /// 나누지 않음 (0)
     #[default]
     None,
-    /// 셀 단위로 나눔 (1) — 행 내부(인트라-로우) 분할 허용
+    /// 셀 단위로 나눔 (1) — 경계에 걸리는 셀 전체를 다음 쪽으로 이월
     CellBreak,
-    /// 나눔 (2) — 행 경계에서만 나눔 (인트라-로우 분할 없음)
+    /// 나눔 (2) — 셀 안에서 경계에 걸리는 글줄부터 다음 쪽으로 이월
     RowBreak,
 }
 
