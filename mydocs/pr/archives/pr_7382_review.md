@@ -2696,3 +2696,14 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![WMF 그림복원 Native1쪽 review](../assets/pr7382_20260926/stage152_wmf_native_review_001.png)
 ![WMF 그림복원 fresh WASM1쪽 overlay](../assets/pr7382_20260926/stage152_wmf_wasm_overlay_001.png)
 ![복원된 WMF 꺾은선 그림](../assets/pr7382_20260926/stage152_wmf_curve.png)
+
+
+## 보정153 사전 분석·결과 — 월간 수출입 HWP의 실패한 해시 한 핀만 이관
+
+- 사전 head `a7e0b91a0`, 코드 `911063c54234e3ad206f17b71cce098ab1afc0cc`. [독립 PDF·새 전체 시각·실패/보존 범위·명령](../assets/issue7445/monthly_trade_fonttrace_blocking_scope_validation.json). 사용자 지정 WMF 복원 후의 고정 Native로 전체19/19쪽 compare/overlay/review를 완료했습니다. 정상/현재19쪽, 최저73.34034%(8쪽), 4/6/8/9쪽이90미만이며 exit1은 완료된 시각 gate 실패입니다. 직접4/8쪽 review에서 표/후속본문 위치 차이를 확인했습니다. freshWASM 영향1쪽과 WMF 복원 검증은 보정152에 연결하며 전체19쪽 freshWASM은 미실행입니다.
+- 사전 집중6PASS/1FAIL에서 `missing-face`의 해시만 실패했습니다. counts607/run136·status는 통과했습니다. [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5884848639) 후 `expectedLayoutHash` 한 핀만 명시적으로 이관하고 기존함수·counts·다른5문서·profiles/options/comparisons를 보존했습니다. XY는 해시의 직접 입력이 아니며 정확한 해시 원인은 baseline 실행 재현이 부족해 미검증으로 남겼습니다. 현재 해시로 기대값을 재고정하지 않았습니다.
+- 수정 후 **6PASS/1FAIL/exit100**이며 다른 `subst-counterpart-hwp`의 해시가 다음 실패입니다. 혼합함수 전체 통과로 보고하지 않습니다. 현재 missing-face 프로필9필드의 readonly 일치는 확인했고 필수fmt/Clippy3/workspacebuild/고정base manifest/unit정책7단계는exit0입니다. 생산변경/새함수0. 원래60개 중32곳처리/28개개별검토대기를 유지합니다. 최종전체회귀/PR준비미완료. 로그는 `output/pr-review/planet6897-7382-20260926/stage153-fonttrace-monthly-trade/`입니다.
+
+![월간 수출입4쪽 review](../assets/issue7445/monthly_trade_fonttrace_native_review_004.png)
+![월간 수출입8쪽 review](../assets/issue7445/monthly_trade_fonttrace_native_review_008.png)
+![월간 수출입8쪽 overlay](../assets/issue7445/monthly_trade_fonttrace_native_overlay_008.png)

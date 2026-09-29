@@ -2240,7 +2240,7 @@
     "meaning": "text/off만현재32분할진단.다른축또는최종37개별/전체회귀를대체하지않음."
   },
   "current_status_counts_scope": "고정38의과거처리snapshot만.최종37개별은다시실행해야하며전체head통과아님.",
-  "final_validation_status": "전체137의60FAIL중32곳처리상태유지. 보정150 exact-face핀2곳만이관·집중6PASS/다른missing-facehash1FAIL·lint7exit0. 나머지28개 개별검토·최종전체·PR준비 미완료.",
+  "final_validation_status": "전체137의60FAIL중32곳처리/28개검토대기 유지. 보정153 missing-face 실패해시만이관, 집중6PASS/다른subst-counterpart-hwp hash1FAIL·lint7exit0. 최종전체·PR준비미완료.",
   "latest_text_axis_snapshot": {
     "stage": 125,
     "code_commit": "45edbe87fcde65296760f7d79e4907dfcc73e97d",
@@ -2446,8 +2446,22 @@
     "focused_failed": 0,
     "native_wasm_page1": 99.82783,
     "whole_chart_region": 98.93048,
-    "current_full_native": "running",
+    "current_full_native": "complete19/19;minimum73.34034%;gate re_review_required",
     "original_stage137_reviewed": 32,
     "original_stage137_pending_review": 28
+  },
+  "latest_monthly_trade_fonttrace_scope": {
+    "stage": 153,
+    "code_commit": "911063c54234e3ad206f17b71cce098ab1afc0cc",
+    "evidence": "../issue7445/monthly_trade_fonttrace_blocking_scope_validation.json",
+    "removed_actual_hash_pins": 1,
+    "all_existing_functions_kept": true,
+    "counts_profiles_other_documents_kept": true,
+    "passed": 6,
+    "failed": 1,
+    "actual_focused_exit": 100,
+    "next_failed_document": "subst-counterpart-hwp layoutHash",
+    "minimum_whole_native_percent": 73.34034,
+    "production_changed": false
   }
 }

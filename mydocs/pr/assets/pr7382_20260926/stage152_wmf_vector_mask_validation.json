@@ -519,7 +519,7 @@
     "node_syntax": "node --check scripts/rasterize-svg-webfonts.mjs exit0"
   },
   "full_native_current": {
-    "status": "running",
+    "status": "complete",
     "output": "output/pr-review/planet6897-7382-20260926/stage152-wmf-vector-mask/visual-full-native",
     "command": [
       "venv/bin/python",
@@ -542,7 +542,78 @@
       "--out",
       "output/pr-review/planet6897-7382-20260926/stage152-wmf-vector-mask/visual-full-native"
     ],
-    "prior_snapshot": "stage151 전체19쪽 Native최저73.34034%; 수정후전체통과로재사용하지않음"
+    "prior_snapshot": "stage151 전체19쪽 Native최저73.34034%; 수정후전체통과로재사용하지않음",
+    "exit_code": 1,
+    "completed_pages": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "gate": {
+      "status": "re_review_required",
+      "minimum_tolerant_content_match_percent": 90.0,
+      "below_threshold_pages": [
+        {
+          "page": 4,
+          "tolerant_content_match_percent": 76.04063
+        },
+        {
+          "page": 6,
+          "tolerant_content_match_percent": 85.15666
+        },
+        {
+          "page": 8,
+          "tolerant_content_match_percent": 73.34034
+        },
+        {
+          "page": 9,
+          "tolerant_content_match_percent": 88.94145
+        }
+      ],
+      "unavailable_metric_pages": [],
+      "font_mismatch_evidence": null
+    },
+    "metrics": {
+      "compared_pages": 19,
+      "pixel_diff_threshold": 32,
+      "average_pixel_match_percent": 92.28725,
+      "worst_pixel_match_percent": 88.12151,
+      "average_ink_match_percent": 23.7982,
+      "worst_ink_match_percent": 15.58559,
+      "average_visual_accuracy_proxy_percent": 23.7982,
+      "worst_visual_accuracy_proxy_percent": 15.58559,
+      "average_tolerant_content_match_percent": 93.85493,
+      "worst_tolerant_content_match_percent": 73.34034,
+      "worst_pages": [
+        12,
+        13,
+        11,
+        6,
+        15,
+        16,
+        17,
+        3,
+        9,
+        18
+      ]
+    },
+    "updated_in_stage": 153
   },
   "original_stage137_failure_snapshot": {
     "reviewed": 32,

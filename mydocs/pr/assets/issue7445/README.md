@@ -533,3 +533,12 @@ HWPX oracle는 격차가 개선되어 실제차단이 아니므로 원장행을 
 
 ![1쪽 review](fonttrace4961_native_review_001.png)
 ![1쪽 overlay](fonttrace4961_native_overlay_001.png)
+
+
+## 월간 수출입 HWP: 실패한 폰트 추적 해시만 — 보정153
+
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5884848639), [독립 PDF·새 전체 시각·실패·보존 범위·명령](monthly_trade_fonttrace_blocking_scope_validation.json). 정상/현재 모두19쪽이며 현재 생산 코드의 전체 Native19/19쪽은 최저73.34034%, 4/6/8/9쪽이90미만입니다. 표/뒤본문의 위치 차이를 직접 확인한 뒤 `missing-face`의 실제 실패한 `expectedLayoutHash` 한 핀만 명시적으로 이관했습니다. counts607/run136·폰트 프로필·다른5문서·기존 함수는 보존했습니다. 사용자께서 지정한 WMF 그림 복원은 유지하며 이관하지 않습니다. 집중6PASS/다른문서hash1FAIL, 필수lint/정책7exit0입니다. 문서 전체 피델리티·절대 해시 계약 복원은 후속이며 최종전체/PR준비는 미완료입니다.
+
+![월간 수출입4쪽 review](monthly_trade_fonttrace_native_review_004.png)
+![월간 수출입8쪽 review](monthly_trade_fonttrace_native_review_008.png)
+![월간 수출입8쪽 overlay](monthly_trade_fonttrace_native_overlay_008.png)
