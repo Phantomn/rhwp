@@ -2585,3 +2585,15 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 기존 정상14함수의 본문은 이전 head와 byte 단위로 동일합니다. 원문/PDF·모든 다른 문서/축도 유지하고17을21로 바꾸지 않았습니다. 생산 변경·새 함수·기준 완화는 없습니다.
 - 수정 후16PASS/0FAIL, 필수fmt/Clippy3/workspacebuild/manifest·unit 고정base 정책7단계exit0입니다. 전체137의60FAIL 중 앞선9곳과 이번8곳만 처리했으며 다른43개 대상은 개별검토가 남습니다. 최종 전체회귀·PR준비 완료·원문 피델리티 개선은 아닙니다.
 - 로그: `output/pr-review/planet6897-7382-20260926/stage141-basic2007-render-tests/`. 부정시각 증거는 같은 생산 코드의 보정129 자료를 재사용하며 이번 fresh WASM은 미실행입니다.
+
+
+## 보정142 사전 분석·결과 — 시장구조조사의 실제 차단4곳만 이관
+
+- 사전 head `80de5d458`, 코드 `39c4042fbfbd16e38eb6c49e388679d91ebc82e1`. [독립 기준·선택시각·실패·제거/보존·명령](../assets/issue7445/market2070_blocking_scope_validation.json). 원문/PDF 현재 커밋 바이트는 동일하며 정상 PDF315/현재317쪽입니다. 기존6검사는2PASS/4FAIL입니다.
+- 현재 고정 Native의 영향4/5/94/95/96/315쪽은98.79298/45.12739/1.83707/34.28600/33.34729/67.87910%입니다. 94review의 본문/표 누락·물리쪽 소속,95standalone overlay의 표 조각·뒤 본문,5review의 목차 말미 이월·줄 간격 차이를 직접 확인했습니다. 6/6 출력 완료 뒤 exit1은90% gate 미달의 부정 증거이며 실행 장애가 아닙니다. 4쪽 점수를 전체 피델리티 승인으로 사용하지 않습니다.
+- [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5883629635) 후 쪽수 전용 #2070 파일의한함수와 #7147의두실패함수만 제거했습니다. #6761은315쪽 선행전제 한곳만 제거하고본문4/5쪽 되감김 검사와정상교육문서 반례를유지했습니다. 본문 검사는 실제 PASS이며, 원래 정상2함수본문도byte단위로동일합니다. 원문/PDF·모든 다른입력/축은유지했고315를317로갱신하지않았습니다.
+- 유지3PASS/0FAIL, 필수fmt/Clippy3/workspacebuild/manifest·unit 고정base 정책7단계exit0입니다. 생산변경·새함수·기준완화없음. 전체137의60FAIL 중21곳을처리했으며 나머지39개는개별검토대상입니다. 최종전체회귀·PR준비/원문피델리티완료는아닙니다.
+- 로그·비교: `output/pr-review/planet6897-7382-20260926/stage142-market2070/`. 선택6쪽 Native부정증거이며전315쪽/freshWASM은미실행입니다.
+
+![시장구조조사94쪽 review](../assets/issue7445/market2070_native_review_094.png)
+![시장구조조사95쪽 overlay](../assets/issue7445/market2070_native_overlay_095.png)
