@@ -1,0 +1,12 @@
+{
+  "byteIdentical": false,
+  "onlyObservedOrderDiff": true,
+  "mutuallyAssignable": true,
+  "changedReturnTypeRejected": true,
+  "typescriptVersion": "7.0.2",
+  "positiveDiagnostics": "",
+  "negativeDiagnostics": "Both assignment directions reject the changed version() return type (tuple versus boolean). Temporary filesystem paths omitted.",
+  "negativeDiagnosticCodes": [
+    "TS2322"
+  ]
+}

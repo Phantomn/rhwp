@@ -1,0 +1,25 @@
+{
+  "dual": {
+    "wasm": {
+      "sha256": "db615689b2d67ae143e21a4ef5ce14e3c436ff9a81ae8c929f0752fef9afcbb2",
+      "bytes": 11341645
+    },
+    "bindgen_seconds": 2.8140848350000027,
+    "wasm_opt_seconds": 117.511673912,
+    "node_api": "0.8.6-phase-probe-1",
+    "browser_bytes_matched": true
+  },
+  "cdylib-baseline-lto": {
+    "wasm": {
+      "sha256": "70223af2670ac316c0ecaa51149291b7c67052d2f32615aacaa1877645d3c782",
+      "bytes": 11303194
+    },
+    "bindgen_seconds": 2.7555169569999975,
+    "wasm_opt_seconds": 114.16075986000001,
+    "node_api": "0.8.6-phase-probe-1",
+    "browser_bytes_matched": true
+  },
+  "setup_failure": "Both browser conditions failed on missing root samples/BlogForm_BookReview.hwp; source exists in rhwp-studio/public/samples, but Vite /samples middleware intercepts it with 404.",
+  "api_identical": true,
+  "types_identical": false
+}

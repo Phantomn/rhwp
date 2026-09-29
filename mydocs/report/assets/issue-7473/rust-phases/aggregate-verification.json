@@ -1,0 +1,39 @@
+{
+  "checks": {
+    "dual": {
+      "all_four_raw_wasm_identical": true,
+      "sha256": "feb37230fa31661acde5774bbcd0bf6d387a80df7b23db29b4527e318c2cb54f",
+      "bytes": 14726738
+    },
+    "cdylib-baseline-lto": {
+      "all_four_raw_wasm_identical": true,
+      "sha256": "f877bbf8aeb4c4da3356e6660bc1695023d8bcefd68aabf5529a16c2c7d3f616",
+      "bytes": 14605413
+    }
+  },
+  "runners": [
+    {
+      "runner": "rust-phases-baab",
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "vcpus": 4,
+      "boot_id": "1a91e080-ddd1-41e1-a544-657af2fff776",
+      "image": {
+        "ImageOS": "ubuntu24",
+        "ImageVersion": "20260920.314.1"
+      }
+    },
+    {
+      "runner": "rust-phases-abba",
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "vcpus": 4,
+      "boot_id": "4d50af9a-54e2-402a-b2c4-25c354506fa2",
+      "image": {
+        "ImageOS": "ubuntu24",
+        "ImageVersion": "20260920.314.1"
+      }
+    }
+  ],
+  "root_only_plain_pairs": true,
+  "stable_flags": true,
+  "source_restored_both": true
+}

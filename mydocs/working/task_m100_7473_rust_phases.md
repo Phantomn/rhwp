@@ -30,3 +30,12 @@ Native release LTO를 끄는 안은 아니다. 실제 옵션·속도·최종 산
 후속 run 36514395974는 진행 중 취소하고, 계측에 `-Csymbol-mangling-version=legacy`를 명시한다.
 이후 계측/비계측은 모두 같은 실제 수정 소스(marker 1)로 비교해 raw WASM hash 일치 여부도 검사한다.
 비계측에는 BOOTSTRAP이나 진단/이름형식 override를 추가하지 않는다.
+
+## 완료 결과
+
+실효 LTO 조건을 맞춘 두 runner의 비계측 본체 빌드는 14.25–14.42% 단축됐다.
+opt-level 3 / CGU 1 / wasm-opt를 유지했고, 기본 Canvas 3개와 API 호환성은 통과했다.
+확장 Canvas는 양쪽 모두 같은 1개 fixture가 실패했으며, PNG 33개는 현행/후보 사이 동일했다.
+일반적인 전체 CI 개선이나 production 적용 완료로 확대하지 않는다.
+보정된 최종 수치, nominal/effective LTO 차이, 재현 코드와 남은 검증은
+[최종 보고서](../report/task_m100_7473_rust_phases.md)에 기록했다.

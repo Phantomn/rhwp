@@ -1,0 +1,33 @@
+{
+  "workflow_conclusion": "failure",
+  "comparison_no_new_canvas_difference": true,
+  "png_identical": 33,
+  "conditions": {
+    "dual": {
+      "cases": 11,
+      "passed": 10,
+      "default_three_passed": true,
+      "failures": [
+        {
+          "fixture": "BlogForm_BookReview.hwp",
+          "diffPixels": 571,
+          "diffRatio": 0.0012949020319303337
+        }
+      ],
+      "actual_browser_wasm_matched": true
+    },
+    "cdylib-baseline-lto": {
+      "cases": 11,
+      "passed": 10,
+      "default_three_passed": true,
+      "failures": [
+        {
+          "fixture": "BlogForm_BookReview.hwp",
+          "diffPixels": 571,
+          "diffRatio": 0.0012949020319303337
+        }
+      ],
+      "actual_browser_wasm_matched": true
+    }
+  }
+}
