@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 11,
-  "remaining": 15,
+  "completed": 12,
+  "remaining": 14,
   "items": [
     {
       "index": 1,
@@ -79,8 +79,8 @@
       "index": 12,
       "test": "body_overflow_baseline::body_overflow_does_not_grow_partition_7",
       "case": "body_overflow_baseline",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료:현재 #2019 원래2→3 증가 미재현·현재2건/baseline2·partition7/정상2PASS·기존검사유지",
+      "evidence": "stage170_body7_validation.json"
     },
     {
       "index": 13,
