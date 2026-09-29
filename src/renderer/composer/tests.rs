@@ -2270,14 +2270,42 @@ fn owned_rowbreak_tac_height_selects_current_or_multirow_frames() {
     let multirow = para_with_rows(4, 32_339);
     assert_eq!(owned_rowbreak_tac_height(&multirow, 0), Some(32_339));
 
-    let single_row = para_with_rows(1, 32_339);
+    let mut single_row = para_with_rows(1, 32_339);
+    single_row.line_segs[0].line_spacing = 1_200;
     assert_eq!(owned_rowbreak_tac_height(&single_row, 0), None);
+    // 저장 간격 1200HU는 96dpi에서 전량 16px를 소비한다.
+    assert_eq!(
+        tac_host_trailing_spacing(&single_row, 0, &single_row.line_segs[0], true, 96.0),
+        16.0
+    );
 
     let mut current_single_row = para_with_rows(1, 32_339);
     current_single_row.line_segs[0].tag = LineSeg::TAG_IMPLEMENTATION_PROPERTY;
+    current_single_row.line_segs[0].line_spacing = 1_200;
     assert_eq!(
         owned_rowbreak_tac_height(&current_single_row, 0),
         Some(32_339)
+    );
+    // 현재 생성한 개체 소유 줄에만 기존 반간격을 적용한다.
+    assert_eq!(
+        tac_host_trailing_spacing(
+            &current_single_row,
+            0,
+            &current_single_row.line_segs[0],
+            true,
+            96.0,
+        ),
+        8.0
+    );
+    assert_eq!(
+        tac_host_trailing_spacing(
+            &current_single_row,
+            0,
+            &current_single_row.line_segs[0],
+            false,
+            96.0,
+        ),
+        16.0
     );
 
     let undersized = para_with_rows(4, 32_338);

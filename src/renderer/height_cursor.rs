@@ -1542,6 +1542,11 @@ impl HeightCursor {
             && result > y_offset + 0.5
             && result - y_offset <= SYNTH_FORWARD_REANCHOR_MIN_PX
         {
+            // 거부한 합성 줄의 원점을 다음 저장 문단으로 넘기지 않는다.
+            // 현재 줄은 실제 흐름에 남았으므로 같은 사다리의 후속 상대 좌표도
+            // 이 원점에서 이어져야 한다. 커서만 되돌리면 다음 저장 줄에서
+            // 방금 거부한 전방 간격이 다시 적용된다.
+            self.shift_vpos_base_for_rendered_backtrack(result - y_offset);
             if std::env::var("RHWP_VPOS_DEBUG").is_ok() {
                 eprintln!(
                     "VPOS_SYNTH_FWD_SKIP: pi={} prev_pi={} y_in={:.2} result={:.2}",

@@ -5,8 +5,8 @@
 //! 쪽(+1~+2). 수정: 표-경로 vpos 앵커 확립 + 저장 사다리 조건부 유지 + 빈 앵커
 //! float 표 host 직후 lazy 이중 계상 가드 + 저장-앵커 safety 마진 면제.
 //! 기존 쪽수만으로는 컨설팅의 붙임 문단 이동과 세운의 제목/표 순서 반전을
-//! 놓쳤다. 기대값은 `pdf/task2243/*-hwpx-2020.pdf`의 쪽수, 표 벡터 경계와
-//! 텍스트 기준선이며, PDF 포인트를 96dpi로 변환해 최종 출력과 대조한다.
+//! 놓쳤다. 기대값은 `pdf/task2243/*-hwpx-2020.pdf`의 쪽수, 페이지의 문단·표 소속과
+//! 앞뒤 순서다. 원문 행열·셀 및 선언 줄간격의 보존도 실제 출력에서 검사한다.
 
 use std::fs;
 use std::path::Path;
@@ -47,19 +47,14 @@ fn text_content(node: &RenderNode) -> String {
     node.children.iter().map(text_content).collect()
 }
 
-fn assert_pdf_coordinate(label: &str, actual: f64, expected: f64) {
-    assert!(
-        (actual - expected).abs() <= 1.0,
-        "{label}: 실제 {actual:.3}px, 한컴 PDF {expected:.3}px"
-    );
-}
-
-fn assert_table_bounds(
+/// 기대 소속·행열·셀은 원문과 한컴 PDF에서 확인한 계약이다.
+/// 용지의 고정 픽셀 원점이나 글자 기준선을 회귀 기준으로 쓰지 않는다.
+fn table_on_page(
     core: &DocumentCore,
+    source: &rhwp::model::document::Document,
     page: u32,
     para: usize,
-    expected: (Option<f64>, f64, f64),
-) {
+) -> rhwp::renderer::render_tree::BoundingBox {
     let tree = core
         .build_page_render_tree(page - 1)
         .expect("본문 렌더 트리");
@@ -72,20 +67,37 @@ fn assert_table_bounds(
         })
         .collect();
     assert_eq!(tables.len(), 1, "{page}쪽 문단 {para}: 표의 누락·중복");
-    let bbox = tables[0].bbox;
-    if let Some(x) = expected.0 {
-        assert_pdf_coordinate("표 왼쪽", bbox.x, x);
-    }
-    assert_pdf_coordinate(&format!("{page}쪽 문단 {para} 표 위쪽"), bbox.y, expected.1);
-    // 위치와 크기를 각각 PDF 벡터에서 독립적으로 검증한다. 하단 좌표에
-    // 두 오차를 합산해 동일한 1px 기준을 적용하면 위치·크기 계약이 혼동된다.
-    // 절대 하단의 잔여 차이는 Visual Sweep 증적에 별도로 기록한다.
-    assert_pdf_coordinate(
-        &format!("{page}쪽 문단 {para} 표 높이"),
-        bbox.height,
-        expected.2 - expected.1,
+    let table_node = tables[0];
+    let rhwp::model::control::Control::Table(source_table) =
+        &source.sections[0].paragraphs[para].controls[0]
+    else {
+        panic!("원문의 표 소유");
+    };
+    let RenderNodeType::Table(table) = &table_node.node_type else {
+        unreachable!()
+    };
+    assert_eq!(
+        (table.row_count, table.col_count),
+        (source_table.row_count, source_table.col_count),
+        "{page}쪽 문단 {para}: 원문 행·열 보존"
     );
-    // 검사 대상은 표 조각이 아닌 완전한 표다. 본문 점유 경계도 지켜야 한다.
+    let mut cells: Vec<_> = table_node
+        .children
+        .iter()
+        .filter_map(|n| {
+            if let RenderNodeType::TableCell(cell) = &n.node_type {
+                cell.model_cell_index
+            } else {
+                None
+            }
+        })
+        .collect();
+    cells.sort_unstable();
+    assert_eq!(
+        cells,
+        (0..source_table.cells.len() as u32).collect::<Vec<_>>(),
+        "{page}쪽 문단 {para}: 원문 셀의 누락·중복"
+    );
     fn body_bottom(node: &RenderNode) -> Option<f64> {
         if matches!(node.node_type, RenderNodeType::Body { .. }) {
             Some(node.bbox.y + node.bbox.height)
@@ -94,32 +106,47 @@ fn assert_table_bounds(
         }
     }
     assert!(
-        bbox.y + bbox.height <= body_bottom(&tree.root).expect("본문 경계") + 0.5,
+        table_node.bbox.y + table_node.bbox.height
+            <= body_bottom(&tree.root).expect("본문 경계") + 0.5,
         "{page}쪽 문단 {para}: 표가 본문 하단을 넘음"
     );
+    table_node.bbox
 }
 
-fn assert_text_baseline(core: &DocumentCore, page: u32, para: usize, text: &str, expected: f64) {
-    let tree = core
-        .build_page_render_tree(page - 1)
-        .expect("본문 렌더 트리");
-    let lines: Vec<_> = column_items(&tree.root)
-        .into_iter()
-        .filter(|node| {
-            matches!(&node.node_type, RenderNodeType::TextLine(line)
-            if line.para_index == Some(para))
+fn text_on_page(
+    core: &DocumentCore,
+    page: u32,
+    para: usize,
+    text: &str,
+) -> rhwp::renderer::render_tree::BoundingBox {
+    let mut matches = Vec::new();
+    for p in 1..=core.page_count() {
+        let tree = core.build_page_render_tree(p - 1).expect("본문 렌더 트리");
+        for node in column_items(&tree.root) {
+            if matches!(&node.node_type, RenderNodeType::TextLine(line) if line.para_index == Some(para))
                 && text_content(node).contains(text)
-        })
-        .collect();
+            {
+                matches.push((p, node.bbox));
+            }
+        }
+    }
     assert_eq!(
-        lines.len(),
+        matches.len(),
         1,
-        "{page}쪽 문단 {para}: {text:?}의 누락·중복·잘못된 소유"
+        "문단 {para}: {text:?}의 누락·중복·잘못된 소유"
     );
-    let RenderNodeType::TextLine(line) = &lines[0].node_type else {
-        unreachable!()
-    };
-    assert_pdf_coordinate(text, lines[0].bbox.y + line.baseline, expected);
+    assert_eq!(matches[0].0, page, "문단 {para}: {text:?}의 쪽 소속");
+    matches[0].1
+}
+
+fn assert_follows(
+    before: rhwp::renderer::render_tree::BoundingBox,
+    after: rhwp::renderer::render_tree::BoundingBox,
+) {
+    assert!(
+        after.y + 0.5 >= before.y + before.height,
+        "뒤 내용이 앞 내용의 점유 상자와 겹치거나 순서가 역전됨"
+    );
 }
 
 #[test]
@@ -128,6 +155,7 @@ fn issue_2243_gyeoljae_sliver_page_pins() {
     for (sample, expected) in PINS {
         let bytes = fs::read(Path::new(repo_root).join(sample))
             .unwrap_or_else(|e| panic!("read {sample}: {e}"));
+        let source = rhwp::parser::parse_document(&bytes).expect("독립 원문 계약");
         let core =
             DocumentCore::from_bytes(&bytes).unwrap_or_else(|e| panic!("parse {sample}: {e:?}"));
         assert_eq!(
@@ -137,20 +165,48 @@ fn issue_2243_gyeoljae_sliver_page_pins() {
         );
         match *sample {
             "samples/task2243/36395325_gyeoljae_consulting.hwpx" => {
-                assert_table_bounds(&core, 5, 40, (None, 390.453, 547.081));
-                assert_text_baseline(&core, 5, 41, "붙임", 595.200);
-                assert_text_baseline(&core, 5, 42, "검토결과", 644.000);
+                let first_table = table_on_page(&core, &source, 3, 22);
+                let after_first = text_on_page(&core, 3, 23, "검토대상");
+                assert_follows(first_table, after_first);
+                let before_second = text_on_page(&core, 3, 25, "*");
+                let second_table = table_on_page(&core, &source, 3, 26);
+                assert_follows(before_second, second_table);
+                // 원문의 백분율 줄간격은 다음 개체가 오더라도 전량 남는다.
+                // PDF 3쪽에서도 문단25 아래 간격을 소비한 뒤 표26이 시작한다.
+                let para = &source.sections[0].paragraphs[25];
+                let style = &source.doc_info.para_shapes[para.para_shape_id as usize];
+                assert!(matches!(
+                    style.line_spacing_type,
+                    rhwp::model::style::LineSpacingType::Percent
+                ));
+                let font = &source.doc_info.char_shapes[para.char_shapes[0].char_shape_id as usize];
+                let declared_spacing = f64::from(font.base_size) * 96.0 / 7200.0
+                    * f64::from(style.line_spacing - 100)
+                    / 100.0;
+                assert!(
+                    second_table.y + 0.5
+                        >= before_second.y + before_second.height + declared_spacing,
+                    "문단25의 선언 줄간격이 다음 표 원점에서 손실됨"
+                );
+                assert_follows(second_table, text_on_page(&core, 3, 27, "*"));
+                let table = table_on_page(&core, &source, 5, 40);
+                let attachment = text_on_page(&core, 5, 41, "붙임");
+                let result = text_on_page(&core, 5, 42, "검토결과");
+                assert_follows(table, attachment);
+                assert_follows(attachment, result);
             }
             "samples/task2243/36382819_gyeoljae_pm_traffic.hwpx" => {
-                assert_table_bounds(&core, 3, 30, (None, 383.900, 584.800));
-                assert_text_baseline(&core, 3, 41, "주민 의견 수렴 참고서", 861.120);
+                let table = table_on_page(&core, &source, 3, 30);
+                assert_follows(table, text_on_page(&core, 3, 41, "주민 의견 수렴 참고서"));
             }
             "samples/task2243/36386907_gyeoljae_sewoon.hwpx" => {
-                assert_text_baseline(&core, 3, 35, "심사항목", 589.600);
-                assert_table_bounds(&core, 3, 35, (Some(89.392), 609.733, 1022.881));
-                assert_text_baseline(&core, 4, 39, "결", 251.040);
-                assert_table_bounds(&core, 4, 39, (Some(89.392), 270.584, 1022.881));
-                assert_text_baseline(&core, 5, 44, "붙임", 276.320);
+                let title = text_on_page(&core, 3, 35, "심사항목");
+                let table = table_on_page(&core, &source, 3, 35);
+                assert_follows(title, table);
+                let title = text_on_page(&core, 4, 39, "결");
+                let table = table_on_page(&core, &source, 4, 39);
+                assert_follows(title, table);
+                text_on_page(&core, 5, 44, "붙임");
             }
             _ => {}
         }

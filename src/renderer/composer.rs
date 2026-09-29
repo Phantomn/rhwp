@@ -571,6 +571,28 @@ pub(crate) fn owned_rowbreak_tac_height(para: &Paragraph, control_index: usize) 
     (i64::from(seg.line_height) >= i64::from(table.common.height)).then_some(seg.line_height)
 }
 
+/// TAC 표를 소유한 줄이 실제 흐름에 남기는 양의 후행 간격.
+/// 저장 줄의 간격은 전량 소비한다. 현재 재조판한 단일 RowBreak 줄의
+/// 개체 점유 프레임에만 기존 반간격 계약을 적용한다.
+pub(crate) fn tac_host_trailing_spacing(
+    para: &Paragraph,
+    control_index: usize,
+    seg: &LineSeg,
+    hwpx_stored_layout: bool,
+    dpi: f64,
+) -> f64 {
+    let spacing = crate::renderer::hwpunit_to_px(seg.line_spacing.max(0), dpi);
+    let current_owned_row = hwpx_stored_layout
+        && para.line_segs.len() == 1
+        && seg.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
+        && owned_rowbreak_tac_height(para, control_index).is_some();
+    if current_owned_row {
+        spacing / 2.0
+    } else {
+        spacing
+    }
+}
+
 /// 저장된 서로 다른 물리 줄을 소유한 빈/공백 캐리어 TAC 표의 흐름.
 /// top/end는 첫 저장 줄 원점 기준 HU이며, 테두리가 아닌 바깥여백 포함 pen이다.
 #[derive(Debug, Clone, Copy)]

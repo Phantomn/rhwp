@@ -1173,6 +1173,12 @@ def select_source_page_paths(
     tree_paths = filter_paths_by_pages(all_tree_paths, selected_pages)
     pdf_paths = filter_paths_by_pages(all_pdf_paths, selected_pages)
     singleton_page: int | None = None
+    if not selected_pages and len(svg_paths) == len(tree_paths) == len(pdf_paths) == 1:
+        # 전체 한 쪽을 내보내면 SVG 이름에는 문서번호가 남을 수 있다.
+        # 실제 쪽 번호를 가진 트리와 PDF가 일치할 때 그 번호를 사용한다.
+        tree_page = page_num(tree_paths[0])
+        if tree_page == page_num(pdf_paths[0]):
+            singleton_page = tree_page
     if selected_pages:
         selected_groups = {
             "svg": svg_paths,
@@ -1207,8 +1213,8 @@ def select_source_page_paths(
     pages: list[tuple[int, Path, Path, Path]] = []
     seen: set[int] = set()
     for svg_path, tree_path, pdf_path in zip(svg_paths, tree_paths, pdf_paths):
-        # A document stem such as "wrap-2020" is not physical page 2020.
-        # Keep fallback pairing, filenames and metrics on the requested page.
+        # 문서명 속 연도·문서번호 대신 확인한 실제/선택 쪽을
+        # 짝짓기, 파일명과 측정 기록에 일관되게 사용한다.
         page = singleton_page if singleton_page is not None else page_num(svg_path)
         if page in seen:
             raise SystemExit(f"선택 페이지 번호가 중복되었습니다: {page}")

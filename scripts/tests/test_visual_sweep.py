@@ -314,6 +314,19 @@ class SelectedRasterTests(unittest.TestCase):
             SWEEP.select_source_page_paths([svg], [tree], [pdf], [1]),
             [(1, svg, tree, pdf)],
         )
+        svg = Path("156631374_taxi_press.svg")
+        tree = Path("render_tree_001.json")
+        self.assertEqual(
+            SWEEP.select_source_page_paths([svg], [tree], [pdf], None),
+            [(1, svg, tree, pdf)],
+        )
+        # 명시적으로 선택한 여러 쪽 문서의 단일 조각은 그 쪽을 보존한다.
+        tree = Path("render_tree_007.json")
+        pdf = Path("pdf-7.png")
+        self.assertEqual(
+            SWEEP.select_source_page_paths([svg], [tree], [pdf], [7]),
+            [(7, svg, tree, pdf)],
+        )
 
     def test_raster_paths_limits_multi_page_svg_to_requested_page(self) -> None:
         paths = [Path("rhwp_001.svg"), Path("rhwp_002.svg"), Path("rhwp_003.svg")]
