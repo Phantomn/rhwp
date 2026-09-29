@@ -68,8 +68,8 @@ test('find-dialog 는 history-jumped 를 구독해 currentHit 을 무효화하�
   const show = methodBlock(findDialog, 'show()');
   const hide = methodBlock(findDialog, 'hide()');
   // show 에서 구독 → currentHit = null.
-  assert.match(show, /eventBus\.on\('history-jumped',\s*\(\)\s*=>\s*\{\s*this\.currentHit = null;?\s*\}\)/,
-    'show 에서 history-jumped 구독 → currentHit 무효화');
+  assert.match(show, /eventBus\.on\('history-jumped',\s*\(\)\s*=>\s*\{[\s\S]*?this\.currentHit = null;[\s\S]*?this\.clearMatchCount\(\);[\s\S]*?\}\)/,
+    'show 에서 history-jumped 구독 → currentHit 과 match count 무효화');
   assert.match(show, /this\.historyJumpOff\s*=/, '해제 핸들 저장');
   // hide 에서 해제(리스너 누수 방지).
   assert.match(hide, /this\.historyJumpOff\?\.\(\)/, 'hide 에서 구독 해제 호출');

@@ -785,6 +785,7 @@ const catalog = {
   "dialog.find.createButton.label.x8e3a35": "Replace All",
   "dialog.find.createButton.label.xa65469": "Find Next",
   "dialog.find.findLabel.text": "Find what:",
+  "dialog.find.matchCountLabel.text": "{p1} matches",
   "dialog.find.replaceLabel.text": "Replace with:",
   "dialog.find.statusLabel.text": "Reached the end. Continuing from the beginning.",
   "dialog.find.statusLabel.text.x2dd4d3": "Reached the beginning. Continuing from the end.",

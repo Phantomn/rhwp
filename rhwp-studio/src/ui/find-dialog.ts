@@ -72,6 +72,7 @@ export class FindDialog {
   private caseSensitiveCheck!: HTMLInputElement;
   private replaceRow!: HTMLDivElement;
   private replaceButtonRow!: HTMLDivElement;
+  private matchCountLabel!: HTMLSpanElement;
   private statusLabel!: HTMLSpanElement;
   private titleLabel!: HTMLSpanElement;
   private keyCaptureHandler: ((e: KeyboardEvent) => void) | null = null;
@@ -100,7 +101,10 @@ export class FindDialog {
     this.installKeyCaptureHandler();
     // [Task #2339] undo/redo 로 문서가 되돌려지면 currentHit(sec/para/charOffset)이 stale 이
     // 되어 바꾸기가 엉뚱한 위치를 치환한다 → history-jumped 구독으로 무효화(열려 있는 동안만).
-    this.historyJumpOff = this.services.eventBus.on('history-jumped', () => { this.currentHit = null; });
+    this.historyJumpOff = this.services.eventBus.on('history-jumped', () => {
+      this.currentHit = null;
+      this.clearMatchCount();
+    });
     this.focusInput();
   }
 
@@ -164,6 +168,11 @@ export class FindDialog {
     this.queryInput.addEventListener('keydown', (e) => e.stopPropagation());
     this.queryInput.addEventListener('keyup', (e) => e.stopPropagation());
     this.queryInput.addEventListener('keypress', (e) => e.stopPropagation());
+    this.queryInput.addEventListener('input', () => {
+      this.currentHit = null;
+      this.clearMatchCount();
+      this.statusLabel.textContent = '';
+    });
     findRow.appendChild(findLabel);
     findRow.appendChild(this.queryInput);
     body.appendChild(findRow);
@@ -190,11 +199,21 @@ export class FindDialog {
     this.caseSensitiveCheck = document.createElement('input');
     this.caseSensitiveCheck.type = 'checkbox';
     this.caseSensitiveCheck.id = 'find-case-sensitive';
+    this.caseSensitiveCheck.addEventListener('change', () => {
+      this.currentHit = null;
+      this.clearMatchCount();
+      this.statusLabel.textContent = '';
+    });
     const caseLabel = document.createElement('label');
     caseLabel.htmlFor = 'find-case-sensitive';
     caseLabel.textContent = t('dialog.find.caseLabel.text');
     optRow.appendChild(this.caseSensitiveCheck);
     optRow.appendChild(caseLabel);
+
+    this.matchCountLabel = document.createElement('span');
+    this.matchCountLabel.className = 'find-dialog-match-count';
+    this.matchCountLabel.hidden = true;
+    optRow.appendChild(this.matchCountLabel);
 
     this.statusLabel = document.createElement('span');
     this.statusLabel.className = 'find-dialog-status';
@@ -285,7 +304,12 @@ export class FindDialog {
 
   private doSearch(forward: boolean): void {
     const query = this.queryInput.value;
-    if (!query) { this.statusLabel.textContent = ''; return; }
+    if (!query) {
+      this.currentHit = null;
+      this.clearMatchCount();
+      this.statusLabel.textContent = '';
+      return;
+    }
 
     FindDialog.lastQuery = query;
     FindDialog.lastCaseSensitive = this.caseSensitiveCheck.checked;
@@ -320,6 +344,11 @@ export class FindDialog {
 
     if (result.found) {
       this.currentHit = result;
+      if (typeof result.totalMatchCount === 'number') {
+        this.showMatchCount(result.totalMatchCount);
+      } else {
+        this.clearMatchCount();
+      }
       this.navigateToHit(result);
       if (result.wrapped) {
         this.statusLabel.style.color = '#0066cc';
@@ -329,9 +358,21 @@ export class FindDialog {
       }
     } else {
       this.currentHit = null;
+      this.showMatchCount(0);
       this.statusLabel.style.color = '#c00';
       this.statusLabel.textContent = t('dialog.find.statusLabel.text.x88cec1');
     }
+  }
+
+  private showMatchCount(count: number): void {
+    this.matchCountLabel.textContent = t('dialog.find.matchCountLabel.text', { p1: count });
+    this.matchCountLabel.hidden = false;
+  }
+
+  private clearMatchCount(): void {
+    if (!this.matchCountLabel) return;
+    this.matchCountLabel.textContent = '';
+    this.matchCountLabel.hidden = true;
   }
 
   private navigateToHit(hit: SearchResult): void {
@@ -412,6 +453,7 @@ export class FindDialog {
     if (result.ok) {
       this.statusLabel.textContent = t('dialog.find.statusLabel.text.xf6f3e3', { p1: result.count });
       this.currentHit = null;
+      this.clearMatchCount();
     }
   }
 

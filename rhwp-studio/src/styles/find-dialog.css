@@ -61,6 +61,17 @@
   font-size: var(--font-size-sm);
 }
 
+.find-dialog-match-count {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.find-dialog-match-count:not([hidden]) + .find-dialog-status:not(:empty) {
+  margin-left: 0;
+}
+
 .find-dialog-buttons {
   display: flex;
   gap: 6px;

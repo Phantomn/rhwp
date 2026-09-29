@@ -785,6 +785,7 @@ const catalog = {
   "dialog.find.createButton.label.x8e3a35": "모두 바꾸기",
   "dialog.find.createButton.label.xa65469": "다음 찾기",
   "dialog.find.findLabel.text": "찾을 내용:",
+  "dialog.find.matchCountLabel.text": "검색 결과 {p1}개",
   "dialog.find.replaceLabel.text": "바꿀 내용:",
   "dialog.find.statusLabel.text": "맨 마지막입니다. 처음부터 계속합니다.",
   "dialog.find.statusLabel.text.x2dd4d3": "맨 처음입니다. 끝부터 계속합니다.",
