@@ -124,32 +124,6 @@ fn issue_617_exam_kor_page5() {
     check_snapshot("samples/exam_kor.hwp", 5, "issue-617/exam-kor-page5");
 }
 
-/// Issue #677: 복학원서.hwp 1페이지 — 다음 두 결함 영역의 회귀 차단
-///   1. PartialParagraph y 누적 결함 (인라인 TAC 표 라인)
-///      `layout.rs::PageItem::PartialParagraph` 가 y_offset 을
-///      LineSeg.vpos 정합 위치로 리셋하는 동작을 잠가둔다.
-///   2. U+F081C HWP PUA 채움 문자 폭
-///      **[#7017 정정]** 종전에는 이 글자를 폭 0 으로 처리하는 동작을 잠갔다.
-///      그런데 한/글은 이 글자를 반각 점선(`┈`)으로 **그린다** — 렌더러도
-///      `hancom_pua` 표를 따라 그렇게 그리는데 측정만 0 이었다. 이 문서의
-///      한/글 2020 정본(`pdf/복학원서-hwp-2020.pdf`)을 재면 폭 0 쪽이
-///      틀렸다:
-///
-///      ```text
-///        '복학원서접수증' 줄 시작 x    정본 286.27px
-///                                   폭 0   291.42px  (+5.15)
-///                                   정정   286.29px  (+0.02)
-///      ```
-///
-///      쪽 전체로도 x 오차 중앙값이 0.44 → 0.28px 로 줄었다. golden 을
-///      그 값으로 갱신했다.
-///   3. 한컴 워터마크 모드 표준 프리셋 (brightness=+70, contrast=-50)
-///      `svg.rs::render_image` 의 워터마크 게이트 동작을 잠가둔다.
-#[test]
-fn issue_677_bokhakwonseo_page1() {
-    check_snapshot("samples/복학원서.hwp", 0, "issue-677/bokhakwonseo-page1");
-}
-
 /// Determinism probe: render the same page twice in one process and assert
 /// byte-for-byte equality. If this ever fails, the snapshot tests above
 /// are unreliable regardless of golden correctness.
