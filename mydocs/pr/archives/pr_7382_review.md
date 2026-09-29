@@ -2811,3 +2811,17 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![심사지표3쪽 최종 fresh WASM overlay](../assets/pr7382_20260926/stage159_wasm_overlay_003.png)
 ![심사지표4쪽 최종 fresh WASM overlay](../assets/pr7382_20260926/stage159_wasm_overlay_004.png)
 ![심사지표6쪽 최종 fresh WASM overlay](../assets/pr7382_20260926/stage159_wasm_overlay_006.png)
+
+
+## 보정160 — 31쪽 복잡 중첩 표의 실제 캡션 차단 함수만 이관
+
+- 사전 head `f8c3b0e9a`, 코드 `0eeb4eb76`, [원문·정상 PDF·원인 계층·선택 시각·개별 명령](../assets/issue7445/host6697_blocking_scope_validation.json). 대상은 [80550 HWPX](../../../samples/issue6697/80550-agricultural-machinery-act-amendment.hwpx)이고 [기존 정상 한컴2020 PDF](../../../pdf/issue7382-regression-review/80550-agricultural-machinery-act-amendment-2020.pdf)는31쪽/565939바이트입니다. 동일 원문·용지와30쪽 캡션/31쪽 말미 정상 내용을 직접 대조해 재사용했습니다. 현재 출력은32쪽이며 **31쪽 기대값이 틀린 것으로 판정하지 않았습니다**.
+- 기존 캡션 함수는 현재 소스에서도0PASS/1FAIL로 재현했습니다. 18×4 바깥 표의 여러 쪽1×1 중첩 표 안에12×3·18×3·13×7 등의 자식 표가 이어받기됩니다. 렌더트리32쪽을 조사하고 Native30/31 review·freshWASM30 standalone overlay에서 큰 빈 밴드·내용 이월·말미 표와 뒤 내용의 소속 차이를 확인했습니다. 다음 쪽에 남는 자식의 음수 원점 자체만으로 결함을 판정하지 않았습니다. source 줄/개체 컷과 실제 물리 조각을 함께 복원해야 하는 범위입니다. 기존 offset3062HU/음수 보호/가운데 정렬3함수는 모두 통과해 단일 offset 수치 보정으로 처리하지 않았습니다.
+- Native/freshWASM1/29/30/31쪽 각선택4개 compare/overlay/review 완료·exit1입니다. 두 backend의 점수는 **98.44961/37.68457/25.15773/29.21124%**이고 selected PNG는 각각같습니다. 글꼴 예외0이며 전체32쪽 PNG 검증으로 보고하지 않습니다. 정상 첫쪽만으로 문서 전체 통과를 선언하지 않습니다.
+- [#7445 추가 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5889107858)·UTF-8 본문 readback 확인 뒤 실제 실패 함수 `cell_host_paragraph_caption_is_drawn_on_its_page` 한개만 정식 회귀에서 제거했습니다. 한 함수만 있던 해당 source는 제거하고, 원문/manifest/정상PDF·다른 문서·별도offset/음수/Center의 기존3함수는 유지합니다. 전체 피델리티 복원 뒤31쪽·캡션·뒤 내용 계약을 회복할 후속 항목입니다. 사용자 최신 범위의 복잡한 다쪽 문서 이관이며, 소수 페이지 보정의 일괄 이관은 수행하지 않았습니다.
+- 정상3함수는 **제거 전3PASS/제거 후3PASS**입니다. 생산 코드·새 테스트 함수·기준값/공차 변경0, fmt/diff check 및 고정base `0e8fd49fb868da0d47ac1294dcbbda81f0211233` manifest 검사 통과입니다. 필수lint 전체묶음과 최종전체/원PR시각은 남아 있습니다. 남은26개 중3건 처리/23건 대기(원래60중37처리/23대기)로 갱신하며 통합PR 준비 미완료입니다. 로그: `output/pr-review/planet6897-7382-20260926/stage160-host6697/`.
+
+![80550 Native29쪽 review](../assets/issue7445/host6697_native_review_029.png)
+![80550 Native30쪽 review](../assets/issue7445/host6697_native_review_030.png)
+![80550 Native31쪽 review](../assets/issue7445/host6697_native_review_031.png)
+![80550 fresh WASM30쪽 overlay](../assets/issue7445/host6697_wasm_overlay_030.png)

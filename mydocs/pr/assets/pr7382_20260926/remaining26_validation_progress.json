@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 2,
-  "remaining": 24,
+  "completed": 3,
+  "remaining": 23,
   "items": [
     {
       "index": 1,
@@ -23,8 +23,8 @@
       "index": 4,
       "test": "issue_6697_cell_host_paragraph_text_is_drawn::cell_host_paragraph_caption_is_drawn_on_its_page",
       "case": "issue_6697_cell_host_paragraph_text_is_drawn",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 31쪽 복잡 중첩 표의 실제 실패1함수만 #7445 이관·정상3함수 보존",
+      "evidence": "../issue7445/host6697_blocking_scope_validation.json"
     },
     {
       "index": 5,
