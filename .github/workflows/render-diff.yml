@@ -2,8 +2,15 @@
 name: Changed-source release phase experiment
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [phases, validate]
+        default: phases
+        description: Compiler phases or verify the fixed completed phase artifacts
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: rust-build-phases-7473
   cancel-in-progress: false
@@ -13,7 +20,7 @@ env:
   CARGO_TERM_COLOR: never
 jobs:
   phases:
-    if: github.repository == 'edwardkim/rhwp' && github.ref == 'refs/heads/codex/rust-build-phases-7473'
+    if: inputs.mode != 'validate' && github.repository == 'edwardkim/rhwp' && github.ref == 'refs/heads/codex/rust-build-phases-7473'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     strategy:
@@ -39,4 +46,48 @@ jobs:
           name: rust-phases-${{ matrix.order }}
           path: output/rust-build-phases/
           if-no-files-found: error
+          retention-days: 3
+
+  validate:
+    if: inputs.mode == 'validate' && github.repository == 'edwardkim/rhwp' && github.ref == 'refs/heads/codex/rust-build-phases-7473'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Read exact phase run artifacts
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: rust-phases-abba
+          run-id: 36512273477
+          github-token: ${{ github.token }}
+          path: output/phase-input
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+      - name: Get pinned release postprocessing tools
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p output/phase-tools
+          gh release download 0.2.127 --repo wasm-bindgen/wasm-bindgen --pattern 'wasm-bindgen-0.2.127-x86_64-unknown-linux-musl.tar.gz' --dir output/phase-tools
+          gh release download version_117 --repo WebAssembly/binaryen --pattern 'binaryen-version_117-x86_64-linux.tar.gz' --dir output/phase-tools
+          tar -xzf output/phase-tools/wasm-bindgen-0.2.127-x86_64-unknown-linux-musl.tar.gz -C output/phase-tools
+          tar -xzf output/phase-tools/binaryen-version_117-x86_64-linux.tar.gz -C output/phase-tools
+      - name: Install browser dependencies
+        working-directory: rhwp-studio
+        run: |
+          npm ci
+          browser_path=$(npx @puppeteer/browsers install chromium@1660786 --path .cache/puppeteer --format '{{path}}' | tail -n 1)
+          echo "CHROME_PATH=$(realpath "$browser_path")" >> "$GITHUB_ENV"
+      - name: Optimize release artifacts and compare API and Canvas
+        run: python3 scripts/experiments/validate_rust_phases.py
+      - name: Preserve validation evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: rust-phase-validation
+          path: output/rust-phase-validation/
+          if-no-files-found: warn
           retention-days: 3
