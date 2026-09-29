@@ -2576,3 +2576,12 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![셀 여백 정상 대조군3쪽 review](../assets/pr7382_20260926/stage140_padding_native_review_003.png)
 ![셀 여백 정상 대조군3쪽 overlay](../assets/pr7382_20260926/stage140_padding_native_overlay_003.png)
+
+
+## 보정141 사전 분석·결과 — basic2007의 실제 차단 검사8곳만 이관
+
+- 사전 head `47cf60a36`, 코드 `2d90e389f6c9cca6b178195526a6dbe14b8db4ea`. [단독 실패·독립 근거·제거/보존·명령](../assets/issue7445/basic2007_render_tests_blocking_scope_validation.json). 동일 HWP 원문/PDF 현재 커밋 바이트와 보정129 증거를 대조했습니다. 정상 PDF17쪽/현재21쪽이며 Native 선택7쪽 최저1.04782%입니다. 기존12쪽 review에서 현재 빈 본문과 PDF 법령 본문 차이를 다시 직접 확인했습니다.
+- 수정 전22개14PASS/8FAIL입니다. [#7445 추가등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5883519989) 후 실제 실패한 #2007 렌더링6함수만 제거했습니다. #4252·#4272 두 함수는17쪽 전제만 제거하고 원본IR·모든쪽 경로해석·중첩 셀 선택/복사/HTML·응답API를 유지했습니다. 이 두 기능 검사는 제거 후에도 실제 PASS입니다.
+- 기존 정상14함수의 본문은 이전 head와 byte 단위로 동일합니다. 원문/PDF·모든 다른 문서/축도 유지하고17을21로 바꾸지 않았습니다. 생산 변경·새 함수·기준 완화는 없습니다.
+- 수정 후16PASS/0FAIL, 필수fmt/Clippy3/workspacebuild/manifest·unit 고정base 정책7단계exit0입니다. 전체137의60FAIL 중 앞선9곳과 이번8곳만 처리했으며 다른43개 대상은 개별검토가 남습니다. 최종 전체회귀·PR준비 완료·원문 피델리티 개선은 아닙니다.
+- 로그: `output/pr-review/planet6897-7382-20260926/stage141-basic2007-render-tests/`. 부정시각 증거는 같은 생산 코드의 보정129 자료를 재사용하며 이번 fresh WASM은 미실행입니다.
