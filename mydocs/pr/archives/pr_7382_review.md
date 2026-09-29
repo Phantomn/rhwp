@@ -2564,3 +2564,15 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5883321298) 후 `hwpx_password_fixture` 공개 API·CLI의 쪽수 핀 두 곳과 `mcp_password_contract`·`armor_cli_contract`의 HWPX 쪽수 전제만 제거했습니다. 기존11개 함수, 복호화·IR·오류·비노출·세션 읽기/닫기·응답 봉투, 다른 두 포맷 정상24/64쪽 핀과 원문/PDF는 유지했습니다. 23을 현재24로 바꾸지 않았고 새 함수·생산 변경은 없습니다.
 - 수정 전7PASS/4FAIL, 수정 후 최종11PASS/0FAIL입니다. 포맷 뒤 파생 묶음 불일치는 재생성한 뒤 같은 검사와 필수fmt/Clippy3/workspacebuild/manifest·unit 고정base 정책을 다시 실행해 모두exit0을 확인했습니다.
 - 전체137의60FAIL 중 보정138의3곳과 이번4곳만 처리했습니다. 다른53개는 개별 검토 대상이며 현재 전체 통과·피델리티 승인·PR준비 완료로 보고하지 않습니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage139-password-page-pin/`에만 저장합니다.
+
+
+## 보정140 사전 분석·결과 — #6358 합성 입력의 여백 활성화 조건 바로잡기
+
+- 사전 head `ab22b5e59`, 코드 `82c28e524ee3536753f829c4888b79cfa41be1f2`. [사양·기존/현재 전체시각·실패·변경·명령](../assets/pr7382_20260926/stage140_padding_contract_validation.json). 기존 두 함수는 `apply_inner_margin=false`인데 셀 양수32/141HU를 적용하길 기대했습니다. `hasMargin=false`는 표 기본값을 쓰는 사양과 정상 한컴 출력에 어긋납니다.
+- #6101 독립 PDF3쪽의 표 외곽700.035–850.269px와 `hasMargin=0`/표 기본0/셀 보존141HU가 규칙의 근거입니다. 모델 소스는 보정68과 byte 단위로 같습니다. 과거 전체 Native/fresh WASM 최저92.26525%를 규칙 근거로 연결하고, 현재 고정 Native로 전체11쪽을 새로 비교해 같은 최저92.26525%/90% gate passed를 확인했습니다. 전체 contact sheet·3쪽 review/overlay에서 표 높이와 뒤 본문을 직접 확인했습니다. 큰제목 글꼴·굵기 차이는 남아 완전 일치로 보고하지 않습니다.
+- 음수 결측 폴백과 활성 셀 양수 보존을 실제로 검사하도록 합성 입력의 플래그 두 곳만 true로 바꾸고 설명을 바로잡았습니다. 기대값/공차/기존 두 함수는 유지합니다. 비활성 보존값이0을 덮어쓰지 않는 정상 #1785 대조군도 그대로 실행했습니다. 원문/PDF·생산 코드는 변경하지 않았고 새 함수·#7445 일괄 이관은 없습니다.
+- 수정 전4PASS/2FAIL, 수정 후6PASS/0FAIL입니다. fmt/Clippy3/workspacebuild/manifest·unit 고정base 정책7단계 exit0입니다. 전체137의60FAIL 중 앞선7곳과 이번2곳을 처리했으며, 다른51개 대상은 개별검토가 남습니다. 최종 전체 검증·PR준비 완료는 아닙니다.
+- 전체 비교 산출물: `output/pr-review/planet6897-7382-20260926/stage140-cell-padding-contract/visual-native/firefighter6101/`. 이번 fresh WASM은 미재실행이며 과거 결과와 현재 Native 결과를 구분합니다.
+
+![셀 여백 정상 대조군3쪽 review](../assets/pr7382_20260926/stage140_padding_native_review_003.png)
+![셀 여백 정상 대조군3쪽 overlay](../assets/pr7382_20260926/stage140_padding_native_overlay_003.png)
