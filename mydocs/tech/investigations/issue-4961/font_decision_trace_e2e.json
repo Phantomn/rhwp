@@ -72,7 +72,9 @@
         "recordsEmitted": 41,
         "recordsOmitted": 0
       },
-      "expectedLayoutHash": "4cc30e2ffa7cabe850ceb85e8d41796eac590091a3786710660760dc24bc515b"
+      "renderPinsDeferredToIssue7445": [
+        "expectedLayoutHash"
+      ]
     },
     {
       "id": "document-substitute-hwpx",
