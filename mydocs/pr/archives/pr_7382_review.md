@@ -19,6 +19,8 @@ last_verified: 2026-09-29
 
 남은 개별 실패를 분석한 뒤 최종 유지37개별 실행, 전체 `cargo nextest`(threads=8), Native Skia3 및 현재 생산 코드의 원 PR 전체 Native/fresh WASM 시각 검증을 완료해야 합니다. 과거968쪽 비교와 이전 전체 nextest는 현재 head 통과의 근거가 아닙니다. 직접 확인한 시험 문서 쪽번호 차이도 최종 판정에서 빠뜨리지 않습니다. 최신 원 PR head는 `81a402179dc556cce781d844d4b9252be36ba8af`로 재확인했습니다.
 
+보정157에서 #1100은 정상 용지 PDF를 재산출한 뒤 현재 브랜치에서 개선했습니다. 기존3함수를 절대픽셀 핀 대신 쪽·문항 소속과 번호 보존으로 교정했고, 대조군 포함15PASS/단위2PASS·필수lint7단계·전체4쪽 Native/freshWASM gate를 통과했습니다. 원래60개 실패 목록 중34개 처리/26개 개별검토 대기입니다. 이는 최종 전체 실행으로 확정한 현재 실패 건수가 아니며, 통합PR 준비는 보류합니다. 아래 보정157 결과를 따릅니다.
+
 ## 접수와 provenance
 
 - 원 PR: [#7382](https://github.com/edwardkim/rhwp/pull/7382), planet6897. 원 head `81a402179dc556cce781d844d4b9252be36ba8af`.
@@ -2737,3 +2739,30 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 검사 head `e13abf3b1`에서 남은27개를 각1함수씩, 고정target/locked release-test/threads8/--no-fail-fast로 순차 실행했습니다. **27개 개별 명령 완료: 0PASS/27FAIL**, 각명령은 실제1검사를실행했습니다. [대상·현행target해석·명령·exit·요약](../assets/pr7382_20260926/stage156_remaining_individual.json). source/test변경·새검사·허용치완화없음. Cargo진행중에는source/test를수정하지않았습니다.
 - 원래60개 중33곳처리/남은27개는 이제 현행 head에서도 실패가 재현된 대상입니다. 전체10250검사 실행을 대체하지 않으며 다음은 각 입력별 독립시각/원인 판정 후 개별 보정입니다. #1100의 기존 PDF는A4인데 원본은771×1117pt로용지가달라 재산출·배율을 먼저 확인합니다. 미달점수만으로 해당함수를제거하지않았고 사용자지시대로 새한컴PDF 비교를진행합니다.
 - 변경분의 src/tests 추가주석도감사해순수영문추가주석0을확인했습니다. 기존upstream주석은별도입니다. 로그: `output/pr-review/planet6897-7382-20260926/stage156-remaining-individual/`. 최종전체/PR준비미완료입니다.
+
+
+## 보정157 사전 분석·결과 — 시험지 4쪽 개선과 의미 회귀 교정
+
+- 사전 head `8b9783013`, 코드 `4e50d2317e83d408ee12d6adc92d7e9a37aa8fbd`. [원인·소비 경로·독립 PDF·명령·전체 결과](../assets/pr7382_20260926/stage157_exam_social_validation.json). 원본은 [exam_social.hwpx](../../../samples/hwpx/exam_social.hwpx)이며, 이전 A4 기준595×841pt가 원문의771.02×1116.85pt와 달랐습니다. 같은 원문을 실제 저장 제품에 맞는 engine2020으로 재출력한 [정상 한컴 PDF](../../../pdf/exam_social-hwpx-revalidated-2020.pdf)는4쪽/771×1116pt, SHA `68a1c41533ebd0e3408799e642e70a2cd04ebf20bb599763e2c3a7331df00b95`입니다. 이전 A4 점수를 회귀 제거 근거로 사용하지 않습니다. 사용자 지정 개선으로 [#7445 이관을 철회](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5885313883)했으며 기존3함수를 유지합니다.
+- **2쪽**: 10번 표 앞 공백 줄의 `text_height500 + spacing200 = 다음 vpos700HU`가 빠져 표와 뒤본문이 앞당겨졌습니다. `stored_tac_lines → stored_tac::prepare`에서 저장 소유줄의 top/occupied_end/end와 가용 높이를 함께 확인합니다. `StoredTacPlan::placement → commit_stored_tac_control → InlineBoxPlacement → layout_table_control_block → flow_table_y`가 같은 원점을 사용하며 advance_end로 뒤 간격을 다시 더하지 않습니다. 순수공백/마지막 단일TAC표·저장 비편집·실측높이 일치·전체끝fit만 수용하고, 캡션·각주·불일치는 일반 경로입니다. 최종 원점795.9→805.3px, 독립 PDF804.675px이며 폭·높이는 유지됩니다. 특정 문서ID나 위치 예외를 넣지 않았습니다.
+- **3쪽**: 쪽번호의 표시문자열은 `3`인데 말미 공백 판정은 원모델의 자리표시자 ` `를 제외하여 우측 정렬 번호가 글상자 밖으로 밀렸습니다. 폭 측정과 같은 `effective_text_for_metrics`로 말미 공백을 판정하고 모델 문자 위치/TAC 경계는 보존했습니다. `shape_layout`의 글상자 정렬과 `paragraph_layout`의 줄 정렬이 이 판정을 소비합니다. 정상 뒤공백·셀 정렬과 자동번호 대조군을 실행했습니다.
+- **4쪽**: 원본 paraPr25/43의 번호 형식은 HANGUL_JAMO이고 사양 표41의 값10은 ㄱ/ㄴ/ㄷ입니다. `numbering_format_to_number_format`의 누락된10분기 때문에 Digit로 출력되었습니다. `expand_numbering_format → format_number`에 자모 형식을 연결해16/18번 보기 ㄱ~ㄹ을 복원했습니다. 자동 쪽번호의 별도 코드축은 유지했습니다. **1쪽**은 본문·그림·표 소속과 전체 배치를 직접 확인했으며 원문 근거 없는 위치 조정을 하지 않았습니다.
+- 사용자 지시대로 기존3함수의 절대 x/y·bbox 핀을 없애고 각 쪽 문항1~5/6~10/11~15/16~20의 순서·단일 소속, 10번 자료의2쪽 소속, 16/18번 자모, 머리말/바탕쪽 번호1회 치환·뒤 figure-space와 인쇄묶음32 보존을 검사합니다. 새 `#[test]` 함수는0개입니다. 원래 함수의 수정 전2PASS/좌표1FAIL과 새 의미 검사 수정 전2PASS/자모1FAIL을 구분해 보존했습니다. **수정 후 기존3+정상 대조군12=15PASS/0FAIL**, 기존번호 단위2PASS/0FAIL입니다. 자모 검사만 수정 전 의도한 결함을 검출했고, 표 원점·번호 잘림 개선은 아래 독립 시각 증거로 입증합니다.
+
+| 쪽 | 정상 용지 재출력 후 수정 전 | 최종 Native | 최종 fresh WASM | 직접 확인한 결과 |
+| --- | ---: | ---: | ---: | --- |
+| 1 | 93.21648% | 93.21648% | 93.21648% | 문항1~5·표/그림·바탕쪽 보존 |
+| 2 | 87.65269% | 96.78390% | 96.78390% | 10번 표·자료와 후속 선택지의 위치 개선 |
+| 3 | 91.97659% | 92.12235% | 92.12235% | 머리말3의 잘림 제거 |
+| 4 | 93.32797% | 95.00799% | 95.00799% | 16/18번 보기 자모 복원 |
+
+- 최종 Native/freshWASM 각4/4쪽 compare/standalone overlay/review 완료·exit0, 최저92.12235%·gate passed·글꼴 예외 없음입니다. Native review1~4와 freshWASM standalone overlay2~4를 직접 읽었고 각 쪽 실제 렌더 PNG의 두 backend SHA가 같습니다. 제목/본문 글자형·굵기, 특수기호와 작은 위치 차이는 남습니다. PDF Type3 정보만으로 원래 글꼴 대응은 미검증이며 엄격 픽셀/잉크 완전 일치나 전체 피델리티100%로 보고하지 않습니다.
+- 필수fmt·Native/WASM/workspace-alltargets Clippy·workspace build·고정base `0e8fd49fb868da0d47ac1294dcbbda81f0211233` manifest/unit 정책7단계는 모두exit0입니다. root fresh WASM --no-opt와 Studio 복사본 SHA `d0880e5e146d3e778d2a9e69f7d0a45a5772d8facd185d6d9fc1ecec1c877711`가 같습니다. 로컬 대체 빌드이며 Docker 최적화나 Studio 브라우저 실행 검증으로 보고하지 않습니다.
+- 초기 집중 명령에 `--tests`를 함께 넣어 선택 외 전체 대상까지 빌드되는 자신의 오류를 확인했습니다. 소유 nextest/Cargo를 SIGINT로 중단한 실행은exit-2·통과 아님으로 보존했고, 선택한 `--test` 대상으로 정상 재실행해15PASS를 확인했습니다. 출력 공백 때문에 중단한 것이 아니며 캐시를 삭제하지 않았습니다.
+- AGENTS/CLAUDE/CONTRIBUTING 및 canonical 증적 지침에 실물 문서의 의미 계약과 독립 시각 판독 기준을 반영했습니다. 원래60개 중34개 처리/26개 개별 검토 대기이며, 현재 전체 nextest·Native Skia3·원 PR 전체 최종 시각 검증/통합PR 준비는 아직 미완료입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage157-exam-social-header/`에만 있으며 커밋하지 않습니다. 전체 PNG는 그 아래 `visual-final-native/exam1100-header/`와 `visual-final-wasm/exam1100-header/`에서 확인할 수 있습니다.
+
+![시험지2쪽 보정 전 review](../assets/pr7382_20260926/stage157_before_native_review_002.png)
+![시험지2쪽 최종 Native review](../assets/pr7382_20260926/stage157_native_review_002.png)
+![시험지2쪽 최종 fresh WASM overlay](../assets/pr7382_20260926/stage157_wasm_overlay_002.png)
+![시험지3쪽 최종 Native review](../assets/pr7382_20260926/stage157_native_review_003.png)
+![시험지4쪽 최종 Native review](../assets/pr7382_20260926/stage157_native_review_004.png)
