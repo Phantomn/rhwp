@@ -10,12 +10,12 @@ RAW_HEAD='99473fbc7d80f237e2ec3e9f952752431232bb9d'
 def sha(p): return hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
 def save(p,x): pathlib.Path(p).write_text(json.dumps(x,indent=2)+'\n')
 def output(cmd): return subprocess.check_output(cmd,text=True).strip()
-def run_timed(cmd,log,cwd=ROOT,env=None):
+def run_timed(cmd,log,cwd=ROOT,env=None,check=True):
  start=time.perf_counter()
  with pathlib.Path(log).open('w') as f: r=subprocess.run(cmd,cwd=cwd,env=env,stdout=f,stderr=subprocess.STDOUT)
  duration=time.perf_counter()-start
- if r.returncode: raise RuntimeError(f'{cmd} failed; see {log}')
- return {'command':cmd,'seconds':duration}
+ if r.returncode and check: raise RuntimeError(f'{cmd} failed; see {log}')
+ return {'command':cmd,'seconds':duration,'exit_code':r.returncode}
 
 def main():
  OUT.mkdir(parents=True,exist_ok=True)
@@ -70,7 +70,7 @@ console.log(JSON.stringify({version:api.version(),jsExports:Object.keys(api).sor
 """
   (dest/'api.json').write_text(output(['node','--input-type=module','-e',node])+'\n')
   env=dict(os.environ,RHWP_WASM_BUILD_MANIFEST=str(dest/'build.json'),RHWP_RENDER_DIFF_ALL='1',RHWP_RENDER_DIFF_MAX_PAGES='1',RHWP_RENDER_DIFF_WRITE_IMAGES='1')
-  browser=run_timed(['npm','run','e2e:render-diff:ci'],dest/'browser.log',ROOT/'rhwp-studio',env)
+  browser=run_timed(['npm','run','e2e:render-diff:ci'],dest/'browser.log',ROOT/'rhwp-studio',env,check=False)
   shutil.copytree(ROOT/'rhwp-studio/e2e/screenshots/render-diff',dest/'screenshots')
   all_results[mode]={'files':files,'binding':binding,'optimization':optimization,'browser':browser}
  a=OUT/'dual'; b=OUT/'cdylib-baseline-lto'
@@ -82,11 +82,12 @@ console.log(JSON.stringify({version:api.version(),jsExports:Object.keys(api).sor
   (same_png if left[name]==right[name] else changed_png).append(name)
  checks={
   'same_png':same_png,'changed_png':changed_png,
+  'browser_passed':all(r['browser']['exit_code']==0 for r in all_results.values()),
   'api_identical':(a/'api.json').read_bytes()==(b/'api.json').read_bytes(),
   'types_identical':(a/'pkg/rhwp.d.ts').read_bytes()==(b/'pkg/rhwp.d.ts').read_bytes(),
   'canvas_results_identical':(a/'screenshots/results.json').read_bytes()==(b/'screenshots/results.json').read_bytes(),
   'source_untouched':(ROOT/'src/lib.rs').read_bytes()==original}
  save(OUT/'comparison.json',{'results':all_results,'checks':checks})
- assert not changed_png and checks['api_identical'] and checks['types_identical'] and checks['canvas_results_identical'] and checks['source_untouched']
+ assert not changed_png and checks['api_identical'] and checks['types_identical'] and checks['canvas_results_identical'] and checks['source_untouched'] and checks['browser_passed']
  print(json.dumps(checks,indent=2))
 if __name__=='__main__': main()
