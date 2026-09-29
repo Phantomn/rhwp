@@ -482,3 +482,11 @@ HWPX oracle는 격차가 개선되어 실제차단이 아니므로 원장행을 
 
 ![시장구조조사94쪽 review](market2070_native_review_094.png)
 ![시장구조조사95쪽 overlay](market2070_native_overlay_095.png)
+
+
+## 복학원서: 실제 실패 layer·snapshot 두 함수 — 보정143
+
+[원문](../../../../samples/복학원서.hwp), [정상 한컴 기준1쪽](../../../../pdf/복학원서-hwp-2020.pdf), [실패·전체 시각·범위·명령](bokhak938_blocking_scope_validation.json). 현재 전체1쪽77.85291%이므로 실제 차단된 layer·snapshot 한 함수씩만 이관했습니다. 기존 정상 SVG/overlay 두 함수와 다른 snapshot·원문/PDF·기존 golden을 보존했습니다. 유지2PASS/0FAIL, 필수lint/정책 exit0이며 현재값으로 기준을 갱신하지 않았습니다. 전체 피델리티와 올바른 layer/snapshot 계약 재구축은 후속입니다.
+
+![복학원서 전체1쪽 review](bokhak938_native_review_001.png)
+![복학원서 전체1쪽 overlay](bokhak938_native_overlay_001.png)

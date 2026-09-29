@@ -2597,3 +2597,15 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![시장구조조사94쪽 review](../assets/issue7445/market2070_native_review_094.png)
 ![시장구조조사95쪽 overlay](../assets/issue7445/market2070_native_overlay_095.png)
+
+
+## 보정143 사전 분석·결과 — 복학원서의 실제 실패2함수만 이관
+
+- 사전 head `5e199f8bb`, 코드 `2234af963e60f7cc855592be0493e6282858314c`. [원문·독립 기준·실패·범위·명령](../assets/issue7445/bokhak938_blocking_scope_validation.json). 원문/PDF SHA는 #7212 기록과 같고 현재 커밋 바이트도 같습니다. 현재 Native 전체1쪽은77.85291%로90%에 미달합니다. review·overlay에서 제목·표 시작/칸높이·뒤 본문·접수 상자 차이를 직접 확인했습니다. 출력1/1 완료 뒤 exit1은 시각 gate 미달 판정입니다.
+- 실패 원인은 #938 layer 검사에서 PNG 선적용 뒤에도 원래 grayScale/-50/70 효과를 요구하는 기대와 SVG 기준 차이입니다. 하지만 원문 전체가90% 미만이므로 메타데이터·golden을 현재값으로 고치지 않았습니다. [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5883744483) 후 실제 FAIL한 layer 한 함수와 같은 문서의 snapshot 한 함수만 제거했습니다. 렌더러 개선·새 함수는 없습니다.
+- 수정 전2PASS/2FAIL, 유지2PASS/0FAIL입니다. SVG·overlay 워터마크 두 정상 함수와 다른5개 snapshot·determinism, 원문/PDF·기존 golden·다른 입력/축을 보존했습니다. 모든 남은 함수 본문과 기존 golden은 이전 head와 동일합니다. 진단 actual.svg만 SHA를 확인해 output으로 옮겼습니다.
+- 필수fmt/Clippy3/workspace build/manifest·unit 고정base 정책7단계 exit0입니다. 전체137의60FAIL 중23곳을 처리했으며 나머지37개는 개별 검토 대상입니다. 현재 전체 회귀 통과·PR준비 완료·원문 피델리티 개선으로 보고하지 않습니다.
+- 비교/로그: `output/pr-review/planet6897-7382-20260926/stage143-bokhak938/`. 이번 fresh WASM은 미실행이며 Native 부정 증거만 사용했습니다.
+
+![복학원서 전체1쪽 review](../assets/issue7445/bokhak938_native_review_001.png)
+![복학원서 전체1쪽 overlay](../assets/issue7445/bokhak938_native_overlay_001.png)
