@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 12,
-  "remaining": 14,
+  "completed": 14,
+  "remaining": 12,
   "items": [
     {
       "index": 1,
@@ -86,15 +86,15 @@
       "index": 13,
       "test": "issue_6145_squeeze_cell_keeps_inner_margin::squeeze_cell_line_width_tracks_the_stored_inner_width",
       "case": "issue_6145_squeeze_cell_keeps_inner_margin",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 현 브랜치에서 작은6쪽 문서의 저장 원점·그림/표 간격 보정, 기존 폭 검사PASS, Native/freshWASM 전6쪽 최저95.5266%",
+      "evidence": "stage171_width6145_validation.json"
     },
     {
       "index": 14,
       "test": "issue_6145_squeeze_cell_keeps_inner_margin::squeeze_cell_text_starts_inside_the_declared_inner_margin",
       "case": "issue_6145_squeeze_cell_keeps_inner_margin",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 기존PASS 검사에서 절대 x 검색을 실제 표 셀의 상대 안쪽여백 검사로 교정, 기존2PASS",
+      "evidence": "stage172_left6145_validation.json"
     },
     {
       "index": 15,
