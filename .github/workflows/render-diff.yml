@@ -5,7 +5,7 @@ on:
     inputs:
       mode:
         type: choice
-        options: [phases, validate]
+        options: [phases, baseline-lto, validate]
         default: phases
         description: Compiler phases or verify the fixed completed phase artifacts
 permissions:
@@ -38,7 +38,9 @@ jobs:
       - name: Assert cold target
         run: test ! -d target/pr-review
       - name: Compile actual Rust edits and compare output types
-        run: python3 scripts/experiments/rust_build_phases.py --order '${{ matrix.order }}'
+        env:
+          CANDIDATE: ${{ inputs.mode == 'baseline-lto' && 'baseline-lto' || 'fat-lto' }}
+        run: python3 scripts/experiments/rust_build_phases.py --order '${{ matrix.order }}' --candidate "$CANDIDATE"
       - name: Preserve phase evidence
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

@@ -13,3 +13,12 @@ PR #7474는 Draft/head 그대로 둔다. 이 브랜치는 production 병합 후�
 - 후보의 이득이 확인되면 wasm-bindgen/wasm-opt를 생략하지 않은 package 및 실제 브라우저 Canvas 대조를 수행한다.
 - raw/최적화 후 크기, 출력, 검사 범위와 미검증 범위를 기록한다. Native Rust rlib 계약을 제거하는 변경은 제안하지 않는다.
 - 코드/실행 기록을 먼저 커밋한 뒤 결과 보고를 별도 커밋한다. 새 PR·댓글·캐시 생성·생산 workflow 변경은 하지 않는다.
+
+## 첫 대조 뒤의 범위 보완
+
+실행 36512273477에서 순수 cdylib는 실제 LTO 적용을 켜면서 9–12% 느려졌다.
+본체 기준선의 실제 linker는 약 0.13초였고, LLVM 구간이 176–179초였다.
+후속 원인 분리에서는 cdylib만 선택하면서 명령 범위의 `--config profile.release.lto=false`로
+현행 dual WASM의 **실효 cross-crate LTO 없음**을 고정한다. opt-level=3/CGU=1/wasm-opt 조건은 유지한다.
+이는 nominal release 설정을 문자 그대로 유지하는 안과 구분한다. manifest를 전역 변경하거나
+Native release LTO를 끄는 안은 아니다. 실제 옵션·속도·최종 산출물과 계약 차이를 공개한 뒤 채택 가능성을 판단한다.

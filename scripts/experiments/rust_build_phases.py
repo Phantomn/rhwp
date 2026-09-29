@@ -73,8 +73,10 @@ def measure(label, diagnostic, crate_type, marker, source):
     host = re.search(r'^host: (.+)$', checked(['rustc','-vV']), re.M)[1]
     env['RHWP_REAL_LINKER'] = str(Path(sysroot)/'lib/rustlib'/host/'bin/rust-lld')
     command = ['cargo','rustc','--locked','-p','rhwp','--lib','--release','--target','wasm32-unknown-unknown','--message-format=json']
-    if crate_type == 'cdylib':
+    if crate_type.startswith('cdylib'):
         command += ['--crate-type', 'cdylib']
+    if crate_type == 'cdylib-baseline-lto':
+        command += ['--config', 'profile.release.lto=false']
     start = time.perf_counter()
     with (dest/'cargo.jsonl').open('w') as stdout, (dest/'cargo.stderr').open('w') as stderr:
         code = subprocess.call(command, env=env, stdout=stdout, stderr=stderr)
@@ -102,6 +104,7 @@ def measure(label, diagnostic, crate_type, marker, source):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--order',choices=['abba','baab'],default='abba')
+    parser.add_argument('--candidate', choices=['fat-lto', 'baseline-lto'], default='fat-lto')
     args=parser.parse_args()
     OUT.mkdir(parents=True,exist_ok=True)
     # Shell executable entrypoints keep subprocess invocations independent of Python shebang PATH.
@@ -120,7 +123,8 @@ def main():
     try:
         # Seed dependencies once; do not include it in warm comparisons.
         measure('seed',False,'dual','seed',source)
-        modes=['dual','cdylib','cdylib','dual'] if args.order=='abba' else ['cdylib','dual','dual','cdylib']
+        candidate = 'cdylib' if args.candidate == 'fat-lto' else 'cdylib-baseline-lto'
+        modes=['dual',candidate,candidate,'dual'] if args.order=='abba' else [candidate,'dual','dual',candidate]
         for i,mode in enumerate(modes):
             # First two diagnostic / last two plain; equal marker for A/B comparison.
             measure(f'{i+1}-{mode}',i<2,mode,str(i//2),source)
