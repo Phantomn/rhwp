@@ -88,7 +88,9 @@
         "recordsEmitted": 41,
         "recordsOmitted": 0
       },
-      "expectedLayoutHash": "6dc1c3429ae84ef2c29615d42996e106acdc149cbdebcfc8ac116c587fc54004"
+      "renderPinsDeferredToIssue7445": [
+        "expectedLayoutHash"
+      ]
     }
   ],
   "profiles": [
