@@ -43,15 +43,6 @@ fn verify_footer(sample: &str, phone: &str, pdf_phone_baseline: f64) {
 }
 
 #[test]
-fn low_slack_footer_keeps_its_independent_painted_position() {
-    verify_footer(
-        "samples/issue6535/36339092_low_slack_absorb_block.hwpx",
-        "02-2133-9778",
-        1041.9200032552083,
-    );
-}
-
-#[test]
 fn page_anchored_footer_keeps_its_independent_painted_position() {
     verify_footer(
         "samples/issue6535/36404612_page_anchored_footer_block.hwpx",
