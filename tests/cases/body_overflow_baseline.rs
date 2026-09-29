@@ -70,6 +70,9 @@ const DEDICATED_SLOW_FIXTURES: &[&str] = &["issue2063_huge_cellbreak_table.hwp"]
 /// 각 원문의 증가/시각 근거는 #7445 증적과 corpus_scope_restore_validation.json에 연결한다.
 /// 원문은 samples에 유지하며 다른 래칫·쪽수·렌더러 비교 대상에서는 제외하지 않는다.
 const DEFERRED_BODY_OVERFLOW_FIXTURES: &[&str] = &[
+    // 보정169: 한컴52쪽의 CellBreak 내용 이월·본문 넘침은 #7445에서 함께 복원한다.
+    // 정상 #1853 캡션/쪽수 검사는 유지한다. caption1853_blocking_scope_validation.json 참조.
+    "issue1853_caption_precedes_body_split.hwpx",
     "exam_eng.hwp",
     "hwpctl_API_v2.4.hwp",
     "hwp3-sample16-hwp5.hwp",
