@@ -2707,3 +2707,15 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![월간 수출입4쪽 review](../assets/issue7445/monthly_trade_fonttrace_native_review_004.png)
 ![월간 수출입8쪽 review](../assets/issue7445/monthly_trade_fonttrace_native_review_008.png)
 ![월간 수출입8쪽 overlay](../assets/issue7445/monthly_trade_fonttrace_native_overlay_008.png)
+
+
+## 보정154 사전 분석·결과 — 온새미로 HWP의 실패 해시 한 핀만 이관
+
+- 사전 head `0e7a35743`, 코드 `2bbbdc6a733d85b0f09b538a1f4693a47982d038`. [원본/기준·해시 원인·시각·범위·명령](../assets/issue7445/onsaemiro_hwp_fonttrace_blocking_scope_validation.json). 기존 oracle 대응행과 PDF rename100% 바이트 이력을 확인했습니다. 전체 비교는 rhwp47/PDF46쪽으로 사전 차단돼 compare0장입니다. 별도 Native/freshWASM1/2/6/46쪽을 새로 캡처했고6쪽43.40896%, 46쪽37.41779%로 미달했습니다. 1쪽92.25199%를 문서 전체 통과로 사용하지 않습니다. review1/6/46 및WASM6 overlay 직접 판독에서 같은 내용·정상 기준 출력, 보기상자/줄바꿈/뒤본문과 물리쪽 소속 차이를 확인했습니다.
+- 집중6PASS/1FAIL은 `subst-counterpart-hwp` 해시만 실패합니다. 원본 CharShape89/90/124/125의 상대크기는 모두100%입니다. `resolve_single_char_style(font_size*100/100) → 실제 run font_size → heuristic 폭 → px_to_hwpunit 절삭 → layoutMetric/layoutHash` 경로에서 549/1099 등1HWPUNIT 감소가 있습니다. 원본 base_size에서 상대100%의 원래 크기로 독립 폭을 재구성하면 기존 기대 해시와 정확히 일치합니다. 이 계산 증거를 수정 전 baseline 실행으로 보고하지 않습니다.
+- [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5885044173) 후 실제 HWP 해시 한 핀만 명시적으로 이관했습니다. 현재 해시로 재고정하거나 생산 보정하지 않았고 counts46run/41문자·status·다른5문서/HWPX·모든프로필/형식동일성/기능탐지·기존함수는 보존했습니다. 최종6PASS/다른 `document-substitute-hwpx` 해시1FAIL/exit100, 필수fmt/Clippy3/workspacebuild/base고정 manifest/unit정책7단계exit0입니다. 원래32곳처리/28개검토대기는 유지합니다. 최종전체회귀/PR준비미완료입니다.
+- 생산은 보정152와 같고 같은 fresh no-opt root WASM으로 새 캡처했습니다. Docker 최적화 검증 아님. 로그: `output/pr-review/planet6897-7382-20260926/stage154-fonttrace-onsaemiro-hwp/`.
+
+![온새미로 HWP6쪽 review](../assets/issue7445/onsaemiro_hwp_fonttrace_native_review_006.png)
+![온새미로 HWP46쪽 review](../assets/issue7445/onsaemiro_hwp_fonttrace_native_review_046.png)
+![온새미로 HWP6쪽 fresh WASM overlay](../assets/issue7445/onsaemiro_hwp_fonttrace_wasm_overlay_006.png)

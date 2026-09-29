@@ -542,3 +542,12 @@ HWPX oracle는 격차가 개선되어 실제차단이 아니므로 원장행을 
 ![월간 수출입4쪽 review](monthly_trade_fonttrace_native_review_004.png)
 ![월간 수출입8쪽 review](monthly_trade_fonttrace_native_review_008.png)
 ![월간 수출입8쪽 overlay](monthly_trade_fonttrace_native_overlay_008.png)
+
+
+## 온새미로 HWP: 실패한 폰트 추적 해시만 — 보정154
+
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5885044173), [원본·기준·원인·시각·범위·명령](onsaemiro_hwp_fonttrace_blocking_scope_validation.json). 정상46/현재47쪽으로 전체 비교는 PNG 비교 전에 차단됐습니다. 별도 선택 Native/freshWASM1/2/6/46쪽에서 최저37.41779%, 6쪽43.40896%이며 보기 상자/뒤본문 위치와 단원 쪽 소속이 다릅니다. 원본의100% 상대크기 부동소수 오차/정수 절삭으로 해시 차이를 설명했으나, 사용자 지시대로 생산을 보정하지 않고 실제 실패한 HWP 해시 한 핀만 이관했습니다. counts/status·다른5입력/HWPX·프로필·기존 함수는 보존했습니다. 집중6PASS/다른HWPX hash1FAIL, 필수lint/정책7exit0입니다. 전체 문서 피델리티와 해시 계약 복원은 후속입니다.
+
+![온새미로 HWP6쪽 review](onsaemiro_hwp_fonttrace_native_review_006.png)
+![온새미로 HWP46쪽 review](onsaemiro_hwp_fonttrace_native_review_046.png)
+![온새미로 HWP6쪽 fresh WASM overlay](onsaemiro_hwp_fonttrace_wasm_overlay_006.png)
