@@ -2609,3 +2609,10 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![복학원서 전체1쪽 review](../assets/issue7445/bokhak938_native_review_001.png)
 ![복학원서 전체1쪽 overlay](../assets/issue7445/bokhak938_native_overlay_001.png)
+
+
+## 보정144 사전 분석·결과 — 정책연구 그림5 검사의 전체쪽수 전제만 이관
+
+- 사전 head `9ae787bb9`, 코드 `00f0aa74ebca0e04a8c59de4b9469c3fb7666a87`. [독립 근거·실패·범위·명령](../assets/issue7445/policy_caption_page_pin_blocking_scope_validation.json). 보정136과 같은 원문/PDF의 커밋 바이트를 확인하고11쪽 review를 다시 직접 판독했습니다. 11쪽46.45331%이며 그림6·뒤본문·각주가 누락됩니다. 전체215/현재216쪽입니다.
+- 단독 실행5PASS/1FAIL이며 그림5 셀2개/행높이/캡션267.621053px는 이미 통과했습니다. [#7445 추가등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5883869473) 후 마지막 전체215쪽 단정 한곳만 제거했습니다. 같은 함수의 그림·캡션 및 다른5개 공개4쪽 입력 검사·원문/PDF·모든 다른입력/축을 보존했습니다. 216으로 재고정하거나 렌더러를 보정하지 않았습니다.
+- 유지6PASS/0FAIL, 필수fmt/Clippy3/workspacebuild/고정base manifest·unit 정책7단계exit0. 전체137의60FAIL 중24곳 처리이며 나머지36개는 개별검토 대상입니다. 최신 전체통과·PR준비 완료가 아닙니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage144-policy-caption-page-pin/`입니다. 이번 fresh WASM 미실행입니다.

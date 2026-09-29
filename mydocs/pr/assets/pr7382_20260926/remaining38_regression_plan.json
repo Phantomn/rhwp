@@ -2240,7 +2240,7 @@
     "meaning": "text/off만현재32분할진단.다른축또는최종37개별/전체회귀를대체하지않음."
   },
   "current_status_counts_scope": "고정38의과거처리snapshot만.최종37개별은다시실행해야하며전체head통과아님.",
-  "final_validation_status": "전체137의60FAIL중23곳처리. 보정143 유지2PASS/0FAIL·필수lint7exit0. 나머지37개 개별검토 및최종전체/PR준비미완료.",
+  "final_validation_status": "전체137의60FAIL중24곳 처리. 나머지36개 개별검토·최종전체·PR준비 미완료.",
   "latest_text_axis_snapshot": {
     "stage": 125,
     "code_commit": "45edbe87fcde65296760f7d79e4907dfcc73e97d",
@@ -2351,5 +2351,15 @@
     "minimum_whole_native_percent": 77.85291,
     "production_changes": false,
     "golden_changed": false
+  },
+  "latest_policy_caption_page_pin_scope": {
+    "stage": 144,
+    "code_commit": "00f0aa74ebca0e04a8c59de4b9469c3fb7666a87",
+    "evidence": "../issue7445/policy_caption_page_pin_blocking_scope_validation.json",
+    "removed_page_count_pins": 1,
+    "preserved_functions": 6,
+    "passed": 6,
+    "failed": 0,
+    "production_changed": false
   }
 }

@@ -490,3 +490,8 @@ HWPX oracle는 격차가 개선되어 실제차단이 아니므로 원장행을 
 
 ![복학원서 전체1쪽 review](bokhak938_native_review_001.png)
 ![복학원서 전체1쪽 overlay](bokhak938_native_overlay_001.png)
+
+
+## 정책연구 HWPX: #6312 전체쪽수 전제 — 보정144
+
+[실패·독립 시각·보존·명령](policy_caption_page_pin_blocking_scope_validation.json). 기존 그림5 검사에서 마지막215쪽 전제만 실패했습니다. 같은 원문11쪽46.45331%이므로 전제한곳만 이관했고, 그림5·공개4쪽 대조군·원문/PDF를 유지했습니다. 유지6PASS/0FAIL·필수lint/정책 통과입니다. 전체 피델리티·전체쪽수 계약 복원은 후속입니다.
