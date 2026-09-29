@@ -194,6 +194,22 @@ fn planned_font_lookup_does_not_descend_below_search_roots() {
             "원 face 파일 우선: {face}"
         );
     }
+    // 서로 다른 원 face가 같은 루트에 있어도 이름에 대응하는 파일을 선택한다.
+    for (face, filename) in [
+        ("HCR Batang", "HANBatang.ttf"),
+        ("HCR Dotum", "HANDotum.ttf"),
+        ("Haansoft Batang", "HBATANG.TTF"),
+        ("Haansoft Dotum", "HDOTUM.TTF"),
+    ] {
+        let installed = root.join(filename);
+        std::fs::write(&installed, b"installed face").expect("원 face 설치 후보");
+        let lookup = plan_svg_font_file_lookup(face, std::slice::from_ref(&root), false);
+        assert_eq!(
+            find_font_file(&lookup),
+            Some(installed),
+            "원 face 파일: {face}"
+        );
+    }
     std::fs::remove_dir_all(root).expect("remove temporary font directory");
 }
 
@@ -286,6 +302,49 @@ fn style_font_face_css_orders_broken_bitmap_faces_after_outline_fallbacks() {
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn full_font_embed_uses_real_bold_face_when_document_uses_bold() {
+    // 기존 임베드 검사에서 종료 비문자만 보정하고 정상 문자 매핑은 보존하는지 확인한다.
+    let mut terminal = vec![0, 0, 0, 1, 0, 3, 0, 1, 0, 0, 0, 12];
+    for word in [
+        4u16,
+        32,
+        0,
+        4,
+        4,
+        1,
+        0,
+        65,
+        u16::MAX,
+        0,
+        65,
+        u16::MAX,
+        (-64i16) as u16,
+        0,
+        0,
+        0,
+    ] {
+        terminal.extend_from_slice(&word.to_be_bytes());
+    }
+    let repaired = svg_cmap_terminal_missing_glyph(&terminal, 2).into_owned();
+    let mut expected = terminal.clone();
+    expected[38..40].copy_from_slice(&1u16.to_be_bytes());
+    assert_eq!(
+        repaired, expected,
+        "U+FFFF 종료 델타 외의 원본 매핑은 보존한다"
+    );
+    assert!(matches!(
+        svg_cmap_terminal_missing_glyph(&repaired, 2),
+        std::borrow::Cow::Borrowed(_)
+    ));
+    expected[38..40].copy_from_slice(&2u16.to_be_bytes());
+    assert_eq!(
+        svg_cmap_terminal_missing_glyph(&expected, 2).as_ref(),
+        expected
+    );
+    assert_eq!(
+        svg_cmap_terminal_missing_glyph(&terminal[..43], 2).as_ref(),
+        &terminal[..43]
+    );
+
     let chars = std::collections::HashSet::from(['가']);
     let regular = include_bytes!("../../../tests/fixtures/fonts/RHWPHostFixture-Regular.ttf");
     let bitmap_only = include_bytes!("../../../tests/fixtures/fonts/RHWPBitmapSvgGlyphSmoke.ttf");

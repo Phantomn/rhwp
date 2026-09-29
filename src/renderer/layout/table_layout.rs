@@ -13513,9 +13513,24 @@ impl LayoutEngine {
         let Some(next_seg) = next_para.line_segs.get(next_unit.vis_start) else {
             return 0.0;
         };
+        // 셀의 저장 프레임은 문단 앞 간격을 포함한 양수 원점에서도 시작한다.
+        // 0으로의 되감김과 같은 원점으로의 되감김을 같은 물리 경계로 처리한다.
+        // 중간 양수 좌표의 로컬 재시작에는 마지막 줄 간격을 버리지 않는다.
+        let source_origin = cell
+            .paragraphs
+            .first()
+            .and_then(|paragraph| paragraph.line_segs.first())
+            .filter(|seg| {
+                seg.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
+            })
+            .map(|seg| seg.vertical_pos);
+        let returns_to_positive_origin = next_seg.vertical_pos > 0
+            && source_origin == Some(next_seg.vertical_pos)
+            && next_seg.vertical_pos < previous_seg.vertical_pos;
         if previous_seg.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
+            || next_seg.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
             || previous_seg.vertical_pos <= 0
-            || next_seg.vertical_pos > 0
+            || (next_seg.vertical_pos > 0 && !returns_to_positive_origin)
         {
             return 0.0;
         }
@@ -14554,7 +14569,11 @@ impl LayoutEngine {
             || end_cut.is_empty()
             || end_row == 0
             || table.row_count <= 1
-            || table.cells.iter().any(|cell| cell.row_span != 1)
+            // 종료 컷보다 앞에서 완결된 제목 병합은 이어받는 행의 소유를 바꾸지 않는다.
+            || table.cells.iter().any(|cell| {
+                cell.row_span > 1
+                    && cell.row as usize + cell.row_span as usize > end_row.saturating_sub(1)
+            })
             || table.common.height == 0
             || table.common.height > i32::MAX as u32
             || !self.row_cut_ends_at_plain_text_saved_reset(
@@ -19961,6 +19980,40 @@ mod row_cut_tests {
             eng.native_multirow_saved_reset_trailing_trim(&host, plain_cell, &units, 1, &styles,)
                 > 0.0,
             "plain-text 문단 사이 저장 reset은 마지막 줄의 trailing spacing을 trim"
+        );
+
+        let mut positive_origin = host.clone();
+        let mut first = visible_text_para(1, 500);
+        first.line_segs[0].line_spacing = 600;
+        positive_origin.cells[0].paragraphs =
+            vec![first, previous.clone(), visible_text_para(1, 500)];
+        let positive_units = vec![
+            saved_reset_unit(24.0, 0, 1, false),
+            saved_reset_unit(24.0, 1, 1, false),
+            saved_reset_unit(16.0, 2, 1, true),
+        ];
+        assert_eq!(
+            eng.native_multirow_saved_reset_trailing_trim(
+                &positive_origin,
+                &positive_origin.cells[0],
+                &positive_units,
+                2,
+                &styles,
+            ),
+            8.0,
+            "같은 양수 저장 원점으로 돌아가는 프레임도 종료 줄간격을 제외한다"
+        );
+        positive_origin.cells[0].paragraphs[2].line_segs[0].vertical_pos = 650;
+        assert_eq!(
+            eng.native_multirow_saved_reset_trailing_trim(
+                &positive_origin,
+                &positive_origin.cells[0],
+                &positive_units,
+                2,
+                &styles,
+            ),
+            0.0,
+            "원점과 다른 양수 로컬 재시작의 줄간격은 보존한다"
         );
 
         let mut control_only = non_inline_picture_para(0);

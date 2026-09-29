@@ -72,22 +72,112 @@ fn issue_1811_hwpx_pi52_rowbreak_cut_matches_hwp_reference() {
     );
     // HWPX 첫 조각 컷은 #7445에서 보류한다. 정상 쪽수·소비 순서와 아래 HWP/IR 검사는 유지한다.
 
-    let hwp_doc = load_sample(HWP_SAMPLE);
+    let hwp_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(HWP_SAMPLE);
+    let hwp_doc =
+        rhwp::document_core::DocumentCore::from_bytes(&fs::read(hwp_path).expect("HWP 원문"))
+            .expect("HWP 저장 문서");
     assert_eq!(
         hwp_doc.page_count(),
         5,
         "HWP 저장 LINE_SEG 경로는 5쪽을 유지해야 한다"
     );
-    let hwp_page4 = hwp_doc.dump_page_items(Some(3));
-    let hwp_pi52_line = hwp_page4
-        .lines()
-        .find(|line| line.contains("PartialTable") && line.contains("pi=52"))
-        .unwrap_or_else(|| {
-            panic!("HWP 4쪽에서 pi=52 분할 표를 찾지 못함\n--- page 4 ---\n{hwp_page4}")
-        });
+    // 숫자 컷 대신 정상 PDF가 소유하는 글줄·문단과 원본 물리 프레임을 검사한다.
+    use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
+    fn find(node: &RenderNode, predicate: &impl Fn(&RenderNode) -> bool) -> Option<RenderNode> {
+        if predicate(node) {
+            return Some(node.clone());
+        }
+        node.children
+            .iter()
+            .find_map(|child| find(child, predicate))
+    }
+    fn text(node: &RenderNode) -> String {
+        let own = match &node.node_type {
+            RenderNodeType::TextRun(run) => run.text.clone(),
+            _ => String::new(),
+        };
+        node.children.iter().fold(own, |mut out, child| {
+            out.push_str(&text(child));
+            out
+        })
+    }
+    fn star_lines(node: &RenderNode, out: &mut Vec<usize>) {
+        if matches!(node.node_type, RenderNodeType::TextLine(_)) {
+            let count = text(node).chars().filter(|ch| *ch == '*').count();
+            if count > 0 {
+                out.push(count);
+            }
+            return;
+        }
+        for child in &node.children {
+            star_lines(child, out);
+        }
+    }
+    let page4 = hwp_doc.build_page_render_tree(3).expect("HWP 4쪽");
+    let page5 = hwp_doc.build_page_render_tree(4).expect("HWP 5쪽");
+    let table52 = |node: &RenderNode| {
+        matches!(&node.node_type,
+        RenderNodeType::Table(table) if table.para_index == Some(52))
+    };
+    let first = find(&page4.root, &table52).expect("4쪽 사회기여 표");
+    let last = find(&page5.root, &table52).expect("5쪽 사회기여 표 이어받기");
+    let mut first_lines = Vec::new();
+    let mut last_lines = Vec::new();
+    star_lines(&first, &mut first_lines);
+    star_lines(&last, &mut last_lines);
+    assert_eq!(
+        first_lines,
+        [50, 67, 10],
+        "정상 PDF4쪽은 첫 두 문단의 세 글줄을 소유한다"
+    );
+    assert_eq!(
+        last_lines,
+        [67, 22, 67, 16, 67, 4],
+        "정상 PDF5쪽은 다음 세 문단의 여섯 글줄을 소유한다"
+    );
+    let source = &hwp_doc.document().sections[0];
+    let source_table = source.paragraphs[52]
+        .controls
+        .iter()
+        .find_map(|control| match control {
+            Control::Table(table) => Some(table),
+            _ => None,
+        })
+        .expect("사회기여 원문 표");
+    let whole_hu: i64 = source_table
+        .get_raw_row_heights()
+        .iter()
+        .map(|height| i64::from(*height))
+        .sum();
+    let tail_hu = whole_hu - i64::from(source_table.common.height);
+    assert_eq!(
+        tail_hu,
+        i64::from(source.paragraphs[53].line_segs[0].vertical_pos),
+        "원본 행합에서 첫 프레임을 뺀 종료 공간은 다음 빈 문단 원점을 정확히 닫는다"
+    );
+    let body = find(&page5.root, &|node| {
+        matches!(node.node_type, RenderNodeType::Body { .. })
+    })
+    .expect("5쪽 본문");
+    let following = find(&page5.root, &|node| {
+        matches!(&node.node_type,
+        RenderNodeType::TextLine(line) if line.para_index == Some(53))
+    })
+    .expect("표 뒤 빈 문단");
+    let source_tail = rhwp::renderer::hwpunit_to_px(tail_hu as i32, 96.0);
     assert!(
-        hwp_pi52_line.contains("end_cut=[3]"),
-        "HWP 저장 LINE_SEG 경로는 기존 p4 3유닛 컷을 유지해야 한다\n{hwp_pi52_line}"
+        (following.bbox.y - body.bbox.y - source_tail).abs() < 1e-6,
+        "빈 종료 밴드를 보존한 뒤 원문 문단53이 이어져야 한다: {:?}",
+        following.bbox
+    );
+    assert!(
+        first.bbox.height >= rhwp::renderer::hwpunit_to_px(source_table.common.height as i32, 96.0),
+        "첫 조각도 원문 개체 프레임의 빈 공간을 소유한다"
+    );
+    let page5_text = hwp_doc.extract_page_text_native(4).expect("5쪽 내용");
+    assert!(
+        page5_text.contains("청정아트") && page5_text.contains("네트워킹데이 추진계획"),
+        "표 뒤 본문과 마지막 추진계획을 보존한다"
     );
 
     let section = &doc.document().sections[0];

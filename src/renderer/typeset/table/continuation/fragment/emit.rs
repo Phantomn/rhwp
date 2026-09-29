@@ -114,14 +114,36 @@ impl TypesetEngine {
             &split_end_cut,
             styles,
         );
+        // 마지막 행의 빈 물리 밴드는 다음 문단 원점과 전체 저장 행합으로 입증한다.
+        // 첫 프레임과 종료 프레임은 같은 선언 공간을 나누며 내용 컷은 그대로 보존한다.
+        let saved_closing_frame = (!st.profile.session_edited()
+            && (st.profile.hwpx_stored_layout() || st.profile.hwp5_stored_pagination_layout())
+            && !self.render_normalization.table_text_reflowed(table)
+            && end_row == row_count
+            && table_footnotes.is_empty())
+        .then(|| {
+            input
+                .source
+                .paragraphs_all
+                .get(para_idx + 1)
+                .and_then(|next| {
+                    crate::renderer::float_placement::stored_rowbreak_closing_frame_height(
+                        input.source.paragraph,
+                        next,
+                        table,
+                        self.dpi,
+                    )
+                })
+        })
+        .flatten();
         let first_fragment_blank_band = !is_continuation
             && split_block_start.is_none()
             && end_row_height_override.is_none()
             && std::ptr::eq(table, row_geometry_table)
-            && crate::renderer::float_placement::object_only_saved_table_anchor(
+            && (crate::renderer::float_placement::object_only_saved_table_anchor(
                 input.source.paragraph,
                 table,
-            )
+            ) || saved_closing_frame.is_some())
             && saved_opening_frame.is_some_and(|frame_height| {
                 frame_height > partial_height + 0.5
                     && frame_height <= avail_for_rows + header_overhead
@@ -588,6 +610,7 @@ impl TypesetEngine {
             });
         let next_start_row_height_override = empty_opening_next_height
             .or(complete_block_next_height)
+            .or(saved_closing_frame.filter(|_| first_fragment_blank_band))
             .or_else(|| end_row_height_override
             .filter(|_| !first_fragment_blank_band)
             .and_then(|limit| {

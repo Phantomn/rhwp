@@ -4400,6 +4400,12 @@ fn known_font_filenames(font_name: &str) -> Vec<&'static str> {
         "함초롬바탕" | "함초롱바탕" => {
             vec!["HANBatang.ttf", "hamchob-r.ttf", "HBATANG.TTF"]
         }
+        // 이름 테이블에서 확인한 영문 face도 실제 설치 파일을 찾는다.
+        // HCR과 Haansoft는 다른 글꼴이므로 서로의 파일로 대신하지 않는다.
+        "HCR Batang" => vec!["HANBatang.ttf", "hamchob-r.ttf"],
+        "HCR Dotum" => vec!["HANDotum.ttf", "hamchod-r.ttf"],
+        "Haansoft Batang" => vec!["HBATANG.TTF"],
+        "Haansoft Dotum" => vec!["HDOTUM.TTF"],
         "한컴바탕" => vec!["hamchob-r.ttf", "HBATANG.TTF"],
         "함초롬돋움" | "함초롱돋움" | "한컴돋움" => {
             vec!["hamchod-r.ttf", "HDOTUM.TTF"]
@@ -4613,10 +4619,69 @@ fn find_font_file(plan: &FontFileLookupPlan) -> Option<std::path::PathBuf> {
     None
 }
 
-/// 윤곽선이 있는 TrueType의 선택 face에 대한 브라우저용 사본에서 구형 비트맵 strike만 뺀다.
+/// 형식4 cmap의 마지막 비문자 U+FFFF가 잘못된 글리프 번호를 가리키면
+/// 임베드 사본에서만 missingGlyph로 연결한다. 정상 문자·유효한 종료 매핑은 보존한다.
+/// OpenType cmap 사양: https://learn.microsoft.com/en-us/typography/opentype/spec/cmap
+fn svg_cmap_terminal_missing_glyph(data: &[u8], glyph_count: u16) -> std::borrow::Cow<'_, [u8]> {
+    let read = |offset: usize| {
+        data.get(offset..offset.checked_add(2)?)
+            .map(|bytes| u16::from_be_bytes(bytes.try_into().unwrap()))
+    };
+    let Some(count) = read(2).filter(|_| read(0) == Some(0)) else {
+        return std::borrow::Cow::Borrowed(data);
+    };
+    let mut repaired = None;
+    for index in 0..usize::from(count) {
+        let record = 4 + index * 8;
+        let Some(bytes) = data.get(record + 4..record + 8) else {
+            return std::borrow::Cow::Borrowed(data);
+        };
+        let offset = u32::from_be_bytes(bytes.try_into().unwrap()) as usize;
+        if read(offset) != Some(4) {
+            continue;
+        }
+        let Some(length) = offset.checked_add(2).and_then(read).map(usize::from) else {
+            continue;
+        };
+        let Some(segments) = offset
+            .checked_add(6)
+            .and_then(read)
+            .filter(|n| *n > 0 && n % 2 == 0)
+        else {
+            continue;
+        };
+        let segments = usize::from(segments) / 2;
+        let Some(subtable) = offset
+            .checked_add(length)
+            .and_then(|end| data.get(offset..end))
+        else {
+            continue;
+        };
+        if subtable.len() < 16 + segments * 8 {
+            continue;
+        }
+        let end_code = offset + 14 + (segments - 1) * 2;
+        let start_code = end_code + segments * 2 + 2;
+        let delta = start_code + segments * 2;
+        let range_offset = delta + segments * 2;
+        if read(end_code) == Some(u16::MAX)
+            && read(start_code) == Some(u16::MAX)
+            && read(range_offset) == Some(0)
+            && read(delta).is_some_and(|d| u16::MAX.wrapping_add(d) >= glyph_count)
+        {
+            let copy = repaired.get_or_insert_with(|| data.to_vec());
+            // U+FFFF + 1은 u16 모듈러 연산으로 글리프0이 된다.
+            copy[delta..delta + 2].copy_from_slice(&1u16.to_be_bytes());
+        }
+    }
+    repaired.map_or(std::borrow::Cow::Borrowed(data), std::borrow::Cow::Owned)
+}
+
+/// 윤곽선이 있는 TrueType의 선택 face를 브라우저에서 읽을 수 있는 사본으로 만든다.
 ///
 /// 휴먼명조 같은 EBDT/EBLC 혼합 글꼴은 Chrome에서 해당 크기의 한글이 두부가
-/// 될 수 있다. 원본 cmap·glyph ID·윤곽선·advance는 그대로 복사한다. 비트맵만
+/// 될 수 있다. 정상 문자 매핑·glyph ID·윤곽선·advance는 그대로 복사한다.
+/// 종료 비문자의 잘못된 매핑만 바로잡고 비트맵 strike를 제외한다. 비트맵만
 /// 있는 사용 글리프는 원본을 유지하며 문서/디스크 입력은 바꾸지 않는다.
 fn svg_outline_font_data<'a>(
     data: &'a [u8],
@@ -4665,6 +4730,7 @@ fn svg_outline_font_data<'a>(
     };
     let mut tables = Vec::with_capacity(table_count);
     let mut has_bitmap = false;
+    let mut repaired_cmap = false;
     for record in directory.chunks_exact(16) {
         if matches!(&record[..4], b"EBDT" | b"EBLC") {
             has_bitmap = true;
@@ -4678,9 +4744,15 @@ fn svg_outline_font_data<'a>(
         else {
             return original();
         };
+        let bytes = if &record[..4] == b"cmap" {
+            svg_cmap_terminal_missing_glyph(bytes, face.number_of_glyphs())
+        } else {
+            std::borrow::Cow::Borrowed(bytes)
+        };
+        repaired_cmap |= matches!(bytes, std::borrow::Cow::Owned(_));
         tables.push((&record[..4], bytes));
     }
-    if !has_bitmap
+    if (!has_bitmap && !repaired_cmap)
         || !tables
             .iter()
             .any(|(tag, bytes)| *tag == b"head" && bytes.len() >= 12)
@@ -4717,7 +4789,7 @@ fn svg_outline_font_data<'a>(
     let mut head_adjustment = 0;
     for (index, (tag, bytes)) in tables.iter().enumerate() {
         let offset = result.len();
-        result.extend_from_slice(bytes);
+        result.extend_from_slice(bytes.as_ref());
         result.resize(result.len().next_multiple_of(4), 0);
         if *tag == b"head" {
             head_adjustment = offset + 8;

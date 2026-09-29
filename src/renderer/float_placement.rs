@@ -711,6 +711,48 @@ pub(crate) fn stored_adjacent_line_table_frame(
     })
 }
 
+/// 마지막 행이 이어지는 저장 표에서 전체 행 프레임과 첫 개체 프레임의
+/// 차이가 뒤 문단의 저장 원점을 정확히 닫으면 종료 조각의 물리 높이이다.
+/// 내용 유닛에 없는 빈 밴드도 보존하며, 편집·로컬 재시작은 증거로 쓰지 않는다.
+pub(crate) fn stored_rowbreak_closing_frame_height(
+    host: &Paragraph,
+    successor: &Paragraph,
+    table: &Table,
+    dpi: f64,
+) -> Option<f64> {
+    use crate::model::paragraph::LineSeg;
+    let before = host.line_segs.first()?;
+    let after = successor.line_segs.first()?;
+    if host.stored_text_partition_is_dirty()
+        || successor.stored_text_partition_is_dirty()
+        || host
+            .line_segs
+            .iter()
+            .chain(&successor.line_segs)
+            .any(|line| line.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0)
+        || !successor.controls.is_empty()
+        || after.vertical_pos <= 0
+        || before.vertical_pos <= after.vertical_pos
+        || table.common.treat_as_char
+        || !is_para_topbottom_float(&table.common)
+        || table.page_break != TablePageBreak::RowBreak
+        || table.row_count <= 1
+        || table.common.height == 0
+        || table.caption.is_some()
+        || table.outer_margin_bottom != 0
+    {
+        return None;
+    }
+    let rows = table.get_raw_row_heights();
+    if rows.len() != usize::from(table.row_count) || rows.contains(&0) {
+        return None;
+    }
+    let whole = rows.iter().map(|height| i64::from(*height)).sum::<i64>()
+        + i64::from(table.cell_spacing) * (rows.len() - 1) as i64;
+    let remaining = whole - i64::from(table.common.height);
+    (remaining == i64::from(after.vertical_pos)).then(|| hwpunit_to_px(after.vertical_pos, dpi))
+}
+
 /// 종료 조각의 실제 하단과 뒤 원본 줄 사이에 저장된 바깥 아래 여백이다.
 /// 원본 줄의 시작점과 프레임의 종료식이 맞는 경우만 반환한다.
 pub(crate) fn stored_terminal_rowbreak_outer_margin_px(
