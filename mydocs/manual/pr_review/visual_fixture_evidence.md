@@ -2,7 +2,7 @@
 kind: guide
 status: active
 canonical: mydocs/manual/pr_review_workflow.md
-last_verified: 2026-09-29
+last_verified: 2026-09-30
 ---
 
 # 시각·fixture 증적
@@ -24,6 +24,8 @@ reviewer는 source PR이 첨부한 before/after나 수치만으로 "시각 검�
 `tolerant_content_match_percent`(2px 이웃 관용 내용 실루엣 일치율)는 **90% 이상**이어야 한다. 90% 미만 또는
 지표를 낼 수 없는 쪽이 있으면 스크립트는 review·overlay 산출물과 `pr_review_gate` 기록을 남긴 뒤 실패하며,
 review 문서는 `머지 보류 — 기여자 재검토 필요`로 판정한다. 새 PR을 만들지 않고 이미 열린 PR은 승인·통합하지 않는다.
+한컴 PDF 대조는 [Native/fresh WASM 인쇄 프로필](../verification/visual_sweep_guide.md#pdf와-같은-인쇄-프로필)로 수행한다.
+빈 누름틀 안내문만 출력 단계에서 빠지는지 확인하고 실제 입력된 본문과 쪽 구성은 계속 판정한다.
 기여자는 자기 branch에서 원인과 증적을 보완해 새 head로 재실행하고 gate를 통과할 때만 PR을 생성·갱신하며,
 reviewer는 메인터너 보정으로 대신하지 않는다. 한컴 PDF와 rhwp의 실제 글꼴이 완전히 다른
 경우만, 양쪽 글꼴 정보·확인 방법·영향 쪽을 기록한 UTF-8 증거 파일을

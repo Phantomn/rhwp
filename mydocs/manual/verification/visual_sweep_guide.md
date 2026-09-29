@@ -2,7 +2,7 @@
 kind: guide
 status: active
 canonical: mydocs/manual/verification/visual_verification_governance.md
-last_verified: 2026-09-29
+last_verified: 2026-09-30
 ---
 
 # PDF/SVG visual sweep 가이드
@@ -27,6 +27,20 @@ last_verified: 2026-09-29
 - **표 셀의 visible line 경계 침범 또는 visible-ending 자연 text 폭 위험 후보**
 - **명시적 SVG clip이 glyph 근사 band의 상·하단을 2px 이상 부분 절단하는 후보**
 - **구조 heuristic에 걸리지 않는 glyph·PUA·제품명 표시 차이**의 review 후보
+
+### PDF와 같은 인쇄 프로필
+
+Visual Sweep의 Native SVG는 글꼴 공급 방식과 관계없이 `export-svg --profile print`로,
+fresh WASM SVG는 `renderPageSvgWithProfile(page, 'print')`로 생성한다. 빈 누름틀의
+편집 화면 안내문은 PDF에 표시되지 않으므로 두 출력에서 제외한다. 누름틀에 실제로
+입력된 본문은 인쇄 내용이어서 그대로 비교한다. 같은 인쇄 규칙으로 투명 테두리 등
+다른 편집 화면 전용 표시도 제외하며, 문서의 쪽수·본문 줄·표·그림을 비교 대상에서
+가리지 않는다. `run_manifest.json`의 `comparison_profile`과 WASM
+`wasm/manifest.json`의 `comparisonProfile`로 사용한 프로필을 확인한다.
+
+이는 낮은 점수의 본문 영역을 마스킹하는 예외가 아니다. 변경 전 화면 프로필의
+PNG는 인쇄 프로필 실행의 점수·증적과 섞지 않고 새 출력에서 전체 영향을 다시
+확인한다. 누름틀 안내문 표시 자체는 편집 화면 프로필의 별도 회귀 검사로 확인한다.
 
 ## PR review 실루엣 gate
 
@@ -108,7 +122,7 @@ fidelity 원장을 함께 보존해야 한다.
 ## 새 WASM 출력 비교
 
 `--wasm-pkg <폴더>`를 지정하면 `wasm-pack --target web`으로 만든 `rhwp.js`와
-`rhwp_bg.wasm`을 실제 Chrome에서 실행한다. SVG는 `renderPageSvg`, 분석용 render tree는
+`rhwp_bg.wasm`을 실제 Chrome에서 실행한다. SVG는 `renderPageSvgWithProfile(page, 'print')`, 분석용 render tree는
 **같은 WASM 문서의 `getPageRenderTree`**에서 얻는다. Native render tree를 WASM 출력의
 기하 근거로 대신 쓰지 않는다.
 
@@ -120,7 +134,7 @@ venv/bin/python scripts/visual_sweep.py \
   --pages 21,49,75-77,108-109 --dpi 96 --out output/wasm-review
 ```
 
-CLI는 같은 원본의 `export-svg --font-style`이 만든 글꼴 별칭과 note-shape 메타데이터를 제공한다.
+CLI는 같은 원본의 `export-svg --font-style --profile print`가 만든 글꼴 별칭과 note-shape 메타데이터를 제공한다.
 Sweep은 `@font-face`만 WASM SVG에 보충하며 텍스트·좌표·그리기 노드는 수정하지 않는다.
 이후 기존 Chrome webfont rasterizer로 비교·overlay·review PNG를 생성한다. 별도 HTML에
 raw SVG만 붙이면 macOS의 legacy `휴먼명조` 등의 설치 폰트가 잘못 선택될 수 있으므로
@@ -146,7 +160,7 @@ mode와 해당 디렉터리의 폰트 파일 hash가 바뀌면 `--resume`은 이
 venv/bin/python scripts/visual_sweep.py \
   --file-target bold samples/issue2470/36382471_masked.hwpx pdf/issue2470/36382471_masked-2022.pdf \
   --rhwp-bin target/pr-review/release-test/rhwp --pages 1,2 \
-  --embed-fonts=full --font-path /path/to/private/validated-font-subsets --out /tmp/bold-review
+  --embed-fonts=full --font-path /path/to/private/validated-font-subsets --out output/bold-review
 ```
 
 폰트 소유·사용 범위가 확인된 파일만 검증용 scratch에 둔다. embedded SVG/폰트 바이너리를
@@ -243,7 +257,7 @@ rhwp export-svg samples/exam_kor.hwp \
 우선한다. 자세한 폰트 fallback 동작은 [export-png 명령 가이드](../export_png_command.md)의
 폰트 섹션을 참고한다.
 
-기본 `scripts/visual_sweep.py`는 `export-svg --font-style` 뒤에 Chrome headless를 사용한다.
+기본 `scripts/visual_sweep.py`는 `export-svg --font-style --profile print` 뒤에 Chrome headless를 사용한다.
 브라우저 제어에는 Studio의 `puppeteer-core`를 재사용하므로 최초 사용 전
 `npm --prefix rhwp-studio ci`로 해당 의존성을 준비한다. Chrome 실행 파일은 별도로
 설치하거나 `VISUAL_SWEEP_CHROME`으로 지정한다. 캡처는 실제 content viewport를

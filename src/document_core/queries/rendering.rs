@@ -1749,7 +1749,24 @@ impl DocumentCore {
         font_embed_mode: crate::renderer::svg::FontEmbedMode,
         font_paths: &[std::path::PathBuf],
     ) -> Result<String, HwpError> {
-        let tree = self.build_page_layer_tree_with_profile(page_num, RenderProfile::Screen)?;
+        self.render_page_svg_with_fonts_and_profile(
+            page_num,
+            font_embed_mode,
+            font_paths,
+            RenderProfile::Screen,
+        )
+    }
+
+    /// 글꼴을 공급하면서 출력 프로필에 따른 편집 전용 표시를 판정한다.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn render_page_svg_with_fonts_and_profile(
+        &self,
+        page_num: u32,
+        font_embed_mode: crate::renderer::svg::FontEmbedMode,
+        font_paths: &[std::path::PathBuf],
+        profile: RenderProfile,
+    ) -> Result<String, HwpError> {
+        let tree = self.build_page_layer_tree_with_profile(page_num, profile)?;
         let mut renderer = SvgLayerRenderer::new();
         renderer.inner_mut().font_embed_mode = font_embed_mode;
         renderer.inner_mut().font_paths = font_paths.to_vec();

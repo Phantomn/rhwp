@@ -2,7 +2,7 @@
 kind: canonical
 status: active
 canonical: mydocs/manual/verification/visual_verification_governance.md
-last_verified: 2026-09-17
+last_verified: 2026-09-30
 ---
 
 # PR 시각 검증 거버넌스 (OVL-step)
@@ -44,6 +44,11 @@ Native/fresh WASM 출력의 최저 일치율 90% 이상을 먼저 입증한다. 
 따라서 sweep의 `flagged`, pixel/ink 지표는 발견의 입력일 뿐 원인 판정이나 수용 결론이 아니다.
 glyph 겹침 같은 반복 차이도 bug-hunter의 정답지 provenance, source→IR→layout→paint 원인 경로와
 사람 판정을 거쳐야 코드 수정 대상으로 승격한다.
+
+한컴 PDF와 대조하는 Visual Sweep은 Native와 fresh WASM 모두 인쇄 프로필로 캡처한다.
+PDF에 없는 빈 누름틀 안내문과 기타 편집 전용 표시는 출력 단계에서 제외하고, 누름틀에
+입력된 실제 본문과 쪽 구성은 계속 비교한다. 세부 명령·프로필 증적은
+[Visual Sweep 가이드](visual_sweep_guide.md#pdf와-같은-인쇄-프로필)를 따른다.
 
 ## 도구 매핑 — 무엇을 확인할 때 무엇을 쓰나
 

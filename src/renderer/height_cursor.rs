@@ -299,6 +299,19 @@ impl HeightCursor {
             .get(item_para)
             .and_then(|p| p.line_segs.first())
             .map(|ls| ls.vertical_pos);
+        // 저장 줄이 없는 글자취급 그림의 합성 시작이 앞 저장 글줄 끝과 같으면
+        // 그 합성 좌표에는 그림 문단의 위 간격이 아직 담겨 있지 않다.
+        // 이 경우 간격을 미리 빼면 실제 배치가 더하는 같은 간격과 상쇄된다.
+        let inline_host_without_stored_anchor = !synthetic_prev_seg
+            && curr_first_vpos == Some(prev_vpos_end)
+            && paragraphs.get(item_para).is_some_and(|para| {
+                para.line_segs.first().is_none_or(|line| {
+                    line.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
+                }) && !para.controls.is_empty()
+                    && para.controls.iter().all(|control| {
+                        matches!(control, Control::Picture(picture) if picture.common.treat_as_char)
+                    })
+            });
         // [Task #412] page_base / lazy_base 경로 분리.
         let (base, is_page_path) = if let Some(b) = self.vpos_page_base {
             (b, true)
@@ -355,7 +368,49 @@ impl HeightCursor {
                     .controls
                     .iter()
                     .any(|c| matches!(c, Control::Picture(p) if p.common.treat_as_char));
-            let curr_sb_hu = if self.skip_spacing_before_prededuct || !prev_is_tac_picture_text_host
+            // 재구성 전의 두 저장 글줄이 같은 본문 프레임 안에 있고 경계
+            // 차이가 현재 문단 위 간격과 정확히 같으면, 앞줄 trailing 은 이미
+            // 순차 커서에 소비됐다. 재구성한 누적 vpos만으로 판단하지 않는다.
+            let curr_is_plain_stored = self.suppress_hwpx_stale_forward
+                && !self.session_edited
+                && !synthetic_prev_seg
+                && prev_para.controls.is_empty()
+                && paragraphs.get(item_para).is_some_and(|para| {
+                    para.controls.is_empty()
+                        && para.line_segs.first().is_some_and(|line| {
+                            line.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY
+                                == 0
+                        })
+                        && prev_para
+                            .source_line_seg_vertical_pos
+                            .as_ref()
+                            .and_then(|positions| positions.last())
+                            .zip(
+                                para.source_line_seg_vertical_pos
+                                    .as_ref()
+                                    .and_then(|positions| positions.first()),
+                            )
+                            .is_some_and(|(prev_source, curr_source)| {
+                                let prev_end = prev_source
+                                    .saturating_add(seg.line_height)
+                                    .saturating_add(seg.line_spacing);
+                                let before = styles
+                                    .para_styles
+                                    .get(para.para_shape_id as usize)
+                                    .map(|ps| {
+                                        (ps.spacing_before * 7200.0 / self.dpi).round() as i32
+                                    })
+                                    .unwrap_or(0);
+                                let body_hu =
+                                    (self.col_area_height * 7200.0 / self.dpi).round() as i32;
+                                before > 0
+                                    && prev_end > 0
+                                    && *curr_source <= body_hu
+                                    && *curr_source == prev_end.saturating_add(before)
+                            })
+                });
+            let curr_sb_hu = if self.skip_spacing_before_prededuct
+                || !(prev_is_tac_picture_text_host || curr_is_plain_stored)
             {
                 0
             } else {
@@ -593,6 +648,7 @@ impl HeightCursor {
             // 재구성한 두 줄 사이의 vpos는 저장된 문단 앞 간격의 증거가 아니다.
             // 앞 줄의 실제 끝에서 현재 문단을 시작하고, 앞 간격은 배치가 한 번 더한다.
             self.skip_spacing_before_prededuct
+                || inline_host_without_stored_anchor
                 || (synthetic_prev_seg
                     && paragraphs
                         .get(item_para)

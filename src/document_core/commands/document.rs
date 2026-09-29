@@ -711,18 +711,82 @@ impl DocumentCore {
                         ))
                     })
                     .collect();
+                // 재구성 전에 실제 글줄 끝과 다음 줄 전진 끝을 함께 고정한다.
+                let orig_plain_tail: Vec<Option<(i32, i32)>> = section
+                    .paragraphs
+                    .iter()
+                    .enumerate()
+                    .map(|(i, para)| {
+                        if reflowed_paras.contains(&i)
+                            || para.stored_text_partition_dirty
+                            || !para.controls.is_empty()
+                            || para.line_segs.iter().any(|line| {
+                                line.tag
+                                    & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY
+                                    != 0
+                            })
+                        {
+                            return None;
+                        }
+                        let last = para.line_segs.last()?;
+                        let painted_end = last.vertical_pos.saturating_add(last.line_height);
+                        Some((
+                            painted_end,
+                            painted_end.saturating_add(last.line_spacing.max(0)),
+                        ))
+                    })
+                    .collect();
                 // 원본 줄 사이의 빈 물리 공간도 저장 조판의 일부다. 합성 줄을
                 // 끼워 넣더라도 뒤의 원본 앵커가 확보한 공간을 삭제하지 않는다.
                 // 합성 내용이 자랐으면 이미 소비한 끝점을 유지하여 되감지 않는다.
                 let mut source_anchor_end: Option<(i32, i32)> = None;
                 let body_height_hu = (layout.body_area.height * 7200.0 / dpi).round() as i32;
                 for (pi, para) in section.paragraphs.iter_mut().enumerate() {
-                    // 개체 문단은 별도 배치가 물리 공간을 소비하므로 텍스트
-                    // 사다리의 연결점으로 쓰지 않는다. 그 공간을 재가산하면 안 된다.
-                    if !para.controls.is_empty() {
+                    let was_reflowed = reflowed_paras.contains(&pi);
+                    // 필드는 저장 글줄 안의 텍스트 범위를 표시할 뿐 별도 높이를
+                    // 차지하지 않는다. 필드가 있다는 이유로 저장 간격을 끊으면
+                    // 다음 문단의 빈 물리 공간이 사라진다.
+                    let text_only_controls = para
+                        .controls
+                        .iter()
+                        .all(|control| matches!(control, Control::Field(_)));
+                    // 저장 줄이 없는 글자취급 그림의 높이는 재구성 사다리가 이미
+                    // 소비한다. 직전 저장 글줄의 앵커를 유지해야 그림 뒤 원본 줄의
+                    // 저장 간격과 재구성된 그림 높이 중 큰 쪽을 사용할 수 있다.
+                    // 별도 부동 배치나 저장 줄을 지닌 개체는 좌표계가 달라 끊는다.
+                    let inline_reflowed_picture = was_reflowed
+                        && orig_span[pi].is_none()
+                        && !para.controls.is_empty()
+                        && para.controls.iter().all(|control| {
+                            matches!(control, Control::Picture(picture) if picture.common.treat_as_char)
+                        });
+                    // 저장된 글자취급 표의 첫 줄이 앞 본문 끝보다 뒤에 있으면
+                    // 그 차이는 표 문단의 원본 간격이다. 현 문단의 개체 때문에
+                    // 앞 앵커를 먼저 끊으면 이 간격이 재계산에서 사라진다.
+                    let inline_saved_table = !was_reflowed
+                        && orig_span[pi].is_some()
+                        && !para.controls.is_empty()
+                        && para.controls.iter().all(|control| {
+                            matches!(control, Control::Table(table) if table.common.treat_as_char)
+                        })
+                        && pi
+                            .checked_sub(1)
+                            .and_then(|prev| orig_span[prev])
+                            .zip(orig_span[pi])
+                            .is_some_and(|((_, prev_end), (first, _))| {
+                                let before = styles
+                                    .para_styles
+                                    .get(para.para_shape_id as usize)
+                                    .map(|ps| (ps.spacing_before * 7200.0 / dpi).round() as i32)
+                                    .unwrap_or(0);
+                                before > 0
+                                    && prev_end > 0
+                                    && first <= body_height_hu
+                                    && first == prev_end.saturating_add(before)
+                            });
+                    if !text_only_controls && !inline_reflowed_picture && !inline_saved_table {
                         source_anchor_end = None;
                     }
-                    let was_reflowed = reflowed_paras.contains(&pi);
                     let hosts_bottom_fixed_frame = para.controls.iter().any(|c| {
                         matches!(c, Control::Table(t)
                         if !t.common.treat_as_char
@@ -761,7 +825,33 @@ impl DocumentCore {
                             .is_some_and(|((_, end), line)| {
                                 end > 0 && end.saturating_add(line.line_height) > body_height_hu
                             });
-                    if source_page_break || source_tac_reset {
+                    // 일반 저장 글줄도 앞 프레임의 실제 끝은 본문 안에 있으나
+                    // 다음 글줄을 이어 담을 공간이 없으면 0은 다음 쪽의 원점이다.
+                    // 누적 축·개체·합성/편집 줄의 0을 물리 경계로 추측하지 않는다.
+                    let source_plain_reset = !was_reflowed
+                        && !para.stored_text_partition_dirty
+                        && para.controls.is_empty()
+                        && orig_span[pi].is_some()
+                        && orig_plain_tail[pi].is_some()
+                        && first_source
+                            .is_some_and(|line| line.vertical_pos == 0 && line.line_height > 0)
+                        // 이 구역에 앞서 실제 0 원점을 기록한 저장 줄이 있어야
+                        // 현재 0을 쪽-상대 프레임 리셋으로 읽을 수 있다. 시작부터
+                        // 누적 좌표만 가진 구역은 뒤의 0을 독립 쪽 근거로 삼지 않는다.
+                        && orig_span[..pi]
+                            .iter()
+                            .any(|span| span.is_some_and(|(first, _)| first == 0))
+                        && pi
+                            .checked_sub(1)
+                            .and_then(|prev| orig_plain_tail[prev])
+                            .is_some_and(|(painted_end, advance_end)| {
+                                painted_end > 0
+                                    && painted_end <= body_height_hu
+                                    && advance_end.saturating_add(
+                                        first_source.expect("저장 첫 줄").line_height,
+                                    ) > body_height_hu
+                            });
+                    if source_page_break || source_tac_reset || source_plain_reset {
                         running_vpos = first_source.expect("저장 프레임 원점").vertical_pos;
                     } else if !was_reflowed
                         && hosts_bottom_fixed_frame
@@ -987,10 +1077,11 @@ impl DocumentCore {
                         }
                     }
                     running_vpos = inner_vpos;
-                    if let Some((_, original_end)) =
-                        orig_span[pi].filter(|_| para.controls.is_empty())
-                    {
+                    if let Some((_, original_end)) = orig_span[pi].filter(|_| text_only_controls) {
                         source_anchor_end = Some((original_end, running_vpos));
+                    } else if inline_saved_table {
+                        // 표 높이는 다음 일반 글줄의 저장 간격으로 재가산하지 않는다.
+                        source_anchor_end = None;
                     }
                     if let Some(v) = original_last_vpos {
                         prev_stored_last_vpos = v;

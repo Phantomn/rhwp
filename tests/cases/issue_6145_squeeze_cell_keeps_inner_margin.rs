@@ -18,10 +18,11 @@
 //! 두었다. 그런데 여백을 1px 로 깎으면 안쪽 폭이 `9906 − 150 = 9756`(97.56pt)이
 //! 되어 자간이 덜 줄고, 줄이 괘선 밖으로 나간다.
 //!
-//! **오라클 — 한글 2022** (문서 저장 버전 `appVersion major=10` = 한글 2018/2020,
-//! 미설치 → 최근접 설치본. `producer=Hancom PDF 1.3.0.550`).
+//! **오라클 — 한글 2020 기준 PDF**
+//! (`pdf/planet-review-20260917/worklife_balance_index_156607916-2020.pdf`,
+//! `Creator=Hwp 2020 0.34.0.0`, `Producer=Hancom PDF 1.3.0.550`, 6쪽).
 //!
-//! | 6쪽 마지막 열 | 종전 | **수정 후** | 한글 2022 |
+//! | 6쪽 마지막 열 | 종전 | **수정 후** | 한글 2020 PDF |
 //! |---|---:|---:|---:|
 //! | 글자 시작 x | 438.98 | **441.06** | 441.00 |
 //! | `일･생활 균형 조례 제정,` 우단 | 534.67 | 533.14 | 534.37 |
@@ -36,6 +37,7 @@
 //! **안 여백 보존** — 만 잠근다.
 #![cfg(not(target_arch = "wasm32"))]
 
+use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -170,22 +172,58 @@ fn squeeze_cell_text_starts_inside_the_declared_inner_margin() {
 /// `130.10px` 로 헐거워져 자간이 덜 줄고, 그 결과 `담당조직 형태 만점(1점)+` 이
 /// PDF 우단 `538.48pt` 로 괘선(`537.79pt`)을 `+0.69pt` 넘었다.
 ///
-/// 상한을 선언 폭 그대로가 아니라 `+3px` 로 두는 이유: 압축이 수렴한 뒤에도 조판
-/// 폭과 페인트 폭이 ~1.5% 갈리는 **별개 축**이 남아 있다(`#6303`). 이 시험이
-/// 잠그는 것은 "목표 폭이 헐거워지지 않는다"이지 그 잔여 축이 아니다.
+/// 이 검사는 원문 셀 폭에서 좌우 선언 여백을 뺀 폭과 현재 글줄 폭을 대조한다.
+/// 칸의 절대 x 좌표가 달라져도 같은 원문 폭 계약을 확인할 수 있다.
 #[test]
 fn squeeze_cell_line_width_tracks_the_stored_inner_width() {
-    /// 저장 lineseg `horzsize = 9340 HWPUNIT`.
-    const STORED_INNER_WIDTH_PX: f64 = 9340.0 / 7200.0 * 96.0;
-    let json = page6_render_tree();
-    for needle in ["담당조직 형태 만점", "기업지원 명시 만점"] {
-        let (left, right) = line_span_containing(&json, needle)
-            .unwrap_or_else(|| panic!("6쪽에서 `{needle}` 줄을 찾지 못했다"));
-        let width = right - left;
+    let pages = Command::new(rhwp_bin())
+        .args(["dump-pages", &sample(), "--json"])
+        .output()
+        .expect("쪽 구성을 읽는다");
+    assert_eq!(pages.status.code(), Some(0), "{pages:?}");
+    let pages: Value = serde_json::from_slice(&pages.stdout).expect("쪽 구성 JSON");
+    assert_eq!(pages["pageCount"], 6, "정상 PDF와 같은 6쪽이어야 한다");
+
+    let json: Value = serde_json::from_str(&page6_render_tree()).expect("렌더 트리 JSON");
+    fn table(node: &Value) -> Option<&Value> {
+        if node["type"] == "Table" && node["pi"] == 56 {
+            return Some(node);
+        }
+        node["children"].as_array()?.iter().find_map(table)
+    }
+    let table = table(&json).expect("원문 마지막 표 문단");
+    // 원본의 25×6 표와 저장 안쪽 폭은 좌표가 변해도 같은 칸 계약이다.
+    let stored_inner_width = (9906.0 - 283.0 - 283.0) / 7200.0 * 96.0;
+    for (row, needle) in [(20, "기업지원 명시 만점"), (21, "담당조직 형태 만점")] {
+        let cell = table["children"]
+            .as_array()
+            .expect("표 칸")
+            .iter()
+            .find(|cell| cell["type"] == "Cell" && cell["row"] == row && cell["col"] == 5)
+            .unwrap_or_else(|| panic!("원문 {row}행 마지막 칸이 없다"));
+        let line = cell["children"]
+            .as_array()
+            .expect("칸 글줄")
+            .iter()
+            .find(|line| {
+                line["type"] == "TextLine"
+                    && line["children"].as_array().is_some_and(|runs| {
+                        runs.iter()
+                            .filter_map(|run| run["text"].as_str())
+                            .collect::<String>()
+                            .contains(needle)
+                    })
+            })
+            .unwrap_or_else(|| panic!("{row}행에서 `{needle}` 글줄이 없다"));
+        let line_width = line["bbox"]["w"].as_f64().expect("글줄 폭");
+        let cell_width = cell["bbox"]["w"].as_f64().expect("칸 폭");
         assert!(
-            width <= STORED_INNER_WIDTH_PX + 3.0,
-            "`{needle}` 줄이 저장 안쪽 폭({STORED_INNER_WIDTH_PX:.2}px) 가까이로 조여져야 한다: \
-             폭 {width:.2}px (좌 {left:.2} 우 {right:.2})"
+            (line_width - stored_inner_width).abs() <= 0.6,
+            "`{needle}` 글줄은 원문 안쪽 폭을 써야 한다: {line_width:.2}px"
+        );
+        assert!(
+            (cell_width - line_width - 2.0 * DECLARED_INNER_MARGIN_PX).abs() <= 0.7,
+            "`{needle}` 칸은 좌우 원문 여백을 유지해야 한다"
         );
     }
 }

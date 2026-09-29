@@ -74,6 +74,9 @@
 - 렌더링의 공통 결과·반례 검증·baseline 변경 근거는 위 공통 조판 원칙을 따른다.
   차트 변경은 종류와 축 등 해당 변경이 주장한 의미도 직접 확인한다.
 - **렌더링 변경은 [Visual Sweep](mydocs/manual/verification/visual_sweep_guide.md)으로 검증한다.**
+  PDF 비교에는 Native와 fresh WASM의 인쇄 프로필을 사용한다. 빈 누름틀 안내문은
+  출력 단계에서 제외하고 실제 입력된 본문은 비교한다. 프로필과 증적 기록 방식은
+  [인쇄 프로필 절](mydocs/manual/verification/visual_sweep_guide.md#pdf와-같은-인쇄-프로필)을 따른다.
   외부 기여자는 [CONTRIBUTING.md의 렌더링 PR 제출 절차](CONTRIBUTING.md#메인터너-검토-기록과의-구분)에 따라
   원 PR을 생성·갱신하기 전에 제출할 code head의 영향 페이지를 캡처한다. 대표 review·overlay PNG를
   안정 경로에 커밋하고, 원 PR 본문에 그 head의 repository·SHA로 고정한 raw URL의 실제

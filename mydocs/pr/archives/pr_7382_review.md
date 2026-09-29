@@ -9,7 +9,7 @@ last_verified: 2026-09-30
 
 ## 최종 판정
 
-**현재 진행**: 남은26개 원장은 보정170까지12건 처리/14건 대기이며, 이전 처리 항목인 #1749 HWP 재검토는 보정168에서 해결했습니다. 작은 문서는 현재 브랜치에서 보정하고, 대용량·복잡한 다쪽 문서의 실제 차단만 #7445로 이관합니다. 최종 전체 검증과 PR 준비는 미완료입니다.
+**현재 진행**: 남은26개 원장은 보정171까지13건 처리/13건 대기이며, 이전 처리 항목인 #1749 HWP 재검토는 보정168에서 해결했습니다. 작은 문서는 현재 브랜치에서 보정하고, 대용량·복잡한 다쪽 문서의 실제 차단만 #7445로 이관합니다. 보정171 최종 전체 nextest는43FAIL이므로 PR 준비는 미완료입니다.
 
 **머지 보류.** 대상 PR은 사용자께서 확인하신 #7382이며, 현재 검토 브랜치는 `review/planet6897-7382-20260926`입니다. 통합 PR은 아직 생성하지 않았습니다. #6101·#7336의 생산 보정과 긍정 시각 증거는 [보정68](../assets/pr7382_20260926/stage68_validation.json)·[보정69](../assets/pr7382_20260926/stage69_validation.json)에 기록했습니다. 이는 현재 전체 회귀 통과나 원 PR의 최종 승인 근거를 대체하지 않습니다.
 
@@ -2951,3 +2951,20 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 원장12의 과거 분할7 실패는 #2019 HWPX2→3건 증가였습니다. 현재 같은 원문의 전18쪽 anomaly는 기존 baseline과 같은2건이고, 보정169의 전체본문16함수 재실행에서도 이 입력의 증가는 나타나지 않습니다. greedy분할번호와 실제 입력 소유를 구분했습니다.
 - 현재 partition7과 원래 과분할 정상 함수를 각각 재실행해 **2PASS/0FAIL**입니다. 생산/검사행동/기준값/새함수/원문/PDF 변경과 #7445 이관0입니다. 기존 baseline2와 정상 검사를 유지하며 실패가 없는 입력을 점수 미검증만으로 제거하지 않았습니다. 전체18쪽 시각≥90와 #2019 전체피델리티 해결은 미검증입니다.
 - [현재 단독 명령·실제 본문 노드·범위](../assets/pr7382_20260926/stage170_body7_validation.json). 로그는 `output/pr-review/planet6897-7382-20260926/stage170-body7/`입니다. 원장 **12처리/14대기**, 본문 전체의 별도 네 실패는 아직 남습니다. 최종 전체/PR준비는 미완료입니다. 다음은 #6145 폭 검사 한 개를 개별 분석합니다.
+
+
+## 보정171 — #6145 저장 간격과 누름틀 인쇄 비교
+
+- **사전 분석**: 원장13의 기존 #6145 표 셀 폭 검사는 단독 실패했습니다. 실제 원본 `samples/issue6145/worklife_balance_index_156607916.hwpx`와 독립 한컴2020 PDF는6쪽인데 수정 전 rhwp는7쪽이어서 최종 표가 이월됐습니다. 원본 표 폭9906HU와 좌우 안쪽여백 각283HU, 저장 줄·앞뒤 문단·그림 위치를 대조했습니다. 작은6쪽 문서이므로 현 브랜치에서 처리하고 #7445로 이관하지 않았습니다.
+- **원인과 보정**: HWPX 저장 일반 글줄의 실제 쪽 상대0 원점이 누적 좌표로 덮였고, 필드·글자취급 그림 뒤의 원문 간격과 글자취급 표 앞500HU가 재조판에서 사라졌습니다. 반대로 일반 글줄에 이미 담긴 문단 위 간격과 그림 위 간격은 측정·배치에서 다시 소비됐습니다. `reflow_zero_height_paragraphs`의 저장 좌표·원본 앵커 → 쪽 경계·줄 측정 → `height_cursor`의 간격 소비 → 최종 표·그림 원점 경로를 맞췄습니다. 앞서 실제 저장0 원점이 없는 #1749 누적 좌표 대조군에는 리셋을 적용하지 않으며, 문서ID·좌표 clamp·새 공차를 사용하지 않았습니다.
+- **기존 회귀**: 기존 #6145 폭 검사는 최종 표의6쪽 소속과 셀 폭의 원문 관계를 확인하도록 교정했고, 기존 왼쪽 검사도 함께 **2PASS**입니다. #1749 쪽 소속 검사1PASS, 기존 누름틀 인쇄 프로필 검사3PASS입니다. 새 검사 함수0, baseline·허용치 완화0입니다. 남은 #6145 왼쪽 검사의 절대 x 기대값은 원장14에서 별도로 검토합니다.
+- **Visual Sweep 인쇄 프로필**: 한컴 PDF에 없는 빈 누름틀 안내문은 SVG 생성 시 Native와 fresh WASM 양쪽에서 인쇄 프로필로 제외합니다. 입력된 필드 본문은 계속 출력하고 쪽수·실루엣 비교에도 포함합니다. 비교 PNG를 마스킹하지 않습니다. `visual_sweep.py`·WASM exporter·CLI 조합 호출과 [Visual Sweep 가이드](../../manual/verification/visual_sweep_guide.md#pdf와-같은-인쇄-프로필), [시각 검증 거버넌스](../../manual/verification/visual_verification_governance.md), [fixture 증적 지침](../../manual/pr_review/visual_fixture_evidence.md), `CLAUDE.md`·`CONTRIBUTING.md`를 함께 맞췄습니다.
+- **최종 시각**: 독립 PDF6쪽 대비 Native/fresh WASM 모두6쪽, 전6쪽 gate passed, 각각 `[96.8384, 99.83973, 95.5266, 95.67837, 97.80197, 98.89183]%`, 최저95.5266%, 글꼴 예외0입니다. 두 backend의 해당 PNG 해시는 전6쪽 동일합니다. 전체 contact sheet와 아래3·4·5쪽 review 및3·5쪽 overlay에서 본문·그림·표와 앞뒤 내용의 소속을 직접 대조했습니다. Mac root fresh WASM `--no-opt` 로컬 대체 빌드이며 Docker 최적화 검증으로 보고하지 않습니다.
+- **최종 검증과 범위**: `cargo fmt`, 기본·WASM lib·workspace all-targets Clippy, workspace build, 고정 base `0e8fd49fb868da0d47ac1294dcbbda81f0211233` 대비 manifest/unit 정책 검사를 통과했습니다. 전체 `cargo nextest --tests --test-threads 8 --no-fail-fast`는 **10,229실행/10,186PASS/43FAIL/50SKIP**입니다. 직전 중간 후보의44FAIL에서 #1749 한 건이 해소됐고 새 실패 함수 이름은0건입니다. #7226/#6535 출력은 보정168 기준 바이너리와 최종 후보의 render tree가 동일해 이 단계에서 새로 만든 차이는 아닙니다. 다른43건은 개별 검토가 필요하며 전체 PR 승인·제출 판정은 보류합니다.
+- [원본·PDF/실행 산출물 SHA·수정 전후·명령·쪽별 점수·잔여 실패](../assets/pr7382_20260926/stage171_width6145_validation.json). 전체 SVG/PNG·로그는 `output/pr-review/planet6897-7382-20260926/stage171-width6145/`에만 둡니다. 원장 **13처리/13대기**이며 다음은 #6145 왼쪽 검사를 개별 판단합니다.
+
+![#6145 3쪽 최종 Native review](../assets/pr7382_20260926/stage171_native_review_003.png)
+![#6145 4쪽 최종 Native review](../assets/pr7382_20260926/stage171_native_review_004.png)
+![#6145 5쪽 최종 Native review](../assets/pr7382_20260926/stage171_native_review_005.png)
+![#6145 3쪽 최종 fresh WASM overlay](../assets/pr7382_20260926/stage171_wasm_overlay_003.png)
+![#6145 5쪽 최종 fresh WASM overlay](../assets/pr7382_20260926/stage171_wasm_overlay_005.png)

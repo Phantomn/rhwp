@@ -622,6 +622,7 @@ def sweep_provenance(
             "sha256": sha256_file(Path(__file__).resolve()),
         },
         "svg_rasterizer": svg_rasterizer,
+        "comparison_profile": "print",
         "rhwp_binary": rhwp_binary_identifier(root, rhwp_bin),
     }
 
@@ -634,7 +635,8 @@ def wasm_package_provenance(root: Path, package: Path) -> dict[str, object]:
     return {
         "files": [{"path": str(path.resolve()), "sha256": sha256_file(path)} for path in files],
         "exporter_sha256": sha256_file(exporter),
-        "font_policy": "same-input native export-svg --font-style; font-face CSS only",
+        "comparison_profile": "print",
+        "font_policy": "same-input native export-svg --font-style --profile print; font-face CSS only",
         "render_tree": "WASM getPageRenderTree",
     }
 
@@ -798,7 +800,8 @@ def export_wasm_target(root: Path, hwp: Path, package: Path, rhwp_bin: str, base
         cwd=root, log_path=base / "wasm-export.log",
     )
     run(
-        [rhwp_bin, "export-svg", str(hwp), *(font_args or ["--font-style"]), "-o", str(policy_dir), *environment_args],
+        [rhwp_bin, "export-svg", str(hwp), *(font_args or ["--font-style"]),
+         "--profile", "print", "-o", str(policy_dir), *environment_args],
         cwd=root, log_path=base / "font-policy.log",
     )
     policies = {page_num(path): path for path in policy_dir.glob("*.svg")}
@@ -859,7 +862,7 @@ def export_native_target(
         page_args = ["-p", str(page - 1)] if page is not None else []
         log_name = f"export_{page:03}.log" if page is not None else "export.log"
         proc = run(
-            [rhwp_bin, "export-svg", str(hwp), *font_args, "-o", str(svg_dir),
+            [rhwp_bin, "export-svg", str(hwp), *font_args, "--profile", "print", "-o", str(svg_dir),
              *page_args, *environment_args, "--json"],
             cwd=root, log_path=base / log_name,
         )
