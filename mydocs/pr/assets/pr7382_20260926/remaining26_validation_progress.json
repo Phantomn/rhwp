@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 10,
-  "remaining": 16,
+  "completed": 11,
+  "remaining": 15,
   "items": [
     {
       "index": 1,
@@ -72,8 +72,8 @@
       "index": 11,
       "test": "body_overflow_baseline::body_overflow_does_not_grow_partition_5",
       "case": "body_overflow_baseline",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료:52쪽 법률문서의 실제 본문넘침 입력1개만 #7445 이관·정상2함수 유지·현재선택Native/freshWASM 최저32.88144%",
+      "evidence": "../issue7445/caption1853_blocking_scope_validation.json"
     },
     {
       "index": 12,
@@ -194,5 +194,16 @@
       "status": "완료: 현 브랜치에서 작은 HWP5쪽 양수 원점 컷·종료 빈 공간·실제 임베드 글꼴 개선. 기존27PASS, 대상Native/freshWASM min90.62519%; HWPX 기존 보류는 보존.",
       "evidence": "stage168_savedbounds1749_validation.json"
     }
-  ]
+  ],
+  "body_overflow_current_scan": {
+    "stage": 169,
+    "result": "12PASS/4FAIL; 제외로 greedy분할 재배치, 원래함수이름을 입력 소유 근거로 쓰지 않음. 원래대기12/17는 다음에 각각 현재 입력과 재대조.",
+    "failures": [
+      "신규 발생: issue6756/17253153-traffic-safety-designated-routes.hwp — 1건 (baseline 없음)",
+      "신규 발생: k-water-rfp-2024.hwp — 1건 (baseline 없음)",
+      "증가: issue6776/78494-virtual-convergence-industry-decree.hwpx — 1 → 2건",
+      "신규 발생: issue6778/156757920-animal-welfare-husbandry-guidelines.hwp — 1건 (baseline 없음)"
+    ],
+    "evidence": "../issue7445/caption1853_blocking_scope_validation.json"
+  }
 }

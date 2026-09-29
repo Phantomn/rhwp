@@ -559,3 +559,15 @@ HWPX oracle는 격차가 개선되어 실제차단이 아니므로 원장행을 
 
 ![온새미로 HWPX6쪽 review](onsaemiro_hwpx_fonttrace_native_review_006.png)
 ![온새미로 HWPX6쪽 fresh WASM overlay](onsaemiro_hwpx_fonttrace_wasm_overlay_006.png)
+
+
+## 법률 개정 이유서 #1853: 실제 본문 넘침 입력1개 — 보정169
+
+- [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5894072744), [보존 원문](../../../../samples/issue1853_caption_precedes_body_split.hwpx), [정상 한컴2024 PDF52쪽](../../../../pdf/issue1853_caption_precedes_body_split-2024.pdf), [개별 원인·현재 실패·시각·이관 범위·명령](caption1853_blocking_scope_validation.json).
+- 현재/정상 모두52쪽이지만13쪽 표의 마지막 내용이14쪽으로 넘어가 뒤 문단도 밀립니다. Native/freshWASM 선택13/14/43/44/52쪽은각62.38007/32.88144/88.03127/93.34014/96.82559%입니다. 전52쪽 PNG 통과 주장이 아닙니다.14쪽 실제 본문 줄7.9467px와44쪽 표2.3333px 초과를 확인했고, 빈 줄·글꼴 예외·공차 완화로 해소하지 않습니다.
+- 실제 차단인 본문 넘침의 해당 원문1개와 baseline0행만 이관했습니다. 정상 캡션/52쪽 함수2개·기존16개본문함수·원문/PDF·다른입력/축은 유지합니다. 생산/새함수/기대값완화0, 정상2PASS·lint/정책통과입니다. 본문전수는12PASS/4FAIL이며 남은 네 입력은 별도 검토합니다. 전체 피델리티와 원장의 계약 복원은 후속입니다.
+
+![법률 이유서13쪽 표 내용 소유 차이](caption1853_native_review_013.png)
+![법률 이유서14쪽 뒤 본문 차이](caption1853_native_review_014.png)
+![법률 이유서44쪽 표/본문 경계](caption1853_native_review_044.png)
+![법률 이유서14쪽 fresh WASM overlay](caption1853_wasm_overlay_014.png)
