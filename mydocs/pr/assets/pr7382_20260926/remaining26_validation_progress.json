@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 1,
-  "remaining": 25,
+  "completed": 2,
+  "remaining": 24,
   "items": [
     {
       "index": 1,
@@ -16,8 +16,8 @@
       "index": 2,
       "test": "overflow_cell_lines_do_not_grow_partition_8",
       "case": "overflow_cell_baseline",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 현 브랜치에서 심사지표8쪽 개선·셀넘침0·기존35검사PASS",
+      "evidence": "stage159_simsa2097_validation.json"
     },
     {
       "index": 4,

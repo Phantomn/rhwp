@@ -2776,3 +2776,38 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![CGMP 셀넘침 Native46쪽 review](../assets/issue7445/cgmp6035_cell_native_review_046.png)
 ![CGMP 셀넘침 freshWASM46쪽 overlay](../assets/issue7445/cgmp6035_cell_wasm_overlay_046.png)
+
+
+## 보정159 사전 분석·결과 — 심사지표 8쪽의 중첩 표와 쪽 소유 개선
+
+- 사용자 최신 범위에 따라 소수 페이지의 보정은 현재 브랜치에서 해결하고, 대용량·복잡한 전체 피델리티 문제만 #7445로 이관합니다. 이번 문서는 이관하거나 검사에서 제외하지 않았습니다. 코드 `0dc722184`, [입력·소스 해시·원인·명령·시각 결과](../assets/pr7382_20260926/stage159_simsa2097_validation.json).
+- 대상은 [21217935_simsa_jipyo.hwp](../../../samples/task2097/21217935_simsa_jipyo.hwp)입니다. 저장 제품에 맞는 engine2020으로 재산출한 [정상 한컴 PDF](../../../pdf/21217935_simsa_jipyo-hwp-2020.pdf)는 8쪽·192480바이트, SHA `87e4ccc02ce169facee5393394637101cbc1cb874cc1735d31bf8b66a50f84d2`입니다. 원문은 그대로 보존했습니다.
+- **사전 원인**: `overflow_cell_lines_do_not_grow_partition_8`이 기존 허용24줄 대비26줄로 실패했습니다. 글줄이 TAC 자식 표 높이를 이미 담는데 legacy 투영에서 같은 높이를 다시 더했고, 블록 컷은 셀 로컬 높이로 선택한 뒤 실제 행합을 더 크게 그렸습니다. 저장 병합 셀의 빈 밴드와 내용 컷도 혼동해 뒤 항목이 쪽 밖으로 나오거나 다음 쪽으로 밀렸습니다. Native/fresh WASM의 이전 전체8쪽 최저는32.58232%였습니다.
+- **공통 높이와 실제 호출 경로**: 저장 줄의 제어문자 소유와 닫힌 원본 물리 상자만 canonical 유닛에 연결합니다. `cell_units → RowBlockQuery::fragment_height(MeasuredTable) → SelectedBlockCut::occupied_height/complete_row_boundary_band → scan의 끝 행 높이 → emit의 동일 측정 원장과 다음 조각 높이 → table_partial의 실제 행 상자`가 같은 컷·빈 밴드·행 높이를 소비합니다. 마지막 코드 대조에서 `stored_rowspan_page_frame`의 별도 행 높이 재계산도 제거하고 실제 분할에 사용한 `MeasuredTable`을 전달했습니다. 걸침 내용이 남거나 저장 경계가 행 내부에 있으면 완전 행 정규화를 적용하지 않습니다. 편집·재조판·유효하지 않은 저장 줄에는 저장 상자 보정을 적용하지 않습니다. 문서ID 분기·좌표 덮어쓰기·클리핑으로 내용을 감추는 보정은 추가하지 않았습니다.
+- **1쪽 중첩 표**: 호스트 문단의 마지막 커서 뒤에 offset을 더하던 중복 예약을 제거했습니다. `stored_nested_float_placement → ParagraphFloatPlacement::from_stored_host`의 실제 제어문자 앵커·표 원점·점유 끝점을 유닛 측정과 통째/분할 paint가 함께 사용합니다. 원본을 다시 저장한 한컴 출력의 첫쪽은 원본 PDF raster와 같고, offset만 바꾼 독립 한컴 출력에서 실제 앵커 이동을 확인했습니다. 원본을 변형본으로 대체하지 않았습니다.
+- **3→4쪽 문단**: 원본 문단의 고아 줄 방지·다음 문단과 함께·문단 전체 유지가 모두 꺼져 있고, 다음 저장 줄이 새 프레임 첫 슬롯0HU이면 실제 1+1줄 분할을 보존합니다. K-water 대조군의 다음 줄1652HU는 앞 줄 자리까지 예약된 경우라 기존 보호를 유지합니다. style만으로 모든 reset을 허용한 후보는19PASS/1FAIL로 기각했고 최종 대조군은 통과했습니다. 4쪽 가운데 정렬에서는 위쪽 정렬 전용 lazy 경로가 내용 높이를0으로 만들지 않도록 같은 선택 내용 메트릭을 소비합니다.
+- **기존 회귀 교정**: `issue_2097_block_band_fill_page_pins`의 기존5문서 쪽수는 유지하고, 심사지표의 문단 쪽 소속·순서·단일 출력만 추가했습니다. 절대 픽셀/좌표·이미지 해시를 assertion에 고정하지 않았으며 새 `#[test]` 함수는0개입니다. 독립 PDF의 전체8쪽 내용이 쪽 안에 들어가는 것을 확인하고 실제 셀 넘침0줄을 측정하여, 해당 문서의 기존24줄 허용 행을 제거해 기본0줄 기준으로 **강화**했습니다. 다른 baseline·공차·문서·검사 함수는 그대로입니다. 저장된 수정 전 렌더트리에 같은 의미 계약을 적용하면6항목 중4개가 어긋나고 수정 후0개입니다. 이를 수정 전 새 Rust 테스트 실행으로 보고하지 않습니다.
+
+| 쪽 | 보정 전 | 최종 Native | 최종 fresh WASM |
+| --- | ---: | ---: | ---: |
+| 1 | 64.73626% | 99.15259% | 99.15259% |
+| 2 | 47.15617% | 98.63195% | 98.63195% |
+| 3 | 46.42543% | 95.79791% | 95.79791% |
+| 4 | 87.66419% | 95.58934% | 95.58934% |
+| 5 | 54.56021% | 92.26478% | 92.26478% |
+| 6 | 55.04512% | 91.85001% | 91.85001% |
+| 7 | 44.30630% | 95.70257% | 95.70257% |
+| 8 | 32.58232% | 98.06308% | 98.06308% |
+
+- **최종 검증**: 기존 집중/대조군20PASS + 실제 물리 예산·끝 유닛·이어받기·뒤 문단의 기존 경계15PASS = **35PASS/0FAIL**입니다. 강화한0줄 분할8도 통과했고 전8쪽 셀 넘침은 각0줄입니다. Native/fresh WASM 각8/8쪽 compare·standalone overlay·review 완료/exit0, 최저91.85001%·gate passed·글꼴 예외 없음입니다. 최종 Native1/3/4/6 review와 WASM3/4/6 standalone overlay를 직접 확인했습니다. 전체8쪽 두 backend PNG SHA가 같습니다. 글자형·굵기·그리드 명암 및 약1px 용지/경계 차이는 남으며 엄격 픽셀 완전 일치로 보고하지 않습니다.
+- root fresh WASM `--no-opt`와 Studio 복사본의 JS/WASM SHA가 각각 같습니다. Mac 로컬 대체 빌드이며 Docker 최적화·Studio 브라우저 실행 검증은 아닙니다. fmt/diff check 완료입니다. 최종head의 필수lint·정책 묶음, 전체nextest, Native Skia3 및 원 PR 전체 시각 검증은 남아 있습니다. **통합PR 준비 미완료**입니다.
+- [남은26개 진행 원장](../assets/pr7382_20260926/remaining26_validation_progress.json)은2건 처리/24건 대기로 갱신했습니다. 원래60실패 기준으로는36건 처리/24건 대기이며 현재 전체 회귀 결과로 대체하지 않습니다. 다음은 #6697의31/32쪽 차단 건입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage159-cell2097/`에만 있습니다. 최종 전체 PNG는 그 아래 `visual-candidate-shared-frame-native/simsa2097/`와 `visual-candidate-shared-frame-wasm/simsa2097/`입니다. 승인된 이전 SVG만 정리하고 PDF·PNG·결과 기록·최신 산출물을 보존했습니다.
+
+![심사지표1쪽 보정 전 review](../assets/pr7382_20260926/stage159_before_native_review_001.png)
+![심사지표1쪽 최종 Native review](../assets/pr7382_20260926/stage159_native_review_001.png)
+![심사지표3쪽 최종 Native review](../assets/pr7382_20260926/stage159_native_review_003.png)
+![심사지표4쪽 최종 Native review](../assets/pr7382_20260926/stage159_native_review_004.png)
+![심사지표6쪽 최종 Native review](../assets/pr7382_20260926/stage159_native_review_006.png)
+![심사지표3쪽 최종 fresh WASM overlay](../assets/pr7382_20260926/stage159_wasm_overlay_003.png)
+![심사지표4쪽 최종 fresh WASM overlay](../assets/pr7382_20260926/stage159_wasm_overlay_004.png)
+![심사지표6쪽 최종 fresh WASM overlay](../assets/pr7382_20260926/stage159_wasm_overlay_006.png)
