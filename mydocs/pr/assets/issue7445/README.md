@@ -525,3 +525,11 @@ HWPX oracle는 격차가 개선되어 실제차단이 아니므로 원장행을 
 
 ![1쪽 review](low_slack6535_native_review_001.png)
 ![1쪽 overlay](low_slack6535_native_overlay_001.png)
+
+
+## 폰트 추적 exact-face 공개 HWP: 실제 렌더핀2곳 — 보정150
+
+[원문](../../../../samples/143E433F503322BD33.hwp), [동일원문새한컴1쪽PDF](../../../../pdf/143E433F503322BD33-hwp-2020.pdf), [원인·시각·실패·범위·명령](fonttrace4961_blocking_scope_validation.json). 전체1쪽88.61634%이며실제counts/hash핀2곳만명시적으로이관했습니다. 폰트프로필·다른5문서·기존함수는유지했고최종6PASS/다른문서hash1FAIL이남습니다. lint/정책은exit0이나전체PASS가아닙니다. 그래프/열흐름전체피델리티와절대핀계약복원은후속입니다.
+
+![1쪽 review](fonttrace4961_native_review_001.png)
+![1쪽 overlay](fonttrace4961_native_overlay_001.png)

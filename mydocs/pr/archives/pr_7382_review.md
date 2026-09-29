@@ -2670,3 +2670,15 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![#7288 물리63쪽 Native review](../assets/pr7382_20260926/stage149_stale_frame_native_review_063.png)
 ![#7288 물리63쪽 fresh WASM overlay](../assets/pr7382_20260926/stage149_stale_frame_wasm_overlay_063.png)
+
+
+## 보정150 사전 분석·결과 — 폰트 추적의 공개 HWP 렌더핀만 별도 이관
+
+- 사전 head `6ac946c5f`, 코드 `d2dd864b68efc7bba55e59a2a20483e7e9a36733`. [원인경로·독립기준·단독실패·범위·명령](../assets/issue7445/fonttrace4961_blocking_scope_validation.json). 단독7검사6PASS/1FAIL에서exact-face문자수1336/1334가다릅니다. devel0e8와현재고정Native194run을직접대조해각주번호의뒤공백1개및각주공백run의1개가달라진것을확인했습니다. `stored_footnote_number_prefix → layout_footnote_area → collect_runs/run.text → counts/layoutHash`경로이며본문문자누락이아닙니다.
+- 같은원본은한컴2010저장8.5.6.1133으로info를확인해engine2020으로정상PDF를생성했습니다. job succeeded/download SHA고정, 새PDF는원문과함께커밋했습니다. 정상/현재모두1쪽이나전체Native88.61634%입니다. review직접판독에서OLE그래프·오른쪽열흐름차이를확인했습니다. 90미만이므로현재값으로핀을재고정하지않습니다.
+- [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5884283688) 후exact-facecounts한핀, 그뒤별도실제로FAIL한layoutHash한핀만데이터에서명시적으로이관했습니다. 혼합함수/폰트프로필/다른5문서핀·형식동일성·기능탐지·limit·backend검사·다른정상함수본문은유지했습니다. 명시적이관선언이없으면핀누락도여전히assertFAIL이며문서ID를Rust에하드코딩하지않았습니다. 현재trace에서exact-face프로필모든필드일치도readonly로대조했으나정식전체e2ePASS로승격하지않습니다.
+- **최종집중6PASS/1FAIL/exit100**입니다. 다른문서missing-face의layoutHash실패가드러났으며이는다음개별판정대상으로남겼습니다. 혼합함수는끝까지통과하지않았고전체137의60FAIL중해결수는32/남은28로유지합니다. 필수fmt/Clippy3/workspacebuild/고정base manifest·unit 정책7단계는exit0입니다.
+- 초기출력래퍼가nextest실패를전달하지않아lint앞단표시0이됐지만원시JSON/요약exit100을확인했고현재래퍼를수정해실제exit100으로재실행했습니다. 기존10개집중after결과의실제exit0도감사했습니다. 이실패를통과로보고하지않습니다. 생산변경·새함수·핀/공차완화없음. 로그: `output/pr-review/planet6897-7382-20260926/stage150-fonttrace4961/`. 이번freshWASM미실행입니다.
+
+![폰트 추적 공개 HWP1쪽 review](../assets/issue7445/fonttrace4961_native_review_001.png)
+![폰트 추적 공개 HWP1쪽 overlay](../assets/issue7445/fonttrace4961_native_overlay_001.png)
