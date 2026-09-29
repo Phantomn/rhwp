@@ -2623,3 +2623,16 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 사전 head `9879dd922`, 코드 `b7551d228c36d6fdef4b3287bfb1edf4af6c6e2c`. [실패·독립근거·범위·명령](../assets/issue7445/handbook_hwp_page_pin_blocking_scope_validation.json). 동일 원문/기준PDF의 커밋 바이트를 확인하고 기존312쪽 review를 직접 다시 판독했습니다. 정상384/현재383쪽이며 선택Native 최저6.48027%입니다. 부록의 물리쪽 소속 차이가 있습니다.
 - 단독1FAIL은 Q8 표제 검사 통과 뒤 마지막384쪽 전제에서 발생했습니다. [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5883899549) 후 전제한곳만 제거해 같은함수의Q8검사를 유지했고 다른HWPX·바탕쪽·IR 및원문/PDF/모든다른입력·축도 유지했습니다. 현재383으로 재고정하지 않았습니다.
 - 유지1PASS/0FAIL·필수fmt/Clippy3/workspacebuild/고정base manifest·unit 정책7단계exit0입니다. 생산변경·새함수·공차완화없음. 전체137의60FAIL 중25곳 처리이며 나머지35개는개별검토대상입니다. 최종전체/PR준비 미완료이며 이번 freshWASM 미실행입니다. 로그: `output/pr-review/planet6897-7382-20260926/stage145-handbook-hwp-page-pin/`.
+
+
+## 보정146 사전 분석·결과 — 편람 HWPX의 실제 차단 쪽수·물리쪽 전제만 이관
+
+- 사전 head `829a31516`, 코드 `2b6355bf430510e9bde6064f80a4efbea6fbe10e`. [독립근거·단독실패·연속진단·범위·명령](../assets/issue7445/handbook_hwpx_owner_blocking_scope_validation.json). 원문/정상PDF의커밋바이트는 동일합니다. PDF384/현재385쪽, 기존부록/말미0%와 이번Native272쪽84.03568%로 전체피델리티가 부적격입니다. 추가294/295/296쪽은97.17009/96.20827/97.61333%입니다. 272·294review 및296standalone overlay를 직접판독했습니다. 일부높은값으로전체통과를선언하지않습니다.
+- 단독3PASS/2FAIL입니다. Q27/Q29/Q30의 물리쪽단정과 이후전체쪽수3전제는 하나씩 실제FAIL을실행해확인했습니다. #3930의0기반293(물리294)에 Q27/Q29가 있어야한다는 요구와달리현재/PDF294에는 Q22/Q23이 있고296에는Q27/Q29가 있습니다. [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5883936903) 후 쪽수전용#5801 한함수 및혼합#3930의실패6단정만 제거했습니다. 현재숫자로 기준을갱신하지않았습니다.
+- 기존정상3함수본문은동일합니다. #3930의이전통과배치·p144셀넘침·저장전후13쪽tree동일성·SectionDef0/19·Odd슬롯/짝수상속·BorderFill·그림extra/밝기/대비도최종실행PASS로 유지했습니다. 원문/PDF·다른입력/축 및차단하지않는HWPX oracle원장행은 그대로입니다.
+- 최종집중4PASS/0FAIL·필수fmt/Clippy3/workspacebuild/고정base manifest·unit 정책7단계exit0입니다. 처음파생suite를준비하지않은진단0tests/exit4는보존하고통과로세지않았으며 prepare뒤정상 재실행했습니다. 생산변경·새함수·공차완화없음. 전체137의60FAIL 중27곳 처리이며나머지33개는개별검토대상입니다. 최종전체/PR준비 미완료입니다.
+- 로그/시각: `output/pr-review/planet6897-7382-20260926/stage146-handbook-hwpx-owner/`. 이번선택4쪽Native증거이며freshWASM 미실행입니다.
+
+![편람 HWPX272쪽 review](../assets/issue7445/handbook_hwpx_owner_native_review_272.png)
+![편람 HWPX294쪽 review](../assets/issue7445/handbook_hwpx_owner_native_review_294.png)
+![편람 HWPX296쪽 overlay](../assets/issue7445/handbook_hwpx_owner_native_overlay_296.png)

@@ -500,3 +500,12 @@ HWPX oracle는 격차가 개선되어 실제차단이 아니므로 원장행을 
 ## 편람 HWP: #3930 전체쪽수 전제 — 보정145
 
 [실패·독립시각·명령](handbook_hwp_page_pin_blocking_scope_validation.json). 실제실패384쪽 전제 한곳만 이관하고 같은함수의 Q8 표제검사 및다른HWPX/바탕쪽/IR/원문/PDF는 보존했습니다. 유지1PASS/0FAIL·필수lint/정책통과이며 전체피델리티 복원은 후속입니다.
+
+
+## 편람 HWPX: #5801/#3930 실제 차단 — 보정146
+
+[실패·독립시각·제거/보존·명령](handbook_hwpx_owner_blocking_scope_validation.json). 쪽수전용1함수 및혼합함수의실패6단정만 이관했습니다. 정상3본문·저장전후13쪽tree·바탕쪽·그림IR·원문/PDF/다른축은 보존했습니다. 최종4PASS/0FAIL·필수lint/정책통과이며 정상384/현재385쪽과 부록/말미의 전체피델리티는 후속입니다.
+
+![272쪽 review](handbook_hwpx_owner_native_review_272.png)
+![294쪽 review](handbook_hwpx_owner_native_review_294.png)
+![296쪽 overlay](handbook_hwpx_owner_native_overlay_296.png)
