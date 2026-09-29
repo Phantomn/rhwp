@@ -32,7 +32,7 @@ def wrap_rustc(args):
     dest = Path(os.environ['RHWP_PHASE_SAMPLE'])
     original = list(args)
     if os.environ.get('RHWP_PHASE_DIAGNOSTIC') == '1':
-        args += ['-Ztime-passes', '-Zunstable-options', '-Clinker=' + str(OUT/'linker'), '-Clinker-flavor=wasm-lld']
+        args += ['-Ztime-passes', '-Zunstable-options', '-Csymbol-mangling-version=legacy', '-Clinker=' + str(OUT/'linker'), '-Clinker-flavor=wasm-lld']
     env = dict(os.environ)
     if os.environ.get('RHWP_PHASE_DIAGNOSTIC') == '1':
         env['RUSTC_BOOTSTRAP'] = '1'
@@ -127,7 +127,7 @@ def main():
         modes=['dual',candidate,candidate,'dual'] if args.order=='abba' else [candidate,'dual','dual',candidate]
         for i,mode in enumerate(modes):
             # First two diagnostic / last two plain; equal marker for A/B comparison.
-            measure(f'{i+1}-{mode}',i<2,mode,str(i//2),source)
+            measure(f'{i+1}-{mode}',i<2,mode,'1',source)
     finally:
         src.write_text(source)
     assert subprocess.call(['git', 'diff', '--exit-code', '--', 'src/lib.rs', 'Cargo.lock', 'Cargo.toml']) == 0

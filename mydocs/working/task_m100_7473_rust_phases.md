@@ -22,3 +22,11 @@ PR #7474는 Draft/head 그대로 둔다. 이 브랜치는 production 병합 후�
 현행 dual WASM의 **실효 cross-crate LTO 없음**을 고정한다. opt-level=3/CGU=1/wasm-opt 조건은 유지한다.
 이는 nominal release 설정을 문자 그대로 유지하는 안과 구분한다. manifest를 전역 변경하거나
 Native release LTO를 끄는 안은 아니다. 실제 옵션·속도·최종 산출물과 계약 차이를 공개한 뒤 채택 가능성을 판단한다.
+
+## 계측 교란 보정
+
+첫 계측에서 BOOTSTRAP에 의해 root 심볼 이름이 v0가 된 것을 raw WASM name section으로 확인했다.
+첫 실행의 비계측 성능 대조는 유효하지만 계측 수치는 참고값으로 둔다.
+후속 run 36514395974는 진행 중 취소하고, 계측에 `-Csymbol-mangling-version=legacy`를 명시한다.
+이후 계측/비계측은 모두 같은 실제 수정 소스(marker 1)로 비교해 raw WASM hash 일치 여부도 검사한다.
+비계측에는 BOOTSTRAP이나 진단/이름형식 override를 추가하지 않는다.
