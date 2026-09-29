@@ -509,3 +509,11 @@ HWPX oracle는 격차가 개선되어 실제차단이 아니므로 원장행을 
 ![272쪽 review](handbook_hwpx_owner_native_review_272.png)
 ![294쪽 review](handbook_hwpx_owner_native_review_294.png)
 ![296쪽 overlay](handbook_hwpx_owner_native_overlay_296.png)
+
+
+## 배포용 HWPX #7160: 실제 차단2함수 — 보정147
+
+[원문](../../../../samples/task1768/distribution_doc.hwpx), [한컴3쪽 기준](../../../../pdf/distribution_doc-2024.pdf), [전체시각·실패·범위·명령](distribution7160_blocking_scope_validation.json). 전체Native최저60.66529%이므로실제실패두배치함수만이관했습니다. 정상4본문·원문/PDF·다른입력/축은유지4PASS/0FAIL·필수lint/정책통과입니다. 전체피델리티·두배치계약복원은후속입니다.
+
+![3쪽 review](distribution7160_native_review_003.png)
+![3쪽 overlay](distribution7160_native_overlay_003.png)

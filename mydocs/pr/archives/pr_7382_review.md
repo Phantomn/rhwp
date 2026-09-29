@@ -2636,3 +2636,14 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![편람 HWPX272쪽 review](../assets/issue7445/handbook_hwpx_owner_native_review_272.png)
 ![편람 HWPX294쪽 review](../assets/issue7445/handbook_hwpx_owner_native_review_294.png)
 ![편람 HWPX296쪽 overlay](../assets/issue7445/handbook_hwpx_owner_native_overlay_296.png)
+
+
+## 보정147 사전 분석·결과 — 배포용 HWPX의 실제 차단2함수만 이관
+
+- 사전 head `9f1d8886d`, 코드 `c13a8021a5b411184aff76a9eca28dfd07f6e9f9`. [원문·독립시각·실패·범위·명령](../assets/issue7445/distribution7160_blocking_scope_validation.json). 동일원문/PDF 커밋바이트를확인하고현재고정Native 전체3쪽을새로비교했습니다. 1/2/3쪽95.31683/89.38903/60.66529%로최저90미만입니다. 3쪽review를직접판독해표위단위문구가표아래로내려가고표원점이위/왼쪽으로옮겨진것을확인했습니다. 전체3/3출력완료 뒤exit1은gate미달입니다.
+- 단독4PASS/2FAIL입니다. [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5884037641) 후실제실패한줄소유/표왼쪽원점 두함수만제거했습니다. 말미공백·단위문구가로위치·같은줄표·소제목과목록소유의기존정상4본문은byte단위동일하며원문/PDF·모든다른입력·축도유지했습니다. 생산변경·새함수·현재값재고정없음.
+- 유지4PASS/0FAIL·필수fmt/Clippy3/workspacebuild/고정base manifest·unit 정책7단계exit0입니다. 전체137의60FAIL 중29곳처리며나머지31개는개별검토대상입니다. 최종전체회귀/PR준비 완료가아닙니다.
+- 비교/로그: `output/pr-review/planet6897-7382-20260926/stage147-distribution7160/`. pdftotext bbox가exit-6으로문항marker분석만생략했으며raster/review/overlay3/3은정상완료했습니다. 이번freshWASM은미실행입니다.
+
+![배포용 HWPX3쪽 review](../assets/issue7445/distribution7160_native_review_003.png)
+![배포용 HWPX3쪽 overlay](../assets/issue7445/distribution7160_native_overlay_003.png)
