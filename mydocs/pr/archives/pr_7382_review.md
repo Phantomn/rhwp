@@ -2659,3 +2659,14 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![저슬랙1쪽 review](../assets/issue7445/low_slack6535_native_review_001.png)
 ![저슬랙1쪽 overlay](../assets/issue7445/low_slack6535_native_overlay_001.png)
+
+
+## 보정149 사전 분석·결과 — #7288 잘못된 조회쪽만 독립 PDF로 교정
+
+- 사전 head `94411a3de`, 코드 `38830266cfa0206bcd1b8ca55630076cb7a4a07a`. [독립쪽/좌표·실패·시각·범위·명령](../assets/pr7382_20260926/stage149_stale_frame_validation.json). 원문HWP/기준PDF는현재커밋바이트와같으며정상/현재모두242쪽입니다. Native영향63/64/65쪽99.8046/99.99042/99.97124%이고freshWASM도같습니다. 선택3쪽모두90이상이며Native63review·WASM63standalone overlay를직접판독해표외곽·뒤본문·누락/줄바꿈을확인했습니다. 글자획/굵기잔여차이가있으므로픽셀완전일치를주장하지않습니다.
+- 단독1PASS/1FAIL은대상문단을못찾은검사설정오류입니다. 독립PDF의주)대각선문단은물리63쪽에있고64쪽에는없습니다. 현재Native63쪽문단1374첫줄364.1px와PDF첫글자상단272.893677pt=363.858236px는기존저장기대364.12px에맞습니다. 기존PAGE=63(물리64쪽)을62(물리63쪽)로만교정했습니다. 기대좌표·공차1px·문단번호·본문넘침상한2px·두함수본문은그대로입니다.
+- 유지2PASS/0FAIL·필수fmt/Clippy3/workspacebuild/고정base manifest·unit 정책7단계exit0입니다. 생산변경·새함수·허용치완화·#7445검사제거없음. 전체137의60FAIL 중32곳처리며나머지28개는개별검토대상입니다. 최종전체회귀/PR준비완료가아닙니다.
+- freshWASM은루트에서공유target/pr-review를써새로빌드한no-opt로컬대체입니다. rootpkg/Studio의JS/WASM SHA동일성을확인했고새WASM은기존생산동일패키지SHA와같습니다. Docker최적화빌드통과로보고하지않습니다. 비교/로그: `output/pr-review/planet6897-7382-20260926/stage149-stale-frame7288/`. 전체242쪽시각일치를주장하지않습니다.
+
+![#7288 물리63쪽 Native review](../assets/pr7382_20260926/stage149_stale_frame_native_review_063.png)
+![#7288 물리63쪽 fresh WASM overlay](../assets/pr7382_20260926/stage149_stale_frame_wasm_overlay_063.png)
