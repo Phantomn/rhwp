@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 8,
-  "remaining": 18,
+  "completed": 9,
+  "remaining": 17,
   "items": [
     {
       "index": 1,
@@ -65,8 +65,8 @@
       "index": 10,
       "test": "body_overflow_baseline::body_overflow_does_not_grow_partition_11",
       "case": "body_overflow_baseline",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 현 브랜치 작은10쪽 저장 경계·TAC 원점·실제 글꼴 공급 보정·Native/freshWASM 전10쪽 최저91.53858%·본문 아래 넘침0",
+      "evidence": "stage166_body11_validation.json"
     },
     {
       "index": 11,
@@ -186,6 +186,13 @@
       "case": "issue_6078_inline_table_seg_lookup",
       "status": "개별검토대기",
       "evidence": null
+    }
+  ],
+  "prior_handled_recheck": [
+    {
+      "test": "issue_1749_saved_bounds_page_break::issue_1811_hwpx_pi52_rowbreak_cut_matches_hwp_reference",
+      "status": "기존 HWP end_cut=[3] 검사에서 [2]로 실패. 보정166 전후 전체 페이지 덤프 동일. 검사 보존·현재 브랜치에서 별도 재검토.",
+      "evidence": "stage166_body11_validation.json"
     }
   ]
 }
