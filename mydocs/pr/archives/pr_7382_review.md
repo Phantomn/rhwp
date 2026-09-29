@@ -2616,3 +2616,10 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 사전 head `9ae787bb9`, 코드 `00f0aa74ebca0e04a8c59de4b9469c3fb7666a87`. [독립 근거·실패·범위·명령](../assets/issue7445/policy_caption_page_pin_blocking_scope_validation.json). 보정136과 같은 원문/PDF의 커밋 바이트를 확인하고11쪽 review를 다시 직접 판독했습니다. 11쪽46.45331%이며 그림6·뒤본문·각주가 누락됩니다. 전체215/현재216쪽입니다.
 - 단독 실행5PASS/1FAIL이며 그림5 셀2개/행높이/캡션267.621053px는 이미 통과했습니다. [#7445 추가등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5883869473) 후 마지막 전체215쪽 단정 한곳만 제거했습니다. 같은 함수의 그림·캡션 및 다른5개 공개4쪽 입력 검사·원문/PDF·모든 다른입력/축을 보존했습니다. 216으로 재고정하거나 렌더러를 보정하지 않았습니다.
 - 유지6PASS/0FAIL, 필수fmt/Clippy3/workspacebuild/고정base manifest·unit 정책7단계exit0. 전체137의60FAIL 중24곳 처리이며 나머지36개는 개별검토 대상입니다. 최신 전체통과·PR준비 완료가 아닙니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage144-policy-caption-page-pin/`입니다. 이번 fresh WASM 미실행입니다.
+
+
+## 보정145 사전 분석·결과 — 편람 HWP의 #3930 쪽수전제 한곳만 이관
+
+- 사전 head `9879dd922`, 코드 `b7551d228c36d6fdef4b3287bfb1edf4af6c6e2c`. [실패·독립근거·범위·명령](../assets/issue7445/handbook_hwp_page_pin_blocking_scope_validation.json). 동일 원문/기준PDF의 커밋 바이트를 확인하고 기존312쪽 review를 직접 다시 판독했습니다. 정상384/현재383쪽이며 선택Native 최저6.48027%입니다. 부록의 물리쪽 소속 차이가 있습니다.
+- 단독1FAIL은 Q8 표제 검사 통과 뒤 마지막384쪽 전제에서 발생했습니다. [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5883899549) 후 전제한곳만 제거해 같은함수의Q8검사를 유지했고 다른HWPX·바탕쪽·IR 및원문/PDF/모든다른입력·축도 유지했습니다. 현재383으로 재고정하지 않았습니다.
+- 유지1PASS/0FAIL·필수fmt/Clippy3/workspacebuild/고정base manifest·unit 정책7단계exit0입니다. 생산변경·새함수·공차완화없음. 전체137의60FAIL 중25곳 처리이며 나머지35개는개별검토대상입니다. 최종전체/PR준비 미완료이며 이번 freshWASM 미실행입니다. 로그: `output/pr-review/planet6897-7382-20260926/stage145-handbook-hwp-page-pin/`.

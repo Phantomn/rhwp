@@ -495,3 +495,8 @@ HWPX oracle는 격차가 개선되어 실제차단이 아니므로 원장행을 
 ## 정책연구 HWPX: #6312 전체쪽수 전제 — 보정144
 
 [실패·독립 시각·보존·명령](policy_caption_page_pin_blocking_scope_validation.json). 기존 그림5 검사에서 마지막215쪽 전제만 실패했습니다. 같은 원문11쪽46.45331%이므로 전제한곳만 이관했고, 그림5·공개4쪽 대조군·원문/PDF를 유지했습니다. 유지6PASS/0FAIL·필수lint/정책 통과입니다. 전체 피델리티·전체쪽수 계약 복원은 후속입니다.
+
+
+## 편람 HWP: #3930 전체쪽수 전제 — 보정145
+
+[실패·독립시각·명령](handbook_hwp_page_pin_blocking_scope_validation.json). 실제실패384쪽 전제 한곳만 이관하고 같은함수의 Q8 표제검사 및다른HWPX/바탕쪽/IR/원문/PDF는 보존했습니다. 유지1PASS/0FAIL·필수lint/정책통과이며 전체피델리티 복원은 후속입니다.
