@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 9,
-  "remaining": 17,
+  "completed": 10,
+  "remaining": 16,
   "items": [
     {
       "index": 1,
@@ -170,8 +170,8 @@
       "index": 25,
       "test": "issue_7196_page_top_spacing_trim_restore::issue_7196_attachment_table_starts_next_page_without_body_overflow",
       "case": "issue_7196_page_top_spacing_trim_restore",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 보정166으로 첨부 기존 실패 해소·기존 두 함수 유지하며10쪽/9쪽 소속·앞뒤 문장·원문 TAC 여백 관계·전쪽 점유 검증3PASS",
+      "evidence": "stage167_attachment_validation.json"
     },
     {
       "index": 26,
