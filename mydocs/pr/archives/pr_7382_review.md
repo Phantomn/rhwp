@@ -2766,3 +2766,13 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![시험지2쪽 최종 fresh WASM overlay](../assets/pr7382_20260926/stage157_wasm_overlay_002.png)
 ![시험지3쪽 최종 Native review](../assets/pr7382_20260926/stage157_native_review_003.png)
 ![시험지4쪽 최종 Native review](../assets/pr7382_20260926/stage157_native_review_004.png)
+
+
+## 보정158 — CGMP 평가표의 실제 차단 셀 넘침 입력만 이관
+
+- 코드 `0e02483d2aec01174b6fe07a1754b399a6ac2350`, [원인·정상 PDF·명령·범위·결과](../assets/issue7445/cgmp6035_cell_blocking_scope_validation.json). `build_page_render_tree → take_overflow_cell_lines → 신규 원장 판정`의 신규7줄을 현재 head에서도 단독 재현했습니다. 같은 원문을 저장제품2022에 맞는 engine2020으로 정상 출력한 PDF48쪽/rhwp50쪽입니다. 원문/PDF는 커밋했고 PDF의 신청서 앞/뒷면44/45쪽과 rhwp46쪽의 소속이 다르며 뒤내용이 쪽 밖으로 나감을 직접 확인했습니다.
+- Native/freshWASM1/44/45/46/47/48쪽 각6개 compare/overlay/review 완료·exit1(gate 실패), 최저0%입니다. Native46쪽1.39325%/WASM46쪽1.36340%, 직접 review/standalone overlay로 판독했습니다. 전체50쪽 시각 통과로 쓰지 않습니다. [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5886337869) 후 이 입력의 셀 넘침 assertion만 보류했습니다. 수집·분할과 관측은 유지해 다른입력 소속을 바꾸지 않았고, 같은문서 정상2함수·다른원장·원문·baseline/공차·기존16분할을 유지했습니다. 새함수/생산변경0입니다.
+- 수정 후 해당분할1+정상2함수 **3PASS/0FAIL**, fmt/diff check 완료입니다. 필수lint 묶음은 남은 개별 보정 뒤 최종head에서 수행 예정이며 지금 PASS로 세지 않습니다. 원래60개 중35개 처리/25개 검토 대기입니다. [현재26개 진행 원장](../assets/pr7382_20260926/remaining26_validation_progress.json). 최종전체/통합PR 준비 미완료. 로그는 `output/pr-review/planet6897-7382-20260926/stage158-cell6035/`입니다.
+
+![CGMP 셀넘침 Native46쪽 review](../assets/issue7445/cgmp6035_cell_native_review_046.png)
+![CGMP 셀넘침 freshWASM46쪽 overlay](../assets/issue7445/cgmp6035_cell_wasm_overlay_046.png)

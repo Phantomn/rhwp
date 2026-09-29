@@ -1,0 +1,191 @@
+{
+  "started_head": "ecdde0050",
+  "origin_stage": 156,
+  "total": 26,
+  "completed": 1,
+  "remaining": 25,
+  "items": [
+    {
+      "index": 1,
+      "test": "overflow_cell_lines_do_not_grow_partition_9",
+      "case": "overflow_cell_baseline",
+      "status": "완료: 실제 실패 원장의 해당 입력만 #7445 이관",
+      "evidence": "../issue7445/cgmp6035_cell_blocking_scope_validation.json"
+    },
+    {
+      "index": 2,
+      "test": "overflow_cell_lines_do_not_grow_partition_8",
+      "case": "overflow_cell_baseline",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 4,
+      "test": "issue_6697_cell_host_paragraph_text_is_drawn::cell_host_paragraph_caption_is_drawn_on_its_page",
+      "case": "issue_6697_cell_host_paragraph_text_is_drawn",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 5,
+      "test": "issue_7358_terminal_rowbreak_outer_top::terminal_rowbreak_continuation_repeats_saved_outer_top",
+      "case": "issue_7358_terminal_rowbreak_outer_top",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 6,
+      "test": "issue_2243::issue_2243_gyeoljae_sliver_page_pins",
+      "case": "issue_2243",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 7,
+      "test": "stored_table_text_tail::hancom_saved_object_row_keeps_its_character_border",
+      "case": "stored_table_text_tail",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 8,
+      "test": "stored_table_text_tail::hancom_saved_tail_preserves_pdf_baseline_after_the_table",
+      "case": "stored_table_text_tail",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 9,
+      "test": "stored_table_text_tail::one_paragraph_keeps_one_border_across_table_and_text_items",
+      "case": "stored_table_text_tail",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 10,
+      "test": "body_overflow_baseline::body_overflow_does_not_grow_partition_11",
+      "case": "body_overflow_baseline",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 11,
+      "test": "body_overflow_baseline::body_overflow_does_not_grow_partition_5",
+      "case": "body_overflow_baseline",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 12,
+      "test": "body_overflow_baseline::body_overflow_does_not_grow_partition_7",
+      "case": "body_overflow_baseline",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 13,
+      "test": "issue_6145_squeeze_cell_keeps_inner_margin::squeeze_cell_line_width_tracks_the_stored_inner_width",
+      "case": "issue_6145_squeeze_cell_keeps_inner_margin",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 14,
+      "test": "issue_6145_squeeze_cell_keeps_inner_margin::squeeze_cell_text_starts_inside_the_declared_inner_margin",
+      "case": "issue_6145_squeeze_cell_keeps_inner_margin",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 15,
+      "test": "issue_6032_rewind_anchor_float_snap::issue_6032_rewound_empty_anchor_table_snaps_to_saved_vpos",
+      "case": "issue_6032_rewind_anchor_float_snap",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 16,
+      "test": "issue_1133_native_rowbreak_outer_margin::hwpx_captionless_rowbreak_keeps_independent_frame_origins",
+      "case": "issue_1133_native_rowbreak_outer_margin",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 17,
+      "test": "body_overflow_baseline::body_overflow_does_not_grow_partition_10",
+      "case": "body_overflow_baseline",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 18,
+      "test": "stored_nested_content_flow::nested_cell_alignment_uses_the_sequential_anchor_when_stored_positions_reset",
+      "case": "stored_nested_content_flow",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 19,
+      "test": "svg_snapshot::issue_157_page_1",
+      "case": "svg_snapshot",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 20,
+      "test": "svg_snapshot::form_002_page_0",
+      "case": "svg_snapshot",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 21,
+      "test": "svg_snapshot::issue_267_ktx_toc_page",
+      "case": "svg_snapshot",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 22,
+      "test": "svg_snapshot::issue_147_aift_page3",
+      "case": "svg_snapshot",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 23,
+      "test": "svg_snapshot::issue_617_exam_kor_page5",
+      "case": "svg_snapshot",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 24,
+      "test": "issue_1772_table_outer_margin_sync::issue_1772_body_first_line_respects_table_outer_margin_bottom",
+      "case": "issue_1772_table_outer_margin_sync",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 25,
+      "test": "issue_7196_page_top_spacing_trim_restore::issue_7196_attachment_table_starts_next_page_without_body_overflow",
+      "case": "issue_7196_page_top_spacing_trim_restore",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 26,
+      "test": "issue_3308_nested_table_width::narrow_nested_table_keeps_declared_width_and_centers",
+      "case": "issue_3308_nested_table_width",
+      "status": "개별검토대기",
+      "evidence": null
+    },
+    {
+      "index": 27,
+      "test": "issue_6078_inline_table_seg_lookup::issue_6078_paper_spec_line_stays_inside_the_page",
+      "case": "issue_6078_inline_table_seg_lookup",
+      "status": "개별검토대기",
+      "evidence": null
+    }
+  ]
+}
