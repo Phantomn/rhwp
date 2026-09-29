@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 7,
-  "remaining": 19,
+  "completed": 8,
+  "remaining": 18,
   "items": [
     {
       "index": 1,
@@ -58,8 +58,8 @@
       "index": 9,
       "test": "stored_table_text_tail::one_paragraph_keeps_one_border_across_table_and_text_items",
       "case": "stored_table_text_tail",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 보정163으로 기존 FAIL 해소·같은 문단 항목의 단일 외곽 소유 계약 교정·기존12PASS",
+      "evidence": "stage165_tail_outline_validation.json"
     },
     {
       "index": 10,
