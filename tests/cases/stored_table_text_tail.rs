@@ -467,18 +467,55 @@ fn empty_saved_paragraph_keeps_its_physical_border() {
 
 #[test]
 fn one_paragraph_keeps_one_border_across_table_and_text_items() {
-    let nodes = saved_fixture_nodes();
-    // One paragraph split into text/table/text page items remains one outline,
-    // even with border_connect=false (that flag connects different paragraphs).
-    assert!(
-        nodes
-            .iter()
-            .any(|n| matches!(n.node_type, RenderNodeType::Rectangle(_))
-                && (n.bbox.x - 48.0).abs() < 0.5
-                && (n.bbox.width - 384.0).abs() < 0.5
-                && (n.bbox.y - 127.175).abs() < 0.5
-                && (n.bbox.y + n.bbox.height - 365.687).abs() < 0.5),
-        "same-paragraph fragments must keep one paragraph outline"
+    let mut core = DocumentCore::from_bytes(FIXTURE).expect("한컴 저장본");
+    let host = &core.document().sections[0].paragraphs[1];
+    let shape = &core.document().doc_info.para_shapes[host.para_shape_id as usize];
+    assert_eq!(
+        shape.attr1 & (1 << 28),
+        0,
+        "문단 간 테두리 연결이 꺼진 입력"
+    );
+    assert_eq!(core.page_count(), 1);
+    let pages = core.dump_page_items_json(Some(0));
+    let items = pages[0]["columns"][0]["items"]
+        .as_array()
+        .expect("본문 항목");
+    let kinds: Vec<_> = items
+        .iter()
+        .filter(|item| item["paraIndex"] == 1)
+        .map(|item| item["kind"].as_str().expect("항목 종류"))
+        .collect();
+    assert_eq!(
+        kinds,
+        ["partialParagraph", "table", "partialParagraph"],
+        "같은 문단의 실제 텍스트/표/뒤 텍스트 경로를 실행해야 함"
+    );
+    let tree = core.build_page_render_tree(0).expect("render");
+    let mut nodes = Vec::new();
+    collect(&tree.root, &mut nodes);
+    let tables: Vec<_> = nodes
+        .iter()
+        .filter(|node| matches!(node.node_type, RenderNodeType::Table { .. }))
+        .collect();
+    assert_eq!(tables.len(), 1);
+    let table = tables[0].bbox;
+    let footer = text(&nodes, "          Footer");
+    // 연결 속성은 서로 다른 문단의 경계를 잇는다. 같은 문단의 항목 분할은
+    // 테두리를 복제하지 않으며 앞 공백 줄·표·뒤 문장을 한 외곽이 소유한다.
+    let outlines: Vec<_> = nodes
+        .iter()
+        .filter(|node| {
+            matches!(node.node_type, RenderNodeType::Rectangle(_))
+                && node.bbox.x <= table.x
+                && node.bbox.x + node.bbox.width >= table.x + table.width
+                && node.bbox.y < table.y
+                && node.bbox.y + node.bbox.height >= footer.y + footer.height
+        })
+        .collect();
+    assert_eq!(
+        outlines.len(),
+        1,
+        "같은 문단의 표와 뒤 문장을 소유하는 외곽은 하나"
     );
 }
 
