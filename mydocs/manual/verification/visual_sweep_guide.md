@@ -2,7 +2,7 @@
 kind: guide
 status: active
 canonical: mydocs/manual/verification/visual_verification_governance.md
-last_verified: 2026-09-24
+last_verified: 2026-09-29
 ---
 
 # PDF/SVG visual sweep 가이드
@@ -259,6 +259,13 @@ webfont projection에서 SVG에 실제로 나타난 family만 선택해 `@font-f
 로그와 run manifest에 선택한 rasterizer 및 Git HEAD가 남으므로, PR 판정에는 실행 OS와
 `webfont` 경로 사용 여부를 함께 기록한다. 한컴/HY 전용 실폰트의 glyph 형태까지 동일하다는
 증명은 아니며, 그러한 결론에는 한컴 PDF와 OVL 또는 개체 단위 대조가 추가로 필요하다.
+
+전체 글꼴을 포함한 대형 SVG에서 `Navigation timeout of 30000 ms exceeded`가 발생하면
+`RHWP_VISUAL_RASTER_TIMEOUT_MS=180000`을 sweep 명령 앞에 지정할 수 있다. 기본값은
+30000ms이며 양의 정수만 허용한다. Chrome 실행·프로토콜·페이지 로딩의 대기 한도만
+조절하며, DOM load·`document.fonts.ready`·screenshot 완료와 기존 글꼴·좌표·viewport는
+그대로 확인한다. 타임아웃 실행은 PNG가 만들어지지 않았다면 미완료로 남기고, 새 실행의
+명령·환경변수·실제 완료 결과를 기록한다. 대기 한도 변경으로 시각 gate를 면제하지 않는다.
 
 하단선이나 도형이 누락된 경우 SVG의 요소 좌표와 조상 clip을 먼저 확인한다. SVG에는
 페이지 안에 존재하는데 PNG의 동일 높이 이하가 통째로 비면 renderer 결함으로 확정하지

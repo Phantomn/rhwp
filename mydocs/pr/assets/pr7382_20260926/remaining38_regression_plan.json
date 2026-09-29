@@ -2435,5 +2435,19 @@
     "next_failed_document": "missing-face layoutHash",
     "minimum_native_percent": 88.61634,
     "production_changed": false
+  },
+  "latest_wmf_vector_mask_scope": {
+    "stage": 152,
+    "code_commit": "c3f748325f9ebe7f1d774d378f4159ae1226ae20",
+    "evidence": "stage152_wmf_vector_mask_validation.json",
+    "production_changed": true,
+    "new_test_functions": 0,
+    "focused_passed": 18,
+    "focused_failed": 0,
+    "native_wasm_page1": 99.82783,
+    "whole_chart_region": 98.93048,
+    "current_full_native": "running",
+    "original_stage137_reviewed": 32,
+    "original_stage137_pending_review": 28
   }
 }

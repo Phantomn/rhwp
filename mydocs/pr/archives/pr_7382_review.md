@@ -2682,3 +2682,17 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![폰트 추적 공개 HWP1쪽 review](../assets/issue7445/fonttrace4961_native_review_001.png)
 ![폰트 추적 공개 HWP1쪽 overlay](../assets/issue7445/fonttrace4961_native_overlay_001.png)
+
+
+## 보정151 분석·보정152 결과 — 붉은 면으로 덮인 WMF 그림 복원
+
+- 사용자께서 확인한 `CLP000030900001.wmf`(원본 속성541×311px)는 월간 수출입 보도자료의 그림입니다. 같은 HWP `BinData/BIN0003.wmf` 원본92,032바이트를 추출했습니다. [원인·명령·입력/PDF/WMF·전후증거](../assets/pr7382_20260926/stage152_wmf_vector_mask_validation.json). 코드 `c3f748325f9ebe7f1d774d378f4159ae1226ae20`. OLE 차트 종류를 바꾸지 않고 실제 WMF 재생 경로를 수정했습니다.
+- 원본의510/523번 PATINVERT가 각각붉은사각형으로출력되어517번마스크윤곽을덮었습니다. 독립 MS-WMF 규칙 `(D xor P) and M xor P`는 흰마스크에서배경D, 검은마스크에서원래색P입니다. `poly_polygon → R2_MASKPEN/흑백팔레트/동일clip·영역 → 마지막동일XOR → finish`로연결하며완성된쌍만역마스크윤곽으로합성합니다. 문서ID/특정좌표예외는없습니다.
+- 기존 #6865함수에 이 그림의원본바이트와다색팔레트/마지막XOR변경반례를연결했습니다. 함수추가0, 기존15함수유지. 정상 #6469·WMF/EMF golden도포함해수정전17PASS/1FAIL(그림마스크누락), 수정후18PASS/0FAIL입니다. 기대golden/공차는변경하지않았습니다. 필수fmt·Clippy3·workspacebuild·고정base manifest/unit정책7단계exit0입니다.
+- 새한컴PDF19쪽을같이커밋했습니다. 영향1쪽 Native/freshWASM은둘다99.82783%, 그림전체영역은43.17549→98.93048%입니다. Native review와freshWASM standaloneoverlay/그림PNG를직접읽어붉은꺾은선·범례와배경복원을확인했습니다. 다른글꼴/잉크굵기의작은차이는남깁니다. root freshWASM --no-opt/Studio동기화SHA도확인했으며Docker최적화빌드로보고하지않습니다.
+- 전체글꼴SVG가380MB여서초기2회는브라우저navigation30초제한으로PNG0장/미완료였습니다. 대기한도만 `RHWP_VISUAL_RASTER_TIMEOUT_MS=180000`으로설정해정상재실행했습니다. 글꼴/좌표/viewport/실제load·fontready·screenshot조건은같습니다. 진단73.85초·canonical Native/freshWASMexit0을구분해보존했습니다.
+- 수정후전체19쪽Native는계속실행중이며완료판정하지않습니다. 보정151의이전전체19쪽최저73.34034%를최종head통과로재사용하지않습니다. #4961 다른문서hash와전체137의남은28개개별검토/최종전체회귀/원PR시각게이트는미완료이며통합PR준비보류입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage152-wmf-vector-mask/`에만둡니다.
+
+![WMF 그림복원 Native1쪽 review](../assets/pr7382_20260926/stage152_wmf_native_review_001.png)
+![WMF 그림복원 fresh WASM1쪽 overlay](../assets/pr7382_20260926/stage152_wmf_wasm_overlay_001.png)
+![복원된 WMF 꺾은선 그림](../assets/pr7382_20260926/stage152_wmf_curve.png)
