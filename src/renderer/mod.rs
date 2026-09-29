@@ -2390,6 +2390,8 @@ pub enum NumberFormat {
     LatinLower,
     /// 한글 가나다: 가, 나, 다
     HangulGaNaDa,
+    /// 한글 자모: ㄱ, ㄴ, ㄷ
+    HangulJamo,
     /// 한글 일이삼: 일, 이, 삼
     HangulNumber,
     /// 한자 一二三: 一, 二, 三
@@ -2424,6 +2426,16 @@ pub fn format_number(number: u16, format: NumberFormat) -> String {
         NumberFormat::LatinUpper => format_latin(number, true),
         NumberFormat::LatinLower => format_latin(number, false),
         NumberFormat::HangulGaNaDa => format_hangul_ganada(number),
+        NumberFormat::HangulJamo => {
+            const JAMO: [char; 14] = [
+                'ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ',
+            ];
+            number
+                .checked_sub(1)
+                .and_then(|index| JAMO.get(index as usize))
+                .map(char::to_string)
+                .unwrap_or_else(|| number.to_string())
+        }
         NumberFormat::HangulNumber => format_hangul_number(number),
         NumberFormat::HanjaNumber => format_hanja_number(number),
     }
@@ -3431,6 +3443,9 @@ mod tests {
 
     #[test]
     fn test_format_number_hangul() {
+        for (number, expected) in [(1, "ㄱ"), (2, "ㄴ"), (4, "ㄹ"), (14, "ㅎ")] {
+            assert_eq!(format_number(number, NumberFormat::HangulJamo), expected);
+        }
         assert_eq!(format_number(1, NumberFormat::HangulGaNaDa), "가");
         assert_eq!(format_number(2, NumberFormat::HangulGaNaDa), "나");
         assert_eq!(format_number(1, NumberFormat::HangulNumber), "일");

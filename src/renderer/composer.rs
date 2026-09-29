@@ -571,7 +571,7 @@ pub(crate) fn owned_rowbreak_tac_height(para: &Paragraph, control_index: usize) 
     (i64::from(seg.line_height) >= i64::from(table.common.height)).then_some(seg.line_height)
 }
 
-/// 저장된 서로 다른 물리 줄을 소유한 빈 carrier TAC 표의 흐름.
+/// 저장된 서로 다른 물리 줄을 소유한 빈/공백 캐리어 TAC 표의 흐름.
 /// top/end는 첫 저장 줄 원점 기준 HU이며, 테두리가 아닌 바깥여백 포함 pen이다.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct StoredTacLine {
@@ -582,7 +582,12 @@ pub(crate) struct StoredTacLine {
 }
 
 pub(crate) fn stored_tac_lines(para: &Paragraph) -> Option<Vec<StoredTacLine>> {
-    para.empty_control_stream_position(0)?;
+    // 공백도 자기 저장 줄을 가질 수 있다. 표 앞 공백 줄의 line_height에는
+    // 문단의 최대 개체 높이가 반복 저장되므로 text_height와 다음 원점을 확인한다.
+    let whitespace_carrier = !para.text.is_empty() && para.text.chars().all(char::is_whitespace);
+    if !whitespace_carrier {
+        para.empty_control_stream_position(0)?;
+    }
     if para.stored_text_partition_dirty
         || para
             .line_segs
@@ -616,6 +621,26 @@ pub(crate) fn stored_tac_lines(para: &Paragraph) -> Option<Vec<StoredTacLine>> {
         {
             return None;
         }
+        if whitespace_carrier
+            && (table.caption.is_some()
+                || owner == 0
+                || para.line_segs[..owner]
+                    .iter()
+                    .any(|blank| blank.text_height <= 0 || blank.line_spacing < 0)
+                || i64::from(seg.text_height) != outer_height
+                || para.line_segs[..owner].windows(2).any(|pair| {
+                    i64::from(pair[0].vertical_pos)
+                        + i64::from(pair[0].text_height)
+                        + i64::from(pair[0].line_spacing)
+                        != i64::from(pair[1].vertical_pos)
+                })
+                || i64::from(para.line_segs[owner - 1].vertical_pos)
+                    + i64::from(para.line_segs[owner - 1].text_height)
+                    + i64::from(para.line_segs[owner - 1].line_spacing)
+                    != i64::from(seg.vertical_pos))
+        {
+            return None;
+        }
         let top = seg.vertical_pos.checked_sub(origin)?;
         if lines
             .last()
@@ -636,7 +661,13 @@ pub(crate) fn stored_tac_lines(para: &Paragraph) -> Option<Vec<StoredTacLine>> {
         });
         previous_owner = Some(owner);
     }
-    if lines.len() < 2 {
+    if lines.len() < 2 && !whitespace_carrier {
+        return None;
+    }
+    // 글자가 있는 일반 문단이나 같은 줄의 여러 개체는 재조판 경로가 처리한다.
+    // 공백 캐리어의 단축은 앞 공백 줄과 마지막 표 줄이 분리된 단일 표만 수용한다.
+    if whitespace_carrier && (lines.len() != 1 || previous_owner != Some(para.line_segs.len() - 1))
+    {
         return None;
     }
     // 다음 표의 실제 소유 줄로 이동한다. 중간의 header/footer용 LineSeg는 표 줄이 아니다.

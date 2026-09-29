@@ -191,6 +191,10 @@ pub(super) fn prepare(
                 let Some(Control::Table(table)) = para.controls.get(line.control) else {
                     return false;
                 };
+                // 새로 수용한 공백 줄 캐리어도 각주 예약은 일반 경로가 담당한다.
+                if !para.text.is_empty() && table_has_notes(table) {
+                    return false;
+                }
                 measured_tables
                     .iter()
                     .find(|m| m.para_index == para_idx && m.control_index == line.control)

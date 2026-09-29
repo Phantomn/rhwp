@@ -1127,7 +1127,13 @@ pub(crate) fn trailing_space_width_after_last_inline_object(
     for run in line.runs.iter().rev() {
         let run_char_count = run_chars(run);
         let run_start_pos = run_end_pos.saturating_sub(run_char_count);
-        let mut trailing_spaces = run.text.chars().rev().take_while(|c| *c == ' ').count();
+        // 자동번호의 원모델 공백은 치환 뒤 가시 글자다. 정렬 폭에서도 실제 표시
+        // 문자열을 보고 말미 공백만 제외해야 번호가 글상자 우단 밖으로 밀리지 않는다.
+        let mut trailing_spaces = effective_text_for_metrics(run)
+            .chars()
+            .rev()
+            .take_while(|c| *c == ' ')
+            .count();
         if let Some(obj_pos) = last_inline_object_pos {
             // 마지막 개체 뒤로 자른다 — 개체 자리 이전 공백은 콘텐츠다.
             let floor = obj_pos.max(run_start_pos);
