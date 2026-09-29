@@ -191,8 +191,8 @@
   "prior_handled_recheck": [
     {
       "test": "issue_1749_saved_bounds_page_break::issue_1811_hwpx_pi52_rowbreak_cut_matches_hwp_reference",
-      "status": "기존 HWP end_cut=[3] 검사에서 [2]로 실패. 보정166 전후 전체 페이지 덤프 동일. 검사 보존·현재 브랜치에서 별도 재검토.",
-      "evidence": "stage166_body11_validation.json"
+      "status": "완료: 현 브랜치에서 작은 HWP5쪽 양수 원점 컷·종료 빈 공간·실제 임베드 글꼴 개선. 기존27PASS, 대상Native/freshWASM min90.62519%; HWPX 기존 보류는 보존.",
+      "evidence": "stage168_savedbounds1749_validation.json"
     }
   ]
 }
