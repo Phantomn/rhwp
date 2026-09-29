@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 6,
-  "remaining": 20,
+  "completed": 7,
+  "remaining": 19,
   "items": [
     {
       "index": 1,
@@ -51,8 +51,8 @@
       "index": 8,
       "test": "stored_table_text_tail::hancom_saved_tail_preserves_pdf_baseline_after_the_table",
       "case": "stored_table_text_tail",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 보정163으로 기존 FAIL 해소·Footer 함수의 저장 줄/표 뒤 흐름·소속 의미 교정",
+      "evidence": "stage164_tail_footer_validation.json"
     },
     {
       "index": 9,
