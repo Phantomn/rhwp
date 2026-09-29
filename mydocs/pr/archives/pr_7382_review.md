@@ -9,7 +9,7 @@ last_verified: 2026-09-30
 
 ## 최종 판정
 
-**현재 진행**: 남은26개 원장은 보정173까지15건 처리/11건 대기이며, 이전 처리 항목인 #1749 HWP 재검토는 보정168에서 해결했습니다. 작은 문서는 현재 브랜치에서 보정하고, 대용량·복잡한 다쪽 문서의 실제 차단만 #7445로 이관합니다. 보정173 전체 nextest는42FAIL이므로 PR 준비는 미완료입니다.
+**현재 진행**: 남은26개 원장은 보정174까지16건 처리/10건 대기이며, 이전 처리 항목인 #1749 HWP 재검토는 보정168에서 해결했습니다. 작은 문서는 현재 브랜치에서 보정하고, 대용량·복잡한 다쪽 문서의 실제 차단만 #7445로 이관합니다. 보정173 전체 nextest는42FAIL이며 보정174 뒤 전수 재실행 전이므로 PR 준비는 미완료입니다.
 
 **머지 보류.** 대상 PR은 사용자께서 확인하신 #7382이며, 현재 검토 브랜치는 `review/planet6897-7382-20260926`입니다. 통합 PR은 아직 생성하지 않았습니다. #6101·#7336의 생산 보정과 긍정 시각 증거는 [보정68](../assets/pr7382_20260926/stage68_validation.json)·[보정69](../assets/pr7382_20260926/stage69_validation.json)에 기록했습니다. 이는 현재 전체 회귀 통과나 원 PR의 최종 승인 근거를 대체하지 않습니다.
 
@@ -2990,3 +2990,15 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![#6032 수정 후 1쪽 Native review](../assets/pr7382_20260926/stage173_native_review_001.png)
 ![#6032 수정 후 2쪽 Native review](../assets/pr7382_20260926/stage173_native_review_002.png)
 ![#6032 수정 후 2쪽 fresh WASM overlay](../assets/pr7382_20260926/stage173_wasm_overlay_002.png)
+
+
+## 보정174 — #1133 검사에 남은 #86712 변형 입력 단정 분리
+
+- **사전 분석**: 원장16의 `hwpx_captionless_rowbreak_keeps_independent_frame_origins` 실패는 #1133 원문 자체가 아니라 함수 끝에 붙인 64쪽 `86712_regulatory_analysis.hwp`의 제어된 가로 기준 변형에서 발생했습니다. 종료 조각의 위여백 검사는 통과하지만 뒤 표 y543.733px과 과거 PDF y541.488px의 차이2.245px로 실패합니다. 동일 64쪽 원문의 한컴 PDF와 실제 글꼴을 공급한 재산출 PDF 모두 앞서 직접 비교했고, 선택 페이지 최저80.03785%·28.67074%에 표/후속 내용 쪽 소속 차이가 있습니다. 이 입력의 본래 차단 함수는 [#7445에 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5889443550)하고 보정161에서 제거했으나, #1133 HWPX 검사 안의 변형 입력 단정은 남아 있었습니다.
+- **검사 범위 정리**: 기존 HWPX 함수에서 64쪽 변형 입력 호출과 그 전용 helper만 제거했습니다. #1133 원본 HWP/HWPX의 표 조각 소유, start/end cut, 인쇄 괘선, 뒤 빈 줄의 실제 소속 검사는 그대로 유지합니다. 원본 문서·PDF와 기존 두 함수는 보존하며, 생산 코드·새 함수·baseline·공차 변경은 없습니다. 이는 #86712의 출력 해결이나 기준 좌표 완화를 뜻하지 않습니다.
+- **현재 독립 검증**: 현재 생산 코드로 #1133 HWP/HWPX의 기존 두 함수 **2PASS/0FAIL**입니다. Native/fresh WASM에서 각 원본 전3쪽, 합계12쪽을 새로 비교했고 HWP 점수는 `[96.24979, 99.272, 100]%`, HWPX 점수는 `[96.1041, 99.25401, 100]%`로 네 sweep 모두 gate `passed`입니다. 같은 페이지의 Native/WASM PNG 해시는 모두 일치하며 대표2·3쪽 review와 overlay에서 분할 표·후속 문장·쪽번호를 직접 대조했습니다. Mac fresh WASM은 `--no-opt` 로컬 대체 빌드입니다.
+- **정책·잔여 범위**: fmt, 세 Clippy, workspace build와 고정 base `0e8fd49fb868da0d47ac1294dcbbda81f0211233` 대비 manifest/unit 정책 검사를 통과했습니다. 보정173 전체 nextest **42FAIL** 뒤 이 검사 전용 변경에 대해서는 전수 재실행하지 않았습니다. [검사 범위·독립 PDF·명령·현재 시각·보존 사항](../assets/pr7382_20260926/stage174_captionless1133_validation.json), 전체 로그/PNG `output/pr-review/planet6897-7382-20260926/stage174-captionless1133/`. 원장 **16처리/10대기**, 통합 PR 준비는 미완료입니다.
+
+![#1133 HWP 2쪽 Native review](../assets/pr7382_20260926/stage174_hwp_native_review_002.png)
+![#1133 HWPX 3쪽 Native review](../assets/pr7382_20260926/stage174_hwpx_native_review_003.png)
+![#1133 HWPX 2쪽 fresh WASM overlay](../assets/pr7382_20260926/stage174_hwpx_wasm_overlay_002.png)

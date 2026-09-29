@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 15,
-  "remaining": 11,
+  "completed": 16,
+  "remaining": 10,
   "items": [
     {
       "index": 1,
@@ -107,8 +107,8 @@
       "index": 16,
       "test": "issue_1133_native_rowbreak_outer_margin::hwpx_captionless_rowbreak_keeps_independent_frame_origins",
       "case": "issue_1133_native_rowbreak_outer_margin",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 기존 #1133 원문 두 검사·전3쪽 Native/freshWASM 최저96.1041% 보존, 기등록 #7445 64쪽 변형 입력의 잔여 단정만 분리",
+      "evidence": "stage174_captionless1133_validation.json"
     },
     {
       "index": 17,
