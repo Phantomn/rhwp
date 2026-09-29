@@ -409,8 +409,9 @@ impl TypesetEngine {
         // 배제 영역을 만들기 전에 변환해 행 예산과 실제 배치에서 함께 소비한다.
         let source_control_frame =
             closed_source_frame_placement.filter(|_| closed_source_frame_key == host_frame);
-        let fragment_host_placement = source_control_frame.or_else(|| {
-            unconstrained_host_placement
+        let fragment_host_placement =
+            source_control_frame.or_else(|| {
+                unconstrained_host_placement
                 .filter(|_| placement_para_start_height + fmt.height_for_fit <= available)
                 .map(|placement| {
                     let applied_before = if placement_para_start_height > 0.0 {
@@ -426,17 +427,30 @@ impl TypesetEngine {
                         },
                         |lines| lines.last().map_or(0.0, |line| line.height),
                     );
-                    constrain_host_placement.constrain(
-                        placement.for_first_fragment(
-                            table,
-                            applied_before,
-                            host_line_height,
-                            self.dpi,
-                        ),
-                        st,
-                    )
+                    let mut fragment = placement.for_first_fragment(
+                        table,
+                        applied_before,
+                        host_line_height,
+                        self.dpi,
+                    );
+                    // 전체 개체 상자를 첫 조각으로 바꾸면서 빠진 바깥 위 여백도
+                    // 예약·배치가 소비할 같은 원점에 한 번만 포함한다.
+                    if crate::renderer::float_placement::column_rowbreak_fragment_opens_outer_top(
+                        false,
+                        self.profile.get().hwp5_stored_pagination_layout().then_some(para),
+                        table,
+                        false,
+                        0,
+                        &[],
+                        false,
+                    ) {
+                        let top_margin = hwpunit_to_px(table.outer_margin_top as i32, self.dpi);
+                        fragment.table_top += top_margin;
+                        fragment.occupied_bottom += top_margin;
+                    }
+                    constrain_host_placement.constrain(fragment, st)
                 })
-        });
+            });
         // 닫힌 폭0 개체 앵커는 표 공간을 소유하며 별도 빈 글줄을 전진시키지 않는다.
         // 실제 호스트 텍스트가 있는 내부 개체는 그 글줄의 기존 소유를 유지한다.
         let host_owns_text_lines =

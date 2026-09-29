@@ -1301,8 +1301,23 @@ impl LayoutEngine {
             // rowspan·세로쓰기·실제로 잘리지 않는 셀은 기존 전량 경로를 유지한다.
             // 유한한 저장 프레임은 가운데·아래 정렬도 보존할 수 있다.
             // 위 정렬 전용 탐색 최적화로 선택한 앞 조각의 높이를 생략하지 않는다.
-            let saved_frame_needs_alignment = align_saved_opening_frame
+            let stored_cut_frame_owns_alignment = is_continuation
+                && start_row_height_override.is_some()
+                && cell_row == start_row
+                && cell.row_span == 1
+                && end_cut.is_empty()
+                && !start_cut_is_block
+                && start_cut
+                    .get(single_row_cut_index(table, cell))
+                    .is_some_and(|&start| {
+                        let units = self.cell_units(cell, table, styles);
+                        self.stored_paragraph_allows_orphan_split(
+                            table, cell, &units, start, styles,
+                        )
+                    });
+            let saved_frame_needs_alignment = (align_saved_opening_frame
                 && cell_row + 1 == end_row
+                || stored_cut_frame_owns_alignment)
                 && cell.vertical_align != crate::model::table::VerticalAlign::Top;
             let composition_window = if saved_frame_needs_alignment {
                 None
@@ -1575,7 +1590,15 @@ impl LayoutEngine {
                             self.paragraph_cell_non_inline_controls_flow_height(&para.controls);
                     }
                 }
-                total
+                // 문단 줄 범위는 mixed 자식 표의 유닛을 표현하지 않는다.
+                // 예약한 같은 컷의 내용 높이를 세로 정렬에서도 소비해야 온전한
+                // 중첩 셀이 텍스트 줄 높이만으로 가운데/아래로 밀리지 않는다.
+                let nested_cut_height = cut_units
+                    .map(|(start, end)| {
+                        self.nested_cell_cut_content_height(cell, table, styles, start, end)
+                    })
+                    .unwrap_or(0.0);
+                total.max(nested_cut_height)
             } else {
                 // 글자처럼 취급 개체 중 가장 큰 것. 글자 없는 문단은 담을 줄이 없어 composed
                 // 높이가 placeholder 뿐이라 이 값이 그 문단의 실제 줄 높이다 — 빼면
@@ -1687,7 +1710,10 @@ impl LayoutEngine {
             });
             let cell_content_cut_by_slice = has_multicol_nested
                 && self.cell_units_content_height(cell, table, styles) > inner_height + 0.5;
-            let effective_align = if center_saved_spanning_cell == Some(cell_idx) {
+            let effective_align = if stored_cut_frame_owns_alignment {
+                // 앞 조각의 빈 공간을 보존한 물리 상자는 이 조각 내용으로 정렬한다.
+                cell.vertical_align
+            } else if center_saved_spanning_cell == Some(cell_idx) {
                 VerticalAlign::Center
             } else if align_saved_opening_frame
                 && cell_row + 1 == end_row
@@ -3266,7 +3292,21 @@ impl LayoutEngine {
                                     let stored_square_offset = (collapse_stored_wrap_spacers && start_line == 0)
                                         .then(|| super::super::height_measurer::stored_square_table_anchor_offset(cell, cp_idx))
                                         .flatten();
-                                    let nested_y = if let Some(offset) = stored_square_offset {
+                                    let stored_float_frame = (start_line == 0)
+                                        .then(|| {
+                                            self.stored_nested_float_placement(
+                                                table,
+                                                para,
+                                                nested_table,
+                                                ctrl_idx,
+                                                para_y_before_lines,
+                                                styles,
+                                            )
+                                        })
+                                        .flatten();
+                                    let nested_y = if let Some(frame) = stored_float_frame {
+                                        frame.table_top
+                                    } else if let Some(offset) = stored_square_offset {
                                         para_y_before_lines + hwpunit_to_px(offset, self.dpi)
                                     } else if resumed_stored_frame_origin.is_some()
                                         && nested_table.common.treat_as_char
@@ -3537,7 +3577,8 @@ impl LayoutEngine {
                                                 repeat_fragment_outer_margin: false,
                                                 pre_emitted_host_height: 0.0,
                                                 host_line_spacing: 0.0,
-                                                resolved_table_top: None,
+                                                resolved_table_top: stored_float_frame
+                                                    .map(|f| f.table_top),
                                             },
                                             section_index,
                                             styles,
@@ -3603,7 +3644,7 @@ impl LayoutEngine {
                                             false,
                                             clamp_header_negative_para_offset,
                                             false,
-                                            None,
+                                            stored_float_frame.map(|f| (None, f.table_top)),
                                             Self::standalone_table_char_border_fill(
                                                 Some(para),
                                                 nested_table,
@@ -4375,6 +4416,28 @@ impl LayoutEngine {
                     // 분할 블록 밖 rowspan 행은 컷 모델 밖 — resolve_row_heights 유지.
                     if rowspan_touched && !in_start && !in_end {
                         continue;
+                    }
+                    let physical_block = end_block
+                        .filter(|(bs, be)| *bs <= r && r < *be)
+                        .or_else(|| start_block.filter(|(bs, be)| *bs <= r && r < *be));
+                    if let Some(block) = physical_block {
+                        let su = if start_block == Some(block) {
+                            start_cut
+                        } else {
+                            &[]
+                        };
+                        let eu = if end_block == Some(block) {
+                            end_cut
+                        } else {
+                            &[]
+                        };
+                        if measured_table.is_some()
+                            && self
+                                .row_block_cut_uses_measured_height(table, block, r, su, eu, styles)
+                        {
+                            row_heights[r] = resolved_row_heights[r];
+                            continue;
+                        }
                     }
                     // 행 r 의 row_span==1 셀(col 순)별 블록 컷 → per-row 컷 매핑.
                     let mut rcells: Vec<&crate::model::table::Cell> = table

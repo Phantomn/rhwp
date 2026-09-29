@@ -170,7 +170,9 @@ impl BlockCutQuery<'_> {
         } = *self;
         let mt = rows.mt;
         let rowbreak_use_row_offsets = block.rowbreak_use_row_offsets;
-        (res.fully_consumed || !allow_block_split)
+        let painted_cut_exceeds_budget = !res.hit_hard_break
+            && rows.fragment_height(block, block.b_end, blk_start_cut, &res.end_cut) > budget + 0.5;
+        (res.fully_consumed || !allow_block_split || painted_cut_exceeds_budget)
             && mt.allows_row_break_split()
             && can_intra_split
             && !rowbreak_use_row_offsets

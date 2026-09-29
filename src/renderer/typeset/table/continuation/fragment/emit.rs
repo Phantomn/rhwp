@@ -68,6 +68,42 @@ impl TypesetEngine {
         // 행 컷이 소비한 내용과 header의 요구 높이. 저장 상자의 빈 밴드는
         // 아래에서 별도로 물리 점유에 포함하며 컷 유닛을 더 소비하지 않는다.
         let mut partial_height: f64 = consumed + header_overhead;
+        // #7095의 동일한 쪽 하단 상자를 저장 rowspan 경계에도 적용한다.
+        // 내용 컷과 물리 빈 밴드를 분리하며 다음 조각은 실제 남은 행에서 재개한다.
+        let stored_rowspan_frame = (is_continuation
+            && start_cut.is_empty()
+            && end_row_height_override.is_none()
+            && header_overhead == 0.0)
+            .then(|| {
+                let frame_height =
+                    crate::renderer::float_placement::single_cell_page_fragment_bottom(
+                        table,
+                        st.available_height(),
+                        self.dpi,
+                    ) - st.current_height
+                        - host_before_overhead
+                        - vert_offset_overhead;
+                (frame_height >= partial_height && frame_height <= avail_for_rows)
+                    .then(|| {
+                        layout_engine.stored_rowspan_page_frame(
+                            table,
+                            cursor_row..end_row,
+                            split_block_start,
+                            &split_end_cut,
+                            styles,
+                            (frame_height, start_row_height_override),
+                            mt,
+                        )
+                    })
+                    .flatten()
+                    .map(|frame| (frame, frame_height))
+            })
+            .flatten();
+        if let Some(((last_height, _, _, _), frame_height)) = &stored_rowspan_frame {
+            end_row_height_override = Some(*last_height);
+            partial_height = *frame_height;
+        }
+
         // 저장 첫 조각의 상자는 내용 컷만으로 표현되지 않는 빈 하단 밴드도 소유한다.
         // 뒤 조각의 유닛은 그대로 남기며, 이 밴드를 내용 tail에서 차감하지 않는다.
         let saved_opening_frame = layout_engine.saved_multirow_opening_frame_height(
@@ -533,7 +569,25 @@ impl TypesetEngine {
         } else {
             Vec::new()
         };
+        // 빈 컷의 블록 경계는 모든 앞 행의 내용을 끝낸 상태다. 병합 셀의
+        // 저장 물리 높이에서 실제 그린 밴드를 빼 다음 완전 행 상자로 넘긴다.
+        let complete_block_next_height = split_block_start
+            .filter(|_| split_end_limit == 0.0 && next_cut.is_empty())
+            .and_then(|bs| {
+                let last_height = end_row_height_override?;
+                let source = table.cells.iter().find(|cell| {
+                    cell.row as usize == bs
+                        && cell.row as usize + cell.row_span as usize == end_row + 1
+                })?;
+                let used = mt.row_heights[bs..end_row.saturating_sub(1)]
+                    .iter()
+                    .sum::<f64>()
+                    + mt.cell_spacing * end_row.saturating_sub(bs + 1) as f64
+                    + last_height;
+                Some(hwpunit_to_px(source.height as i32, self.dpi) - used)
+            });
         let next_start_row_height_override = empty_opening_next_height
+            .or(complete_block_next_height)
             .or_else(|| end_row_height_override
             .filter(|_| !first_fragment_blank_band)
             .and_then(|limit| {
@@ -564,6 +618,13 @@ impl TypesetEngine {
         }));
         continuation.advance(end_row, split_block_start, next_cut, split_end_limit > 0.0);
         continuation.start_row_height_override = next_start_row_height_override;
+        if let Some(((_, row, cut, height), _)) = stored_rowspan_frame {
+            continuation.row = row;
+            continuation.start_cut = cut;
+            continuation.start_cut_is_block = false;
+            continuation.start_row_height_override = Some(height);
+        }
+
         TableContinuationIteration::Emitted
     }
 }

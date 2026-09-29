@@ -2411,8 +2411,25 @@ impl HeightMeasurer {
                                 self.render_normalization.nested_table_width_scale(nested);
                             let mt =
                                 self.measure_table_impl(nested, 0, 0, styles, depth + 1, stretch);
+                            let outer_margin = hwpunit_to_px(
+                                i32::from(nested.outer_margin_top)
+                                    + i32::from(nested.outer_margin_bottom),
+                                self.dpi,
+                            );
+                            let lead = if pidx + 1 == paragraphs.len() {
+                                crate::renderer::layout::table_layout::para_relative_float_table_lead(
+                                    nested,
+                                    self.dpi,
+                                )
+                            } else {
+                                0.0
+                            };
+                            // 셀 배치의 calc_nested_controls_bottom_height와 같은
+                            // 개체 바깥 상자와 마지막 문단 앵커 오프셋을 소비한다.
                             mt.total_height
                                 .max(hwpunit_to_px(nested.common.height as i32, self.dpi))
+                                + outer_margin
+                                + lead
                         } else {
                             0.0
                         }

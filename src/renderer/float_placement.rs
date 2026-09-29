@@ -239,7 +239,8 @@ pub(crate) fn column_rowbreak_fragment_opens_outer_top(
     start_cut: &[usize],
     starts_at_column_top: bool,
 ) -> bool {
-    // 빈 저장 앵커와 명시적 새 쪽의 표제 아래에 열리는 표는 같은 개체 프레임이다.
+    // 빈 저장 앵커와 표제 아래에 열리는 표는 같은 개체 프레임이다.
+    // 표제의 쪽나눔 유무는 Para 앵커가 소유하는 바깥 여백을 바꾸지 않는다.
     // 표제의 글줄 잉크와 표의 바깥 여백은 별도로 소유하며 캡션 간격도 별도로 계산한다.
     let native_object_frame = native_host.is_some_and(|para| {
         if object_only_saved_table_anchor(para, table) {
@@ -248,13 +249,12 @@ pub(crate) fn column_rowbreak_fragment_opens_outer_top(
         let [line] = para.line_segs.as_slice() else {
             return false;
         };
-        para.column_type == crate::model::paragraph::ColumnBreakType::Page
-            && para_has_non_whitespace_text(para)
+        para_has_non_whitespace_text(para)
             && matches!(para.controls.as_slice(), [Control::Table(_)])
             && !para.stored_text_partition_is_dirty()
             && !para.cell_format_vpos_dirty
             && line.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
-            && line.vertical_pos == 0
+            && line.vertical_pos >= 0
             && line.line_height > 0
             && table.common.vert_rel_to == VertRelTo::Para
             && matches!(table.common.vert_align, VertAlign::Top | VertAlign::Inside)
