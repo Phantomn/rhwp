@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 3,
-  "remaining": 23,
+  "completed": 4,
+  "remaining": 22,
   "items": [
     {
       "index": 1,
@@ -30,8 +30,8 @@
       "index": 5,
       "test": "issue_7358_terminal_rowbreak_outer_top::terminal_rowbreak_continuation_repeats_saved_outer_top",
       "case": "issue_7358_terminal_rowbreak_outer_top",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료:64쪽복잡분할표의실제차단1함수만#7445이관·원문/두PDF/정상대조군보존",
+      "evidence": "../issue7445/outer7358_blocking_scope_validation.json"
     },
     {
       "index": 6,

@@ -2825,3 +2825,11 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![80550 Native30쪽 review](../assets/issue7445/host6697_native_review_030.png)
 ![80550 Native31쪽 review](../assets/issue7445/host6697_native_review_031.png)
 ![80550 fresh WASM30쪽 overlay](../assets/issue7445/host6697_wasm_overlay_030.png)
+
+
+### 보정161 — #7358 86712의 실제 차단 함수1개와 정상 글꼴 PDF
+
+- 사전 분석 뒤 단독1FAIL을 재현했습니다. 위 여백 검사는 통과했고 후속 표543.733/기존PDF541.488px의 약2.25px 차이가 실제 실패였습니다. 위 여백 누락으로 단정하거나 기대좌표/공차를 완화하지 않았습니다.
+- 원문2024 저장본·기존64쪽 PDF를 보존하고, 실제 KoPub 글꼴을 공급한 동일원문 정상 한컴2024 PDF도 커밋했습니다. 기존PDF/새PDF를 각각Native/freshWASM1·27·28·29쪽으로 직접 대조했습니다. 기존 최저80.03785%, 새PDF최저28.67074%이며 두 backend의8쌍PNG는해시동일합니다. 새PDF28쪽의수치표가27쪽으로옮겨지고후속표/말미내용소속도달라지는64쪽·28행4열/중첩표전체피델리티문제입니다. 단순좌표 보정이나 글꼴예외로통과처리하지않습니다.
+- [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5889443550) 후 실제 실패1함수만 제거했습니다. 원문·두PDF·다른정상검사·생산·baseline·공차를 보존했고 기존#1133 HWP정상대조군1PASS, fmt/고정base manifest/diff0을확인했습니다. 새테스트0입니다. [명령·자료해시·부정시각·보존범위](../assets/issue7445/outer7358_blocking_scope_validation.json).
+- 코드`b0aed8322`. 남은26개중4처리/22대기(과거전체60실패중38처리/22대기)이며 현재전체결과가아닙니다. 최종lint·전체nextest·NativeSkia·원PR최종전체시각·통합PR준비는미완료입니다.
