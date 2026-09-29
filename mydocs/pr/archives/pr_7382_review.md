@@ -2719,3 +2719,14 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![온새미로 HWP6쪽 review](../assets/issue7445/onsaemiro_hwp_fonttrace_native_review_006.png)
 ![온새미로 HWP46쪽 review](../assets/issue7445/onsaemiro_hwp_fonttrace_native_review_046.png)
 ![온새미로 HWP6쪽 fresh WASM overlay](../assets/issue7445/onsaemiro_hwp_fonttrace_wasm_overlay_006.png)
+
+
+## 보정155 사전 분석·결과 — 온새미로 HWPX의 실패 해시 한 핀만 이관
+
+- 사전 head `ba4ab4a37`, 코드 `8d4233f0f9ed89b997d91f6a1ee0c5f782141fa0`. [독립 원문/기준·원인·새 시각·범위·명령](../assets/issue7445/onsaemiro_hwpx_fonttrace_blocking_scope_validation.json). HWP 판정을 대신 사용하지 않고 기존 oracle의 같은 HWPX 대응PDF로 선택1/2/6/46쪽을 Native/freshWASM에서 새로 비교했습니다. 정상46/현재47쪽, 최저37.74556%, 6쪽43.45823%입니다. 직접 Native6 review/WASM6 standalone overlay에서 보기상자 높이·줄바꿈·뒤본문 배치 차이를 확인했습니다. 전체47쪽 raster비교는 이번에 실행하지 않았으며 선택4쪽으로 범위를 제한합니다.
+- 실제 `document-substitute-hwpx` 해시만 실패했고 counts46run/41문자와status는 통과했습니다. HWPX 원본 charPr height/relSz100%에서 원래크기/폭/자간/절삭 규칙으로 재구성한 해시는 기존 기대와 정확히 일치합니다. relative100% 곱셈/나눗셈의 미세 오차→정수절삭→trace metric 경로이며 readonly 계산을 baseline 실행 증거로 보고하지 않습니다. 최초진단의 HWP용필드 조회 KeyError는 원본HWPX필드를 확인해 수정했고 source/test변경없습니다.
+- [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5885116951) 후 실제 실패한 HWPX 해시 한 핀만 명시적으로 이관했습니다. 생산/현재해시재고정/새함수0. 모든 기존함수·counts/status·다른5문서·프로필·형식동일성·substFont 비대칭 기능탐지·limit/backend/determinism을 유지하고 **최종7PASS/0FAIL/exit0**을 확인했습니다. 필수fmt/Clippy3/workspacebuild/base고정 manifest/unit정책7단계exit0입니다. #4961 원래혼합실패1건의 유지검사 통과로 전체137의60FAIL중33곳처리/27개검토대기로 갱신합니다. 문서피델리티를해결한것은아니며최종전체/PR준비미완료입니다.
+- 생산은 보정152와 같고 같은 root fresh no-opt WASM으로 새 캡처했습니다. Docker 최적화 검증 아님. 로그: `output/pr-review/planet6897-7382-20260926/stage155-fonttrace-onsaemiro-hwpx/`.
+
+![온새미로 HWPX6쪽 review](../assets/issue7445/onsaemiro_hwpx_fonttrace_native_review_006.png)
+![온새미로 HWPX6쪽 fresh WASM overlay](../assets/issue7445/onsaemiro_hwpx_fonttrace_wasm_overlay_006.png)

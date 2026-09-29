@@ -551,3 +551,11 @@ HWPX oracle는 격차가 개선되어 실제차단이 아니므로 원장행을 
 ![온새미로 HWP6쪽 review](onsaemiro_hwp_fonttrace_native_review_006.png)
 ![온새미로 HWP46쪽 review](onsaemiro_hwp_fonttrace_native_review_046.png)
 ![온새미로 HWP6쪽 fresh WASM overlay](onsaemiro_hwp_fonttrace_wasm_overlay_006.png)
+
+
+## 온새미로 HWPX: 실패한 폰트 추적 해시만 — 보정155
+
+[#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5885116951), [독립 원문/기준·원인·새 시각·범위·명령](onsaemiro_hwpx_fonttrace_blocking_scope_validation.json). HWP의 시각 증거를 대신 쓰지 않고 이 HWPX의 선택1/2/6/46쪽을 Native/freshWASM으로 새 비교했습니다. 정상46/현재47쪽, 6쪽43.45823%·46쪽37.74556%이며 보기 상자/뒤본문의 배치 차이를 확인했습니다. 실패 해시 한 핀만 이관하고 생산·counts/status·다른5입력/프로필·기존 함수와 HWP/HWPX substFont 비대칭 기능 검사를 유지했습니다. 집중7PASS/0FAIL, 필수lint/정책7exit0입니다. 원문/PDF 보존, 전체 피델리티와 절대 해시 계약 복원은 후속입니다.
+
+![온새미로 HWPX6쪽 review](onsaemiro_hwpx_fonttrace_native_review_006.png)
+![온새미로 HWPX6쪽 fresh WASM overlay](onsaemiro_hwpx_fonttrace_wasm_overlay_006.png)
