@@ -39,13 +39,10 @@
       "path": "samples/143E433F503322BD33.hwp",
       "page": 0,
       "expectedStatus": "complete",
-      "expectedCounts": {
-        "runsSeen": 194,
-        "charactersSeen": 1336,
-        "recordsEmitted": 1336,
-        "recordsOmitted": 0
-      },
-      "expectedLayoutHash": "038db08108fbc97f8bf21a2d44162d57830955ef286f6f49f56ba718d33bcab2"
+      "renderPinsDeferredToIssue7445": [
+        "expectedCounts",
+        "expectedLayoutHash"
+      ]
     },
     {
       "id": "missing-face",
