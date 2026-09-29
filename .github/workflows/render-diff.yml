@@ -5,7 +5,7 @@ on:
     inputs:
       mode:
         type: choice
-        options: [phases, baseline-lto, validate]
+        options: [phases, baseline-lto, validate, validate-browser]
         default: phases
         description: Compiler phases or verify the fixed completed phase artifacts
 permissions:
@@ -20,7 +20,7 @@ env:
   CARGO_TERM_COLOR: never
 jobs:
   phases:
-    if: inputs.mode != 'validate' && github.repository == 'edwardkim/rhwp' && github.ref == 'refs/heads/codex/rust-build-phases-7473'
+    if: (inputs.mode == 'phases' || inputs.mode == 'baseline-lto') && github.repository == 'edwardkim/rhwp' && github.ref == 'refs/heads/codex/rust-build-phases-7473'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     strategy:
@@ -51,7 +51,7 @@ jobs:
           retention-days: 3
 
   validate:
-    if: inputs.mode == 'validate' && github.repository == 'edwardkim/rhwp' && github.ref == 'refs/heads/codex/rust-build-phases-7473'
+    if: (inputs.mode == 'validate' || inputs.mode == 'validate-browser') && github.repository == 'edwardkim/rhwp' && github.ref == 'refs/heads/codex/rust-build-phases-7473'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -59,6 +59,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Read exact phase run artifacts
+        if: inputs.mode == 'validate'
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: rust-phases-abba
@@ -68,7 +69,16 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
+      - name: Read exact optimized package artifacts
+        if: inputs.mode == 'validate-browser'
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: rust-phase-validation
+          run-id: 36516437863
+          github-token: ${{ github.token }}
+          path: output/optimized-input
       - name: Get pinned release postprocessing tools
+        if: inputs.mode == 'validate'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -84,7 +94,11 @@ jobs:
           browser_path=$(npx @puppeteer/browsers install chromium@1660786 --path .cache/puppeteer --format '{{path}}' | tail -n 1)
           echo "CHROME_PATH=$(realpath "$browser_path")" >> "$GITHUB_ENV"
       - name: Optimize release artifacts and compare API and Canvas
+        if: inputs.mode == 'validate'
         run: python3 scripts/experiments/validate_rust_phases.py
+      - name: Compare exact optimized artifacts with prepared fixture routes
+        if: inputs.mode == 'validate-browser'
+        run: python3 scripts/experiments/validate_rust_phases_browser.py
       - name: Preserve validation evidence
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
