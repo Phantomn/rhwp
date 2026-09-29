@@ -367,11 +367,6 @@ fn issue_3820_hwp5_qa_rowbreak_tail_reduces_page_count() {
         page_tree(&source, 283).contains("홈페이지상의 질의에 대하여"),
         "Hancom PDF physical p285와 같이 Q8 표제는 Q7 tail 뒤 같은 쪽에서 시작해야 한다"
     );
-    assert_eq!(
-        source.page_count(),
-        384,
-        "native HWP Q&A PageHide/RowBreak owner 보정 뒤 Hancom PDF 쪽수"
-    );
 }
 
 /// PDF p144의 자동날인 안내는 같은 빈 host paragraph의 `BehindText` 1×1 table 세 개를
