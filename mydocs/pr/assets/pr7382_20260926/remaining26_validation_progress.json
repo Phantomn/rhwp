@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 14,
-  "remaining": 12,
+  "completed": 15,
+  "remaining": 11,
   "items": [
     {
       "index": 1,
@@ -100,8 +100,8 @@
       "index": 15,
       "test": "issue_6032_rewind_anchor_float_snap::issue_6032_rewound_empty_anchor_table_snaps_to_saved_vpos",
       "case": "issue_6032_rewind_anchor_float_snap",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 현 브랜치에서 작은2쪽 문서의 이월 표 뒤 빈 호스트 간격 오판 보정·기존 의미 회귀1PASS·Native/freshWASM 전2쪽 최저98.39585%",
+      "evidence": "stage173_anchor6032_validation.json"
     },
     {
       "index": 16,

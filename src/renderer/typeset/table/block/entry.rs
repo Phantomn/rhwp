@@ -1280,8 +1280,73 @@ impl TypesetEngine {
         // 독립 저장 프레임은 이미 흐름을 차지한 다른 호스트의 표 안으로
         // 되돌아갈 수 없다. 다음 쪽에서 같은 프레임을 다시 조회해 예약과
         // 실제 배치가 함께 그 원점을 소비하도록 한다.
+        // 빈 표 호스트의 후행 줄간격은 다음 표가 차지할 수 있는 물리 틈이다.
+        // 앞 표만 이 쪽에 이월됐고 저장된 다음 표가 그 간격 안에서 시작하면,
+        // 흐름 커서와의 역전만으로 별도 쪽을 열지 않는다. 앞 표의 선언 높이와
+        // 실제 커서 차이가 위 여백+후행 줄간격과 맞는 경우만 이 근거를 쓴다.
+        let preceding_host_tail_is_free = original_control_frame.is_some_and(|placement| {
+            let Some(PageItem::Table {
+                para_index: previous_index,
+                control_index: previous_control,
+            }) = st.current_items.as_slice().first()
+            else {
+                return false;
+            };
+            if st.current_items.len() != 1
+                || !st.profile.hwp5_stored_pagination_layout()
+                || st.profile.session_edited()
+                || st.current_zone_y_offset.abs() > 0.5
+                || *previous_index + 1 != para_idx
+            {
+                return false;
+            }
+            let Some(previous) = paragraphs_all.get(*previous_index) else {
+                return false;
+            };
+            let Some(Control::Table(previous_table)) = previous.controls.get(*previous_control)
+            else {
+                return false;
+            };
+            let Some(previous_line) = previous
+                .line_segs
+                .first()
+                .filter(|line| !is_synthetic_line_seg(line))
+            else {
+                return false;
+            };
+            let Some(current_line) = para
+                .line_segs
+                .first()
+                .filter(|line| !is_synthetic_line_seg(line))
+            else {
+                return false;
+            };
+            if previous.text.trim().is_empty()
+                && previous.controls.len() == 1
+                && previous_table.common.flow_with_text
+                && !previous_table.common.allow_overlap
+                && !previous_table.common.treat_as_char
+                && is_para_topbottom_float(&previous_table.common)
+                && previous_line.line_spacing > 0
+                && previous_line.vertical_pos > current_line.vertical_pos
+                && previous_table.common.vertical_offset == 0
+                && previous_table.common.height <= i32::MAX as u32
+            {
+                let tail = hwpunit_to_px(previous_line.line_spacing, self.dpi);
+                let saved_painted_end =
+                    hwpunit_to_px(previous_table.common.height as i32, self.dpi)
+                        + hwpunit_to_px(previous_table.outer_margin_top as i32, self.dpi);
+                (st.current_height - tail - saved_painted_end).abs() <= 0.5
+                    && placement.table_top >= st.current_height - tail
+                    && placement.table_top < st.current_height
+                    && placement.occupied_bottom <= available
+            } else {
+                false
+            }
+        });
         let precedes_reserved_table_flow = original_control_frame.is_some_and(|placement| {
             placement.table_top < st.current_height
+                && !preceding_host_tail_is_free
                 && table.common.flow_with_text
                 && !table.common.allow_overlap
                 && st.current_items.iter().any(|item| {
