@@ -41,9 +41,6 @@ use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// 6쪽 마지막 열 칸의 좌·우 경계 (px, 96dpi).
-const CELL_LEFT_PX: f64 = 584.30;
-const CELL_RIGHT_PX: f64 = 716.40;
 /// 표 `inMargin left/right = 283 HWPUNIT` = 3.773px. 여백이 깎이면 1px 로 떨어진다.
 const DECLARED_INNER_MARGIN_PX: f64 = 283.0 / 7200.0 * 96.0;
 
@@ -95,70 +92,57 @@ fn page6_render_tree() -> String {
     std::fs::read_to_string(path).unwrap()
 }
 
-/// 이 칸 안의 모든 `TextRun` 을 `(y, 좌단, 우단, 텍스트)` 로 훑는다 (px).
-fn cell_runs(json: &str) -> Vec<(f64, f64, f64, String)> {
-    let mut out = Vec::new();
-    let mut rest = json;
-    while let Some(at) = rest.find("\"TextRun\"") {
-        let tail = &rest[at..];
-        // 이 노드의 JSON 만 본다 — 다음 노드 앞에서 끊지 않으면 이웃 run 의 텍스트가
-        // 걸린다 (#6443 과 같은 함정).
-        let seg_end = tail[1..]
-            .find("{\"type\"")
-            .map(|i| i + 1)
-            .unwrap_or(tail.len());
-        let seg = &tail[..seg_end];
-        let num = |key: &str| -> Option<f64> {
-            seg.split(&format!("\"{key}\""))
-                .nth(1)
-                .and_then(|r| r.trim_start().strip_prefix(':'))
-                .and_then(|r| {
-                    r.trim_start()
-                        .split(|c: char| !c.is_ascii_digit() && c != '.' && c != '-')
-                        .find(|s| !s.is_empty())
-                        .and_then(|s| s.parse::<f64>().ok())
-                })
-        };
-        let text = seg
-            .split("\"text\"")
-            .nth(1)
-            .and_then(|r| r.trim_start().strip_prefix(':'))
-            .and_then(|r| {
-                let r = r.trim_start().strip_prefix('"')?;
-                r.find('"').map(|e| r[..e].to_string())
-            })
-            .unwrap_or_default();
-        if let (Some(x), Some(y), Some(w)) = (num("x"), num("y"), num("w")) {
-            if x >= CELL_LEFT_PX - 1.0 && x <= CELL_RIGHT_PX {
-                out.push((y, x, x + w, text));
-            }
-        }
-        rest = &tail[9..];
+fn target_table(node: &Value) -> Option<&Value> {
+    if node["type"] == "Table" && node["pi"] == 56 {
+        return Some(node);
     }
-    out
+    node["children"].as_array()?.iter().find_map(target_table)
 }
 
-/// `needle` 을 담은 줄(같은 `y` 의 run 들을 합친 것)의 `(좌단, 우단)`.
-fn line_span_containing(json: &str, needle: &str) -> Option<(f64, f64)> {
-    let runs = cell_runs(json);
-    let y = runs.iter().find(|r| r.3.contains(needle))?.0;
-    let same: Vec<_> = runs.iter().filter(|r| (r.0 - y).abs() < 1.0).collect();
-    Some((
-        same.iter().map(|r| r.1).fold(f64::INFINITY, f64::min),
-        same.iter().map(|r| r.2).fold(f64::NEG_INFINITY, f64::max),
-    ))
+fn target_cell(table: &Value, row: u64) -> &Value {
+    table["children"]
+        .as_array()
+        .expect("표 칸")
+        .iter()
+        .find(|cell| cell["type"] == "Cell" && cell["row"] == row && cell["col"] == 5)
+        .unwrap_or_else(|| panic!("원문 {row}행 마지막 칸이 없다"))
+}
+
+fn text_line_containing<'a>(cell: &'a Value, needle: &str) -> &'a Value {
+    cell["children"]
+        .as_array()
+        .expect("칸 글줄")
+        .iter()
+        .find(|line| {
+            line["type"] == "TextLine"
+                && line["children"].as_array().is_some_and(|runs| {
+                    runs.iter()
+                        .filter_map(|run| run["text"].as_str())
+                        .collect::<String>()
+                        .contains(needle)
+                })
+        })
+        .unwrap_or_else(|| panic!("`{needle}` 글줄이 없다"))
 }
 
 /// SQUEEZE 칸의 글자는 선언된 안 여백만큼 안쪽에서 시작한다.
 ///
-/// 종전에는 넘침 방어가 여백을 `1px` 로 깎아 글자가 `585.30`(칸 좌단 + 1.0)에서
-/// 시작했다. 한/글은 여백을 지키므로 `588.07`(칸 좌단 + 3.77) 이다.
+/// 종전에는 넘침 방어가 여백을 `1px` 로 깎았다. 한/글은 선언된 여백을 지킨다.
 #[test]
 fn squeeze_cell_text_starts_inside_the_declared_inner_margin() {
-    let json = page6_render_tree();
-    let (left, _) = line_span_containing(&json, "담당조직 형태 만점")
-        .expect("6쪽에서 `담당조직 형태 만점` 줄을 찾지 못했다");
-    let inset = left - CELL_LEFT_PX;
+    let json: Value = serde_json::from_str(&page6_render_tree()).expect("렌더 트리 JSON");
+    let table = target_table(&json).expect("원문 마지막 표 문단");
+    let cell = target_cell(table, 21);
+    let line = text_line_containing(cell, "담당조직 형태 만점");
+    let left = line["children"]
+        .as_array()
+        .expect("글줄 run")
+        .iter()
+        .filter_map(|run| run["bbox"]["x"].as_f64())
+        .fold(f64::INFINITY, f64::min);
+    assert!(left.is_finite(), "검사할 글자의 좌단이 없다");
+    let cell_left = cell["bbox"]["x"].as_f64().expect("칸 좌단");
+    let inset = left - cell_left;
     assert!(
         inset >= DECLARED_INNER_MARGIN_PX - 0.5,
         "SQUEEZE 칸은 선언된 안 여백({DECLARED_INNER_MARGIN_PX:.2}px)을 지켜야 한다: \
@@ -185,36 +169,12 @@ fn squeeze_cell_line_width_tracks_the_stored_inner_width() {
     assert_eq!(pages["pageCount"], 6, "정상 PDF와 같은 6쪽이어야 한다");
 
     let json: Value = serde_json::from_str(&page6_render_tree()).expect("렌더 트리 JSON");
-    fn table(node: &Value) -> Option<&Value> {
-        if node["type"] == "Table" && node["pi"] == 56 {
-            return Some(node);
-        }
-        node["children"].as_array()?.iter().find_map(table)
-    }
-    let table = table(&json).expect("원문 마지막 표 문단");
+    let table = target_table(&json).expect("원문 마지막 표 문단");
     // 원본의 25×6 표와 저장 안쪽 폭은 좌표가 변해도 같은 칸 계약이다.
     let stored_inner_width = (9906.0 - 283.0 - 283.0) / 7200.0 * 96.0;
     for (row, needle) in [(20, "기업지원 명시 만점"), (21, "담당조직 형태 만점")] {
-        let cell = table["children"]
-            .as_array()
-            .expect("표 칸")
-            .iter()
-            .find(|cell| cell["type"] == "Cell" && cell["row"] == row && cell["col"] == 5)
-            .unwrap_or_else(|| panic!("원문 {row}행 마지막 칸이 없다"));
-        let line = cell["children"]
-            .as_array()
-            .expect("칸 글줄")
-            .iter()
-            .find(|line| {
-                line["type"] == "TextLine"
-                    && line["children"].as_array().is_some_and(|runs| {
-                        runs.iter()
-                            .filter_map(|run| run["text"].as_str())
-                            .collect::<String>()
-                            .contains(needle)
-                    })
-            })
-            .unwrap_or_else(|| panic!("{row}행에서 `{needle}` 글줄이 없다"));
+        let cell = target_cell(table, row);
+        let line = text_line_containing(cell, needle);
         let line_width = line["bbox"]["w"].as_f64().expect("글줄 폭");
         let cell_width = cell["bbox"]["w"].as_f64().expect("칸 폭");
         assert!(
