@@ -5,7 +5,7 @@ ROOT=pathlib.Path.cwd()
 OUT=ROOT/'output/rust-phase-validation'
 INPUT=ROOT/'output/phase-input'
 TOOLS=ROOT/'output/phase-tools'
-RAW_HEAD='2ff6470cba3cd1abc2849d94e6a6a3bb8fcff8e7'
+RAW_HEAD='99473fbc7d80f237e2ec3e9f952752431232bb9d'
 
 def sha(p): return hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()
 def save(p,x): pathlib.Path(p).write_text(json.dumps(x,indent=2)+'\n')
@@ -31,7 +31,7 @@ def main():
   tools[binary.name]={'sha256':digest,'version':output([str(binary),'--version'])}
  save(OUT/'tools.json',tools)
  all_results={}
- for mode,label in [('dual','4-dual'),('cdylib','3-cdylib')]:
+ for mode,label in [('dual','4-dual'),('cdylib-baseline-lto','3-cdylib-baseline-lto')]:
   sample=INPUT/label
   build=json.loads((sample/'build.json').read_text())
   source=json.loads((sample/'source.json').read_text())
@@ -54,7 +54,7 @@ def main():
    shutil.copy2(pkg/name,ROOT/'rhwp-studio/public'/name)
   files={p.name:{'sha256':sha(p),'bytes':p.stat().st_size} for p in pkg.iterdir() if p.is_file()}
   manifest={'source_sha':RAW_HEAD,'source_dirty':True,'source_edit':source,'profile':'release','success':True,
-   'artifact_producer_run':36512273477,'validation_head':output(['git','rev-parse','HEAD']),
+   'artifact_producer_run':36514652526,'validation_head':output(['git','rev-parse','HEAD']),
    'compiler_sample':label,'cargo_build':build,'binding':binding,'optimization':optimization,'tools':tools,'artifacts':files}
   save(dest/'build.json',manifest)
   shutil.copytree(pkg,dest/'pkg')
@@ -73,7 +73,7 @@ console.log(JSON.stringify({version:api.version(),jsExports:Object.keys(api).sor
   browser=run_timed(['npm','run','e2e:render-diff:ci'],dest/'browser.log',ROOT/'rhwp-studio',env)
   shutil.copytree(ROOT/'rhwp-studio/e2e/screenshots/render-diff',dest/'screenshots')
   all_results[mode]={'files':files,'binding':binding,'optimization':optimization,'browser':browser}
- a=OUT/'dual'; b=OUT/'cdylib'
+ a=OUT/'dual'; b=OUT/'cdylib-baseline-lto'
  same_png=[]; changed_png=[]
  left={p.name:sha(p) for p in (a/'screenshots').glob('*.png')}
  right={p.name:sha(p) for p in (b/'screenshots').glob('*.png')}
