@@ -318,20 +318,22 @@ fn stored_text_tail_follows_the_measured_table_and_preserves_the_line_gap() {
     }
 }
 
-/// 수동 줄 정보의 기하 검사와 별도로 한컴 정상 저장본의 PDF 좌표를 검사한다.
+/// 정상 한컴 저장 줄의 소속과 표 뒤 본문 흐름을 검사한다.
 #[test]
 fn hancom_saved_tail_preserves_pdf_baseline_after_the_table() {
     let mut core = DocumentCore::from_bytes(FIXTURE).expect("Hancom saved public fixture");
     let host = &core.document().sections[0].paragraphs[1];
-    assert_eq!(host.line_segs.len(), 4, "Hancom's actual text partition");
+    assert_eq!(host.line_segs.len(), 4, "한컴이 저장한 실제 줄 소속");
     assert_eq!(host.line_segs[3].text_start, 83);
+    let object_line = host.line_segs[1].clone();
+    let footer_line = host.line_segs[3].clone();
     assert_eq!(core.page_count(), 1);
     let tree = core.build_page_render_tree(0).expect("render");
     let mut nodes = Vec::new();
     collect(&tree.root, &mut nodes);
-    let (footer, baseline) = nodes
+    let footers: Vec<_> = nodes
         .iter()
-        .find_map(|node| match &node.node_type {
+        .filter_map(|node| match &node.node_type {
             RenderNodeType::TextRun(run)
                 if run.para_index == Some(1)
                     && run.cell_context.is_none()
@@ -341,27 +343,53 @@ fn hancom_saved_tail_preserves_pdf_baseline_after_the_table() {
             }
             _ => None,
         })
-        .expect("Footer text run");
-    // Hancom PDF: Footer baseline y=265.866821pt, run x=36.24pt (10 leading spaces).
-    // Half a pixel covers 600-dpi PDF quantization and font metric rounding.
-    assert!(
-        (baseline - 265.866821 * 96.0 / 72.0).abs() < 0.5,
-        "Footer baseline {baseline} must not add the preceding blank row"
+        .collect();
+    assert_eq!(
+        footers.len(),
+        1,
+        "뒤 문장은 원래 문단의 본문에 한 번만 표시"
     );
-    assert!((footer.x - 36.24 * 96.0 / 72.0).abs() < 0.5);
+    let (footer, baseline) = footers[0];
     let tables: Vec<_> = nodes
         .iter()
         .filter(|n| matches!(n.node_type, RenderNodeType::Table { .. }))
         .collect();
     assert_eq!(tables.len(), 1);
     let table = tables[0].bbox;
-    // PDF table perimeter, separate from the surrounding paragraph border.
-    assert!((table.y - 140.77).abs() < 0.5, "table top {table:?}");
+    // 한컴 PDF로 확인한 저장 줄 관계를 사용한다. 용지의 절대 좌표는 고정하지 않는다.
+    let stored_baseline_delta = rhwp::renderer::hwpunit_to_px(
+        footer_line.vertical_pos - object_line.vertical_pos + footer_line.baseline_distance,
+        96.0,
+    );
     assert!(
-        (table.y + table.height - 312.42).abs() < 0.5,
-        "table bottom {table:?}"
+        (baseline - table.y - stored_baseline_delta).abs() < 0.5,
+        "뒤 문장은 표 앞 공백 줄을 다시 예약하지 않고 원래 저장 줄을 이어받아야 함"
     );
     assert!(footer.y > table.y + table.height);
+    assert!(footer.x >= table.x && footer.x + footer.width <= table.x + table.width);
+    let mut previous_bottom = table.y;
+    for index in 1..=8 {
+        let value = format!("Cell {index}");
+        let cell_runs: Vec<_> = nodes
+            .iter()
+            .filter_map(|node| match &node.node_type {
+                RenderNodeType::TextRun(run) if run.cell_context.is_some() && run.text == value => {
+                    Some((node.bbox, node.bbox.y + run.baseline))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            cell_runs.len(),
+            1,
+            "셀 문장은 중복·누락 없이 한 번만 표시: {value}"
+        );
+        let (bbox, cell_baseline) = cell_runs[0];
+        assert!(bbox.y >= previous_bottom);
+        // 글꼴의 여유 상자 끝과 실제 글줄 기준선을 혼동하지 않는다.
+        assert!(cell_baseline <= table.y + table.height);
+        previous_bottom = bbox.y + bbox.height;
+    }
 }
 
 #[test]
