@@ -2555,3 +2555,12 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![정책연구 source검사182쪽 review](../assets/issue7445/policy_report_source_unit_native_review_182.png)
 ![정책연구 source검사107쪽 overlay](../assets/issue7445/policy_report_source_unit_native_overlay_107.png)
+
+
+## 보정139 사전 분석·결과 — 암호 HWPX의 실패한 쪽수 전제만 이관
+
+- 사전 head `e8d4e8089`, 코드 `a4ecead9ed345f48337acfbbbffab968a23c3b98`. [개별 실패·독립 기준·변경 범위·명령·결과](../assets/issue7445/password_page_pin_blocking_scope_validation.json). 전체137의 암호 관련 네 함수는 모두 같은 HWPX의23쪽 고정에서 실패했습니다. 앞선 복호화·IR·오류 계약과 HWP3/HWP5 정상 대조군은 통과했습니다.
+- 동일 문서 평문에 대응하는 정상 한컴2024 PDF는24쪽이며 현재 Native도24쪽입니다. 보정128의1/13/14/15쪽63.35754/47.58076/41.87220/54.90896%와14쪽 review의 본문 소속·줄바꿈·용지 아래 차이를 다시 확인했습니다. 원문/평문/PDF의 현재 커밋 바이트도 동일합니다.
+- [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5883321298) 후 `hwpx_password_fixture` 공개 API·CLI의 쪽수 핀 두 곳과 `mcp_password_contract`·`armor_cli_contract`의 HWPX 쪽수 전제만 제거했습니다. 기존11개 함수, 복호화·IR·오류·비노출·세션 읽기/닫기·응답 봉투, 다른 두 포맷 정상24/64쪽 핀과 원문/PDF는 유지했습니다. 23을 현재24로 바꾸지 않았고 새 함수·생산 변경은 없습니다.
+- 수정 전7PASS/4FAIL, 수정 후 최종11PASS/0FAIL입니다. 포맷 뒤 파생 묶음 불일치는 재생성한 뒤 같은 검사와 필수fmt/Clippy3/workspacebuild/manifest·unit 고정base 정책을 다시 실행해 모두exit0을 확인했습니다.
+- 전체137의60FAIL 중 보정138의3곳과 이번4곳만 처리했습니다. 다른53개는 개별 검토 대상이며 현재 전체 통과·피델리티 승인·PR준비 완료로 보고하지 않습니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage139-password-page-pin/`에만 저장합니다.

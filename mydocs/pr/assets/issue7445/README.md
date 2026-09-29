@@ -464,3 +464,8 @@ HWPX oracle는 격차가 개선되어 실제차단이 아니므로 원장행을 
 
 ![정책연구182쪽 review](policy_report_source_unit_native_review_182.png)
 ![정책연구107쪽 overlay](policy_report_source_unit_native_overlay_107.png)
+
+
+## 암호 HWPX의 쪽수 고정 — 보정139
+
+[실패·독립 PDF·유지 범위·명령](password_page_pin_blocking_scope_validation.json). 정상 한컴 PDF는24쪽이며 이전23쪽 전제는 기준과도 다릅니다. Native 선택 최저41.87220%이므로 쪽수 고정4곳만 후속 이관했습니다. 기존11개 암호·보안 함수와 HWP3/HWP5 정상 쪽수, 원문·평문·PDF는 보존했고 최종11PASS/0FAIL 및필수lint/정책을 확인했습니다. 현재24쪽으로 기대값을 바꾸지 않았으며 문서 피델리티 개선은 후속입니다.
