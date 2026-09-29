@@ -374,17 +374,42 @@ fn hancom_saved_object_row_keeps_its_character_border() {
         .iter()
         .find(|n| matches!(n.node_type, RenderNodeType::Table { .. }))
         .unwrap();
-    // Hancom PDF stroke center: x=36..334.56pt, bottom=248.35pt.
-    // The row contains the table and two spaces, not the later Footer.
-    // One pixel covers the two 0.32px decoration edges and PDF quantization.
+    let footer = text(&nodes, "          Footer");
+    let outlines: Vec<_> = nodes
+        .iter()
+        .filter(|node| {
+            matches!(node.node_type, RenderNodeType::Rectangle(_))
+                && node.bbox.y < table.bbox.y
+                && node.bbox.y + node.bbox.height >= footer.y + footer.height
+                && node.bbox.height > table.bbox.height
+        })
+        .collect();
+    assert_eq!(outlines.len(), 1, "표와 뒤 문장을 소유하는 문단 외곽");
+    // 정상 한컴 저장본의 첫 공백 줄은 높이를 점유하고 0 간격을 남긴다.
+    // 표 원점은 해당 저장 줄 끝을 따르며 글꼴 상대 크기100%로 재조판하지 않는다.
+    let source = &core.document().sections[0].paragraphs[1];
+    let first = &source.line_segs[0];
+    let object = &source.line_segs[1];
+    assert_eq!(first.line_spacing, 0);
+    let prefix = rhwp::renderer::hwpunit_to_px(object.vertical_pos - first.vertical_pos, 96.0);
     assert!(
-        table
-            .children
-            .iter()
-            .any(|n| matches!(n.node_type, RenderNodeType::Line(_))
-                && (n.bbox.y - 248.35 * 4.0 / 3.0).abs() < 1.0
-                && (n.bbox.width - (334.56 - 36.0) * 4.0 / 3.0).abs() < 1.0),
-        "missing object-row character border with its two trailing spaces"
+        (table.bbox.y - outlines[0].bbox.y - prefix).abs() < 0.5,
+        "저장 공백 줄의 0 간격이 표 앞 흐름에서 보존되어야 함"
+    );
+    let row_borders: Vec<_> = table
+        .children
+        .iter()
+        .filter(|node| {
+            matches!(node.node_type, RenderNodeType::Line(_))
+                && node.bbox.width > table.bbox.width
+                && node.bbox.y > table.bbox.y + table.bbox.height
+                && node.bbox.y < footer.y
+        })
+        .collect();
+    assert_eq!(
+        row_borders.len(),
+        1,
+        "개체 줄은 두 뒤 공백까지 문자 테두리를 소유하며 Footer를 포함하지 않아야 함"
     );
 }
 

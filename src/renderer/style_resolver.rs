@@ -599,7 +599,10 @@ fn resolve_single_char_style(cs: &CharShape, doc_info: &DocInfo, dpi: f64) -> Re
         letter_spacings.push(font_size * spacing_percent / 100.0);
 
         ratios.push(cs.ratios[lang] as f64 / 100.0);
-        font_sizes.push(font_size * f64::from(cs.relative_sizes[lang]) / 100.0);
+        // 100%는 저장 줄과 같은 원래 크기를 보존한다. 먼저 곱하고 나누면
+        // 반올림 잔차로 글꼴이 저장 줄보다 커져 유효한 0 간격이 재계산된다.
+        let relative_size = f64::from(cs.relative_sizes[lang]) / 100.0;
+        font_sizes.push(font_size * relative_size);
     }
 
     // [#7387] 공백은 영문 슬롯(1) 글꼴이 정한다. 속성이 꺼졌거나 그 글꼴의 공백폭을
@@ -1355,7 +1358,7 @@ mod tests {
 
     #[test]
     fn test_resolve_char_style_size() {
-        let doc_info = make_doc_info_with_font();
+        let mut doc_info = make_doc_info_with_font();
         let styles = resolve_styles(&doc_info, DEFAULT_DPI);
 
         // 2400 HWPUNIT * 96 / 7200 = 32.0 px
@@ -1365,6 +1368,25 @@ mod tests {
         // 1000 HWPUNIT * 96 / 7200 ≈ 13.33 px
         let expected_10pt = 1000.0 * DEFAULT_DPI / 7200.0;
         assert!((styles.char_styles[1].font_size - expected_10pt).abs() < 0.01);
+        // 100%는 모든 언어 슬롯에서 원래 크기와 정확히 같아야 한다.
+        // 미세한 증가도 저장 0 간격을 재계산하는 분기를 잘못 발동시킨다.
+        for style in &styles.char_styles {
+            for lang in 0..LANG_COUNT {
+                assert_eq!(style.font_size_for_lang(lang), style.font_size);
+            }
+        }
+        // 실제 상대 크기 변경은 계속 반영한다.
+        doc_info.char_shapes[1].relative_sizes[1] = 80;
+        doc_info.char_shapes[1].relative_sizes[2] = 125;
+        let styles = resolve_styles(&doc_info, DEFAULT_DPI);
+        assert_eq!(
+            styles.char_styles[1].font_size_for_lang(1),
+            expected_10pt * 0.8
+        );
+        assert_eq!(
+            styles.char_styles[1].font_size_for_lang(2),
+            expected_10pt * 1.25
+        );
     }
 
     #[test]
