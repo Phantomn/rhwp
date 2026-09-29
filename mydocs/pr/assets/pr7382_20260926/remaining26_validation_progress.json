@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 4,
-  "remaining": 22,
+  "completed": 5,
+  "remaining": 21,
   "items": [
     {
       "index": 1,
@@ -37,8 +37,8 @@
       "index": 6,
       "test": "issue_2243::issue_2243_gyeoljae_sliver_page_pins",
       "case": "issue_2243",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 현 브랜치에서 작은 결재문서4개14쪽 보정·의미 회귀/대조군7PASS·단위56PASS·스윕5PASS",
+      "evidence": "stage162_consult2243_validation.json"
     },
     {
       "index": 7,

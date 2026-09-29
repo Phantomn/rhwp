@@ -2833,3 +2833,28 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 원문2024 저장본·기존64쪽 PDF를 보존하고, 실제 KoPub 글꼴을 공급한 동일원문 정상 한컴2024 PDF도 커밋했습니다. 기존PDF/새PDF를 각각Native/freshWASM1·27·28·29쪽으로 직접 대조했습니다. 기존 최저80.03785%, 새PDF최저28.67074%이며 두 backend의8쌍PNG는해시동일합니다. 새PDF28쪽의수치표가27쪽으로옮겨지고후속표/말미내용소속도달라지는64쪽·28행4열/중첩표전체피델리티문제입니다. 단순좌표 보정이나 글꼴예외로통과처리하지않습니다.
 - [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5889443550) 후 실제 실패1함수만 제거했습니다. 원문·두PDF·다른정상검사·생산·baseline·공차를 보존했고 기존#1133 HWP정상대조군1PASS, fmt/고정base manifest/diff0을확인했습니다. 새테스트0입니다. [명령·자료해시·부정시각·보존범위](../assets/issue7445/outer7358_blocking_scope_validation.json).
 - 코드`b0aed8322`. 남은26개중4처리/22대기(과거전체60실패중38처리/22대기)이며 현재전체결과가아닙니다. 최종lint·전체nextest·NativeSkia·원PR최종전체시각·통합PR준비는미완료입니다.
+
+
+### 보정162 — 작은 결재문서 #2243 네 개의 흐름과 기존 의미 회귀
+
+- **사전 분석**: 기존 #2243 검사1개는 세운3쪽의 심사항목 기준선이 PDF보다 약16px 아래라 실패했습니다. Native/fresh WASM 전14쪽 대조에서 컨설팅3쪽63.60066%, 세운3쪽47.04651%와 표/후속 문단 이동을 직접 확인했습니다. 5/3/5/1쪽의 작은 문서이므로 현재 브랜치에서 해결하고 #7445로 이관하지 않았습니다. 원문과 기준 PDF4쌍의 해시는 보존했습니다.
+- **원인과 수정**: 합성 줄의 소폭 전방 이동을 거부한 뒤 활성 vpos 원점이 남아 다음 저장 문단에서 같은 이동이 다시 적용됐습니다. `HeightCursor`의 기존 거부 조건에서 원점도 함께 갱신했습니다. 컨설팅의 저장 TAC 표 후행 간격은 측정 상한만 절반으로 소비해 뒤 computed 표가 약13px 위로 배치됐습니다. `composer::tac_host_trailing_spacing`을 측정 `tac_reconcile::measure`와 paint가 공유합니다. 현재 생성한 단일 RowBreak 소유 프레임의 기존 반간격 및 음수 Fixed 경로는 보존했습니다. `상한→current_height→computed placement→paint 원점`의 실제 호출 연결과 정상/비적용 경계는 아래 근거에 있습니다.
+- **기존 회귀 개선**: 기존 #2243의 한 함수와 네 문서 쪽수는 유지했습니다. 절대 x/y·기준선 핀을 제거하고, PDF에서 확인한 문단/표 쪽 소속·앞뒤 순서·본문 내부 점유, 원문 행열·모든 셀의 누락/중복 및 선언 줄간격 보존을 검사합니다. 기존 compositor 단위 함수와 스윕 함수만 강화했고 새 테스트 함수는0개입니다. 같은 의미 검사는 보정 전 코드에서 선언 줄간격 손실로 **1FAIL**, 보정 후 **1PASS**입니다. 파생 묶음 미갱신으로0개가 선택된 실행은 재현 근거에서 제외하고 `--prepare` 후 다시 확인했습니다.
+- **검증 결과**: 기존 회귀/정상 대조군 **7PASS/0FAIL**, HeightCursor와 소유 줄의 기존 단위 **56PASS/0FAIL**, 기존 스윕 **5PASS/0FAIL**입니다. fmt, 고정 base manifest/unit 정책, diff check도 통과했습니다. Native/fresh WASM 각14쪽 compare·standalone overlay·review 완료/exit0, 각14쪽 PNG SHA도 같습니다. 컨설팅3쪽은98.81065%, 세운3쪽은96.43610%입니다. 글꼴 예외 없이4문서 모두 gate passed입니다. 선 굵기·명암·글자형과 약1px 경계 차이는 남아 엄격 픽셀 완전 일치로 보고하지 않습니다.
+
+| 문서 | 한컴/rhwp 쪽수 | 최종 Native/fresh WASM 최저 | 판정 |
+| --- | --- | --- | --- |
+| 36395325 컨설팅 | 5/5 | 95.62058% / 95.62058% | 충족 |
+| 36382819 교통 | 3/3 | 91.61629% / 91.61629% | 충족 |
+| 36386907 세운 | 5/5 | 96.43610% / 96.43610% | 충족 |
+| 156631374 택시 | 1/1 | 94.56346% / 94.56346% | 충족 |
+
+- **스윕 보정**: 전체 단일 쪽 export의 SVG 파일명 문서번호를 쪽 번호로 해석하는 오류를 발견했습니다. 실제 번호가 있는 render tree와 PDF가 같은 한 쪽일 때 그 번호를 사용합니다. 보정 전156631374/후1을 실행으로 확인하고 택시 Native1쪽을 다시 산출했습니다. 명시적7쪽 선택은 유지하는 기존 검사도 통과했습니다. 과거 잘못 표시된 산출물을 수동으로 고치거나 새 결과로 재사용하지 않았습니다.
+- **직접 판독**: Native 컨설팅3/5·세운3/4·교통3 review와 네 문서 전14쪽 contact sheet, WASM 컨설팅3·세운3 standalone overlay에서 제목·표 외곽·뒤 문단·본문 하단을 확인했습니다. Mac root fresh WASM `--no-opt`와 Studio 복사본 SHA가 같으며 Docker 최적화/브라우저 실행 결과로 대체하지 않습니다.
+- **기록**: 코드 `037a0ec508e71cae7127ca43d9b2b12d2a200b1b`, [입력/PDF·호출 경로·전후 검증·명령·PNG 해시 근거](../assets/pr7382_20260926/stage162_consult2243_validation.json). 전체 PNG는 `output/pr-review/planet6897-7382-20260926/stage162-consult2243/visual-candidate2-native/` 및 `visual-candidate2-wasm/`, 택시의 수정한 Native1쪽은 `visual-candidate2-taxi-native/`입니다. 로그는 output에만 두며 커밋하지 않습니다.
+- 남은26중 **5처리/21대기**입니다. 원래60실패 기준39처리/21대기이며 현재 전체 검증 결과로 대신하지 않습니다. 최종 정확한 head의 필수 lint·정책·전체 nextest·Native Skia3·원 PR 시각 검증은 남아 있습니다. **통합 PR 준비 미완료**이며 다음은 저장 표의 문자 테두리 검사입니다.
+
+![컨설팅3쪽 최종 Native review](../assets/pr7382_20260926/stage162_native_consult3_review.png)
+![세운3쪽 최종 Native review](../assets/pr7382_20260926/stage162_native_sewoon3_review.png)
+![컨설팅3쪽 최종 fresh WASM overlay](../assets/pr7382_20260926/stage162_wasm_consult3_overlay.png)
+![세운3쪽 최종 fresh WASM overlay](../assets/pr7382_20260926/stage162_wasm_sewoon3_overlay.png)
