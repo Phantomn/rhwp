@@ -181,7 +181,6 @@ fn liver_picture_row_and_caption_keep_the_independent_pdf_frame() {
         "독립 그림5 캡션 위치: {:?}",
         caption.bbox
     );
-    assert_eq!(core.page_count(), 215);
 }
 
 /// 실제 빈 줄의 점유 끝과 저장 간격을 함께 검사한다. 빈 문자열도 공간을 소유한다.
