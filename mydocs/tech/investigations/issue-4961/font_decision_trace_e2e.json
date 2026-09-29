@@ -56,7 +56,9 @@
         "recordsEmitted": 607,
         "recordsOmitted": 0
       },
-      "expectedLayoutHash": "5f344c2ff37349395dc2694e2ab02a03904a7eb461e3d86f50089090db6324f8"
+      "renderPinsDeferredToIssue7445": [
+        "expectedLayoutHash"
+      ]
     },
     {
       "id": "subst-counterpart-hwp",
