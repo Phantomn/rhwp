@@ -20,6 +20,7 @@ def run_timed(cmd,log,cwd=ROOT,env=None,check=True):
 def main():
  OUT.mkdir(parents=True,exist_ok=True)
  original=(ROOT/'src/lib.rs').read_bytes()
+ assert not (ROOT/'rhwp-studio/e2e/screenshots/render-diff').exists(), 'validation requires fresh screenshots'
  environment=json.loads((INPUT/'environment.json').read_text())
  assert environment['head']==RAW_HEAD
  bindgen=TOOLS/'wasm-bindgen-0.2.127-x86_64-unknown-linux-musl/wasm-bindgen'
@@ -71,7 +72,8 @@ console.log(JSON.stringify({version:api.version(),jsExports:Object.keys(api).sor
   (dest/'api.json').write_text(output(['node','--input-type=module','-e',node])+'\n')
   env=dict(os.environ,RHWP_WASM_BUILD_MANIFEST=str(dest/'build.json'),RHWP_RENDER_DIFF_ALL='1',RHWP_RENDER_DIFF_MAX_PAGES='1',RHWP_RENDER_DIFF_WRITE_IMAGES='1')
   browser=run_timed(['npm','run','e2e:render-diff:ci'],dest/'browser.log',ROOT/'rhwp-studio',env,check=False)
-  shutil.copytree(ROOT/'rhwp-studio/e2e/screenshots/render-diff',dest/'screenshots')
+  # Move each run's fresh outputs so the next condition cannot inherit stale PNGs.
+  shutil.move(str(ROOT/'rhwp-studio/e2e/screenshots/render-diff'), str(dest/'screenshots'))
   all_results[mode]={'files':files,'binding':binding,'optimization':optimization,'browser':browser}
  a=OUT/'dual'; b=OUT/'cdylib-baseline-lto'
  same_png=[]; changed_png=[]
