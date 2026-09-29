@@ -2858,3 +2858,16 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![세운3쪽 최종 Native review](../assets/pr7382_20260926/stage162_native_sewoon3_review.png)
 ![컨설팅3쪽 최종 fresh WASM overlay](../assets/pr7382_20260926/stage162_wasm_consult3_overlay.png)
 ![세운3쪽 최종 fresh WASM overlay](../assets/pr7382_20260926/stage162_wasm_sewoon3_overlay.png)
+
+
+### 보정163 — 작은 저장 표의 문자 테두리와 100% 글꼴 크기
+
+- **사전 분석**: `hancom_saved_object_row_keeps_its_character_border`가 단독 실패했습니다. 대상은 정상 한컴 저장본 `samples/stored-table-text-tail/native-8-0.hwpx`와 기존 한컴 PDF `pdf/pr7242/native-8-0-2020.pdf`의 1쪽입니다. 이전 Native/fresh WASM46.21901%에서 표·셀·뒤 문장·테두리가 약8px 아래임을 직접 확인했습니다. 작은 문서이므로 현 브랜치에서 보정했으며 이관/원문 교체는 없습니다.
+- **원인과 소비 경로**: `style_resolver::resolve_single_char_style`이 원래13.333333333333334px에100을 곱한 뒤 나누어13.333333333333336px를 만들었습니다. 측정 `composed_line_max_font_size → typeset/paragraph/format`은 원래 크기를 사용하지만 paint `ComposedRun::text_style → paragraph_layout → corrected_line_metrics_for_source → corrected_line_metrics`는 이 미세 증가를 실제 큰 글꼴로 보고 저장0간격을160%의8px로 바꾸었습니다. 상대 크기를 비율로 먼저 바꿔100%의 항등성을 보존했습니다. 좌표 clamp·문서ID 조건·메트릭 수용 공차는 추가하지 않았고, 진짜80%/125% 상대 크기는 기존 단위 함수에서 확인했습니다. 다른 상대 크기의 측정/paint 일반화까지 완료했다는 주장은 하지 않습니다.
+- **기존 회귀 교정**: 절대 y/폭 핀을 제거하고 정상 저장 공백 줄의 점유/0간격, 표·뒤 공백의 문자 테두리가 Footer를 소유하지 않는 것을 검사합니다. 같은 변경 검사와 기존 글꼴 크기 단위 함수는 보정 전 각각1FAIL, 보정 후 PASS입니다. 입력/PDF 출처와 정상 재저장 계보는 샘플 README에 그대로 보존했습니다. 새 테스트 함수0개입니다.
+- **결과**: 기존 테두리/정상 대조군10PASS + #2243 회귀1PASS + 기존 style resolver 단위26PASS = **37PASS/0FAIL**입니다. Native/fresh WASM1쪽 각96.86991%·gate passed·PNG SHA동일이며, Native review와 WASM standalone overlay에서 표·Cell1..8·Footer·문자/문단 테두리를 직접 확인했습니다. 선 명암/굵기와 약1px 경계 차이는 남습니다.
+- 공통 글꼴 계산의 영향이 있는 #2243 네 문서 전체14쪽도 다시 산출했습니다. Native/fresh WASM 모두 gate passed·14쪽 PNG SHA동일이며 최저91.61509%입니다. 컨설팅3쪽 review와 교통/세운 contact sheet에서 표·뒤 문장·쪽 소속을 다시 확인했습니다. root fresh WASM `--no-opt` 및 Studio 복사본 SHA일치, fmt/고정base manifest/unit 정책/diff0입니다. 초기 fmt 뒤 파생 묶음 drift는 재준비 후 정책 통과로 해결했고 생성 파일은 커밋하지 않았습니다.
+- 코드 `6fcb36f24`, [입력/PDF·전후 실패·명령·해시·시각 근거](../assets/pr7382_20260926/stage163_tail_border_validation.json). 전체 PNG/로그는 `output/pr-review/planet6897-7382-20260926/stage163-tail-border/`에 있습니다. 남은26중 **6처리/20대기**이며 최종 정확한 head의 lint3종·workspace·전체nextest·NativeSkia·원PR전체 시각 및 통합PR 준비는 미완료입니다. 다음은 같은 문서의 Footer 검사이며 별도로 판단합니다.
+
+![보정163 최종 Native review](../assets/pr7382_20260926/stage163_native_review.png)
+![보정163 최종 fresh WASM overlay](../assets/pr7382_20260926/stage163_wasm_overlay.png)

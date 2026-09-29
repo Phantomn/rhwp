@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 5,
-  "remaining": 21,
+  "completed": 6,
+  "remaining": 20,
   "items": [
     {
       "index": 1,
@@ -44,8 +44,8 @@
       "index": 7,
       "test": "stored_table_text_tail::hancom_saved_object_row_keeps_its_character_border",
       "case": "stored_table_text_tail",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 현 브랜치 작은1쪽의100% 글꼴 반올림과0간격 손실 해결·테두리 의미 회귀 유지",
+      "evidence": "stage163_tail_border_validation.json"
     },
     {
       "index": 8,
