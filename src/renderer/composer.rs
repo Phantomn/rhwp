@@ -603,6 +603,40 @@ pub(crate) struct StoredTacLine {
     pub occupied_end: i32,
 }
 
+/// 가시 텍스트 없이 첫 저장 줄 전체를 소유한 TAC 표의 줄 상자다.
+/// 다중 줄의 페인트 단축과 달리 단일 표도 수용하며, 합성/편집 줄은 원본 근거가 아니다.
+pub(crate) fn stored_first_tac_line(para: &Paragraph) -> Option<&LineSeg> {
+    let first = para.line_segs.first()?;
+    if para.stored_text_partition_dirty
+        || para
+            .line_segs
+            .iter()
+            .any(|line| line.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0)
+        || para
+            .text
+            .chars()
+            .any(|c| !c.is_whitespace() && c > '\u{001f}' && c != '\u{fffc}')
+    {
+        return None;
+    }
+    para.controls
+        .iter()
+        .enumerate()
+        .any(|(ci, control)| {
+            let Control::Table(table) = control else {
+                return false;
+            };
+            table.common.treat_as_char
+                && table.caption.is_none()
+                && control_line_seg_index(para, ci) == Some(0)
+                && i64::from(first.line_height)
+                    == i64::from(table.common.height)
+                        + i64::from(table.outer_margin_top)
+                        + i64::from(table.outer_margin_bottom)
+        })
+        .then_some(first)
+}
+
 pub(crate) fn stored_tac_lines(para: &Paragraph) -> Option<Vec<StoredTacLine>> {
     // 공백도 자기 저장 줄을 가질 수 있다. 표 앞 공백 줄의 line_height에는
     // 문단의 최대 개체 높이가 반복 저장되므로 text_height와 다음 원점을 확인한다.

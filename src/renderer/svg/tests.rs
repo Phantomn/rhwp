@@ -182,6 +182,18 @@ fn planned_font_lookup_does_not_descend_below_search_roots() {
         "font lookup must consider direct file names only"
     );
 
+    // 실제 설치 파일이 있으면 같은 루트의 대체 파일보다 먼저 선택한다.
+    let installed = root.join("HANYGO230.ttf");
+    std::fs::write(&installed, b"installed face").expect("설치 파일 후보");
+    std::fs::write(root.join("NotoSansKR-ExtraLight.ttf"), b"substitute").expect("대체 파일 후보");
+    for face in ["한컴 윤고딕 230", "Haan YGodic 230"] {
+        let lookup = plan_svg_font_file_lookup(face, std::slice::from_ref(&root), false);
+        assert_eq!(
+            find_font_file(&lookup),
+            Some(installed.clone()),
+            "원 face 파일 우선: {face}"
+        );
+    }
     std::fs::remove_dir_all(root).expect("remove temporary font directory");
 }
 

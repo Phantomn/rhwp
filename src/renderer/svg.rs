@@ -4406,6 +4406,9 @@ fn known_font_filenames(font_name: &str) -> Vec<&'static str> {
         }
         "HY헤드라인M" | "HYHeadLine M" => vec!["H2HDRM.TTF"],
         "HY중고딕" | "HYGothic-Medium" => vec!["H2GTRM.TTF"],
+        // 한컴 Windows 설치본의 이름 테이블은 한글 face와 아래 파일명을
+        // 연결한다. 실제 face를 공급해도 영문 파일명 때문에 대체 글꼴을 고르면 안 된다.
+        "한컴 윤고딕 230" | "Haan YGodic 230" => vec!["HANYGO230.ttf"],
         // 한컴 2020 PDF는 legacy 한양중고딕을 HCR Dotum으로 출력한다. portable
         // SVG의 full embed도 같은 대체 face를 넣어야 local() 미설치/Snap sandbox
         // 환경에서 기준 PDF와 다른 HYGothic·Noto 폭으로 재조판하지 않는다.

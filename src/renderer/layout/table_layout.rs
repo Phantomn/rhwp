@@ -5984,7 +5984,8 @@ impl LayoutEngine {
             let first_para_lead_px = if cp_idx == 0
                 && !use_top_vpos_anchor
                 && !trust_stored_cell_flow
-                && !has_nested_table
+                && (!has_nested_table
+                    || crate::renderer::composer::stored_first_tac_line(para).is_some())
                 && !snap_anchored_with_spacing_before
                 && (para_y - text_y_start).abs() < 1e-9
             {
@@ -5999,6 +6000,7 @@ impl LayoutEngine {
             };
             let allow_first_para_lead = first_para_lead_px > 0.0;
             let para_y_before_compose = para_y;
+            let paragraph_children_start = cell_node.children.len();
 
             // 줄별 TAC 컨트롤 너비 합산: 각 TAC가 속한 줄을 판별하여 줄별 최대 너비 계산
             let tac_line_widths: Vec<f64> = {
@@ -7609,6 +7611,27 @@ impl LayoutEngine {
                                 } else {
                                     para_y_before_compose
                                 };
+                                // 빈 TAC 호스트도 실제 줄 상자를 갖는다. 문단 위 간격을
+                                // 적용하기 전 커서로 표 원점을 다시 추측하지 않고,
+                                // 같은 저장 줄의 실제 배치 결과를 소비한다.
+                                let table_anchor_y =
+                                    if crate::renderer::composer::stored_first_tac_line(para)
+                                        .is_some()
+                                    {
+                                        cell_node.children[paragraph_children_start..]
+                                            .iter()
+                                            .find_map(|node| match &node.node_type {
+                                                RenderNodeType::TextLine(line)
+                                                    if line.para_index == Some(cp_idx) =>
+                                                {
+                                                    Some(node.bbox.y)
+                                                }
+                                                _ => None,
+                                            })
+                                            .unwrap_or(table_anchor_y)
+                                    } else {
+                                        table_anchor_y
+                                    };
                                 // [#3386] 표 전용 줄(저장 lh == h + om_top + om_bottom)
                                 // 은 표 상단 = 줄 상단 + om_top 이 한글 실좌표다
                                 // (156678235 p5: 저장 vpos+om_top == 한글 PDF 상단

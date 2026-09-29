@@ -2273,6 +2273,10 @@ fn owned_rowbreak_tac_height_selects_current_or_multirow_frames() {
     let mut single_row = para_with_rows(1, 32_339);
     single_row.line_segs[0].line_spacing = 1_200;
     assert_eq!(owned_rowbreak_tac_height(&single_row, 0), None);
+    assert_eq!(
+        stored_first_tac_line(&single_row).map(|line| line.line_height),
+        Some(32_339)
+    );
     // 저장 간격 1200HU는 96dpi에서 전량 16px를 소비한다.
     assert_eq!(
         tac_host_trailing_spacing(&single_row, 0, &single_row.line_segs[0], true, 96.0),
@@ -2310,4 +2314,11 @@ fn owned_rowbreak_tac_height_selects_current_or_multirow_frames() {
 
     let undersized = para_with_rows(4, 32_338);
     assert_eq!(owned_rowbreak_tac_height(&undersized, 0), None);
+    assert!(stored_first_tac_line(&undersized).is_none());
+    assert!(stored_first_tac_line(&current_single_row).is_none());
+    single_row.text = "본문".to_owned();
+    assert!(
+        stored_first_tac_line(&single_row).is_none(),
+        "가시 텍스트와 같은 줄은 별도 구성 계약"
+    );
 }

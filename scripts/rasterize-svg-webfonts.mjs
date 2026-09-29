@@ -290,6 +290,11 @@ async function renderWithChrome({ chrome, htmlPath, outputPath, viewport, zoom, 
     return recoveredFontFaces;
   } finally {
     await browser.close();
+    // 브라우저 종료 뒤 자식의 출력 파이프가 남으면 Node가 캡처 완료 후에도
+    // 대기한다. 이 실행이 소유한 스트림만 닫고 화면·글꼴 완료 조건은 유지한다.
+    for (const stream of browser.process()?.stdio ?? []) {
+      stream?.destroy();
+    }
   }
 }
 

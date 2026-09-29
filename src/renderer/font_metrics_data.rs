@@ -362,6 +362,7 @@ mod tests {
             ("HY신명조", "HYSinMyeongJo-Medium"),
             ("HY그래픽", "HYGraphic-Medium"),
             ("HY궁서", "HYGungSo-Bold"),
+            ("한컴 윤고딕 230", "Haan YGodic 230"),
         ] {
             let m = find_metric(korean, false, false);
             assert!(m.is_some(), "{} 매핑 실패", korean);
