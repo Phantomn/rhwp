@@ -2730,3 +2730,10 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![온새미로 HWPX6쪽 review](../assets/issue7445/onsaemiro_hwpx_fonttrace_native_review_006.png)
 ![온새미로 HWPX6쪽 fresh WASM overlay](../assets/issue7445/onsaemiro_hwpx_fonttrace_wasm_overlay_006.png)
+
+
+## 검증156 — 남은27개 검토 대상의 현행 head 개별 실행
+
+- 검사 head `e13abf3b1`에서 남은27개를 각1함수씩, 고정target/locked release-test/threads8/--no-fail-fast로 순차 실행했습니다. **27개 개별 명령 완료: 0PASS/27FAIL**, 각명령은 실제1검사를실행했습니다. [대상·현행target해석·명령·exit·요약](../assets/pr7382_20260926/stage156_remaining_individual.json). source/test변경·새검사·허용치완화없음. Cargo진행중에는source/test를수정하지않았습니다.
+- 원래60개 중33곳처리/남은27개는 이제 현행 head에서도 실패가 재현된 대상입니다. 전체10250검사 실행을 대체하지 않으며 다음은 각 입력별 독립시각/원인 판정 후 개별 보정입니다. #1100의 기존 PDF는A4인데 원본은771×1117pt로용지가달라 재산출·배율을 먼저 확인합니다. 미달점수만으로 해당함수를제거하지않았고 사용자지시대로 새한컴PDF 비교를진행합니다.
+- 변경분의 src/tests 추가주석도감사해순수영문추가주석0을확인했습니다. 기존upstream주석은별도입니다. 로그: `output/pr-review/planet6897-7382-20260926/stage156-remaining-individual/`. 최종전체/PR준비미완료입니다.
