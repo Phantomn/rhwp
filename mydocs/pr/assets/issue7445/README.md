@@ -517,3 +517,11 @@ HWPX oracle는 격차가 개선되어 실제차단이 아니므로 원장행을 
 
 ![3쪽 review](distribution7160_native_review_003.png)
 ![3쪽 overlay](distribution7160_native_overlay_003.png)
+
+
+## 저슬랙 #6535: 실제 차단2함수 — 보정148
+
+[원문](../../../../samples/issue6535/36339092_low_slack_absorb_block.hwpx), [한컴1쪽 기준](../../../../pdf/36339092_low_slack_absorb_block-2020.pdf), [시각·실패·범위·명령](low_slack6535_blocking_scope_validation.json). 정상1/현재2쪽이며별도1쪽69.33089%로서명·결재선·주소/전화블록이누락됩니다. 실제실패2함수만이관하고공통helper/다른정상2함수/원문·PDF·다른축은보존했습니다. 유지2PASS/0FAIL·필수lint/정책통과이며전체피델리티·1쪽소유계약복원은후속입니다.
+
+![1쪽 review](low_slack6535_native_review_001.png)
+![1쪽 overlay](low_slack6535_native_overlay_001.png)

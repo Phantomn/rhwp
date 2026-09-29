@@ -2647,3 +2647,15 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ![배포용 HWPX3쪽 review](../assets/issue7445/distribution7160_native_review_003.png)
 ![배포용 HWPX3쪽 overlay](../assets/issue7445/distribution7160_native_overlay_003.png)
+
+
+## 보정148 사전 분석·결과 — 저슬랙 원문의 실제 차단2함수만 이관
+
+- 사전 head `ac94ab661`, 코드 `6fd829478a0e11a93113006a08ddc38b724aefe6`. [독립근거·쪽수중단·시각·실패·범위·명령](../assets/issue7445/low_slack6535_blocking_scope_validation.json). 동일원문/PDF의 커밋바이트를확인했습니다. 정상PDF1/현재2쪽이며 전체sweep은SVG/tree2·PDF1의쪽수불일치로비교전중단됐습니다. 이를통과또는시각gate완료로세지않았습니다.
+- 별도같은물리1쪽비교69.33089%이며review·standalone overlay를직접판독했습니다. 기준1쪽의서명·결재선·주소/전화블록이현재1쪽에서빠졌습니다. 1쪽부정증거를전체2쪽비교완료로보고하지않습니다.
+- 단독2PASS/2FAIL은모두1쪽전제에서현재2쪽으로실패합니다. [#7445 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5884097204) 후실제쪽수전용한함수파일과같은입력의하단위치한함수만제거했습니다. 공통helper·다른페이지앵커/초과근무의정상2본문·모든원문/PDF·다른입력/축은byte단위동일하게유지했습니다. 현재2쪽으로재고정·생산변경·새함수없음.
+- 유지2PASS/0FAIL·필수fmt/Clippy3/workspacebuild/고정base manifest·unit 정책7단계exit0입니다. 전체137의60FAIL 중31곳처리며나머지29개는개별검토대상입니다. 최종전체회귀/PR준비 완료가아닙니다.
+- 비교/로그: `output/pr-review/planet6897-7382-20260926/stage148-low-slack6535/`. 이번freshWASM은미실행입니다.
+
+![저슬랙1쪽 review](../assets/issue7445/low_slack6535_native_review_001.png)
+![저슬랙1쪽 overlay](../assets/issue7445/low_slack6535_native_overlay_001.png)
