@@ -3349,3 +3349,18 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 수정 전 전체 회귀에서 #1658 기존 함수는 `끝.` 기준선 **620.013px**로 FAIL했습니다. 수정 후 render tree의 `끝.` 줄 상단은 **606.4→612.8px**, 기준 PDF의 기준선 **626.400px**에 다시 맞고 기존 #1658 3함수 모두 PASS입니다. Native Visual Sweep은 원본/PDF **1/1쪽**, **99.46309%**, gate 통과이며 review에서 표 외곽·끝 문단·하단 틀을 직접 확인했습니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage231-issue1658-visual/`입니다.
 - #1749 HWPX의 Native 전체 **5/5쪽** 일치율은 **94.97706/98.86521/99.51565/91.11617/90.57406%**, 최저 **90.57406%**로 이전 결과를 유지합니다. 4·5쪽 review에서 분할 표, 뒤 문단과 쪽 소유를 확인했습니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage231-hwpx1749-visual/`입니다. 기존 #1749 3함수와 #3930 3함수도 PASS입니다.
 - `cargo fmt --all` 뒤 `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_1658_page_bottom_fixed_exclusion) | test(issue_1749_saved_bounds_page_break) | test(issue_3930_hwpx_hwp_save_layout)' --no-fail-fast`는 **9PASS/0FAIL**, 종료 코드 **0**입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage231-focused-nextest.log`입니다. 비교용 임시 작업트리는 제거했습니다. fresh WASM·전체 회귀·필수 Rust lint는 아직 이 코드 head에서 검증하지 않았습니다.
+
+## 보정232 — 보정231 head의 fresh WASM 재현
+
+- 코드 head `0a83091ff`에서 저장소 루트의 `CARGO_TARGET_DIR=target/pr-review scripts/wasm-pack-locked.sh --target web --out-dir pkg --no-opt`가 종료 코드 **0**으로 완료됐습니다. 이는 Mac 로컬 대체 빌드이며 Docker 최적화 빌드 결과가 아닙니다. `pkg/rhwp_bg.wasm` SHA-256은 `6a724904910b0bb11599a3921f70462d8e709d079728d1901d419ff4dfde5ac3`입니다. 빌드 로그는 `output/pr-review/planet6897-7382-20260926/stage232-wasm-build.log`입니다.
+- fresh WASM Visual Sweep은 #1658 **1/1쪽 99.46309%**, #1749 **5/5쪽 94.97706/98.86521/99.51565/91.11617/90.57406%**로 양쪽 gate가 통과했습니다. Native와 각 페이지 rhwp PNG SHA-256이 모두 같습니다. #1658 overlay와 #1749 5쪽 review를 직접 판독해 본문 표 뒤 `끝.` 위치와 이어받기 표·뒤 문단을 확인했습니다. 전체 산출물은 `output/pr-review/planet6897-7382-20260926/stage232-{issue1658,hwpx1749}-wasm/`입니다. 대표 PNG를 아래에 보존합니다. 전체 회귀와 필수 Rust lint는 아직 이 head에서 완료하지 않았습니다.
+
+![#1658 fresh WASM 한 쪽 비교](../assets/pr7382_20260926/stage232_gwanak1658_wasm_review_001.png)
+
+![#1658 fresh WASM 겹침](../assets/pr7382_20260926/stage232_gwanak1658_wasm_overlay_001.png)
+
+![#1749 fresh WASM 4쪽 비교](../assets/pr7382_20260926/stage232_savedbounds1749_wasm_review_004.png)
+
+![#1749 fresh WASM 5쪽 비교](../assets/pr7382_20260926/stage232_savedbounds1749_wasm_review_005.png)
+
+![#1749 fresh WASM 5쪽 겹침](../assets/pr7382_20260926/stage232_savedbounds1749_wasm_overlay_005.png)
