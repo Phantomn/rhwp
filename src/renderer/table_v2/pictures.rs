@@ -1,19 +1,23 @@
 //! Qualified stored picture/space rows. The row's saved physical box is
 //! composed once; pagination and image paint consume the same owned snapshot.
-//! This does not admit floating objects, visible mixed text or edited rows.
+//! Cell-local full-width exclusions use a separate positioned composition;
+//! visible mixed text, side wrapping and edited picture hosts remain unsupported.
 use super::{GeometryError, ParagraphItem, Rect};
 use crate::{
     model::{
         bin_data::BinDataContent,
         control::Control,
         image::{ImageEffect, Picture},
-        paragraph::Paragraph,
-        shape::{DropCapStyle, SizeCriterion},
+        paragraph::{LineSeg, Paragraph},
+        shape::{
+            DropCapStyle, HorzAlign, HorzRelTo, SizeCriterion, TextWrap, VertAlign, VertRelTo,
+        },
     },
     renderer::{
         layout::find_bin_data_bytes,
         render_tree::{
-            BoundingBox, ImageNode, PlaceholderNode, RenderNode, RenderNodeType, TextLineNode,
+            BoundingBox, GroupNode, ImageNode, PlaceholderNode, RenderNode, RenderNodeType,
+            TextLineNode,
         },
         style_resolver::ResolvedStyleSet,
     },
@@ -21,6 +25,133 @@ use crate::{
 
 fn unsupported() -> GeometryError {
     GeometryError::Unsupported("V2 stored picture appearance or resource")
+}
+
+/// A zero-width saved host records a full-lane exclusion, not a TAC line.
+/// The cell adapter has rejected multi-column stories before reaching here.
+/// In that cell-local lane Column/Left and Para/Left coincide only with the
+/// zero paragraph insets qualified below; this is not a document-column origin.
+pub(super) fn excluded_cell_candidate(para: &Paragraph) -> bool {
+    matches!(para.controls.as_slice(), [Control::Picture(p)] if !p.common.treat_as_char)
+}
+
+pub(super) fn compose_excluded_cell(
+    para: &Paragraph,
+    width: f64,
+    styles: &ResolvedStyleSet,
+    dpi: f64,
+    resources: &[BinDataContent],
+) -> Result<(Vec<ParagraphItem>, Vec<RenderNode>), GeometryError> {
+    let fail = || GeometryError::Unsupported("stored cell picture exclusion");
+    let [Control::Picture(pic)] = para.controls.as_slice() else {
+        return Err(fail());
+    };
+    let [row] = para.line_segs.as_slice() else {
+        return Err(fail());
+    };
+    let style = super::tac::carrier_style(para, styles)?;
+    let a = &pic.common;
+    if !para.text.is_empty()
+        || !para.char_offsets.is_empty()
+        || para.char_count != 9
+        || para.stored_text_partition_is_dirty()
+        || para.source_line_seg_vertical_pos.is_some()
+        || para.layout_only_fill_lines != 0
+        || para.hwpx_axis_shift != 0
+        || !para.field_ranges.is_empty()
+        || !para.orphan_field_ends.is_empty()
+        || !para.range_tags.is_empty()
+        || !para.title_marks.is_empty()
+        || !para.markpen_marks.is_empty()
+        || row.text_start != 0
+        || row.vertical_pos < 0
+        || row.segment_width != 0
+        || row.column_start != 0
+        || row.line_height <= 0
+        || row.text_height != row.line_height
+        || row.baseline_distance < 0
+        || row.baseline_distance > row.line_height
+        || row.line_spacing < 0
+        || row.tag != LineSeg::TAG_SINGLE_SEGMENT_LINE
+        || a.treat_as_char
+        || a.text_wrap != TextWrap::TopAndBottom
+        || a.vert_rel_to != VertRelTo::Para
+        || a.vert_align != VertAlign::Top
+        || !matches!(a.horz_rel_to, HorzRelTo::Para | HorzRelTo::Column)
+        || a.horz_align != HorzAlign::Left
+        || (a.horizontal_offset as i32) < 0
+        || (a.vertical_offset as i32) < 0
+        || !a.flow_with_text
+        || a.allow_overlap
+        || a.prevent_page_break != 0
+        || [
+            style.margin_left,
+            style.margin_right,
+            style.indent,
+            style.spacing_before,
+            style.spacing_after,
+        ]
+        .iter()
+        .any(|v| *v != 0.0)
+        || [a.margin.left, a.margin.right, a.margin.top, a.margin.bottom]
+            .iter()
+            .any(|v| *v < 0)
+    {
+        return Err(fail());
+    }
+    let scale = dpi / 7200.0;
+    let x = (f64::from(a.horizontal_offset) + f64::from(a.margin.left)) * scale;
+    let y = (f64::from(a.vertical_offset) + f64::from(a.margin.top)) * scale;
+    let w = f64::from(a.width) * scale;
+    let h = f64::from(a.height) * scale;
+    if !width.is_finite() || width <= 0.0 || x + w + f64::from(a.margin.right) * scale > width {
+        return Err(fail());
+    }
+    let host_height = f64::from(row.line_height) * scale;
+    let host_advance = host_height + f64::from(row.line_spacing) * scale;
+    let occupied = host_advance.max(y + h + f64::from(a.margin.bottom) * scale);
+    // One atomic occupied envelope, with distinct host and image rectangles.
+    // The host retains its own line height/baseline, never the image's height.
+    // IR binding, cell alignment, fragment fitting and paint consume this box.
+    let bounds = Rect {
+        x: 0.0,
+        y: 0.0,
+        width,
+        height: occupied,
+    };
+    let mut node = RenderNode::new(
+        0,
+        RenderNodeType::Group(GroupNode {
+            section_index: None,
+            para_index: None,
+            control_index: None,
+        }),
+        BoundingBox::new(0.0, 0.0, width, occupied),
+    );
+    node.children.push(RenderNode::new(
+        0,
+        RenderNodeType::TextLine(TextLineNode::new(
+            host_height,
+            f64::from(row.baseline_distance) * scale,
+        )),
+        BoundingBox::new(0.0, 0.0, 0.0, host_height),
+    ));
+    node.children.push(RenderNode::new(
+        0,
+        payload(pic, resources)?,
+        BoundingBox::new(x, y, w, h),
+    ));
+    let mut items = vec![ParagraphItem::ObjectRow {
+        line: 0,
+        bounds,
+        controls: vec![0],
+    }];
+    items.push(ParagraphItem::End(super::ParagraphEnd::from_composed(
+        &items,
+        vec![],
+        0.0,
+    )?));
+    Ok((items, vec![node]))
 }
 
 fn payload(pic: &Picture, resources: &[BinDataContent]) -> Result<RenderNodeType, GeometryError> {
@@ -121,7 +252,14 @@ pub(super) fn compose(
     }
     let local = super::tac::physical_frame(para, width, style, dpi)?;
     let spaces = super::tac_spaces::compose(para, styles, dpi)?;
-    let rows = super::tac::object_rows(&local, width / scale, style.alignment, true, &spaces)?;
+    let rows = super::tac::object_rows(
+        &local,
+        width / scale,
+        style.alignment,
+        style.vertical_alignment,
+        true,
+        &spaces,
+    )?;
     let mut items = vec![ParagraphItem::Space(style.spacing_before)];
     let mut nodes = Vec::new();
     let mut end = 0.0;
@@ -164,15 +302,16 @@ pub(super) fn compose(
             line.children.push(child);
         }
         for (ci, r) in row.tables {
-            let Control::Picture(pic) = &para.controls[ci] else {
-                return Err(unsupported());
+            let bounds =
+                BoundingBox::new(r.x * scale, r.y * scale, r.width * scale, r.height * scale);
+            let child = match &para.controls[ci] {
+                Control::Picture(pic) => RenderNode::new(0, payload(pic, resources)?, bounds),
+                Control::Shape(shape) => {
+                    super::shapes::node(shape, bounds, styles, dpi, resources)?
+                }
+                _ => return Err(unsupported()),
             };
-            let payload = payload(pic, resources)?;
-            line.children.push(RenderNode::new(
-                0,
-                payload,
-                BoundingBox::new(r.x * scale, r.y * scale, r.width * scale, r.height * scale),
-            ));
+            line.children.push(child);
             controls.push(ci);
         }
         if controls.is_empty() {

@@ -23,6 +23,13 @@ use super::{
 
 pub(super) type PayloadKey = (usize, usize, usize, usize); // row, column, paragraph, line/control
 
+#[derive(Clone, Copy)]
+enum InlineContent<'a> {
+    Plain,
+    Shapes(&'a [crate::model::bin_data::BinDataContent]),
+    PageField(Option<u32>),
+}
+
 /// An immutable text/table-flow preview with optional solid backgrounds. This is not an editable
 /// document session: source hit testing, anchors and backend sidecars are not bound.
 /// Unsupported input is rejected, never sent to the Legacy table engine.
@@ -41,6 +48,7 @@ pub(super) struct TextPaint {
     pub rows: u16,
     pub columns: u16,
     pub lines: HashMap<PayloadKey, OrderedPaint<RenderNode>>,
+    pub page_fields: HashMap<PayloadKey, super::cell_page_field::PageField>,
     pub tables: HashMap<PayloadKey, OrderedPaint<Arc<TextPaint>>>,
     pub background: super::decoration::Background,
     pub cells: HashMap<(usize, usize), super::decoration::Background>,
@@ -169,11 +177,26 @@ impl TextFragment {
     /// clipping, or post-layout height correction occurs here. Page coordinates
     /// come exclusively from fit; the caller owns page dimensions and flow advance.
     pub fn append_to(&self, page: &mut PageRenderTree) -> Result<(), GeometryError> {
+        self.append_to_with_page_number(page, None)
+    }
+
+    /// The host supplies its resolved printed number, not this preview's index
+    /// or a parser-assigned AutoNumber value. Missing context is an error only
+    /// for a fragment that actually contains a page field.
+    pub fn append_to_with_page_number(
+        &self,
+        page: &mut PageRenderTree,
+        number: Option<u32>,
+    ) -> Result<(), GeometryError> {
         // Build completely before mutating the page, including ID allocation.
-        let mut table = self.paint.build_node(self.geometry.placement())?;
+        let mut table = self.paint.build_node(self.geometry.placement(), number)?;
         assign_ids(&mut table, page.frame_mut());
         page.root.children.push(table);
         Ok(())
+    }
+
+    pub(super) fn build_node(&self, number: Option<u32>) -> Result<RenderNode, GeometryError> {
+        self.paint.build_node(self.geometry.placement(), number)
     }
 }
 
@@ -181,6 +204,7 @@ impl TextPaint {
     pub(super) fn build_node(
         &self,
         placement: &TablePlacement,
+        number: Option<u32>,
     ) -> Result<RenderNode, GeometryError> {
         let mut table = RenderNode::new(
             0,
@@ -236,7 +260,10 @@ impl TextPaint {
                     .lines
                     .get(&key)
                     .ok_or(GeometryError::InconsistentAtomicPlan)?;
-                let mut payload = entry.value.clone();
+                let mut payload = match self.page_fields.get(&key) {
+                    Some(field) => field.render(number, &entry.value)?,
+                    None => entry.value.clone(),
+                };
                 let dx = line.bounds.x - payload.bbox.x;
                 let dy = line.bounds.y - payload.bbox.y;
                 translate(&mut payload, dx, dy);
@@ -255,7 +282,10 @@ impl TextPaint {
                     .ok_or(GeometryError::InconsistentAtomicPlan)?;
                 // Recursive fit already returned page coordinates. Do not add the
                 // parent origin again or recompute the child's reserved height.
-                ordered.push((entry.order, entry.value.build_node(&child.placement)?));
+                ordered.push((
+                    entry.order,
+                    entry.value.build_node(&child.placement, number)?,
+                ));
             }
             ordered.sort_by_key(|(order, _)| *order);
             node.children
@@ -450,10 +480,45 @@ impl TextComposer<'_> {
         squeeze: bool,
         body_end: Option<&super::fields::BodyFieldEnd>,
     ) -> Result<Vec<ParagraphItem>, GeometryError> {
+        self.compose_shared(para, width, squeeze, body_end, InlineContent::Plain)
+    }
+
+    pub(super) fn compose_stored_inline_shapes(
+        &self,
+        para: &Paragraph,
+        width: f64,
+        resources: &[crate::model::bin_data::BinDataContent],
+    ) -> Result<Vec<ParagraphItem>, GeometryError> {
+        super::shapes::validate_inline(para)?;
+        self.compose_shared(para, width, false, None, InlineContent::Shapes(resources))
+    }
+
+    pub(super) fn compose_page_field(
+        &self,
+        para: &Paragraph,
+        width: f64,
+        number: Option<u32>,
+    ) -> Result<Vec<ParagraphItem>, GeometryError> {
+        if !super::cell_page_field::qualify(para)? {
+            return Err(GeometryError::InconsistentAtomicPlan);
+        }
+        self.compose_shared(para, width, false, None, InlineContent::PageField(number))
+    }
+
+    fn compose_shared(
+        &self,
+        para: &Paragraph,
+        width: f64,
+        squeeze: bool,
+        body_end: Option<&super::fields::BodyFieldEnd>,
+        inline_content: InlineContent<'_>,
+    ) -> Result<Vec<ParagraphItem>, GeometryError> {
         super::stored_text::validate_tabs(para, self.dpi)?;
         let stored_fields = super::fields::stored_result(para)?;
         if para.column_type != crate::model::paragraph::ColumnBreakType::None
-            || (!para.controls.is_empty() && !stored_fields)
+            || (!para.controls.is_empty()
+                && !stored_fields
+                && matches!(inline_content, InlineContent::Plain))
             || para.source_line_seg_vertical_pos.is_some()
             || para.layout_only_fill_lines != 0
             || (!para.field_ranges.is_empty() && !stored_fields)
@@ -550,7 +615,14 @@ impl TextComposer<'_> {
             self.dpi,
             stored,
         )?;
-        let composed = compose_paragraph(&fresh);
+        let mut composed = compose_paragraph(&fresh);
+        if let InlineContent::PageField(Some(number)) = inline_content {
+            LayoutEngine::new(self.dpi).substitute_page_auto_numbers_in_composed(
+                &fresh,
+                &mut composed,
+                number,
+            );
+        }
         let mut frame = PageLayoutContext::new(0, width, 0.0);
         let mut column = RenderNode::new(
             0,
@@ -691,6 +763,17 @@ impl TextComposer<'_> {
         }
         let ending = super::ParagraphEnd::from_composed(&items, tail, style.spacing_after)?;
         items.push(ParagraphItem::End(ending));
+        if let InlineContent::Shapes(resources) = inline_content {
+            super::shapes::attach_inline(
+                &fresh,
+                &frame,
+                &mut column.children,
+                &mut items,
+                self.styles,
+                self.dpi,
+                resources,
+            )?;
+        }
         self.payloads.borrow_mut().push(column.children);
         Ok(items)
     }

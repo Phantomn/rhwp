@@ -732,6 +732,7 @@ fn insert_before_para_text(parent: &mut RenderNode, para_index: usize, mut nodes
 
 fn page_item_is_treat_as_char_picture_only(item: &PageItem, paragraphs: &[Paragraph]) -> bool {
     let para_index = match item {
+        PageItem::HostedParagraph { .. } | PageItem::HostedTable { .. } => return false,
         PageItem::FullParagraph { para_index }
         | PageItem::PartialParagraph { para_index, .. }
         | PageItem::Table { para_index, .. }
@@ -918,6 +919,8 @@ fn page_item_para_index(item: &PageItem) -> Option<usize> {
         | PageItem::PartialParagraph { para_index, .. }
         | PageItem::Table { para_index, .. }
         | PageItem::PartialTable { para_index, .. }
+        | PageItem::HostedParagraph { para_index, .. }
+        | PageItem::HostedTable { para_index, .. }
         | PageItem::Shape { para_index, .. } => Some(*para_index),
         PageItem::EndnoteSeparator { .. } => None,
     }
@@ -6114,6 +6117,8 @@ impl LayoutEngine {
                     | PageItem::PartialParagraph { para_index, .. }
                     | PageItem::Table { para_index, .. }
                     | PageItem::PartialTable { para_index, .. }
+                    | PageItem::HostedParagraph { para_index, .. }
+                    | PageItem::HostedTable { para_index, .. }
                     | PageItem::Shape { para_index, .. } => Some(*para_index),
                     PageItem::EndnoteSeparator { .. } => None,
                 });
@@ -7062,12 +7067,40 @@ impl LayoutEngine {
             .collect();
         let mut deferred_paragraph_spacing = std::collections::HashMap::new();
         for (item_ordinal, item) in col_content.items.iter().enumerate() {
+            if let PageItem::HostedParagraph { fragment, .. } = item {
+                col_node.children.extend(fragment.render_nodes(tree));
+                y_offset = fragment.next_y();
+                hcursor.min_flow_floor = y_offset;
+                hcursor.prev_item_was_partial_table = false;
+                prev_tac_seg_applied = false;
+                continue;
+            }
+            if let PageItem::HostedTable { fragment, .. } = item {
+                // Pagination already fixed the absolute origin and every child
+                // cut. Bypass Legacy vpos, table measurement and tail fixes.
+                let mut node = fragment.render_node(tree);
+                if let RenderNodeType::Table(table) = &mut node.node_type {
+                    let owner = fragment.selection();
+                    table.section_index = Some(owner.section);
+                    table.para_index = Some(owner.paragraph);
+                    table.control_index = Some(owner.control);
+                }
+                col_node.children.push(node);
+                let bounds = fragment.occupied();
+                y_offset = bounds.y + bounds.height;
+                hcursor.min_flow_floor = y_offset;
+                hcursor.prev_item_was_partial_table = true;
+                prev_tac_seg_applied = false;
+                continue;
+            }
             // vpos 기반 y_offset 보정
             let item_para = match item {
                 PageItem::FullParagraph { para_index } => *para_index,
                 PageItem::PartialParagraph { para_index, .. } => *para_index,
                 PageItem::Table { para_index, .. } => *para_index,
                 PageItem::PartialTable { para_index, .. } => *para_index,
+                PageItem::HostedParagraph { para_index, .. }
+                | PageItem::HostedTable { para_index, .. } => *para_index,
                 PageItem::Shape { para_index, .. } => *para_index,
                 PageItem::EndnoteSeparator { .. } => {
                     // [미주 구분선 위치 — 한컴 정합] 직전 본문 문단 마지막 줄의 trailing
@@ -8208,6 +8241,8 @@ impl LayoutEngine {
                         ..
                     } => format!("Shape pi={} ci={}", para_index, control_index),
                     PageItem::EndnoteSeparator { .. } => "EndnoteSeparator".to_string(),
+                    PageItem::HostedParagraph { .. } => "HostedParagraph".to_string(),
+                    PageItem::HostedTable { .. } => "HostedTable".to_string(),
                 }
             } else {
                 String::new()
@@ -8234,6 +8269,8 @@ impl LayoutEngine {
                                 | PageItem::PartialParagraph { para_index, .. }
                                 | PageItem::Table { para_index, .. }
                                 | PageItem::PartialTable { para_index, .. }
+                                | PageItem::HostedParagraph { para_index, .. }
+                                | PageItem::HostedTable { para_index, .. }
                                 | PageItem::Shape { para_index, .. } => Some(*para_index),
                                 PageItem::EndnoteSeparator { .. } => None,
                             });
@@ -8838,6 +8875,10 @@ impl LayoutEngine {
                     PageItem::PartialTable { para_index, .. } => ("PartialTable", *para_index),
                     PageItem::Shape { para_index, .. } => ("Shape", *para_index),
                     PageItem::EndnoteSeparator { .. } => ("EndnoteSeparator", usize::MAX),
+                    PageItem::HostedParagraph { para_index, .. } => {
+                        ("HostedParagraph", *para_index)
+                    }
+                    PageItem::HostedTable { para_index, .. } => ("HostedTable", *para_index),
                 };
                 self.record_overflow(LayoutOverflow {
                     page_index: page_content.page_index,
@@ -9243,6 +9284,9 @@ impl LayoutEngine {
             paragraph_float_placements,
         };
         match item {
+            PageItem::HostedParagraph { .. } | PageItem::HostedTable { .. } => {
+                unreachable!("V2 packets bypass Legacy layout_column_item")
+            }
             PageItem::FullParagraph { para_index } => {
                 if let Some(plan) = inline_flow_plans.get(para_index) {
                     let para = &paragraphs[*para_index];

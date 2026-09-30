@@ -11,10 +11,13 @@
 //! Public only as an experimental consumer boundary, not a stable document API.
 
 mod body_anchor;
+mod body_excluded;
 mod body_flow;
+mod body_inline;
 mod body_text;
 mod borders;
 mod cell_anchor;
+mod cell_page_field;
 mod content;
 mod contracts;
 mod decoration;
@@ -26,12 +29,21 @@ mod fields;
 mod flow;
 mod fragment;
 mod grid;
+mod host;
+mod host_anchor;
+mod host_section;
+mod host_text;
+pub(crate) use host_anchor::HostedAnchor;
+pub use host_section::HostedSectionSession;
+pub use host_text::HostedParagraphFragment;
+pub(crate) use host_text::HostedParagraphPlan;
 mod ir;
 mod page_number;
 mod paragraph_end;
 mod paragraph_keep;
 mod pictures;
 mod session;
+mod shapes;
 mod source_units;
 mod stored_child;
 mod stored_child_frames;
@@ -54,6 +66,10 @@ pub use contracts::{
 pub use document::{DocumentV2Error, DocumentV2Session};
 pub use export::{TablePreviewExportError, TablePreviewExportSession};
 pub use fragment::{FragmentFit, TableCursor, TableFragmentPlan};
+pub use host::{
+    HostedTableError, HostedTableFit, HostedTableFragment, HostedTableProposal, HostedTableSession,
+    TableHostAddress, TableHostFrame,
+};
 pub use ir::{CellParagraphComposer, ParagraphItem};
 pub use paragraph_end::{CellEndPolicy, ParagraphEnd};
 pub use session::{

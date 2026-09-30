@@ -296,6 +296,26 @@ impl TypesetState {
         }
     }
 
+    /// A hosted Square packet occupies physical space without advancing the
+    /// prose pen. Both ordinary transitions and terminal flush consume the
+    /// same accepted bounds, including margins; no height is inferred in paint.
+    fn hosted_used_height(&self) -> f64 {
+        self.data
+            .current_items
+            .iter()
+            .fold(self.data.current_height, |height, item| {
+                let bounds = match item {
+                    PageItem::HostedParagraph { fragment, .. } => fragment.occupied(),
+                    PageItem::HostedTable { fragment, .. } => fragment.occupied(),
+                    _ => return height,
+                };
+                height.max(
+                    bounds.y + bounds.height
+                        - self.layout.column_areas[usize::from(self.data.current_column)].y,
+                )
+            })
+    }
+
     /// 현재 항목을 ColumnContent로 만들어 마지막 페이지에 push
     pub(in crate::renderer::typeset) fn flush_column(&mut self) {
         // [#4090] 쪽이 끝나면 어울림 밴드도 끝난다 — 개체 높이를 used 에 반영한다.
@@ -307,6 +327,7 @@ impl TypesetState {
         {
             return;
         }
+        let used_height = self.hosted_used_height();
         let col_content = ColumnContent {
             column_index: self.data.current_column,
             start_height: self.data.current_start_height,
@@ -315,7 +336,7 @@ impl TypesetState {
             zone_layout: self.data.current_zone_layout.clone(),
             zone_y_offset: self.data.current_zone_y_offset,
             wrap_around_paras: std::mem::take(&mut self.data.current_column_wrap_around_paras),
-            used_height: self.data.current_height,
+            used_height,
             wrap_anchors: std::mem::take(&mut self.data.current_column_wrap_anchors),
             overlay_continuations: std::mem::take(
                 &mut self.data.current_column_overlay_continuations,
@@ -368,6 +389,7 @@ impl TypesetState {
     /// 비어있어도 flush
     pub(in crate::renderer::typeset) fn flush_column_always(&mut self) {
         self.data.inline_box_flow_bottom = 0.0;
+        let used_height = self.hosted_used_height();
         let col_content = ColumnContent {
             column_index: self.data.current_column,
             start_height: self.data.current_start_height,
@@ -376,7 +398,7 @@ impl TypesetState {
             zone_layout: self.data.current_zone_layout.clone(),
             zone_y_offset: self.data.current_zone_y_offset,
             wrap_around_paras: std::mem::take(&mut self.data.current_column_wrap_around_paras),
-            used_height: self.data.current_height,
+            used_height,
             wrap_anchors: std::mem::take(&mut self.data.current_column_wrap_anchors),
             overlay_continuations: std::mem::take(
                 &mut self.data.current_column_overlay_continuations,

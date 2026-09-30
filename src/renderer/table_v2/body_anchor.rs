@@ -27,6 +27,67 @@ pub(super) struct BodyAnchor {
 }
 
 impl BodyAnchor {
+    /// One reservation description for standalone and shared-section hosts.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn flow(
+        &self,
+        document: &crate::model::document::Document,
+        table: &Table,
+        owner: super::ControlOwner,
+        plan: std::sync::Arc<super::TableContentPlan>,
+        boundary: usize,
+        body_width: f64,
+        paper_right: f64,
+        dpi: f64,
+    ) -> super::body_flow::AnchoredFlow {
+        use super::{FlowBlock, FlowCellInput};
+        let profile = document.layout_profile();
+        // Existing saved-HWP frame compatibility, evidenced by #7095 and the
+        // normal cell-tall controls. Not inferred from shape/source format alone.
+        let clearance = if profile.native_hwp5_layout()
+            && !profile.session_edited()
+            && table.row_count == 1
+            && table.col_count == 1
+            && table.page_break == crate::model::table::TablePageBreak::RowBreak
+            && plan.rows.iter().flat_map(|r| &r.cells).any(|c| {
+                c.blocks
+                    .iter()
+                    .any(|b| matches!(b, FlowBlock::StoredFrameStart))
+            }) {
+            hwpunit_to_px(100, dpi)
+        } else {
+            0.0
+        };
+        let input = |before| FlowCellInput {
+            padding: Insets::default(),
+            minimum_height: 0.0,
+            width: if self.side_wrap.is_some() {
+                paper_right
+            } else {
+                body_width
+            },
+            blocks: vec![
+                FlowBlock::Space(before),
+                FlowBlock::Table {
+                    owner,
+                    offset_x: self.x,
+                    restart_top: self.restart_top,
+                    plan: plan.clone(),
+                },
+            ],
+        };
+        super::body_flow::AnchoredFlow {
+            boundary,
+            host_paragraph: owner.paragraph,
+            initial: input(self.before),
+            deferred: input(self.restart_top),
+            bottom_margin: self.after,
+            nonterminal_clearance: clearance,
+            side_wrap: self.side_wrap,
+            host_end_offset: self.host_end_offset,
+        }
+    }
+
     pub fn resolve(
         table: &Table,
         host: &ParagraphEnd,

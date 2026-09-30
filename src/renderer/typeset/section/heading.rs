@@ -32,6 +32,8 @@ impl TypesetEngine {
                 PageItem::PartialParagraph { para_index, .. } => Some(*para_index),
                 PageItem::Table { para_index, .. } => Some(*para_index),
                 PageItem::PartialTable { para_index, .. } => Some(*para_index),
+                PageItem::HostedParagraph { para_index, .. }
+                | PageItem::HostedTable { para_index, .. } => Some(*para_index),
                 PageItem::Shape { para_index, .. } => Some(*para_index),
                 PageItem::EndnoteSeparator { .. } => None,
             });

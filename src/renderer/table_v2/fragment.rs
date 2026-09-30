@@ -392,13 +392,25 @@ impl TableCursor {
                 } else {
                     track.content_offset_y
                 };
+                let content_budget = if split_row {
+                    available
+                } else {
+                    let row_height = plan.row_heights[next.row];
+                    let (_, intact_budget) = track
+                        .alignment
+                        .content_window(row_height, track.content_height);
+                    // The intact row was admitted using this same prefix sum.
+                    // Retain its content budget, then add unused page space;
+                    // subtracting the alignment offset would lose exact fits.
+                    intact_budget + (b.height - (offset + row_height))
+                };
                 let fit = next.cells[column].fit_cell_until(
                     cell,
                     Rect {
                         x: x + cell.padding.left,
                         y: b.y + offset + content_offset,
                         width: cell.width,
-                        height: available - content_offset,
+                        height: content_budget,
                     },
                     cell.blocks.len(),
                     page_height,
@@ -460,11 +472,8 @@ impl TableCursor {
                     if track.content_offset_y != 0.0 && next.cells[column].block == 0 {
                         let slack = used - track.content_height;
                         nonnegative(slack, "aligned fragment content slack")?;
-                        let alignment_offset = match track.alignment {
-                            super::content::VerticalAlignment::Top => 0.0,
-                            super::content::VerticalAlignment::Center => slack / 2.0,
-                            super::content::VerticalAlignment::Bottom => slack,
-                        };
+                        let (alignment_offset, content_budget) =
+                            track.alignment.content_window(used, track.content_height);
                         // Fit and paint consume this same placement. Re-query
                         // the intact companion at its final fragment origin;
                         // do not move only painted glyphs or reuse a full-row
@@ -475,7 +484,7 @@ impl TableCursor {
                                 x: x + cell.padding.left,
                                 y: b.y + offset + alignment_offset,
                                 width: cell.width,
-                                height: used - alignment_offset,
+                                height: content_budget,
                             },
                             cell.blocks.len(),
                             page_height,

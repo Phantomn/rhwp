@@ -5286,6 +5286,14 @@ impl DocumentCore {
                     for col in &page.column_contents {
                         for item in &col.items {
                             let pi = match item {
+                                crate::renderer::pagination::PageItem::HostedParagraph {
+                                    para_index,
+                                    ..
+                                }
+                                | crate::renderer::pagination::PageItem::HostedTable {
+                                    para_index,
+                                    ..
+                                } => Some(*para_index),
                                 crate::renderer::pagination::PageItem::FullParagraph {
                                     para_index,
                                 } => Some(*para_index),

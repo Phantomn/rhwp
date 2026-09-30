@@ -442,6 +442,8 @@ fn split_conflicting_edges_fail_before_cursor_commit_and_retry_same_fragment() {
     let mut other = d.doc_info.border_fills[0].clone();
     other.borders[0].width = 8;
     other.borders[0].color = 0x445566;
+    // Different solid colors are supported; mixed pen types are not.
+    other.borders[0].line_type = BorderLineType::Dash;
     d.doc_info.border_fills.push(other);
     let (data, config) = source(&d);
     let mut s = TablePreviewExportSession::from_bytes(&data, &config.to_string()).unwrap();
@@ -482,5 +484,35 @@ fn shared_solid_width_is_unioned_on_every_cell_fragment() {
         assert!(l["y2"].as_f64().unwrap() <= 66.);
         assert!((l["style"]["width"].as_f64().unwrap() - 2.24).abs() < 1e-9);
         assert_eq!(l["style"]["color"], 0x332211);
+    }
+}
+
+#[test]
+fn unlike_solid_colors_preserve_both_pens_on_every_cell_fragment() {
+    let mut right = cell(0, 1, 1, &["A", "B", "C"]);
+    right.border_fill_id = 2;
+    let mut d = doc(table(vec![cell(0, 0, 1, &["L"]), right], 1));
+    let mut other = d.doc_info.border_fills[0].clone();
+    other.borders[0].width = 8;
+    other.borders[0].color = 0x445566;
+    d.doc_info.border_fills.push(other);
+    let actual = run("split-shared-solid-colors", &d);
+    assert_eq!(actual.len(), 2);
+    assert_eq!(labels(&actual[0]), ["L", "A", "B"]);
+    assert_eq!(labels(&actual[1]), ["C"]);
+    bounds(&actual);
+    for (i, page) in actual.iter().enumerate() {
+        let shared: Vec<_> = collect(root(page), "Line")
+            .into_iter()
+            .map(|n| &n["node_type"]["Line"])
+            .filter(|l| l["x1"] == 120. && l["x2"] == 120.)
+            .collect();
+        assert_eq!(shared.len(), 2);
+        for (line, (color, width)) in shared.iter().zip([(0x332211, 1.92), (0x445566, 2.24)]) {
+            assert_eq!(line["y1"], 30.);
+            assert_eq!(line["y2"], if i == 0 { 66. } else { 48. });
+            assert_eq!(line["style"]["color"], color);
+            assert!((line["style"]["width"].as_f64().unwrap() - width).abs() < 1e-9);
+        }
     }
 }

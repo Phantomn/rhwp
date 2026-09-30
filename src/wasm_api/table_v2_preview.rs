@@ -3,6 +3,51 @@ use wasm_bindgen::prelude::*;
 
 use crate::renderer::table_v2::{DocumentV2Session, TablePreviewExportSession};
 
+/// Opt-in host integration, distinct from standalone DocumentV2 and Studio.
+#[wasm_bindgen]
+pub struct HostedSectionV2 {
+    inner: crate::renderer::table_v2::HostedSectionSession,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HostedOptions {
+    section: usize,
+    dpi: f64,
+    #[serde(default)]
+    cell_end_policy: crate::renderer::table_v2::CellEndPolicy,
+}
+
+#[wasm_bindgen]
+impl HostedSectionV2 {
+    #[wasm_bindgen(constructor)]
+    pub fn new(data: &[u8], options_json: &str) -> Result<Self, JsValue> {
+        let options: HostedOptions =
+            serde_json::from_str(options_json).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let source = crate::parse_document(data).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let inner = crate::renderer::table_v2::HostedSectionSession::from_document(
+            &source,
+            options.section,
+            options.dpi,
+            options.cell_end_policy,
+        )
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        Ok(Self { inner })
+    }
+
+    #[wasm_bindgen(js_name = pageCount)]
+    pub fn page_count(&self) -> usize {
+        self.inner.pagination().pages.len()
+    }
+
+    #[wasm_bindgen(js_name = renderPage)]
+    pub fn render_page(&self, index: usize) -> Result<String, JsValue> {
+        self.inner
+            .render_page_json(index)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+}
+
 /// Borderless selected-table preview. Unsupported V2 input throws; no automatic
 /// Legacy fallback. This does NOT change the engine of an existing HwpDocument.
 #[wasm_bindgen]

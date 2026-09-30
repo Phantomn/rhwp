@@ -79,6 +79,7 @@ impl PreparedTextTable {
         let columns = u16::try_from(column_widths.len())
             .map_err(|_| GeometryError::Unsupported("column count"))?;
         let mut paint = TextPaint {
+            page_fields: HashMap::new(),
             rows: row_count,
             columns,
             lines: HashMap::new(),

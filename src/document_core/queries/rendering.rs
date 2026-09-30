@@ -5573,6 +5573,8 @@ impl DocumentCore {
                             PageItem::PartialParagraph { para_index, .. } => Some(*para_index),
                             PageItem::Table { para_index, .. } => Some(*para_index),
                             PageItem::PartialTable { para_index, .. } => Some(*para_index),
+                            PageItem::HostedParagraph { para_index, .. }
+                            | PageItem::HostedTable { para_index, .. } => Some(*para_index),
                             PageItem::Shape { para_index, .. } => Some(*para_index),
                             PageItem::EndnoteSeparator { .. } => None,
                         })
@@ -5639,6 +5641,8 @@ impl DocumentCore {
                                 PageItem::PartialParagraph { para_index, .. } => *para_index,
                                 PageItem::Table { para_index, .. } => *para_index,
                                 PageItem::PartialTable { para_index, .. } => *para_index,
+                                PageItem::HostedParagraph { para_index, .. }
+                                | PageItem::HostedTable { para_index, .. } => *para_index,
                                 PageItem::Shape { para_index, .. } => *para_index,
                                 PageItem::EndnoteSeparator { .. } => usize::MAX,
                             };
@@ -6131,6 +6135,8 @@ impl DocumentCore {
                         | PageItem::PartialParagraph { para_index, .. }
                         | PageItem::Table { para_index, .. }
                         | PageItem::PartialTable { para_index, .. }
+                        | PageItem::HostedParagraph { para_index, .. }
+                        | PageItem::HostedTable { para_index, .. }
                         | PageItem::Shape { para_index, .. } => Some(*para_index),
                         _ => None,
                     };
@@ -6399,6 +6405,23 @@ impl DocumentCore {
                     let mut items_out: Vec<serde_json::Value> = Vec::new();
                     for item in &cc.items {
                         let v = match item {
+                            PageItem::HostedParagraph {
+                                para_index,
+                                fragment,
+                            } => serde_json::json!({
+                                "kind": "hostedParagraphV2", "paraIndex": para_index,
+                                "occupied": {"x": fragment.occupied().x, "y": fragment.occupied().y,
+                                    "width": fragment.occupied().width, "height": fragment.occupied().height},
+                            }),
+                            PageItem::HostedTable {
+                                para_index,
+                                fragment,
+                            } => serde_json::json!({
+                                "kind": "hostedTableV2", "paraIndex": para_index,
+                                "controlIndex": fragment.selection().control,
+                                "occupied": {"x": fragment.occupied().x, "y": fragment.occupied().y,
+                                    "width": fragment.occupied().width, "height": fragment.occupied().height},
+                            }),
                             PageItem::FullParagraph { para_index } => {
                                 let col_w = Self::dump_column_width_px(page, cc);
                                 let height = self
@@ -6694,6 +6717,27 @@ impl DocumentCore {
                         };
 
                         match item {
+                            PageItem::HostedParagraph {
+                                para_index,
+                                fragment,
+                            } => {
+                                out.push_str(&format!(
+                                    "    HostedParagraphV2 pi={} bounds={:?}\n",
+                                    para_index,
+                                    fragment.occupied()
+                                ));
+                            }
+                            PageItem::HostedTable {
+                                para_index,
+                                fragment,
+                            } => {
+                                out.push_str(&format!(
+                                    "    HostedTableV2 pi={} ci={} bounds={:?}\n",
+                                    para_index,
+                                    fragment.selection().control,
+                                    fragment.occupied()
+                                ));
+                            }
                             PageItem::FullParagraph { para_index } => {
                                 let text_preview = paragraphs
                                     .get(*para_index)

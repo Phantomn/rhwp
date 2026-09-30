@@ -80,6 +80,7 @@ pub struct TablePreviewSession {
     emitted_pages: usize,
     max_pages: usize,
     selection: Option<TableSelection>,
+    first_page_number: Option<u32>,
 }
 
 impl TablePreviewPages {
@@ -148,6 +149,7 @@ impl TablePreviewSession {
             emitted_pages: 0,
             max_pages,
             selection: None,
+            first_page_number: None,
         })
     }
 
@@ -188,23 +190,7 @@ impl TablePreviewSession {
         if dpi <= 0.0 {
             return Err(GeometryError::InvalidNumber("preview DPI").into());
         }
-        let control = document
-            .sections
-            .get(selection.section)
-            .and_then(|s| s.paragraphs.get(selection.paragraph))
-            .and_then(|p| p.controls.get(selection.control));
-        let Some(Control::Table(table)) = control else {
-            return Err(TablePreviewError::InvalidSelection(selection));
-        };
-        super::decoration::validate_source(table, &document.doc_info)?;
-        let styles = super::source_units::resolve(document, dpi)?;
-        let prepared = PreparedTextTable::prepare_with_end_policy(
-            table,
-            &styles,
-            dpi,
-            &document.bin_data_content,
-            policy,
-        )?;
+        let prepared = prepare_selected_table(document, selection, dpi, policy)?;
         let mut session = Self::new(&prepared, pages, max_pages)?;
         session.selection = Some(selection);
         Ok(session)
@@ -212,6 +198,15 @@ impl TablePreviewSession {
 
     pub fn selection(&self) -> Option<TableSelection> {
         self.selection
+    }
+
+    /// Explicit printed number of preview physical page zero, not a saved field value.
+    pub fn with_first_page_number(mut self, number: u32) -> Result<Self, TablePreviewError> {
+        if number == 0 || number > u32::from(u16::MAX) || self.emitted_pages != 0 {
+            return Err(TablePreviewError::InvalidPages);
+        }
+        self.first_page_number = Some(number);
+        Ok(self)
     }
     pub fn emitted_pages(&self) -> usize {
         self.emitted_pages
@@ -242,7 +237,15 @@ impl TablePreviewSession {
                 TextFragmentFit::Placed(fragment) => {
                     let mut tree =
                         PageRenderTree::new(page_index, self.pages.width, self.pages.height);
-                    fragment.append_to(&mut tree)?;
+                    let number = self
+                        .first_page_number
+                        .map(|first| {
+                            first
+                                .checked_add(page_index)
+                                .ok_or(TablePreviewError::PageIndexOverflow)
+                        })
+                        .transpose()?;
+                    fragment.append_to_with_page_number(&mut tree, number)?;
                     // Commit only after paint succeeded. No partially built page
                     // or consumed geometry escapes on an error.
                     self.cursor = fragment.continuation();
@@ -276,4 +279,35 @@ impl TablePreviewSession {
             }
         }
     }
+}
+
+/// Shared preparation for isolated previews and host-owned document frames.
+/// Neither caller may erase unsupported source controls or use Legacy metrics.
+pub(super) fn prepare_selected_table(
+    document: &Document,
+    selection: TableSelection,
+    dpi: f64,
+    policy: super::CellEndPolicy,
+) -> Result<PreparedTextTable, TablePreviewError> {
+    super::contracts::finite(dpi, "preview DPI")?;
+    if dpi <= 0.0 {
+        return Err(GeometryError::InvalidNumber("preview DPI").into());
+    }
+    let control = document
+        .sections
+        .get(selection.section)
+        .and_then(|s| s.paragraphs.get(selection.paragraph))
+        .and_then(|p| p.controls.get(selection.control));
+    let Some(Control::Table(table)) = control else {
+        return Err(TablePreviewError::InvalidSelection(selection));
+    };
+    super::decoration::validate_source(table, &document.doc_info)?;
+    let styles = super::source_units::resolve(document, dpi)?;
+    Ok(PreparedTextTable::prepare_with_end_policy(
+        table,
+        &styles,
+        dpi,
+        &document.bin_data_content,
+        policy,
+    )?)
 }

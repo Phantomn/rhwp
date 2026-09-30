@@ -3,7 +3,6 @@
 //! once, and subsequent fragments carry only the remaining physical rows.
 //! Cell-internal content cuts remain a separate, unsupported rowspan contract.
 use super::*;
-use crate::renderer::table_v2::content::VerticalAlignment;
 
 impl TableCursor {
     /// An unrelated rowspan must not make every other cell in the table atomic.
@@ -191,18 +190,16 @@ impl TableCursor {
             let input = &self.plan.rows[placed.row].cells[slot];
             let slack = placed.bounds.height - track.content_height;
             nonnegative(slack, "mixed spanning content slack")?;
-            let offset = match track.alignment {
-                VerticalAlignment::Top => 0.0,
-                VerticalAlignment::Center => slack / 2.0,
-                VerticalAlignment::Bottom => slack,
-            };
+            let (offset, available) = track
+                .alignment
+                .content_window(placed.bounds.height, track.content_height);
             let fit = FlowCursor::default().fit(
                 input,
                 Rect {
                     x: placed.bounds.x + input.padding.left,
                     y: placed.bounds.y + offset,
                     width: input.width,
-                    height: placed.bounds.height - offset,
+                    height: available,
                 },
             )?;
             if fit.next.block != input.blocks.len() {
@@ -302,15 +299,10 @@ impl TableCursor {
                     + if stop == end { tail_band } else { 0.0 };
                 let x = b.x + track.left;
                 let first = r >= self.row;
-                let offset = if first {
-                    let slack = height - track.content_height;
-                    match track.alignment {
-                        VerticalAlignment::Top => 0.0,
-                        VerticalAlignment::Center => slack / 2.0,
-                        VerticalAlignment::Bottom => slack,
-                    }
+                let (offset, available) = if first {
+                    track.alignment.content_window(height, track.content_height)
                 } else {
-                    0.0
+                    (0.0, height)
                 };
                 let (lines, tables) = if first {
                     let fit = FlowCursor::default().fit(
@@ -319,7 +311,7 @@ impl TableCursor {
                             x: x + cell.padding.left,
                             y: y + offset,
                             width: cell.width,
-                            height: height - offset,
+                            height: available,
                         },
                     )?;
                     if fit.next.block != cell.blocks.len() {

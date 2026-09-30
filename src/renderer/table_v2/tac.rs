@@ -7,7 +7,7 @@ use crate::model::{
     style::Alignment,
 };
 use crate::renderer::render_tree::{BoundingBox, RenderNode, RenderNodeType, TextLineNode};
-use crate::renderer::style_resolver::ResolvedStyleSet;
+use crate::renderer::style_resolver::{ParagraphVerticalAlignment, ResolvedStyleSet};
 use std::sync::Arc;
 
 /// Source query in HWP units, relative to the first paragraph row. Not a claim
@@ -85,16 +85,33 @@ pub(super) fn stored_object_rows(
     alignment: Alignment,
     pictures: bool,
 ) -> Result<Vec<StoredTacRow>, GeometryError> {
-    object_rows(para, width_hu, alignment, pictures, &[])
+    object_rows(
+        para,
+        width_hu,
+        alignment,
+        ParagraphVerticalAlignment::Baseline,
+        pictures,
+        &[],
+    )
 }
 
 pub(super) fn object_rows(
     para: &Paragraph,
     width_hu: f64,
     alignment: Alignment,
+    vertical_alignment: ParagraphVerticalAlignment,
     pictures: bool,
     spaces: &[super::tac_spaces::SpaceRun],
 ) -> Result<Vec<StoredTacRow>, GeometryError> {
+    let centered = match vertical_alignment {
+        ParagraphVerticalAlignment::Baseline => false,
+        ParagraphVerticalAlignment::Center => true,
+        _ => {
+            return Err(GeometryError::Unsupported(
+                "TAC paragraph vertical alignment",
+            ))
+        }
+    };
     let positions = para.control_utf16_positions();
     let complete = if spaces.is_empty() {
         complete_stream(para)
@@ -248,12 +265,16 @@ pub(super) fn object_rows(
         ));
     }
     for row in &mut rows {
-        if let Some(band) =
-            super::tac_metrics::TableBand::measure(row.tables.iter().map(|(ci, r)| {
-                let (_, margins) = object_box(&para.controls[*ci], pictures).unwrap();
-                (r.height, f64::from(margins[2]), f64::from(margins[3]))
-            }))
-        {
+        let boxes = row.tables.iter().map(|(ci, r)| {
+            let (_, margins) = object_box(&para.controls[*ci], pictures).unwrap();
+            (r.height, f64::from(margins[2]), f64::from(margins[3]))
+        });
+        let band = if centered {
+            super::tac_metrics::TableBand::measure_centered(boxes)
+        } else {
+            super::tac_metrics::TableBand::measure(boxes)
+        };
+        if let Some(band) = band {
             // Stored row height is independent evidence for the composed
             // envelope. Do not stretch, clamp or ignore an incompatible row.
             // Normal saved unequal-picture rows share this TAC baseline rule
@@ -264,8 +285,23 @@ pub(super) fn object_rows(
                     "stored TAC baseline envelope mismatch",
                 ));
             }
-            for (_, r) in &mut row.tables {
-                r.y = band.top(r.height);
+            // Hancom serializes the center reference as integer HWP units.
+            // Re-tagging a baseline cache as CENTER is not a normal saved row.
+            if centered
+                && f64::from(para.line_segs[row.source_line].baseline_distance)
+                    != (row.height / 2.0).floor()
+            {
+                return Err(GeometryError::Unsupported(
+                    "stored TAC center reference mismatch",
+                ));
+            }
+            for (ci, r) in &mut row.tables {
+                let (_, margins) = object_box(&para.controls[*ci], pictures)?;
+                r.y = if centered {
+                    band.centered_top(r.height, f64::from(margins[2]), f64::from(margins[3]))
+                } else {
+                    band.top(r.height)
+                };
             }
         }
         let source_row = &para.line_segs[row.source_line];
@@ -286,24 +322,25 @@ pub(super) fn object_rows(
             .sum();
         let mut free = f64::from(source_row.segment_width) - occupied - trailing;
         if free < 0.0 {
-            // A single unbreakable table can itself exceed its saved line.
+            // A single unbreakable inline object can exceed its saved line.
             // Normal Hancom saves retain its full width and outside margins,
             // starting at the line origin even for center/right alignment. There is
             // no spare alignment space, not a smaller object/physical box.
             // Multiple objects or leading content need the general breaking
             // composer; trailing spaces remain owned and painted below.
-            let single_overwide_table = !pictures
-                && matches!(
-                    alignment,
-                    Alignment::Left | Alignment::Justify | Alignment::Center | Alignment::Right
-                )
-                && row.tables.len() == 1
+            // Normal saved pictures retain this same behavior: the line's
+            // available width and the image's physical width are distinct.
+            // Keep the image rectangle intact, not resized to the line lane.
+            let single_overwide_object = matches!(
+                alignment,
+                Alignment::Left | Alignment::Justify | Alignment::Center | Alignment::Right
+            ) && row.tables.len() == 1
                 && row.tables.first().is_some_and(|(ci, rect)| {
-                    let (_, margins) = object_box(&para.controls[*ci], false).unwrap();
+                    let (_, margins) = object_box(&para.controls[*ci], pictures).unwrap();
                     rect.x == f64::from(margins[0])
                         && occupied > f64::from(source_row.segment_width)
                 });
-            if !single_overwide_table {
+            if !single_overwide_object {
                 return Err(GeometryError::Unsupported("TAC row exceeds stored width"));
             }
             free = 0.0;
@@ -399,6 +436,18 @@ fn object_box(
                 p.common.margin.bottom.into(),
             ],
         )),
+        Control::Shape(s) if pictures => {
+            let c = s.common();
+            Ok((
+                c,
+                [
+                    c.margin.left.into(),
+                    c.margin.right.into(),
+                    c.margin.top.into(),
+                    c.margin.bottom.into(),
+                ],
+            ))
+        }
         _ => Err(unsupported()),
     }
 }
@@ -485,17 +534,17 @@ pub(super) fn compose(
         return super::tac_fresh::compose(para, width, styles, dpi);
     }
     let style = carrier_style(para, styles)?;
-    if style.vertical_alignment
-        != crate::renderer::style_resolver::ParagraphVerticalAlignment::Baseline
-    {
-        return Err(GeometryError::Unsupported(
-            "TAC paragraph vertical alignment",
-        ));
-    }
     let scale = dpi / 7200.0;
     let local = physical_frame(para, width, style, dpi)?;
     let spaces = super::tac_spaces::compose(para, styles, dpi)?;
-    let rows = object_rows(&local, width / scale, style.alignment, false, &spaces)?;
+    let rows = object_rows(
+        &local,
+        width / scale,
+        style.alignment,
+        style.vertical_alignment,
+        false,
+        &spaces,
+    )?;
     let mut nodes = Vec::new();
     let mut items = vec![ParagraphItem::Space(style.spacing_before)];
     let mut end = 0.0;

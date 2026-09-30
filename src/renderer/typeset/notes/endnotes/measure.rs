@@ -80,6 +80,7 @@ impl TypesetEngine {
                 .collect();
             let remap = |item: &PageItem| -> Option<PageItem> {
                 match item {
+                    PageItem::HostedParagraph { .. } | PageItem::HostedTable { .. } => None, // Hosted sections do not enter Legacy endnote fitting.
                     PageItem::FullParagraph { para_index } => lookup_local(*para_index)
                         .map(|l| PageItem::FullParagraph { para_index: l + 1 }),
                     PageItem::PartialParagraph {

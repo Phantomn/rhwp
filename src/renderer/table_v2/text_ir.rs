@@ -61,6 +61,7 @@ enum PaintSlot {
 struct ParagraphPaint {
     slots: Vec<PaintSlot>,
     lines: Vec<RenderNode>,
+    width: f64,
 }
 
 impl CellParagraphComposer for IrTextComposer<'_> {
@@ -71,6 +72,13 @@ impl CellParagraphComposer for IrTextComposer<'_> {
         single_column: bool,
         line_wrap: u8,
     ) -> Result<Vec<ParagraphItem>, GeometryError> {
+        if super::cell_page_field::qualify(para)? {
+            if line_wrap != 0 {
+                return Err(GeometryError::Unsupported("page field cell wrap policy"));
+            }
+            let items = self.text.compose_page_field(para, width, None)?;
+            return self.record_items(items, width);
+        }
         // bind_table qualified the initial one-column declaration and its
         // source slot. It establishes the cell lane, not an inline occupant.
         // SQUEEZE must use the same stored-text projection as BREAK without
@@ -96,7 +104,7 @@ impl CellParagraphComposer for IrTextComposer<'_> {
             let items = self
                 .text
                 .compose_with_cell_wrap(para, width, single_column, line_wrap)?;
-            self.record_items(items)
+            self.record_items(items, width)
         } else {
             self.compose_in_cell(para, width, single_column)
         }
@@ -127,12 +135,16 @@ impl CellParagraphComposer for IrTextComposer<'_> {
         single_column: bool,
     ) -> Result<Vec<ParagraphItem>, GeometryError> {
         let items = self.compose_items(para, width, single_column)?;
-        self.record_items(items)
+        self.record_items(items, width)
     }
 }
 
 impl IrTextComposer<'_> {
-    fn record_items(&self, items: Vec<ParagraphItem>) -> Result<Vec<ParagraphItem>, GeometryError> {
+    fn record_items(
+        &self,
+        items: Vec<ParagraphItem>,
+        width: f64,
+    ) -> Result<Vec<ParagraphItem>, GeometryError> {
         // Store the very same ordered ownership recipe that geometry consumes.
         // Paint must not reconstruct slot order from the IR control array later.
         let mut slots = Vec::new();
@@ -163,9 +175,11 @@ impl IrTextComposer<'_> {
             .borrow_mut()
             .pop()
             .ok_or(GeometryError::InconsistentAtomicPlan)?;
-        self.paragraphs
-            .borrow_mut()
-            .push(ParagraphPaint { slots, lines });
+        self.paragraphs.borrow_mut().push(ParagraphPaint {
+            slots,
+            lines,
+            width,
+        });
         Ok(items)
     }
 }
@@ -177,6 +191,33 @@ impl IrTextComposer<'_> {
         width: f64,
         single_column: bool,
     ) -> Result<Vec<ParagraphItem>, GeometryError> {
+        if super::shapes::floating_candidate(para) {
+            let (items, nodes) = super::shapes::compose_floating(
+                para,
+                width,
+                self.text.styles,
+                self.text.dpi,
+                self.resources,
+            )?;
+            self.text.payloads.borrow_mut().push(nodes);
+            return Ok(items);
+        }
+        if super::shapes::mixed_inline_candidate(para) {
+            return self
+                .text
+                .compose_stored_inline_shapes(para, width, self.resources);
+        }
+        if super::pictures::excluded_cell_candidate(para) {
+            let (items, nodes) = super::pictures::compose_excluded_cell(
+                para,
+                width,
+                self.text.styles,
+                self.text.dpi,
+                self.resources,
+            )?;
+            self.text.payloads.borrow_mut().push(nodes);
+            return Ok(items);
+        }
         if super::cell_anchor::candidate(para) {
             let (item, node) = super::cell_anchor::compose(
                 para,
@@ -220,11 +261,12 @@ impl IrTextComposer<'_> {
         if para.controls.is_empty() || super::fields::stored_result(para)? {
             return self.text.compose(para, width);
         }
-        if para
-            .controls
-            .iter()
-            .all(|c| matches!(c, Control::Picture(_) | Control::ColumnDef(_)))
-        {
+        if para.controls.iter().all(|c| {
+            matches!(
+                c,
+                Control::Picture(_) | Control::Shape(_) | Control::ColumnDef(_)
+            )
+        }) {
             // bind_table already qualified an initial one-column cell story.
             // Keep the structural slot: stored_object_rows maps the remaining
             // pictures to their original UTF-16 positions and saved lines.
@@ -305,6 +347,7 @@ fn bind_paint(
         rows: table.row_count,
         columns: table.col_count,
         lines: HashMap::new(),
+        page_fields: HashMap::new(),
         tables: HashMap::new(),
         background: super::decoration::Background::resolve(
             table.border_fill_id,
@@ -360,6 +403,14 @@ fn bind_paint(
                             .get_mut(li)
                             .and_then(Option::take)
                             .ok_or(GeometryError::InconsistentAtomicPlan)?;
+                        if super::cell_page_field::qualify(para)? {
+                            paint.page_fields.insert(
+                                (cell.row as usize, cell.col as usize, pi, li),
+                                super::cell_page_field::PageField::new(
+                                    para, styles, host.width, dpi,
+                                ),
+                            );
+                        }
                         paint.lines.insert(
                             (cell.row as usize, cell.col as usize, pi, li),
                             OrderedPaint { order, value },

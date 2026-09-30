@@ -19,10 +19,6 @@ use super::{
     PreparedTextTable, Rect,
 };
 
-// Empirical compatibility, not a file-format field: see the independent
-// #7095 page/margin mutations and #7353 normal saved controls below.
-const SAVED_HWP_FRAME_CLEARANCE_HU: i32 = 100;
-
 pub(super) fn prepare(
     document: &Document,
     dpi: f64,
@@ -189,16 +185,7 @@ pub(super) fn prepare(
                     // Only a declaration at paragraph entry is qualified.
                     // Section/column slots may precede it; visible text or an
                     // earlier object requires a separate intra-paragraph rule.
-                    if source.controls[..ci]
-                        .iter()
-                        .any(|c| !matches!(c, Control::SectionDef(_) | Control::ColumnDef(_)))
-                        || source.control_utf16_positions().get(ci).copied()
-                            != Some((ci * 8) as u32)
-                    {
-                        return Err(fail(GeometryError::Unsupported(
-                            "page-number declaration within paragraph content",
-                        )));
-                    }
+                    super::page_number::validate_body_entry(source, ci).map_err(fail)?;
                     page_numbers.push((super::page_number::PageNumberHost::body(pi), story));
                 }
                 _ => {
@@ -216,146 +203,35 @@ pub(super) fn prepare(
                 _ => false,
             })
         {
-            // Fresh rows need the child's actual occupied box, not a stale
-            // object declaration left over after editing. Retain each prepared
-            // plan/paint pair; binding below consumes this exact result once.
-            // Saved rows continue through their independent LineSeg contract.
-            let mut prepared_children = HashMap::new();
-            let (items, nodes) = if source.line_segs.is_empty() {
-                let mut dimensions = Vec::new();
-                for (ci, control) in source.controls.iter().enumerate() {
-                    if let Control::Table(table) = control {
-                        super::decoration::validate_source(table, &document.doc_info)
-                            .map_err(fail)?;
-                        let prepared = PreparedTextTable::prepare_with_end_policy(
-                            table,
-                            &styles,
-                            dpi,
-                            &document.bin_data_content,
-                            cell_end_policy,
-                        )
-                        .map_err(fail)?;
-                        dimensions.push((ci, prepared.plan.width, prepared.plan.height));
-                        prepared_children.insert(ci, prepared);
-                    }
-                }
-                super::tac_fresh::compose_with_dimensions(
-                    source,
-                    body.width,
-                    &styles,
-                    dpi,
-                    &dimensions,
-                )
-                .map_err(fail)?
-            } else {
-                super::tac::compose(source, body.width, &styles, dpi).map_err(fail)?
-            };
-            for (line, node) in nodes.into_iter().enumerate() {
-                lines.insert(
-                    LineOwner {
-                        paragraph: pi,
-                        line,
-                    },
-                    (order, node),
-                );
-                order += 1;
-            }
-            // A TAC's following-line gap locates the next line in this body
-            // frame. It is not a physical blank band after the story ends or
-            // before an explicit page break. Keep paragraph-after spacing,
-            // authored blank lines and object margins; do not trim raw Space.
-            let frame_end = section
-                .paragraphs
-                .get(pi + 1)
-                .is_none_or(|next| next.column_type == ColumnBreakType::Page);
-            let items = if frame_end {
-                super::paragraph_end::into_flow_items_at_end(
-                    items,
-                    super::CellEndPolicy::OmitFinalLineGap,
-                    true,
-                )
-            } else {
-                items
-            };
-            for item in items {
-                match item {
-                    ParagraphItem::Space(h) => blocks.push(FlowBlock::Space(h)),
-                    ParagraphItem::End(end) => blocks.extend(end.into_body_tail()),
-                    ParagraphItem::Lines {
-                        height,
-                        advance,
-                        lines: owned,
-                    } => {
-                        blocks.push(FlowBlock::Lines {
-                            height,
-                            advance,
-                            lines: owned
-                                .into_iter()
-                                .map(|(line, bounds)| LineBox {
-                                    owner: LineOwner {
-                                        paragraph: pi,
-                                        line,
-                                    },
-                                    bounds,
-                                })
-                                .collect(),
-                        });
-                    }
-                    ParagraphItem::InlineTables {
-                        height,
-                        advance,
-                        tables: owned,
-                        lines: inline_lines,
-                    } => {
-                        let mut bound = Vec::new();
-                        for (ci, rect) in owned {
-                            let Control::Table(table) = &source.controls[ci] else {
-                                unreachable!()
-                            };
-                            super::decoration::validate_source(table, &document.doc_info)
-                                .map_err(fail)?;
-                            let prepared = if let Some(prepared) = prepared_children.remove(&ci) {
-                                prepared
-                            } else {
-                                if source.line_segs.is_empty() {
-                                    return Err(fail(GeometryError::InconsistentAtomicPlan));
-                                }
-                                PreparedTextTable::prepare_with_end_policy(
-                                    table,
-                                    &styles,
-                                    dpi,
-                                    &document.bin_data_content,
-                                    cell_end_policy,
-                                )
-                                .map_err(fail)?
-                            };
-                            let owner = ControlOwner {
-                                paragraph: pi,
-                                control: ci,
-                            };
-                            bound.push(super::tac::bind(owner, rect, prepared.plan).map_err(fail)?);
-                            tables.insert(owner, (order, prepared.paint));
-                            order += 1;
-                        }
-                        blocks.push(FlowBlock::InlineTables {
-                            height: super::tac::bound_height(height, &bound),
-                            advance,
-                            tables: bound,
-                            lines: inline_lines
-                                .into_iter()
-                                .map(|(line, bounds)| LineBox {
-                                    owner: LineOwner {
-                                        paragraph: pi,
-                                        line,
-                                    },
-                                    bounds,
-                                })
-                                .collect(),
-                        });
-                    }
-                    _ => return Err(fail(GeometryError::InconsistentAtomicPlan)),
-                }
-            }
+            let inline = super::body_inline::prepare(
+                document,
+                source,
+                pi,
+                body.width,
+                &styles,
+                dpi,
+                cell_end_policy,
+                section
+                    .paragraphs
+                    .get(pi + 1)
+                    .is_none_or(|next| next.column_type == ColumnBreakType::Page),
+            )
+            .map_err(fail)?;
+            let count = inline.lines.len() + inline.tables.len();
+            blocks.extend(inline.blocks);
+            lines.extend(
+                inline
+                    .lines
+                    .into_iter()
+                    .map(|(k, (n, v))| (k, (order + n, v))),
+            );
+            tables.extend(
+                inline
+                    .tables
+                    .into_iter()
+                    .map(|(k, (n, v))| (k, (order + n, v))),
+            );
+            order += count;
             continue;
         }
         // A saved exclusion host is a real zero-width line sharing the table
@@ -363,80 +239,31 @@ pub(super) fn prepare(
         // block as cell-internal exclusions; this preserves the host once when
         // the child fragments, and the next authored blank as a separate line.
         if super::cell_anchor::candidate(source) {
-            let (item, mut node) =
-                super::cell_anchor::compose_body(source, body.width, &styles, dpi).map_err(fail)?;
-            let ParagraphItem::ExcludedTable {
-                control,
-                line,
-                host,
-                host_advance,
-                x,
-                offset_y,
-                top,
-                bottom,
-            } = item
-            else {
-                return Err(fail(GeometryError::InconsistentAtomicPlan));
-            };
-            let Control::Table(table) = &source.controls[control] else {
-                return Err(fail(GeometryError::InconsistentAtomicPlan));
-            };
-            super::decoration::validate_source(table, &document.doc_info).map_err(fail)?;
-            let prepared = PreparedTextTable::prepare_with_end_policy(
-                table,
+            let composed = super::body_excluded::prepare(
+                document,
+                source,
+                pi,
+                body.width,
+                layout.page_width - body.x,
                 &styles,
                 dpi,
-                &document.bin_data_content,
                 cell_end_policy,
             )
             .map_err(fail)?;
-            // Absolute floating geometry is not constrained to the text lane.
-            // Normal Hancom output preserves wider tables into the paper margin.
-            // This qualified path supports only envelopes inside the paper;
-            // it does not rescale the table or widen/recompose the body text.
-            let right = crate::renderer::hwpunit_to_px(i32::from(table.common.margin.right), dpi);
-            let end = body.x + x + prepared.plan.width + right;
-            // Four positive additions/scalings can reach an exact HU edge
-            // through different floating-point operations. This bounds only
-            // arithmetic roundoff, not even one HWP unit of real overflow.
-            let roundoff = 4.0 * f64::EPSILON * end.abs().max(layout.page_width.abs());
-            if end - layout.page_width > roundoff {
-                return Err(fail(GeometryError::Unsupported(
-                    "stored body anchor outside paper",
-                )));
-            }
-            let owner = ControlOwner {
-                paragraph: pi,
-                control,
-            };
-            let line_owner = LineOwner {
-                paragraph: pi,
-                line,
-            };
-            if let RenderNodeType::TextLine(value) = &mut node.node_type {
-                value.section_index = Some(0);
-                value.para_index = Some(pi);
-            }
-            lines.insert(line_owner, (order, node));
-            order += 1;
-            tables.insert(owner, (order, prepared.paint));
-            order += 1;
-            blocks.push(FlowBlock::AnchoredTable {
-                owner,
-                host: Some(LineBox {
-                    owner: line_owner,
-                    bounds: host,
-                }),
-                host_advance,
-                offset_x: x,
-                offset_y,
-                // Reserve the proven absolute object frame, avoiding a second
-                // subtraction-based fit that can lose a bit at the paper edge.
-                available_width: prepared.plan.width,
-                top,
-                bottom,
-                plan: prepared.plan,
-            });
+            blocks.extend(composed.blocks);
+            lines.extend(
+                composed
+                    .lines
+                    .into_iter()
+                    .map(|(k, (n, v))| (k, (order + n, v))),
+            );
+            tables.extend(
+                composed
+                    .tables
+                    .into_iter()
+                    .map(|(k, (n, v))| (k, (order + n, v))),
+            );
+            order += 2;
             continue;
         }
         let mut table_control = None;
@@ -551,28 +378,7 @@ pub(super) fn prepare(
                 dpi,
             )
             .map_err(fail)?;
-            // Empirical saved-HWP page-frame compatibility, not a general
-            // minimum height or a paint-side full-page box rule. Independent
-            // evidence: #7095 margin/border/page-geometry mutations, and the
-            // normal cell-tall/minimum-vs-small controls in #7353 stage19.
-            // Require actual bound frame markers: shape or source format alone
-            // does not establish saved pagination. Reflow/HWPX are not qualified.
-            let profile = document.layout_profile();
-            let clearance = if profile.native_hwp5_layout()
-                && !profile.session_edited()
-                && table.row_count == 1
-                && table.col_count == 1
-                && table.page_break == crate::model::table::TablePageBreak::RowBreak
-                && prepared.plan.rows.iter().flat_map(|r| &r.cells).any(|c| {
-                    c.blocks
-                        .iter()
-                        .any(|b| matches!(b, FlowBlock::StoredFrameStart))
-                }) {
-                crate::renderer::hwpunit_to_px(SAVED_HWP_FRAME_CLEARANCE_HU, dpi)
-            } else {
-                0.0
-            };
-            Some((owner, prepared, anchor, clearance))
+            Some((owner, table, prepared, anchor))
         } else {
             None
         };
@@ -650,37 +456,17 @@ pub(super) fn prepare(
             );
             order += 1;
         }
-        if let Some((owner, prepared, anchor, clearance)) = anchored {
-            let table_flow = |before| FlowCellInput {
-                padding: Insets::default(),
-                minimum_height: 0.0,
-                // An absolute Square object may extend into the paper margin.
-                // This object query width never widens the body's text lanes.
-                width: if anchor.side_wrap.is_some() {
-                    layout.page_width - body.x
-                } else {
-                    body.width
-                },
-                blocks: vec![
-                    FlowBlock::Space(before),
-                    FlowBlock::Table {
-                        owner,
-                        offset_x: anchor.x,
-                        restart_top: anchor.restart_top,
-                        plan: prepared.plan.clone(),
-                    },
-                ],
-            };
-            anchors.push(super::body_flow::AnchoredFlow {
-                boundary: blocks.len(),
-                host_paragraph: owner.paragraph,
-                initial: table_flow(anchor.before),
-                deferred: table_flow(anchor.restart_top),
-                bottom_margin: anchor.after,
-                nonterminal_clearance: clearance,
-                side_wrap: anchor.side_wrap,
-                host_end_offset: anchor.host_end_offset,
-            });
+        if let Some((owner, table, prepared, anchor)) = anchored {
+            anchors.push(anchor.flow(
+                document,
+                table,
+                owner,
+                prepared.plan.clone(),
+                blocks.len(),
+                body.width,
+                layout.page_width - body.x,
+                dpi,
+            ));
             tables.insert(owner, (order, prepared.paint));
             order += 1;
         }
@@ -700,5 +486,6 @@ pub(super) fn prepare(
         body,
         page_width: layout.page_width,
         page_height: layout.page_height,
+        first_page_number: u32::from(def.page_num).max(1),
     })
 }

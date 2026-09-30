@@ -25,7 +25,7 @@ pub(super) struct AnchoredFlow {
 }
 
 impl AnchoredFlow {
-    fn fit(
+    pub(super) fn fit(
         &self,
         cursor: &FlowCursor,
         flow: &FlowCellInput,
@@ -312,17 +312,6 @@ impl BodyCursor {
 /// Validate the final coordinates consumed by paint, after every story/anchor
 /// branch. Stored widths alone are not proof of a valid wrap after placement.
 pub(super) fn validate_side_wraps(plan: &BodyPlan, fit: &BodyFit) -> Result<(), GeometryError> {
-    let less = |a: f64, b: f64| a < b && !super::tac::same(a, b);
-    let intersects = |a: Rect, b: Rect| {
-        a.width > 0.0
-            && a.height > 0.0
-            && b.width > 0.0
-            && b.height > 0.0
-            && less(a.x, b.x + b.width)
-            && less(b.x, a.x + a.width)
-            && less(a.y, b.y + b.height)
-            && less(b.y, a.y + a.height)
-    };
     for anchor in &plan.anchors {
         let Some(margin) = anchor.side_wrap else {
             continue;
@@ -334,25 +323,48 @@ pub(super) fn validate_side_wraps(plan: &BodyPlan, fit: &BodyFit) -> Result<(), 
         else {
             continue;
         };
-        let b = table.placement.bounds;
-        let exclusion = Rect {
-            x: b.x - margin.left,
-            y: b.y - margin.top,
-            width: b.width + margin.left + margin.right,
-            height: b.height + margin.top + margin.bottom,
-        };
-        if fit
-            .lines
-            .iter()
-            .any(|line| intersects(exclusion, line.bounds))
-            || fit.tables.iter().any(|other| {
-                other.owner != table.owner && intersects(exclusion, other.placement.bounds)
-            })
-        {
-            return Err(GeometryError::Unsupported(
-                "stored body side-wrap intersects flow",
-            ));
-        }
+        validate_exclusion(
+            exclusion_bounds(table.placement.bounds, margin),
+            fit.lines.iter().map(|l| l.bounds).chain(
+                fit.tables
+                    .iter()
+                    .filter(|other| other.owner != table.owner)
+                    .map(|other| other.placement.bounds),
+            ),
+        )?;
+    }
+    Ok(())
+}
+
+pub(super) fn exclusion_bounds(b: Rect, margin: Insets) -> Rect {
+    Rect {
+        x: b.x - margin.left,
+        y: b.y - margin.top,
+        width: b.width + margin.left + margin.right,
+        height: b.height + margin.top + margin.bottom,
+    }
+}
+
+/// Shared final two-dimensional check. Includes blank line boxes; visibility
+/// and saved width alone are not proof that a placed lane avoids the object.
+pub(super) fn validate_exclusion(
+    exclusion: Rect,
+    boxes: impl Iterator<Item = Rect>,
+) -> Result<(), GeometryError> {
+    let less = |a: f64, b: f64| a < b && !super::tac::same(a, b);
+    if boxes.into_iter().any(|b| {
+        exclusion.width > 0.
+            && exclusion.height > 0.
+            && b.width > 0.
+            && b.height > 0.
+            && less(exclusion.x, b.x + b.width)
+            && less(b.x, exclusion.x + exclusion.width)
+            && less(exclusion.y, b.y + b.height)
+            && less(b.y, exclusion.y + exclusion.height)
+    }) {
+        return Err(GeometryError::Unsupported(
+            "stored body side-wrap intersects flow",
+        ));
     }
     Ok(())
 }

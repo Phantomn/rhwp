@@ -116,7 +116,12 @@ impl CellBorders {
         }
         // (horizontal, boundary index) -> intervals in the other topology axis.
         let mut groups: BTreeMap<(bool, usize), Vec<Span>> = BTreeMap::new();
-        for cell in &placement.cells {
+        // Shared unlike solid pens retain row/column paint ownership, not the
+        // input vector's order. Hancom's regulatory table paints the left/top
+        // cell first, then the right/bottom cell on the same centerline.
+        let mut ordered_cells: Vec<_> = placement.cells.iter().collect();
+        ordered_cells.sort_by_key(|cell| (cell.row, cell.column));
+        for cell in ordered_cells {
             let Some(edges) = self.cells.get(&(cell.row, cell.column)) else {
                 continue;
             };
@@ -143,7 +148,7 @@ impl CellBorders {
         }
         let mut edges: BTreeMap<_, _> = groups
             .into_iter()
-            .map(|(key, spans)| Ok((key, union(&spans)?)))
+            .map(|(key, spans)| Ok((key, union(&spans, true)?)))
             .collect::<Result<_, GeometryError>>()?;
         if let Some(outline) = &self.outline {
             // The normal Hancom title/outline-clean references preserve explicit
@@ -221,7 +226,7 @@ impl CellBorders {
         // Resolve the ACTUAL fragment perimeters together before replacing cell
         // edges, so declaration order cannot choose the winning zone paint.
         for (key, zone_spans) in zone_edges {
-            for Span { start, end, style } in union(&zone_spans)? {
+            for Span { start, end, style } in union(&zone_spans, false)? {
                 let spans = edges.entry(key).or_default();
                 let mut replaced = Vec::new();
                 for old in spans.iter() {
@@ -237,7 +242,7 @@ impl CellBorders {
                     }
                 }
                 replaced.push(Span { start, end, style });
-                *spans = union(&replaced)?;
+                *spans = union(&replaced, true)?;
             }
         }
         let mut nodes = Vec::new();
@@ -317,7 +322,7 @@ pub(super) fn resolve_edges(
     Ok(visible.then_some(style.borders))
 }
 
-fn union(spans: &[Span]) -> Result<Vec<Span>, GeometryError> {
+fn union(spans: &[Span], cell_layers: bool) -> Result<Vec<Span>, GeometryError> {
     let points: Vec<_> = spans
         .iter()
         .flat_map(|s| [s.start, s.end])
@@ -332,9 +337,10 @@ fn union(spans: &[Span]) -> Result<Vec<Span>, GeometryError> {
         let Some(first) = active.next() else {
             continue;
         };
-        let mut style = first.style;
+        let mut layers = vec![first.style];
         for span in active {
-            if span.style == style {
+            let style = layers.last_mut().unwrap();
+            if span.style == *style {
                 continue;
             }
             // Coincident opaque solid strokes of one color have the union of
@@ -344,29 +350,42 @@ fn union(spans: &[Span]) -> Result<Vec<Span>, GeometryError> {
             // centerline. This is not a priority rule for colors or line types.
             if style.line_type != BorderLineType::Solid
                 || span.style.line_type != BorderLineType::Solid
-                || style.color != span.style.color
             {
                 return Err(GeometryError::Unsupported(
                     "conflicting shared V2 cell borders",
                 ));
             }
+            if style.color != span.style.color {
+                // Unlike cell colors are separate opaque strokes, not a
+                // winner-takes-all width rule. Zones have no cell-side ownership
+                // and keep their independent conflict contract.
+                if !cell_layers {
+                    return Err(GeometryError::Unsupported(
+                        "conflicting shared V2 cell borders",
+                    ));
+                }
+                layers.push(span.style);
+                continue;
+            }
             if BORDER_WIDTHS[usize::from(span.style.width)].0
                 > BORDER_WIDTHS[usize::from(style.width)].0
             {
-                style = span.style;
+                *style = span.style;
             }
         }
-        if let Some(last) = result.last_mut() {
-            if last.end == pair[0] && last.style == style {
-                last.end = pair[1];
-                continue;
+        for style in layers {
+            if let Some(last) = result.last_mut() {
+                if last.end == pair[0] && last.style == style {
+                    last.end = pair[1];
+                    continue;
+                }
             }
+            result.push(Span {
+                start: pair[0],
+                end: pair[1],
+                style,
+            });
         }
-        result.push(Span {
-            start: pair[0],
-            end: pair[1],
-            style,
-        });
     }
     Ok(result)
 }

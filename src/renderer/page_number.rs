@@ -101,6 +101,14 @@ impl<'a> PageNumberAssigner<'a> {
     fn para_first_appears(page: &PageContent, target_pi: usize) -> bool {
         page.column_contents.iter().any(|col| {
             col.items.iter().any(|item| match item {
+                PageItem::HostedParagraph {
+                    para_index,
+                    fragment,
+                } => *para_index == target_pi && fragment.is_first(),
+                PageItem::HostedTable {
+                    para_index,
+                    fragment,
+                } => *para_index == target_pi && fragment.is_first(),
                 PageItem::FullParagraph { para_index } => *para_index == target_pi,
                 PageItem::PartialParagraph {
                     para_index,
@@ -186,6 +194,8 @@ impl PageControlEvents {
 
 fn item_starts(item: &PageItem) -> bool {
     match item {
+        PageItem::HostedParagraph { fragment, .. } => fragment.is_first(),
+        PageItem::HostedTable { fragment, .. } => fragment.is_first(),
         PageItem::FullParagraph { .. } | PageItem::Table { .. } | PageItem::Shape { .. } => true,
         PageItem::PartialParagraph { start_line, .. } => *start_line == 0,
         PageItem::PartialTable {

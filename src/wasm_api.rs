@@ -48,7 +48,7 @@ mod hyperlink;
 mod render_patch_boundary;
 mod table_v2_preview;
 mod template_automation;
-pub use table_v2_preview::{DocumentV2, TableV2Preview};
+pub use table_v2_preview::{DocumentV2, HostedSectionV2, TableV2Preview};
 
 impl From<HwpError> for JsValue {
     fn from(err: HwpError) -> Self {

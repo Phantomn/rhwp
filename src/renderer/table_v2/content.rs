@@ -36,6 +36,20 @@ pub(super) enum VerticalAlignment {
     Bottom,
 }
 
+impl VerticalAlignment {
+    /// Intact content origin and fit budget from the same measured extent.
+    /// In particular Bottom must retain `content`, not recompute it as
+    /// `height - (height - content)` and lose a few bits through cancellation.
+    pub fn content_window(self, height: f64, content: f64) -> (f64, f64) {
+        let slack = height - content;
+        match self {
+            Self::Top => (0.0, height),
+            Self::Center => (slack / 2.0, content + slack / 2.0),
+            Self::Bottom => (slack, content),
+        }
+    }
+}
+
 /// One physical cell, even when it covers several logical columns. Produced at
 /// grid binding and consumed unchanged for composition width and final placement.
 #[derive(Debug, Clone)]
@@ -447,12 +461,7 @@ impl TableContentPlan {
                         "rowspan height needs redistribution",
                     ));
                 }
-                let slack = height - physical;
-                track.content_offset_y = match track.alignment {
-                    VerticalAlignment::Top => 0.0,
-                    VerticalAlignment::Center => slack / 2.0,
-                    VerticalAlignment::Bottom => slack,
-                };
+                track.content_offset_y = track.alignment.content_window(height, physical).0;
             }
         }
         let height = row_heights.iter().enumerate().fold(0.0, |h, (row, v)| {

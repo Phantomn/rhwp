@@ -14,6 +14,7 @@ struct Request {
     max_pages: u32,
     #[serde(default)]
     cell_end_policy: super::CellEndPolicy,
+    first_page_number: Option<u32>,
 }
 
 #[derive(Debug)]
@@ -58,7 +59,7 @@ impl TablePreviewExportSession {
             .map_err(|e| TablePreviewExportError::Options(e.to_string()))?;
         let document = crate::parse_document(data)
             .map_err(|e| TablePreviewExportError::Parse(e.to_string()))?;
-        let session = TablePreviewSession::from_document_with_end_policy(
+        let mut session = TablePreviewSession::from_document_with_end_policy(
             &document,
             request.selection,
             request.dpi,
@@ -67,6 +68,11 @@ impl TablePreviewExportSession {
             request.cell_end_policy,
         )
         .map_err(TablePreviewExportError::Preview)?;
+        if let Some(number) = request.first_page_number {
+            session = session
+                .with_first_page_number(number)
+                .map_err(TablePreviewExportError::Preview)?;
+        }
         Ok(Self { session })
     }
 

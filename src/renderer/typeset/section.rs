@@ -36,7 +36,8 @@ impl TypesetEngine {
         endnote_shape: Option<&FootnoteShape>,
         force_break_before: &std::collections::HashSet<usize>,
         endnote_deferral: EndnoteDeferral<'_>,
-    ) -> PaginationResult {
+        mut hosted: Option<&mut super::hosted::HostedSectionFlow>,
+    ) -> Result<PaginationResult, crate::renderer::table_v2::HostedTableError> {
         // [#2424 프로파일] paginate_pass 와 같은 env var 로 하위 단계 게이트.
         #[cfg(not(target_arch = "wasm32"))]
         let issue2424_ts_enabled =
@@ -192,7 +193,7 @@ impl TypesetEngine {
             // 기존 #3837 되감김 규칙은 되감긴 **다음** 문단(pi=103)에만 걸리고, 그마저
             // 그 문단이 잔여에 들어가면 분할 루프가 그대로 현재 쪽에 놓는다. 넘긴
             // 주체인 pi=102 자신은 표 경로라 그 판정을 아예 지나지 않는다.
-            if st.col_count == 1 && !st.current_items.is_empty() {
+            if hosted.is_none() && st.col_count == 1 && !st.current_items.is_empty() {
                 let own_stored_vpos = para
                     .line_segs
                     .iter()
@@ -277,6 +278,23 @@ impl TypesetEngine {
                 eprintln!("DIAG_ROUTE pi={} has_table={}", para_idx, has_table);
             }
 
+            // A source break belongs after preceding reservations, not before
+            // their eventual destination. Drain them before applying this
+            // paragraph's page/column boundary; ordinary following prose can
+            // still fill the source page while a floating table is deferred.
+            if let Some(flow) = hosted.as_deref_mut() {
+                if matches!(
+                    para.column_type,
+                    crate::model::paragraph::ColumnBreakType::Page
+                        | crate::model::paragraph::ColumnBreakType::Column
+                ) || styles
+                    .para_styles
+                    .get(para.para_shape_id as usize)
+                    .is_some_and(|style| style.page_break_before)
+                {
+                    flow.finish_pending(&mut st)?;
+                }
+            }
             let Some(boundary) = self.prepare_paragraph_boundary(
                 &mut st,
                 para_idx,
@@ -291,8 +309,29 @@ impl TypesetEngine {
                 force_break_before,
                 has_table,
             ) else {
+                if hosted.is_some() {
+                    // A legacy absorption rule is not evidence that an authored
+                    // V2 line/control may be discarded. Do not publish a partial
+                    // section when the shared boundary cannot admit its owner.
+                    return Err(
+                        crate::renderer::table_v2::HostedTableError::UnsupportedHost(
+                            "section boundary absorbed a V2 paragraph",
+                        ),
+                    );
+                }
                 continue;
             };
+
+            if let Some(flow) = hosted.as_deref_mut() {
+                // The same source-order driver applies explicit section/column/
+                // page boundaries. V2's immutable compositions own fit and paint;
+                // do not subsequently run Legacy table cuts, saved-vpos snapping
+                // or paragraph-tail height corrections over these packets.
+                st.ensure_page();
+                flow.place_paragraph(&mut st, para_idx)?;
+                variant_prev_para_idx = Some(para_idx);
+                continue;
+            }
 
             self.apply_stored_paragraph_boundary(
                 &mut st,
@@ -421,6 +460,9 @@ impl TypesetEngine {
         }
 
         // 마지막 항목 처리
+        if let Some(flow) = hosted {
+            flow.finish(&mut st)?;
+        }
         let issue2424_final_flush_started = issue2424_ts_enabled.then(std::time::Instant::now);
         self.flush_deferred_table_controls(
             &mut st,
@@ -493,6 +535,6 @@ impl TypesetEngine {
             );
         }
 
-        st.into_result()
+        Ok(st.into_result())
     }
 }

@@ -343,12 +343,14 @@ fn bind_table(
                 }
                 let stored_fields = super::fields::stored_result(para)?;
                 let page_number = super::page_number::cell_declaration(para)?;
+                let page_field = super::cell_page_field::qualify(para)?;
                 let tac_fields = super::fields::stored_tac_prefix(para);
                 for ctrl in &para.controls {
-                    if matches!(ctrl, Control::Picture(_))
+                    if matches!(ctrl, Control::Picture(_) | Control::Shape(_))
                         || (page_number && matches!(ctrl, Control::PageNumberPos(_)))
                         || (initial_column && matches!(ctrl, Control::ColumnDef(_)))
                         || stored_fields
+                        || page_field
                         || (tac_fields && matches!(ctrl, Control::Field(_)))
                     {
                         continue;
@@ -365,7 +367,8 @@ fn bind_table(
                 }
                 // Qualified fields are source markers replayed by the text
                 // composer, not table owners awaiting a geometry item.
-                let mut seen = vec![stored_fields || page_number; para.controls.len()];
+                let mut seen =
+                    vec![stored_fields || page_number || page_field; para.controls.len()];
                 if tac_fields {
                     for (ci, control) in para.controls.iter().enumerate() {
                         if matches!(control, Control::Field(_)) {
@@ -510,10 +513,13 @@ fn bind_table(
                             }
                             for ci in controls {
                                 if seen.get(ci).copied() != Some(false)
-                                    || !matches!(para.controls.get(ci), Some(Control::Picture(_)))
+                                    || !matches!(
+                                        para.controls.get(ci),
+                                        Some(Control::Picture(_) | Control::Shape(_))
+                                    )
                                 {
                                     return Err(GeometryError::Unsupported(
-                                        "invalid or repeated picture slot",
+                                        "invalid or repeated visual object slot",
                                     ));
                                 }
                                 seen[ci] = true;

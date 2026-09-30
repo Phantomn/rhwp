@@ -61,6 +61,7 @@ pub(super) struct BodyPlan {
     pub body: Rect,
     pub page_width: f64,
     pub page_height: f64,
+    pub first_page_number: u32,
     /// Source-ordered declarations. The first accepted host flow unit activates
     /// a story; a later declaration on the same page supersedes an earlier one.
     pub page_numbers: Vec<(
@@ -165,7 +166,12 @@ impl DocumentV2Session {
                 .tables
                 .get(&table.owner)
                 .ok_or(GeometryError::InconsistentAtomicPlan)?;
-            let mut node = paint.build_node(&table.placement)?;
+            let number = self
+                .plan
+                .first_page_number
+                .checked_add(self.emitted)
+                .ok_or(GeometryError::Unsupported("page-number range"))?;
+            let mut node = paint.build_node(&table.placement, Some(number))?;
             if let RenderNodeType::Table(value) = &mut node.node_type {
                 value.section_index = Some(0);
                 value.para_index = Some(table.owner.paragraph);

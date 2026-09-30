@@ -21,6 +21,21 @@ use crate::{
 
 use super::{ControlOwner, GeometryError, LinePlacement, NestedTablePlacement};
 
+/// Qualify the unchanged UTF-16 control slot, shared by standalone and hosted
+/// body composition. A declaration after visible content is not paragraph entry.
+pub(super) fn validate_body_entry(para: &Paragraph, control: usize) -> Result<(), GeometryError> {
+    if para.controls[..control]
+        .iter()
+        .any(|c| !matches!(c, Control::SectionDef(_) | Control::ColumnDef(_)))
+        || para.control_utf16_positions().get(control).copied() != Some((control * 8) as u32)
+    {
+        return Err(GeometryError::Unsupported(
+            "page-number declaration within paragraph content",
+        ));
+    }
+    Ok(())
+}
+
 /// Source ownership, not coordinates: a declaration in a later cell fragment
 /// must not be activated merely because its enclosing table has started.
 pub(super) struct PageNumberHost {

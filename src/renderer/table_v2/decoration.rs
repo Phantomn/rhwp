@@ -191,6 +191,15 @@ pub(super) fn validate_source(table: &Table, info: &DocInfo) -> Result<(), Geome
             if let Control::Table(child) = child {
                 visit(child, info, depth + 1)?;
             }
+            if let Control::Shape(shape) = child {
+                if let crate::model::shape::ShapeObject::Rectangle(rect) = shape.as_ref() {
+                    if let Some(textbox) = &rect.drawing.text_box {
+                        for paragraph in &textbox.paragraphs {
+                            validate_paragraph_source(paragraph.para_shape_id, info)?;
+                        }
+                    }
+                }
+            }
         }
         Ok(())
     }

@@ -1159,6 +1159,9 @@ fn paragraph_by_global_index<'a>(
 
 fn page_item_para_index(item: &PageItem) -> Option<usize> {
     match item {
+        PageItem::HostedParagraph { para_index, .. } | PageItem::HostedTable { para_index, .. } => {
+            Some(*para_index)
+        }
         PageItem::FullParagraph { para_index }
         | PageItem::PartialParagraph { para_index, .. }
         | PageItem::Table { para_index, .. }
@@ -1170,6 +1173,7 @@ fn page_item_para_index(item: &PageItem) -> Option<usize> {
 
 fn page_item_vpos_base(item: &PageItem, paragraphs: &[Paragraph]) -> Option<i32> {
     match item {
+        PageItem::HostedParagraph { .. } | PageItem::HostedTable { .. } => None,
         PageItem::PartialParagraph {
             para_index,
             start_line,
@@ -3194,6 +3198,7 @@ pub(crate) struct DumpFormattedParagraphHeight {
 }
 
 mod controls;
+mod hosted;
 #[path = "typeset/inline_flow.rs"]
 mod inline_flow;
 mod notes;
@@ -3716,7 +3721,9 @@ impl TypesetEngine {
             endnote_shape,
             force_break_before,
             endnote_deferral,
+            None,
         )
+        .expect("Legacy section flow cannot return a V2 placement error")
     }
 
     // ========================================================

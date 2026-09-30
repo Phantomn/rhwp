@@ -153,15 +153,17 @@ fn area(height: f64) -> PageArea {
 #[test]
 fn first_offset_is_transactional_continuation_keeps_only_margin_and_following_line() {
     let cursor = plan(7., SplitPolicy::WithinCells).start();
-    // Margin+line fits but source displacement does not. No host or band is consumed.
+    // Each floating fragment reserves both physical margins: offset7 + top3
+    // + line20 + bottom2 =32. The older30 budget omitted the first bottom margin.
+    // No host or band is consumed by the failing proposal.
     assert!(matches!(
-        cursor.fit(area(29.)).unwrap(),
+        cursor.fit(area(31.)).unwrap(),
         FragmentFit::DoesNotFit { .. }
     ));
-    let FragmentFit::Placed(first) = cursor.fit(area(30.)).unwrap() else {
+    let FragmentFit::Placed(first) = cursor.fit(area(32.)).unwrap() else {
         panic!()
     };
-    assert_eq!(first.reserved_height(), 30.);
+    assert_eq!(first.reserved_height(), 32.);
     assert_eq!(first.placement().cells[0].lines.len(), 1); // host exactly once
     assert_eq!(first.placement().cells[0].lines[0].bounds.y, 20.);
     assert_eq!(

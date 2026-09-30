@@ -1289,6 +1289,9 @@ fn conflicting_edges_reject_before_commit_and_remain_retryable() {
     let mut other = border();
     other.borders[0].width = 8;
     other.borders[0].color = 0x445566;
+    // Unlike solid cell colors are now qualified layered strokes. Mixed pen
+    // types remain unsupported and still exercise transactional rejection.
+    other.borders[0].line_type = BorderLineType::Dash;
     d.doc_info.border_fills.push(other.clone());
     let (data, config) = source(&d);
     capture("border-conflict", &data, &config, &[]);

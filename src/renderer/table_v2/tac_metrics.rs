@@ -14,6 +14,25 @@ pub(super) struct TableBand {
 }
 
 impl TableBand {
+    /// CENTER aligns the complete outer boxes, not the bare table centers.
+    /// Independently saved unequal TACs with asymmetric margins establish this
+    /// distinction (issue7353_center_tac_review). `baseline` is the center axis
+    /// in this mode; it is not an 85% text/table baseline.
+    pub fn measure_centered(tables: impl IntoIterator<Item = (f64, f64, f64)>) -> Option<Self> {
+        tables
+            .into_iter()
+            .map(|(height, top, bottom)| height + top + bottom)
+            .reduce(f64::max)
+            .map(|height| Self {
+                baseline: height / 2.0,
+                height,
+            })
+    }
+
+    pub fn centered_top(&self, height: f64, top: f64, bottom: f64) -> f64 {
+        self.baseline - (height + top + bottom) / 2.0 + top
+    }
+
     pub fn measure(tables: impl IntoIterator<Item = (f64, f64, f64)>) -> Option<Self> {
         let mut above = f64::NEG_INFINITY;
         let mut below = f64::NEG_INFINITY;

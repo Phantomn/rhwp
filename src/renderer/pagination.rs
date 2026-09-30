@@ -565,6 +565,17 @@ pub struct WrapAnchorRef {
 /// 페이지에 배치되는 개별 항목
 #[derive(Debug, Clone)]
 pub enum PageItem {
+    /// Shared host line composition; no late Legacy recomposition.
+    HostedParagraph {
+        para_index: usize,
+        fragment: std::sync::Arc<super::table_v2::HostedParagraphFragment>,
+    },
+    /// Experimental V2 reservation and paint packet. Never reinterpret as a
+    /// Legacy row cut. Source edits require a new hosted pagination snapshot.
+    HostedTable {
+        para_index: usize,
+        fragment: std::sync::Arc<super::table_v2::HostedTableFragment>,
+    },
     /// 문단 전체가 배치됨
     FullParagraph {
         /// 원본 문단 인덱스
@@ -768,6 +779,8 @@ impl PageItem {
     /// 항목의 para_index를 반환한다.
     pub fn para_index(&self) -> usize {
         match self {
+            PageItem::HostedParagraph { para_index, .. }
+            | PageItem::HostedTable { para_index, .. } => *para_index,
             PageItem::FullParagraph { para_index } => *para_index,
             PageItem::PartialParagraph { para_index, .. } => *para_index,
             PageItem::Table { para_index, .. } => *para_index,
@@ -781,6 +794,16 @@ impl PageItem {
     pub fn with_offset(&self, offset: i32) -> Self {
         let adjust = |pi: usize| (pi as i64 + offset as i64).max(0) as usize;
         match self {
+            PageItem::HostedParagraph { .. } | PageItem::HostedTable { .. } => {
+                // This method belongs to Legacy's incremental reindex path.
+                // V2 snapshots must be recomposed after source edits; silently
+                // reusing their frozen page/owner address would be incorrect.
+                assert_eq!(
+                    offset, 0,
+                    "V2 hosted snapshots require repagination after edits"
+                );
+                self.clone()
+            }
             PageItem::FullParagraph { para_index } => PageItem::FullParagraph {
                 para_index: adjust(*para_index),
             },
