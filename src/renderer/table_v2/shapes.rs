@@ -159,6 +159,9 @@ pub(super) fn node_with_page_number(
     resources: &[BinDataContent],
     page_number: Option<u32>,
 ) -> Result<RenderNode, GeometryError> {
+    if let ShapeObject::Line(line) = shape {
+        return line_node(line, bounds, dpi);
+    }
     let ShapeObject::Rectangle(rect) = shape else {
         return Err(unsupported());
     };
@@ -311,6 +314,62 @@ pub(super) fn node_with_page_number(
         node.children.extend(lines);
     }
     Ok(node)
+}
+
+/// The already-composed object box is authoritative. Line endpoint coordinates
+/// are in the original component frame; map them once to the current box.
+fn line_node(
+    line: &crate::model::shape::LineShape,
+    bounds: BoundingBox,
+    dpi: f64,
+) -> Result<RenderNode, GeometryError> {
+    let a = &line.drawing.shape_attr;
+    let c = &line.common;
+    if c.width == 0
+        || c.height == 0
+        || c.width_criterion != SizeCriterion::Absolute
+        || c.height_criterion != SizeCriterion::Absolute
+        || c.drop_cap_style != crate::model::shape::DropCapStyle::None
+        || a.original_width == 0
+        || a.original_height == 0
+        || a.group_level != 0
+        || a.horz_flip
+        || a.vert_flip
+        || a.rotation_angle != 0
+        || a.render_b != 0.0
+        || a.render_c != 0.0
+        || !a.render_sx.is_finite()
+        || !a.render_sy.is_finite()
+        || a.render_sx <= 0.0
+        || a.render_sy <= 0.0
+        || line.connector.is_some()
+        || line.drawing.text_box.is_some()
+        || line.drawing.caption.is_some()
+        || line.drawing.shadow_type != 0
+        || line.drawing.border_line.attr & 0x3f != 1
+        || line.drawing.border_line.attr & 0x3fff_fc00 != 0
+        || line.drawing.border_line.width <= 0
+        || [line.start, line.end].iter().any(|p| {
+            p.x < 0 || p.y < 0 || p.x as u32 > a.original_width || p.y as u32 > a.original_height
+        })
+    {
+        return Err(unsupported());
+    }
+    let mut style = crate::renderer::layout::drawing_to_line_style(&line.drawing);
+    style.width = f64::from(line.drawing.border_line.width) * dpi / 7200.0;
+    let x = |v| bounds.x + f64::from(v) / f64::from(a.original_width) * bounds.width;
+    let y = |v| bounds.y + f64::from(v) / f64::from(a.original_height) * bounds.height;
+    Ok(RenderNode::new(
+        0,
+        RenderNodeType::Line(crate::renderer::render_tree::LineNode::new(
+            x(line.start.x),
+            y(line.start.y),
+            x(line.end.x),
+            y(line.end.y),
+            style,
+        )),
+        bounds,
+    ))
 }
 
 pub(super) fn floating_candidate(para: &Paragraph) -> bool {

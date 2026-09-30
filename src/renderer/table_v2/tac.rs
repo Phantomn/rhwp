@@ -92,6 +92,7 @@ pub(super) fn stored_object_rows(
         ParagraphVerticalAlignment::Baseline,
         pictures,
         &[],
+        &[],
     )
 }
 
@@ -102,6 +103,7 @@ pub(super) fn object_rows(
     vertical_alignment: ParagraphVerticalAlignment,
     pictures: bool,
     spaces: &[super::tac_spaces::SpaceRun],
+    character_heights: &[f64],
 ) -> Result<Vec<StoredTacRow>, GeometryError> {
     let centered = match vertical_alignment {
         ParagraphVerticalAlignment::Baseline => false,
@@ -274,7 +276,10 @@ pub(super) fn object_rows(
         } else {
             super::tac_metrics::TableBand::measure(boxes)
         };
-        if let Some(band) = band {
+        if let Some(mut band) = band {
+            if let Some(&height) = character_heights.get(row.source_line) {
+                band.include_character_height(height);
+            }
             // Stored row height is independent evidence for the composed
             // envelope. Do not stretch, clamp or ignore an incompatible row.
             // Normal saved unequal-picture rows share this TAC baseline rule
@@ -544,6 +549,7 @@ pub(super) fn compose(
         style.vertical_alignment,
         false,
         &spaces,
+        &[],
     )?;
     let mut nodes = Vec::new();
     let mut items = vec![ParagraphItem::Space(style.spacing_before)];

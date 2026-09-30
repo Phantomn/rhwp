@@ -312,6 +312,14 @@ fn bbox(r: Rect) -> BoundingBox {
 pub(super) fn translate(node: &mut RenderNode, dx: f64, dy: f64) {
     node.bbox.x += dx;
     node.bbox.y += dy;
+    if let RenderNodeType::Line(line) = &mut node.node_type {
+        // Line paint consumes absolute endpoints, unlike rectangle/image paint
+        // which consumes bbox. Keep both on the same fragment/page origin.
+        line.x1 += dx;
+        line.x2 += dx;
+        line.y1 += dy;
+        line.y2 += dy;
+    }
     for child in &mut node.children {
         translate(child, dx, dy);
     }

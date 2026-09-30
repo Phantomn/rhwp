@@ -14,6 +14,16 @@ pub(super) struct TableBand {
 }
 
 impl TableBand {
+    /// A control-only picture/shape line still has a character-height strut.
+    /// Extra height is distributed around the baseline, not added below the
+    /// object or painted as a second blank line. Normal saved small-line shapes
+    /// with asymmetric margins establish alignment of their outer envelope.
+    pub fn include_character_height(&mut self, height: f64) {
+        if height > self.height {
+            self.baseline += ascent(height - self.height);
+            self.height = height;
+        }
+    }
     /// CENTER aligns the complete outer boxes, not the bare table centers.
     /// Independently saved unequal TACs with asymmetric margins establish this
     /// distinction (issue7353_center_tac_review). `baseline` is the center axis

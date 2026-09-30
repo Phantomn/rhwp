@@ -11351,3 +11351,59 @@ WASM의 단일 단 ON/OFF2쪽, 두 단 ON/OFF1·2쪽 review와 Native/WASM의
 `on-review/wasm-review-2.png`, `off-review/wasm-review-2.png`,
 `columns-on-review/wasm-review-1.png`다. 문서 작성 스킬의 출처·검증 범위 구분을
 적용해 정상 저장 HWP와 미수용 HWPX를 분리 기록했다.
+
+### 작은 TAC 선 도형의 글줄 점유와 배치
+
+빈 줄 감추기의 메인테이너 통과를 `b643b7bbf`에 커밋했다. 다음 원본 수용 오류인
+`stored TAC baseline envelope mismatch`를 추적하니 #7008의 p4는 큰 표가 아니라
+높이4 HU의 TAC 선이었다. 저장 줄은 글자 모양11pt에 따른 높이1100/기준선935 HU다.
+도형만 있는 줄의 객체 높이와 글줄 높이가 항상 같다는 가정을 제거했다.
+
+독립 근거는 [정상 한컴 저장 대조군](../../tests/fixtures/issue7353_small_inline_review/README.md)이다.
+저장 줄을 작성하지 않은 HWPX를 한컴에서 HWP로 저장하고 그 HWP의 PDF를 얻었다.
+11pt/20pt, 작은/큰 선, 위/아래 바깥여백900/200 HU의 여덟 사례를 한 쪽에서 비교한다.
+큰 객체를 폰트 높이로 축소하지 않으며 작은 객체의 나머지 공간은 기준선 양쪽에 배분한다.
+
+| 값의 생산과 소비 | 적용 경로와 최종 결과 |
+| --- | --- |
+| 입력 → 공통 줄 | `pictures::character_heights`가 저장 줄의 source 범위에 해당하는 글자 모양을 읽고 `tac::object_rows`가 기존 객체 band에 최소 글줄 높이를 합성한다. 저장 높이 불일치 검사는 유지한다. |
+| 측정 → 예약 | 동일 `StoredTacRow`의 높이가 `ObjectRow`의 물리 점유 및 `ParagraphEnd`로 넘어가 본문/셀의 fit과 뒤 문단 전진에 사용된다. |
+| 실제 배치 | 동일 행의 객체 Rect를 `shapes::line_node`가 사용한다. 원본 component 끝점을 현재 상자에 한 번만 투영한다. `text::translate`는 상자뿐 아니라 backend가 읽는 Line의 절대 끝점도 함께 옮긴다. |
+| 비적용 | 표 TAC의 기존 경로에는 character strut를 추가하지 않았다. 컷·rowspan·continuation 알고리즘, Legacy 기본값, Studio 선택은 바꾸지 않았다. 회전/연결선 등 검증하지 않은 선은 명시적으로 거부한다. |
+
+신규 정식 테스트의 정상 대조군은 변경 전 `baseline envelope mismatch`로 실패했다.
+최종 신규5건은 실제 선/줄/뒤 문단 좌표, PDF 경로 좌표,96/192dpi, source 불변,
+높이 cache 변조 거부, 회전 거부, 같은 줄 복수 객체, 셀의1100 HU 경계 fit와
+비영점 원점의 끝점 이동 및 종료를 검사한다. 셀 예산은1099 HU에서 실패하고1100 HU에서
+수용한다. 합성 입력을 정상 저장본 시각 증거로 확대하지 않았다.
+
+증적 prefix는 `output/7353/r19/tac-baseline/`이다. 기존317건과 신규5건이 통과해
+**322 PASS/0 FAIL**다(`regression.log`, `frame-after-child/small-inline-final-issue_7353_small_inline.log`).
+변경 전 실패는 `frame-after-child/small-inline-before-issue_7353_small_inline.log`다.
+Native build28.45초, Native lib Clippy30.25초, WASM lib Clippy32.43초와 fmt/diff check가
+통과했다. 전체 workspace CI 결과는 아니다. `source.sha256`, `input-test.sha256`에
+작업 소스와 입력/테스트를 고정한다.
+
+`shared-driver-export.rs`를 새 라이브러리로 컴파일하고 `capture.mjs`, `sweep.py native`로
+Native compare·standalone overlay·review를 만들었다. 여덟 선과 AFTER의 순서/위치,
+글줄 높이 보존을 직접 판독했다. 글꼴 차이와 PDF의 y축1.0015 인쇄 배율/12 HU 격자에
+따른 미세 차이는 남으며, PNG 좌표를 보정하거나 자동 점수로 통과를 선언하지 않았다.
+
+원본 전체 실행은 이 TAC 높이 거부를 넘었지만 다음 p5의 일반 본문에서
+`text preview stored rows or controls`로 거부된다(`original-admission.log`, `next-probe.log`).
+p0의 절대 표/다단 흐름 등 다른 미지원도 남으므로 원본 전체 수용이나 R5 완료가 아니다.
+새 Docker WASM 빌드 및 동일 입력의 시각 증적은 아래에 이어 기록한다.
+
+Docker fresh WASM은 종료0/7분31초로 완료했다. WASM SHA256은
+`6b90185deddbc0d811cf05add3bb3b1d87f945a4307f4f1f9bf904a562245f47`이다.
+`node capture.mjs --wasm`과 `sweep.py wasm`으로 실제 브라우저의 V2 호스트 출력을
+생성했다. Native 대비 비수치 차이는0, 수치 차이는77개/최대1.1368683772161603e-13px다.
+`small-review/wasm-manifest.json`과 `backend-comparison.json`에 근거를 고정했다.
+
+Native/fresh WASM의 review 및 canonical standalone overlay를 직접 열어 여덟 선과
+뒤 문단의 위치·줄 점유를 확인했다. 동일한 글꼴·미세 인쇄 차이는 남는다.
+대표 판정 자료는 `small-review/wasm-review-1.png`와
+`small-review/wasm/overlay/overlay_001.png`, 샘플은
+`tests/fixtures/issue7353_small_inline_review/expanded.hwp`다.
+**이번 절편의 메인테이너 시각 판정 통과**다(2026-09-30 다음 작업 승인). 문서 작성 스킬의 근거/범위 구분에 따라
+정상 저장 시각 대조와 합성 셀·복수 객체 계약을 분리 기록했다.

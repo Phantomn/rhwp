@@ -252,6 +252,7 @@ pub(super) fn compose(
     }
     let local = super::tac::physical_frame(para, width, style, dpi)?;
     let spaces = super::tac_spaces::compose(para, styles, dpi)?;
+    let character_heights = character_heights(&local, styles, dpi)?;
     let rows = super::tac::object_rows(
         &local,
         width / scale,
@@ -259,6 +260,7 @@ pub(super) fn compose(
         style.vertical_alignment,
         true,
         &spaces,
+        &character_heights,
     )?;
     let mut items = vec![ParagraphItem::Space(style.spacing_before)];
     let mut nodes = Vec::new();
@@ -343,4 +345,43 @@ pub(super) fn compose(
     )?;
     items.push(ParagraphItem::End(ending));
     Ok((items, nodes))
+}
+
+/// Read the source character styles of each saved row, including its paragraph
+/// mark. Invisible control slots do not erase the line's nominal text height.
+/// The cache must independently match the composed object/character envelope.
+fn character_heights(
+    para: &Paragraph,
+    styles: &ResolvedStyleSet,
+    dpi: f64,
+) -> Result<Vec<f64>, GeometryError> {
+    (0..para.line_segs.len())
+        .map(|li| {
+            let start = para.line_seg_text_start(li);
+            let stop = para
+                .line_segs
+                .get(li + 1)
+                .map_or(para.char_count, |_| para.line_seg_text_start(li + 1));
+            let first = para
+                .char_shapes
+                .iter()
+                .rposition(|c| c.start_pos <= start)
+                .ok_or_else(unsupported)?;
+            let mut height: f64 = 0.0;
+            for c in para.char_shapes[first..]
+                .iter()
+                .take_while(|c| c.start_pos < stop)
+            {
+                let s = styles
+                    .char_styles
+                    .get(c.char_shape_id as usize)
+                    .ok_or_else(unsupported)?;
+                if !s.font_size.is_finite() || s.font_size <= 0.0 || s.superscript || s.subscript {
+                    return Err(unsupported());
+                }
+                height = height.max(s.font_size * 7200.0 / dpi);
+            }
+            Ok(height)
+        })
+        .collect()
 }
