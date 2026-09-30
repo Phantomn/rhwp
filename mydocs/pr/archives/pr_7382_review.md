@@ -3528,3 +3528,10 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![74쪽 #6776 원본 59쪽 Native와 한컴 PDF 비교](../assets/pr7382_20260926/stage254_issue6776_native_review_059.png)
 
 ![74쪽 #6776 원본 63쪽 Native와 한컴 PDF 비교](../assets/pr7382_20260926/stage254_issue6776_native_review_063.png)
+
+## 보정255 — k-water 본문 넘침의 정확한 쪽과 원인 범위
+
+- 남은 `body_overflow_baseline` 분할3의 `samples/k-water-rfp-2024.hwp`는 한컴 PDF와 모두 27쪽이다. `layout-anomaly`의 쪽 번호는 0부터 세므로, `page=4`의 `Page/Body/Column0/Table7` 하단 3.533px 넘침은 **인쇄 5쪽**이다. `page=12`는 인쇄 13쪽 표의 오른쪽 2.893px 넘침으로, 이 검사의 아래쪽 축에는 포함되지 않는다. 앞서 2·20쪽을 살핀 결과는 이 실패의 판정 근거로 사용하지 않는다. 진단 JSON은 `output/pr-review/planet6897-7382-20260926/stage255-kwater-anomaly.json`이다.
+- 인쇄 5쪽의 Native Visual Sweep은 **96.95951%**, gate `passed`다. 한컴 PDF와 나란히 보면 표 머리와 내용 시작은 같은 위치이지만 맨 아래 테두리는 rhwp가 약간 더 내려간다. 진단의 본문 하한 1028.867px과 표 하한 1032.400px이 3.533px 차이 나는 직접 원인을 다음 보정에서 표 마지막 조각의 높이·예약·배치 경로로 추적한다. 높은 전체 점수만으로 이 넘침을 허용치에 등록하지 않는다. 비교 결과는 `output/pr-review/planet6897-7382-20260926/stage255-kwater-p5/`에 있다.
+
+![27쪽 k-water 원본 5쪽 Native와 한컴 PDF 비교](../assets/pr7382_20260926/stage255_kwater_native_review_005.png)
