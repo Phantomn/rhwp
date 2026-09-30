@@ -121,6 +121,20 @@ impl HostedParagraphFragment {
 }
 
 impl HostedParagraphPlan {
+    pub(crate) fn is_unconsumed_empty_line(&self, source: &Paragraph) -> bool {
+        source.text.is_empty()
+            && source.char_count == 1
+            && source.controls.is_empty()
+            && source.field_ranges.is_empty()
+            && source.orphan_field_ends.is_empty()
+            && !self.emitted
+            && self.payloads.len() == 1
+            && self.frame_breaks.is_empty()
+            && self.tables.is_empty()
+            && self.anchor.is_none()
+            && self.anchor_required.is_none()
+    }
+
     pub(crate) fn planned_line_count(&self) -> usize {
         self.payloads.len()
     }

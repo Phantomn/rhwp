@@ -53,8 +53,7 @@ impl HostedSectionSession {
             || dpi <= 0.0
             // First-page master suppression and the serialized master-kind
             // bits do not change body flow. Other section rules stay gated.
-            || def.flags & !(0xe000_0000 | 0x0004) != 0
-            || def.hide_empty_line
+            || def.flags & !(0xe000_0000 | 0x0004 | 0x0008_0000) != 0
             || def.line_grid != 0
             || def.char_grid != 0
             || def.text_direction != 0
@@ -429,6 +428,7 @@ impl HostedSectionSession {
             p,
             &columns,
             section,
+            def.hide_empty_line,
             tables,
         )?;
         // Bind each absolute object to its accepted source control line. A

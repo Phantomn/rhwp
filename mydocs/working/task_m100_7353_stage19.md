@@ -11283,3 +11283,71 @@ WASM review1~3쪽과 canonical2쪽 overlay를 직접 판독해 첫 쪽 숨김·�
 fmt/diff check도 통과했다. **메인테이너 시각 판정 통과**다(2026-09-30 다음 작업 승인).
 원본 #7008의 hide_empty_line·큰/특수 TAC 도형·다단 Square 결합과 전체 호스트 수용은
 남아 있다. 이번 절편을 전체 지원이나 R5 완료로 세지 않는다.
+
+### 단과 쪽 경계의 빈 줄 감추기
+
+바탕쪽 쪽번호의 메인테이너 시각 통과를 `8b101340a`에 보존하고 다음 승인 범위로
+진행했다. Legacy 기본값·Studio 경로는 그대로다. 이번 WIP는 구역의
+`hide_empty_line`을 공통 `run_section`의 V2 호스트에 연결한다.
+
+독립 근거는 [정상 한컴 ON/OFF 대조군](../../tests/fixtures/issue7353_hide_empty_review/README.md)이다.
+페이지 끝 일곱 줄 뒤 빈 문단 세 개를 둔 입력과 두 단 입력을 각각 ON/OFF로 저장·출력했다.
+저장 LineSeg와 PDF에서 **각 단의 끝을 넘는 두 빈 문단만 감추고 세 번째는 다음 단/쪽에서
+점유**하는 동작을 확인했다. Legacy의 물리 페이지 단위 카운터를 그대로 복사하지 않았다.
+
+| 생산과 소비 경로 | 실제 처리와 경계 |
+| --- | --- |
+| 입력 → 호스트 | SectionDef.hide_empty_line/bit19 → `host_section::from_document` → `typeset_hosted_section` → 기존 `run_section` 상태. |
+| 측정 → 배치 | 기존 `HostedParagraphPlan::fit`의 공통 FlowCursor 결과로 수용한다. 실패한 동일 줄만 감춤 후보가 된다. 별도 높이 추정은 없다. |
+| 예산 음수 | 직전 줄 뒤 간격 등으로 cursor가 가용 높이를 넘었으면 새 줄을 배치할 수 없으므로 같은 감춤 규칙을 적용한다. 마지막 줄 자체가 fit하면 간격만으로 숨기지 않는다. |
+| 감춤 → 최종 출력 | `is_unconsumed_empty_line`은 미소비·단일 줄·진짜 빈 문자열·제어/필드 없음만 허용한다. `hide_overflowing_empty`는 `(page,column)`별 두 개 제한과 source 숨김 집합만 갱신한다. Legacy FullParagraph나 0높이 paint 노드를 삽입하지 않는다. |
+| 비적용 | 본문 중간/명시적 쪽 나누기 뒤 빈 줄, 필드/표 소유 줄, 셀 내부 빈 줄은 이 규칙으로 삭제하지 않는다. 표의 컷·요구 높이·예약/분할·continuation은 변경하지 않았다. |
+
+정식 `issue_7353_host_hide_empty`7건은 단일/두 단 ON/OFF,96/192dpi 최종 좌표,
+source 불변/숨김 소유 집합, 저장 줄 없는 재조판, 정확한 fit/뒤 간격 초과,
+명시적 쪽 나누기·중간 빈 줄, 보이지 않는 쪽번호 제어 소유 문단, 분할 표 소유 줄과
+셀 내용 불변을 검사한다. PDF 생성은 정상 한컴 경로이며, 편집 변형은 합성 계약으로 구별했다.
+
+증적 prefix는 `output/7353/r19/hide-empty/`다. 승인 상태의 Native 라이브러리에
+신규 테스트를 적용하면 section decoration 미지원으로 실패한다(`before.log`와
+`frame-after-child/hide-empty-before-issue_7353_host_hide_empty.log`). 이는 미지원 연결의
+전후 증거이며 기존 Legacy 시각 회귀 수정 주장이 아니다. 최종 신규7건 PASS(`seven.log`),
+기존270건 PASS(`regression.log`)로 **277 PASS/0 FAIL**다. 전체 CI 결과가 아니다.
+Native build24.97초, Native lib Clippy34.14초, WASM lib Clippy31.21초와 fmt/diff check가
+통과했다. source/input/test 해시는 `source.sha256`, `input-test.sha256`이다.
+
+Native는 `shared-driver-export.rs`를 최종 라이브러리로 컴파일하여 실제 호스트를 실행했고,
+`capture.mjs --variant=on|off|columns-on|columns-off`, `python3 sweep.py native`로 비교했다.
+2쪽 AFTER의 ON/OFF 시작 차이와 두 단의 AFTER/NEXT 위치를 직접 판독했다.
+글꼴 외형/폭·custom-paper 인쇄 transform의 미세 차이는 남으며 좌표 보정은 하지 않았다.
+새 WASM 결과와 메인테이너 판정은 아래에 이어 기록한다.
+
+승인 상태의 `master-field-export`로 OFF 대조군 두 개를 별도로 실행했다.
+`off-before.json`, `columns-off-before.json`은 변경 후 Native의 SVG/render tree
+전체 JSON과 byte 동일하다. binary 해시는 `exporters.sha256`에 고정했다.
+이는 OFF 무회귀의 추가 증거이며 ON의 한컴 대조를 대신하지 않는다.
+
+**남은 범위:** 한컴이 정상 저장한 HWPX counterpart 두 개와 rhwp HWPX 왕복은
+별도의 `stored text requires intact single-segment rows` 수용 단계에서 거부됐다.
+직접 작성한 저장 줄 없는 HWPX에서는 공통 paragraph_layout panic도 관측했다.
+이들 입력과 실패 근거는 보존하며, HWP 통과로 HWPX 완료를 주장하거나 수용 조건을
+완화하지 않았다. 원본 #7008은 다음 `stored TAC baseline envelope mismatch`에서
+거부된다(`original-admission.log`). 큰/특수 TAC 도형·다단 Square·전체 호스트 수용과
+전체 CI는 여전히 남아 있다. 신규 이슈를 임의로 등록하지 않았다.
+
+Docker fresh WASM 빌드는 종료0/7분36초로 완료했다. WASM SHA256은
+`f56194edc8f64a4921a8e5d0df91cdcdc5e9f2fd1a06cf670e059f41240facf8`이다.
+`capture.mjs --variant=on|off|columns-on|columns-off --wasm`과
+`python3 sweep.py wasm`으로 같은 네 입력의8쪽을 생성했다. 각 대조군의
+`*-review/wasm-manifest.json`은 source/input/PDF/명령/WASM 해시를 고정한다.
+`backend-comparison.json`의 Native 대비 비수치 차이는 전부0이며,
+수치 차이는21/21/34/34개, 최대2.842170943040401e-14px다.
+
+WASM의 단일 단 ON/OFF2쪽, 두 단 ON/OFF1·2쪽 review와 Native/WASM의
+단일 단 ON2쪽 canonical standalone overlay를 직접 판독했다. ON은 세 번째 빈 줄
+하나를 남긴 위치, OFF는 세 빈 줄을 모두 남긴 위치이며 다음 내용의 소유·순서도 맞는다.
+글꼴 외형/폭·미세 인쇄 transform 차이는 남는다. 자동 ink-match를 판정 근거로
+삼지 않았다. **이번 절편의 메인테이너 시각 판정 통과**다(2026-09-30 다음 작업 승인). 대표 자료는
+`on-review/wasm-review-2.png`, `off-review/wasm-review-2.png`,
+`columns-on-review/wasm-review-1.png`다. 문서 작성 스킬의 출처·검증 범위 구분을
+적용해 정상 저장 HWP와 미수용 HWPX를 분리 기록했다.

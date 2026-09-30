@@ -21,6 +21,7 @@ pub(super) struct HostedSectionFlow {
     assigned_numbers: Vec<u32>,
     revision: u64,
     pending: VecDeque<(usize, HostedAnchor, (u32, u16))>,
+    hidden_empty: Option<((u32, u16), u8)>,
 }
 
 impl TypesetEngine {
@@ -33,6 +34,7 @@ impl TypesetEngine {
         page: &PageDef,
         columns: &ColumnDef,
         section: usize,
+        hide_empty_line: bool,
         tables: BTreeMap<usize, HostedTableSession>,
     ) -> Result<PaginationResult, HostedTableError> {
         if text.len() != paragraphs.len() {
@@ -49,6 +51,7 @@ impl TypesetEngine {
             assigned_numbers: Vec::new(),
             revision: 0,
             pending: VecDeque::new(),
+            hidden_empty: None,
         };
         self.run_section(
             paragraphs,
@@ -58,7 +61,7 @@ impl TypesetEngine {
             columns,
             section,
             &[],
-            false,
+            hide_empty_line,
             Default::default(),
             false,
             false,
@@ -72,6 +75,43 @@ impl TypesetEngine {
 }
 
 impl HostedSectionFlow {
+    /// Only called after the common composition cannot fit (or its remaining
+    /// budget is already negative). Hancom's normal ON/OFF saves demonstrate
+    /// two suppressed empty lines per exhausted column, not per physical page.
+    /// Do not substitute invisible control owners or blank multiline text.
+    fn hide_overflowing_empty(
+        &mut self,
+        st: &mut TypesetState,
+        pi: usize,
+        source: &Paragraph,
+        paragraph: &HostedParagraphPlan,
+    ) -> Result<bool, HostedTableError> {
+        if !st.hide_empty_line
+            || st.current_items.is_empty()
+            || !paragraph.is_unconsumed_empty_line(source)
+        {
+            return Ok(false);
+        }
+        let frame = Self::frame(st);
+        let (previous, count) = self.hidden_empty.get_or_insert((frame, 0));
+        if *previous != frame {
+            *previous = frame;
+            *count = 0;
+        }
+        if *count == 2 {
+            return Ok(false);
+        }
+        *count += 1;
+        // Retain source identity without emitting a Legacy FullParagraph item:
+        // such an item would invoke an unrelated paint/height calculation.
+        st.hide_empty_paragraph(pi);
+        self.revision = self
+            .revision
+            .checked_add(1)
+            .ok_or(HostedTableError::RevisionOverflow)?;
+        Ok(true)
+    }
+
     fn frame(st: &TypesetState) -> (u32, u16) {
         (
             st.pages.last().expect("host page ensured").page_index,
@@ -136,6 +176,7 @@ impl HostedSectionFlow {
         &mut self,
         st: &mut TypesetState,
         pi: usize,
+        source: &Paragraph,
     ) -> Result<(), HostedTableError> {
         self.drain_pending(st)?;
         let mut last_line = None;
@@ -236,7 +277,14 @@ impl HostedSectionFlow {
         // A free owner line follows the table. An occluded saved owner line was
         // already placed at the first fragment's anchor, not dropped or doubled.
         while !paragraph.complete() {
-            if paragraph.take_frame_break() || st.current_height > st.available_height() {
+            let forced_break = paragraph.take_frame_break();
+            if !forced_break
+                && st.current_height > st.available_height()
+                && self.hide_overflowing_empty(st, pi, source, &paragraph)?
+            {
+                return Ok(());
+            }
+            if forced_break || st.current_height > st.available_height() {
                 st.advance_column_or_new_page();
                 self.drain_pending(st)?;
             }
@@ -272,6 +320,8 @@ impl HostedSectionFlow {
                     fragment: Arc::new(packet),
                 });
                 st.align_flow_to(next);
+            } else if self.hide_overflowing_empty(st, pi, source, &paragraph)? {
+                return Ok(());
             } else if st.current_items.is_empty() && st.current_height == 0.0 {
                 return Err(HostedTableError::NoProgress);
             } else {

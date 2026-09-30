@@ -209,7 +209,7 @@ fn unsupported_master_stories_are_not_sent_to_legacy_table_layout() {
 fn unsupported_first_page_flags_remain_explicit() {
     let mut d = source();
     d.sections[0].section_def.hide_empty_line = true;
-    assert!(session(&d, 96.).is_err());
+    assert!(session(&d, 96.).is_ok());
     let mut d = source();
     d.sections[0].section_def.hide_header = true;
     assert!(session(&d, 96.).is_err());
