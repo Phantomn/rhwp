@@ -3226,3 +3226,10 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - 전체 nextest에서 실패한 `synam_001_page5_splits_large_rowspan_block_like_hancom`의 원본은 `samples/synam-001.hwp`(SHA-256 `1dce9356ec316407b6c684d5a11190a44bb26da643a7749626763e781ab0c13b`)입니다. 독립 한컴 PDF `pdf/synam-001-hwp-2020.pdf`와 `pdf/synam-001-2022.pdf`는 모두 **35쪽**이고 같은 4~7쪽 Native 비교 점수를 냈습니다. 4~7쪽은 **94.92654/81.57106/80.90473/99.45301%**입니다. 5·6쪽 review에서 분할 표의 글줄·괘선 위치가 기준과 다르며 90% gate 미달임을 직접 확인했습니다. 산출물은 `output/pr-review/planet6897-7382-20260926/stage208-issue1156-{visual,alt-visual}/`입니다.
 - 사용자 지시대로 PR #7382를 막는 이 **한 함수만** 정식 회귀에서 제거하고, 원본 HWP·두 PDF와 #1156 파일의 다른 두 함수는 보존했습니다. 컷 문자열을 새 현재값으로 갈아 끼우거나 허용치를 늘리지 않았습니다. 남은 두 함수를 `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_1156_rowbreak_fragment_fit)' --no-fail-fast`로 재실행해 **2PASS**를 확인했습니다. 전체 35쪽과 fresh WASM 검증 및 의미 차이 수정은 #7445로 별도 추적하며, 이번 제외를 렌더링 결함 해결로 보고하지 않습니다.
+- #7445에 [35쪽 원본의 후속 검증 조건](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5917747711)을 게시하고 한글 본문을 API로 재확인했습니다.
+
+## 보정209 — #6852 HWP와 HWPX 원본의 시각 기준 분리
+
+- 현재 전체 nextest의 #6852 실패 **5개**는 모두 `samples/issue6797/156160455-social-pig-farm-income.hwp`를 직접 읽거나 그 IR을 변형하며, 5쪽 사각형을 고정 x/y/크기로 찾는 공통 helper에서 `0 != 2`로 중단됩니다. 같은 파일의 HWPX 원본 함수는 PASS입니다. HWP/HWPX 중 어느 쪽도 성공한 함수만으로 한컴 출력과의 일치를 입증하지 않습니다.
+- 원본 HWP와 독립 `pdf/156160455-social-pig-farm-income-2020.pdf`는 모두 **11쪽**이나 HWP Native 전쪽 최저는 **29.01913%**(5쪽), 6쪽 **30.73124%**입니다. HWPX 파생본도 같은 PDF와 비교하면 최저 **39.87618%**(6쪽), 5쪽 **42.93059%**입니다. 두 입력 모두 90% gate 미달이며 원본 HWP의 5쪽 review에서 문서 내용과 사각형 위치가 PDF와 크게 어긋납니다. 산출물은 `output/pr-review/planet6897-7382-20260926/stage209-issue6852-{visual,hwpx-visual}/`입니다.
+- 11쪽 전체 피델리티를 이 단계에서 완료하지 않습니다. 다음 단계에서는 PR #7382를 막는 **HWP 기반 5함수만** #7445로 이관하고, 현재 PASS인 HWPX 함수와 원본 HWP/HWPX·PDF는 보존합니다. 픽셀 좌표를 현재 출력에 맞춰 이동하지 않습니다.
