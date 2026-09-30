@@ -51,6 +51,8 @@ e2e 스크립트의 **단일 권위 목록**이다. 파일 추가/변경/폐기 
 | `footnote-insert.test.mjs` | 상시 | active | footnote-01.hwp 각주 삽입 시 문단 위치 이상 확인 | footnote-01.hwp | 수동 |  |
 | `footnote-vpos.test.mjs` | 상시 | active | footnote-01.hwp "원료를" 뒤 스페이스 입력 시 문단 위치 이상 / WASM API 직접 호출로 정확한 재 | footnote-01.hwp | 수동 |  |
 | `form-control.test.mjs` | 상시 | active | 양식 컨트롤 — 셀 커서 진입(#111) + 체크박스 클릭 토글(#112) | form-002.hwpx | 수동 |  |
+| `find-count-edit-refresh.test.mjs` | 상시 | active | #7485 일반 입력·삭제·undo/redo 개수 갱신 1회, 커서 보존과 닫힌 창 검색 0회 | 합성 새 문서 foo foo | 수동 | 실제 Studio 키 이벤트·최적화 WASM |
+| `find-first-click-ime.test.mjs` | 상시 | active | #7485 양방향 첫 클릭, IME 확정·고립 mouseup·늦은 input·중복 click·Enter·드래그 취소와 상태 행 고정 | 합성 새 문서 한글 | 수동 | Chrome IME 및 Mac 이벤트 순서 재현; 네이티브 사용자 확인과 구분 |
 | `form-edit-escape-cancel.test.mjs` | 상시 | active | #2375 Edit 양식 필드 Escape는 blur 뒤에도 취소·무기록 | form-01.hwp | npm e2e:form-edit-escape |  |
 | `gen-screenshot.mjs` | 유틸 | active | README 용 렌더 스크린샷 생성기 | basic/KTX.hwp | 수동 |  |
 | `global-shortcut.test.mjs` | 상시 | active | 시작 시 빈 문서 + 전역 단축키 | — | 수동 |  |
