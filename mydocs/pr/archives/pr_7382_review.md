@@ -3167,3 +3167,8 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - 보관된 대조 작업트리 `output/pr-review/planet6897-7382-20260926/control-stage19`의 source **`eb9142dd7`**로 별도 debug CLI를 빌드했습니다. 동일 SHA의 `samples/hwpx_sample2.hwp`를 이 CLI가 **29쪽**으로 배치하고, 현 브랜치 CLI는 **30쪽**으로 배치합니다. 이는 기준 PDF 29쪽과도 일치하므로 첫 쪽 이월은 이번 브랜치에서 새로 도입한 차단 회귀입니다. 대조 출력은 `stage197-issue4068-control-p1.json`, `stage197-issue4068-control-p1-text.json`에 보존했습니다.
 - 오래된 CLI는 현재 Visual Sweep이 전달하는 `export-svg --profile print --font-style` 조합을 지원하지 않아 대조 Visual Sweep은 실행되지 않았습니다. 대조군에서 확인된 것은 쪽수와 페이지별 텍스트이며, 픽셀 점수는 아직 없습니다. 현재 브랜치의 **1쪽 68.42791%** 증거와 분리합니다. 다음 단계에서는 첫 쪽 신청 안내 표의 paginator 예약과 실제 높이를 두 source에서 비교합니다.
+
+## 보정198 — #4068 표 행 컷의 두 source 비교
+
+- 공용 `target/pr-review`의 실행 파일을 대조 작업트리 빌드가 덮은 직후 현재 source에서 `cargo build`만 실행하면 캐시가 재컴파일을 건너뛰어 대조 실행 파일이 남았습니다. 이때 얻은 현재 29쪽이라는 값은 폐기했습니다. 현재 source 파일의 mtime을 갱신해 명시적으로 다시 빌드한 CLI에서 **30쪽**을 재확인했습니다. 소스 내용·작업 트리는 변경하지 않았습니다.
+- 한컴과 같은 **29쪽**인 devel 대조 `eb9142dd7`은 1쪽의 문단 4 표(2행×1열)를 `rows 0..2, endCut=[32]`까지 담아 본문 **1045.09px**를 씁니다. 현 브랜치는 같은 표에서 `rows 0..1, endCut=[]`로 제목행만 담아 **332.40px**를 쓰고 나머지를 2쪽으로 이월합니다. 현재 `RHWP_DIAG_SCAN`에서 행 1 첫 컷은 `budget=710.8px, consumed=722.5px, endCut=[32]`이며, 선택 뒤 예산 재검사에서 버려집니다. 저장 컷 선택→paint 요구 높이→재시도 경로를 다음 단계에서 분해합니다. 근거는 `stage197-issue4068-control-p1.json`, `stage198-issue4068-current-p1.json`, `stage198-issue4068-diag.log`입니다.
