@@ -4329,7 +4329,7 @@ fn font_local_aliases(font_family: &str) -> Vec<&'static str> {
         "함초롱바탕" => vec!["함초롱바탕", "HCR Batang"],
         "함초롱돋움" => vec!["함초롱돋움", "HCR Dotum"],
         "한컴바탕" => vec!["한컴바탕", "함초롬바탕", "HCR Batang"],
-        "한컴돋움" => vec!["한컴돋움", "함초롬돋움", "HCR Dotum"],
+        "한컴돋움" => vec!["Haansoft Dotum", "한컴돋움", "함초롬돋움", "HCR Dotum"],
         "맑은 고딕" => vec!["맑은 고딕", "Malgun Gothic"],
         "바탕" => vec!["바탕", "Batang"],
         "돋움" => vec!["돋움", "Dotum"],

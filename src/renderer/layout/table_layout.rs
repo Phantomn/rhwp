@@ -8795,6 +8795,40 @@ impl LayoutEngine {
             let total_content_height = stored_empty_picture_frame
                 .map(|frame| hwpunit_to_px(frame.content_height_hu, self.dpi))
                 .unwrap_or(total_content_height);
+            // HWPX에서 셀의 줄 사다리가 문단마다 0으로 재시작해도 문단
+            // 모양의 위 간격은 남는다. 여러 문단을 담은 가운데 정렬 TAC
+            // 셀의 합성 사다리에는 이를 직접 더해 측정과 배치를 맞춘다.
+            let hwpx_reset_first_lead = if self.profile.get().hwpx_stored_layout()
+                && !self.profile.get().session_edited()
+                && table.common.treat_as_char
+                && matches!(cell.vertical_align, VerticalAlign::Center)
+                && row_filter.is_none()
+                && cell.paragraphs.len() > 1
+                && !has_nested_table
+                && !trust_stored_cell_flow
+                && cell.paragraphs.iter().all(|para| {
+                    !para.stored_text_partition_is_dirty()
+                        && para.controls.is_empty()
+                        && para.line_segs.first().is_some_and(|seg| {
+                            seg.vertical_pos == 0
+                                && seg.tag
+                                    & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY
+                                    != 0
+                        })
+                }) {
+                let lead = cell.paragraphs.first().map_or(0.0, |para| {
+                    styles
+                        .para_styles
+                        .get(para.para_shape_id as usize)
+                        .map_or(0.0, |style| style.spacing_before)
+                });
+                (lead > 0.0 && total_content_height + lead <= inner_height + 0.5)
+                    .then_some(lead)
+                    .unwrap_or(0.0)
+            } else {
+                0.0
+            };
+            let total_content_height = total_content_height + hwpx_reset_first_lead;
             let use_top_vpos_anchor = matches!(effective_valign, VerticalAlign::Top);
             // [#6630] 세로 가운데/아래 셀: 첫 문단의 위 여백(저장 vpos 상한)이 내용 높이에 없어
             // 정렬이 그만큼 위로 쏠린다 — 정렬 계산에만 넣는다. Top 셀은 text_y_start 가 저장
@@ -8830,7 +8864,7 @@ impl LayoutEngine {
             let stack_already_holds_lead = first_para_lead > 0.0
                 && stored_flow_extent > 0.0
                 && (stored_flow_extent - total_content_height).abs() <= 0.5;
-            let align_lead = if stack_already_holds_lead {
+            let align_lead = if stack_already_holds_lead || hwpx_reset_first_lead > 0.0 {
                 0.0
             } else {
                 first_para_lead
@@ -8864,7 +8898,8 @@ impl LayoutEngine {
                         + hwpunit_to_px(frame.line_offset_hu, self.dpi)
                 })
                 .unwrap_or(text_y_start)
-                + upper_page_clip_line_reservation;
+                + upper_page_clip_line_reservation
+                + hwpx_reset_first_lead;
             // 세로쓰기 셀
             if cell.text_direction != 0 {
                 let vert_inner_area = LayoutRect {
