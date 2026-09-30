@@ -3261,3 +3261,8 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - 동일한 debug 실행 파일에서 HWPX/HWP에 `RHWP_DIAG_SPLITSCAN=1 RHWP_TABLE_DRIFT=1 rhwp dump-pages`를 적용했습니다. pi52의 `MeasuredTable` 행 높이는 두 경로 모두 **[13.32, 13.32, 281.48]px**, 전체 **308.1px**입니다. 그러나 첫 조각 진입 `cur_h`는 HWPX **670.8px**, HWP **662.8px**여서 offset **144.3px**을 제하면 가용 공간이 **115.4px / 123.4px**로 갈립니다. 첫 조각 실제 소비는 **92.3px / 109.6px**, 컷은 `[2] / [3]`입니다. 다음 쪽 pi52 표는 **207.2px / 194.3px**입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage214-{hwpx,hwp}1749-diag.log`입니다.
 - render tree의 첫 차이는 pi50 표 자체가 아니라 그 뒤 빈 pi51에서 납니다. 두 경로 pi50 표는 **y355.2~738.8px**로 같지만 pi51 글줄은 HWPX **754.8px**, HWP **746.8px**입니다. pi52 host 첫 줄은 **766.8px / 764.1px**이고 표 첫 조각은 **y911.1px / 908.4px**입니다. 따라서 컷 숫자만 강제로 바꾸기 전에 `pi50 끝 → pi51 빈 host 간격 → pi52 host/표 예약 → 다음 쪽 실제 표 높이`의 공통 소비를 확인해야 합니다. 구현·검사는 이번 단계에서 변경하지 않았습니다.
+
+## 보정215 — #1749 단일 줄 TAC 가설 기각
+
+- `tac_flow::tac_table_line_index`가 HWPX의 단일 저장 줄을 너무 일찍 제외해 pi50 뒤 8px이 중복된다는 가설로, 원본 HWPX·미편집·유일한 표·가시 텍스트 없는 단일 줄만 허용하는 후보를 실행했습니다. `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_1749_saved_bounds_page_break) | test(issue_3930_hwpx_hwp_save_layout)' --no-fail-fast`는 **5PASS/1FAIL**이고 #1749 pi52의 `PartialParagraph` 부재와 `[2]` 컷은 그대로입니다. #3930의 3개 대조군은 PASS입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage215-tac1749-nextest.log`입니다.
+- 효과 없는 후보는 모두 되돌려 현재 source diff가 없습니다. `RHWP_DIAG_TAC=1`의 pi50은 HWP에서 `DIAG_TAC ... table_total=383.6 fmt_total=399.6`, 종료 흐름 **658.8px**이며, HWPX에서는 `DIAG_TBLP pi=50` 블록 표 경로입니다. HWPX pi51 진입 **658.8px**, HWP pi51 진입 **650.8px**입니다. 다음에는 두 경로의 표 뒤 빈 문단 점유를 직접 대조합니다. 기준값이나 실패 검사를 변경하지 않았습니다.
