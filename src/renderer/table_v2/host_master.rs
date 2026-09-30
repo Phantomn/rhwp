@@ -31,6 +31,7 @@ pub(super) fn complete(
     styles: &crate::renderer::style_resolver::ResolvedStyleSet,
     dpi: f64,
     resources: &[crate::model::bin_data::BinDataContent],
+    page_number: u32,
 ) -> Result<(), HostedTableError> {
     use crate::renderer::render_tree::RenderNodeType;
     for node in &mut master.children {
@@ -47,8 +48,14 @@ pub(super) fn complete(
                     }
                 })
                 .ok_or(super::GeometryError::InconsistentAtomicPlan)?;
-            let mut composed =
-                super::shapes::node(source_shape, node.bbox, styles, dpi, resources)?;
+            let mut composed = super::shapes::node_with_page_number(
+                source_shape,
+                node.bbox,
+                styles,
+                dpi,
+                resources,
+                Some(page_number),
+            )?;
             composed.layer = node.layer.clone();
             *node = composed;
         }
@@ -91,7 +98,7 @@ pub(super) fn validate(pages: &[MasterPage]) -> Result<(), HostedTableError> {
                 }
                 if let Some(t) = &drawing.text_box {
                     for p in &t.paragraphs {
-                        if !p.controls.is_empty() {
+                        if !p.controls.is_empty() && !super::cell_page_field::qualify_textbox(p)? {
                             // In particular, a nested table must use V2 before
                             // this story can be admitted. Never drop it.
                             return Err(fail());

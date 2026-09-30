@@ -647,6 +647,7 @@ impl HostedSectionSession {
                     &self.styles,
                     self.dpi,
                     &self.source.bin_data_content,
+                    page.page_number,
                 )?;
                 super::text::assign_ids(&mut node, tree.frame_mut());
                 tree.root.children.insert(i, node);

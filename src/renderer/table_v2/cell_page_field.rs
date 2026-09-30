@@ -15,6 +15,17 @@ use crate::{
 use std::{cell::RefCell, sync::Arc};
 
 pub(super) fn qualify(p: &Paragraph) -> Result<bool, GeometryError> {
+    qualify_with_rows(p, false)
+}
+
+/// Master textboxes may have no saved rows even after a normal Hancom save.
+/// The shared composer then derives one row from paragraph/character styles.
+/// Table-cell admission still requires its stored reservation above.
+pub(super) fn qualify_textbox(p: &Paragraph) -> Result<bool, GeometryError> {
+    qualify_with_rows(p, true)
+}
+
+fn qualify_with_rows(p: &Paragraph, allow_missing_rows: bool) -> Result<bool, GeometryError> {
     if !p
         .controls
         .iter()
@@ -35,9 +46,14 @@ pub(super) fn qualify(p: &Paragraph) -> Result<bool, GeometryError> {
             .iter()
             .any(|c| *c != '\0')
         || p.text != " "
-        || p.line_segs.len() != 1
+        || !(p.line_segs.len() == 1 || (allow_missing_rows && p.line_segs.is_empty()))
         || p.stored_text_partition_is_dirty()
-        || p.char_shapes.len() != 1
+        || p.char_shapes.first().is_none_or(|s| s.start_pos != 0)
+        || p.char_shapes.iter().skip(1).any(|s| {
+            // HWP may store a separate paragraph-terminator style. It does
+            // not own the field glyph at offset zero; interior changes do.
+            p.char_count == 0 || s.start_pos != p.char_count - 1
+        })
     {
         return Err(fail());
     }

@@ -499,7 +499,7 @@ impl TextComposer<'_> {
         width: f64,
         number: Option<u32>,
     ) -> Result<Vec<ParagraphItem>, GeometryError> {
-        if !super::cell_page_field::qualify(para)? {
+        if !super::cell_page_field::qualify_textbox(para)? {
             return Err(GeometryError::InconsistentAtomicPlan);
         }
         self.compose_shared(para, width, false, None, InlineContent::PageField(number))

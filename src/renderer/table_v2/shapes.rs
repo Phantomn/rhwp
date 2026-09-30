@@ -148,6 +148,17 @@ pub(super) fn node(
     dpi: f64,
     resources: &[BinDataContent],
 ) -> Result<RenderNode, GeometryError> {
+    node_with_page_number(shape, bounds, styles, dpi, resources, None)
+}
+
+pub(super) fn node_with_page_number(
+    shape: &ShapeObject,
+    bounds: BoundingBox,
+    styles: &ResolvedStyleSet,
+    dpi: f64,
+    resources: &[BinDataContent],
+    page_number: Option<u32>,
+) -> Result<RenderNode, GeometryError> {
     let ShapeObject::Rectangle(rect) = shape else {
         return Err(unsupported());
     };
@@ -254,12 +265,26 @@ pub(super) fn node(
             dpi,
             payloads: RefCell::new(Vec::new()),
         };
-        composer.compose(p, width)?;
+        let page_field = super::cell_page_field::qualify_textbox(p)?;
+        if page_field {
+            composer.compose_page_field(p, width, None)?;
+        } else {
+            composer.compose(p, width)?;
+        }
         let mut lines = composer
             .payloads
             .into_inner()
             .pop()
             .ok_or_else(unsupported)?;
+        if page_field {
+            let [reserved] = lines.as_slice() else {
+                return Err(GeometryError::InconsistentAtomicPlan);
+            };
+            lines = vec![
+                super::cell_page_field::PageField::new(p, styles, width, dpi)
+                    .render(page_number, reserved)?,
+            ];
+        }
         let first = lines.first().ok_or_else(unsupported)?.bbox.y;
         let end = lines
             .iter()

@@ -11226,3 +11226,60 @@ canonical ink-match7.36014/13.8512/12.53682%를 시각 통과 지표로 사용�
 근거는 `master-review/wasm-manifest.json`에 연결했다. 이 절편의 구현/집중 검증/판정 자료
 준비를 완료했으며 **메인테이너 시각 판정 통과**다(2026-09-30 다음 작업 승인).
 원본 전체 지원/전체 CI는 위 잔여 범위다.
+
+### 바탕쪽 글상자의 자동 쪽번호 연결
+
+직전 바탕쪽·본문 도형 절편은 메인테이너 시각 통과를 반영해 `67bc0eff5`에
+커밋했다. 이번 변경은 그 위 WIP이며 Legacy 기본값·Studio는 변경하지 않았다.
+
+**규칙과 근거:** 바탕쪽 자동 쪽번호는 저장된 AutoNumber.number/assigned_number가
+아닌 실제 배치된 쪽의 번호를 표시해야 한다. 원본 #7008의 바탕쪽 글상자에는
+Page 자동번호와 문단 끝 글자모양 참조(start8/char_count9)가 있다.
+문단 끝 서식은 offset0의 번호 글립 서식과 구별한다. 일반 번호·장식·위첨자나
+글상자 안 표까지 수용하는 변경은 아니다.
+
+**입력과 독립 기준:** `tests/fixtures/issue7353_host_master_field_review/`의 정상
+한컴 저장 HWP와 같은 입력의 PDF를 사용했다. 생성 job·해시·기대 좌표는 폴더 README다.
+1쪽 숨김,2쪽2,3쪽3을 읽을 수 있는 3쪽 제어 문서다. 최초 초안/재저장/최종 저장 모두
+바탕쪽 LineSeg가 비어 있었다. 재저장으로 해결됐다고 판단하지 않았으며, 기존 일반
+글상자의 공통 스타일 기반 줄 구성 경로로 번호 필드도 구성했다. 셀은 저장 줄을
+요구하는 기존 수용 조건을 유지하며 이를 별도 회귀 검사로 보호한다.
+
+| 생산과 소비 | 코드와 계약 |
+| --- | --- |
+| 번호 소유 | `host_section::render_page`의 확정 `page.page_number` → `host_master::complete` → `shapes::node_with_page_number`. 원문 번호를 대신 쓰지 않는다. |
+| 줄 구성 | `TextComposer::compose_page_field`는 저장 줄이 있으면 보존하고 없으면 공통 `layout_paragraph_in_physical_frame` 결과를 사용한다. 필드 치환도 기존 LayoutEngine API를 공유한다. |
+| 예약과 실제 출력 | `PageField::render`가 치환 전후 줄 상자 동일성과 표시 숫자의 가로 수용을 확인한다. 같은 최종 줄의 물리 높이로 글상자 세로 정렬과 paint를 수행한다. 독립적인 줄 높이 재계산이나 clamp는 없다. |
+| 비적용 경로 | 일반 도형에는 쪽번호를 전달하지 않으며 페이지 미확정 필드는 거부한다. 표 셀은 `qualify`의 저장1줄 조건을 유지한다. 분할 컷·예약 예산·continuation은 변경하지 않았다. 바탕쪽은 본문 흐름을 전진시키지 않는다. |
+
+정식 신규6건은 HWP/HWPX 왕복·96/192dpi·역순/반복 출력, 두 자리 쪽번호, 번호 캐시91/92 무시,
+원문/본문 불변,1200HU 글자 크기와 원문 패딩에 따른 가운데 정렬, 끝 글자모양과
+중간 글자모양 구별, 번호 서식 거부, 셀 저장 줄 조건을 검사한다. 변형은 합성 계약이다.
+직전 binary의 동일 최종 입력은 `master-page content requires host admission`으로
+거부되고(`master-field-before-final-input.log`), 최종 구현은3쪽을 출력한다.
+이는 미지원 경로 연결의 전후 증거이며 기존 Legacy 시각 회귀 수정으로 확대하지 않는다.
+
+검증 prefix는 `output/7353/r19/section-scope/master-field-`다. 관련 호스트·표·어울림·
+이어받기·쪽번호 테스트 총 **270 PASS/0 FAIL**이다. 실행은 기존
+`frame-after-child/run-policies.sh`를 사용했고, `master-field-tests.log`,
+`master-field-regression.log`, `frame-after-child/master-field-final-six-*`에 결과가 있다.
+초기 테스트 컴파일 오류와 기대 좌표의 원문 패딩 누락은 수정 후 재실행했으며
+이를 제품 결함의 수정 전 재현으로 세지 않는다. Native build, Native/WASM lib Clippy,
+fmt/diff check를 수행했다. 전체 workspace CI 또는 integration-target Clippy 결과는 아니다.
+
+Native 명령은 `capture-master-field.mjs`, `python3 master-field-sweep.py native`다.
+3쪽 review와 overlay를 직접 판독해 첫 쪽 숨김·2/3쪽 번호·글상자 정렬·본문 보존을
+확인했다. 글꼴 외형/미세 폭과 custom-paper 인쇄 transform 차이는 남는다.
+`master-field-source.sha256`, `master-field-final-manifest.sha256`과
+`master-field-review/native-manifest.json`에 source/input/PDF/명령을 연결했다.
+Docker fresh WASM 빌드는 종료0/7분36초로 완료했다. 산출 SHA256은
+`2c411064d685fd144b81d905ad50c73d0deae0f0b5f976eb35d63da284f58870`이다.
+`capture-master-field.mjs --wasm`, `python3 master-field-sweep.py wasm`을 실행했으며
+Native 대비 비수치 차이0, 수치 차이87개/최대1.1368683772161603e-13px다.
+`master-field-review/wasm-manifest.json`에 같은 source/input/PDF/산출을 고정했다.
+WASM review1~3쪽과 canonical2쪽 overlay를 직접 판독해 첫 쪽 숨김·실제2/3 번호·
+가운데 정렬·본문 보존을 확인했다. 글꼴/미세 인쇄 차이는 Native와 동일하게 남으며
+자동 픽셀 점수를 통과 근거로 사용하지 않았다. 최종 source·테스트·입력 해시,
+fmt/diff check도 통과했다. **메인테이너 시각 판정 통과**다(2026-09-30 다음 작업 승인).
+원본 #7008의 hide_empty_line·큰/특수 TAC 도형·다단 Square 결합과 전체 호스트 수용은
+남아 있다. 이번 절편을 전체 지원이나 R5 완료로 세지 않는다.
