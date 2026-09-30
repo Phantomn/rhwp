@@ -12073,3 +12073,81 @@ stage하지 않는다. 이 기준점은 검증 대기 상태를 보존하는 로
 고정 잔여 작업은 **H2 전체 마감 검증 → H4 원격 인계와 SHA 확인**이다. 승인 뒤 검증은
 잠정 30~90분(재컴파일·디스크/실패 불확실성 포함), 통과 후 원격 게시 확인은 5~10분 예상이다.
 새 피델리티 결함을 이 일정에 자동 편입하지 않는다.
+
+### 2026-09-30 — 승인된 H2 전체 마감 검증
+
+작업지시자가 전체 검증 실행을 승인했다. 검토용 detached worktree에 파생 suite를 준비하고,
+기존 `target/pr-review`를 공유하여 순차 검증했다. 기준은 로컬 인계점
+`780de8512e7a1e4bc34ace072a07f1ff957d8886`, 비교 base는 fetch한
+`upstream/devel`의 `0e8fd49fb868da0d47ac1294dcbbda81f0211233`이다.
+devel을 작업 브랜치에 병합하거나 새 조판 기능을 구현하지 않았다.
+
+**검증 중 정리**: 파생 suite 준비 후 fmt가 기존 테스트 3개
+(`issue_7353_hosted_page_number`, `issue_7353_hosted_section`, `issue_7353_table_v2_oversize_row`)의
+포맷 오류를 검출했다. rustfmt로 정리했다. 이어 workspace/all-target Clippy가
+`issue_7353_page_number_timeline.rs`의 double-ended iterator `.last()`를 검출하여
+같은 마지막 일치 항목을 선택하는 `.next_back()`으로 바꿨다. 기대값·검사 의미·제품 코드는
+변경하지 않았다. 이전 단계의 파생 suite 미준비 fmt PASS가 이번 확장 범위의 PASS를 뜻하지 않는다.
+최초 lint 실패 로그도 보존했다.
+
+실행 대상은 위 head + 테스트 전용 patch다. patch는
+`output/7353/closeout/test-hygiene.patch`, SHA256
+`d4eefe8ff3750f31d662a6b1bdf88b5a58d07d9cd0593bd58eda607cf3558636`이다.
+task/review worktree의 4개 테스트 내용은 동일하다. 이후 로컬 기록 커밋은 이 검증 상태를 보존하며,
+문서 커밋 때문에 동일 제품 코드의 WASM/시각 캡처를 반복하지 않는다.
+
+**실행 및 증거** (`output/7353/closeout/`):
+
+| 검사 | 결과 | 로그 |
+| --- | --- | --- |
+| integration suite 준비 | 1,470 source → 28 generated suite + 20 exception target | `prepare.log` |
+| fmt | 포맷 수정 후 PASS | `fmt.log` |
+| Native Clippy | PASS, 61초 | `clippy-native.log` |
+| WASM target lib Clippy | PASS, 60초 | `clippy-wasm.log` |
+| workspace build | PASS, 119초 | `workspace-build.log` |
+| workspace/all-target Clippy | 반복자 수정 후 PASS, 34초 | `clippy-workspace.log`, 최초 실패 `clippy-workspace-attempt1.log` |
+| base 고정 suite 정책 | PASS | `policy-final.log` |
+| base 고정 source-side unit 정책 | PASS: 4,205 tests / 298 modules | `unit-test-policy.log` |
+| 전체 release-test nextest | **10,851 PASS / 8 FAIL / 50 SKIP**, 78 binaries | `regression.log` |
+| #7353 전용 계약 | 위 전체 실행에 포함된 **716 PASS / 0 FAIL** | `regression.log`의 `issue_7353` 항목 |
+| Native Skia lib | **4,112 PASS / 0 FAIL / 13 ignored**, 424초(빌드 포함). rhwp 3,930건 + 나머지 lib 182건 | `skia-lib.log` |
+| Native Skia placeholder | **2 PASS / 0 FAIL**, 298초(빌드 포함) | `skia-placeholder.log` |
+| Native Skia PDF 직접 내보내기 | **4 PASS / 0 FAIL**, 14초(빌드 포함) | `skia-pdf.log` |
+
+명령 원문은 각 `*.command`, 시각/종료값은 `status.tsv`, 재현 순서는 `run-validation.sh`에 있다.
+전체 명령은 `cargo nextest run --locked --cargo-profile release-test --target-dir
+/home/edward/mygithub/rhwp/target/pr-review --tests --test-threads 4 --no-fail-fast`였다.
+컴파일 15분26초, 테스트 617.041초, 해당 gate 총 1,546초다. 50건은 기존 제외이며 새 ignore를
+추가하지 않았다. nextest 0.9.137은 required 0.9.91을 만족하지만 recommended 0.9.140보다 낮고,
+미사용 `ci-duration-observation.junit.report-skipped` 설정 경고가 있었다. 실행 실패는 아래
+assertion 8건이며 이 도구 경고로 대체 설명하지 않는다.
+
+**실행으로 확인한 실패 — 원인·기존/신규 여부는 미검증**:
+
+| 구분 | 실패 검사 | 실제 관측 |
+| --- | --- | --- |
+| 폰트 추적 1건 | `issue_4961_font_decision_trace::stage4_public_hwp_hwpx_profiles_are_end_to_end_and_feature_detected` | `exact-face` layout hash: actual `a4491b55…`, expected `52a2230c…` |
+| SVG 4건 | `svg_snapshot::{form_002_page_0, issue_157_page_1, issue_677_bokhakwonseo_page1, issue_617_exam_kor_page5}` | golden/실제 SVG 불일치. 양쪽 원본을 `svg-mismatches.tar.gz`에 보존 |
+| 저장 보존 1건 | `issue_3528_nested_caption_boundary::caption_holding_a_table_keeps_its_paragraphs` | 재로드한 캡션 내부 표의 문단 수 목록 `[]`, expected `[3]` |
+| 원본 공백 1건 | `issue_6699_terminal_tracking::logo_and_first_glyph_match_existing_hancom_pdf` | `원본 공백 유지` assertion 실패 |
+| 인라인 위치 1건 | `issue_6699_textbox_table_inline_pictures::first_page_inline_pictures_follow_their_text_line` | 실제 text x `334.33333333333337`에서 assertion 실패 |
+
+위 결과는 테스트 계약 미충족이며 원인 또는 한컴 피델리티의 최종 판정을 대신하지 않는다.
+이번 실행에서 base/release 대조 빌드는 하지 않았다. #4961 fixture의 기대 해시도 현재 devel과
+다르므로 단순히 devel 기존 실패라고 주장할 수 없다. baseline/golden 갱신, ignore 추가,
+새 조판 수정은 하지 않았다. 실패가 있는 H2를 완료로 바꾸지 않으며, 상세 해결은 자동 편입하지 않는다.
+
+제품 source manifest 1,100파일을 다시 검사해 최종 승인된 Native/fresh WASM 빌드와의 일치를
+확인했다. 기존 구조 슬롯 시각 PASS의 제한 범위만 재사용한다. #7353 계약 전부 PASS는 전체
+기본 경로 무회귀나 모든 문서 지원 완료를 뜻하지 않는다.
+
+Native Skia 3종은 전체 회귀 실패와 독립적으로 실행해 모두 통과했다. focused 명령의 234/255
+skipped는 선택한 모듈 밖 테스트를 필터한 수이며 새 ignore가 아니다. 실행 기록은 `run-skia.sh` 및
+`status.tsv`에 이어 남겼다. 이것이 전체 회귀 실패를 면제하는 것은 아니다.
+
+**마감 상태**: 승인된 검증 실행은 19:23~20:09 KST, 약 46분에 마쳤다. H1/H3는 완료,
+H2는 8건의 계약 실패로 **미충족**, H4는 로컬 보존/원격 게시 보류다. 다음 결정 범위는 실패 8건의
+제한된 base 대조 및 인계 조건이며 전체 회귀 재실행·새 조판 구현을 자동 착수하지 않는다.
+결과 기록과 테스트 정리만 로컬 커밋하고, 이번 검증용 `/tmp/rhwp-7353-closeout-2KbqaT`는
+패치/실패 SVG/로그 보존 확인 후 제거한다. 공유 build target과 사용자의 기존 worktree·WIP는
+보존한다. 원격 push·PR·devel 병합·0.9.0 버전 변경·이슈 종료는 하지 않았다.

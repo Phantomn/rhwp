@@ -161,7 +161,7 @@ fn repeated_declaration_keeps_real_empty_host_line_and_following_page_break() {
     assert_eq!(blank.len(), 1);
     assert_eq!(text(blank[0]), "");
     near(n(blank[0], "height"), 1500. / 75.); // source stored line, not inferred from paint
-    let last = owned(128).last().unwrap();
+    let last = owned(128).next_back().unwrap();
     near(n(blank[0], "y") - n(last, "y"), (1500. + 752.) / 75.);
     let first = &children(&pages[22])[0]["children"][0];
     assert!(text(first).contains("Ⅳ. 추진계획 및 종합결론"));

@@ -317,7 +317,9 @@ fn document() -> Document {
 // prefix18px; owner12+6px; offset(5,7), margins(2,4,3,2); child lines18px.
 fn positioned_document(body_height: u32, split: bool) -> Document {
     let mut d = occluded_owner_budget_document(body_height);
-    let Control::ColumnDef(c) = &mut d.sections[0].paragraphs[0].controls[0] else { panic!() };
+    let Control::ColumnDef(c) = &mut d.sections[0].paragraphs[0].controls[0] else {
+        panic!()
+    };
     c.column_count = 1;
     c.spacing = 0;
     let p = &mut d.sections[0].paragraphs[1];
@@ -325,16 +327,25 @@ fn positioned_document(body_height: u32, split: bool) -> Document {
     p.line_segs[0].text_height = 900;
     p.line_segs[0].baseline_distance = 765;
     p.line_segs[0].line_spacing = 450;
-    let Control::Table(t) = &mut p.controls[0] else { panic!() };
+    let Control::Table(t) = &mut p.controls[0] else {
+        panic!()
+    };
     t.common.flow_with_text = true;
     t.common.horizontal_offset = 375;
     t.common.vertical_offset = 525;
-    t.common.margin = Padding { left: 150, right: 300, top: 225, bottom: 150 };
+    t.common.margin = Padding {
+        left: 150,
+        right: 300,
+        top: 225,
+        bottom: 150,
+    };
     t.outer_margin_left = 150;
     t.outer_margin_right = 300;
     t.outer_margin_top = 225;
     t.outer_margin_bottom = 150;
-    if split { t.cells[0].paragraphs = ["alpha", "beta", "gamma"].map(paragraph).to_vec(); }
+    if split {
+        t.cells[0].paragraphs = ["alpha", "beta", "gamma"].map(paragraph).to_vec();
+    }
     d
 }
 
@@ -371,7 +382,10 @@ fn positioned_first_fragment_failure_and_continuation_preserve_owner_and_units()
     for pi in 0..s.pagination().pages.len() {
         let tree = s.render_page(pi).unwrap();
         all.push_str(&text(&tree.root));
-        owners += lines(&tree.root).iter().filter(|n| text(n).is_empty()).count();
+        owners += lines(&tree.root)
+            .iter()
+            .filter(|n| text(n).is_empty())
+            .count();
         for t in table_nodes(&tree.root) {
             close(t.bbox.x, 27.);
             assert!(t.bbox.y + t.bbox.height + 2. <= 69.);
@@ -384,7 +398,7 @@ fn positioned_first_fragment_failure_and_continuation_preserve_owner_and_units()
     for label in ["prefix", "alpha", "beta", "gamma", "suffix"] {
         assert_eq!(all.matches(label).count(), 1);
     }
-    let last = s.render_page(s.pagination().pages.len()-1).unwrap();
+    let last = s.render_page(s.pagination().pages.len() - 1).unwrap();
     assert!(text(&last.root).ends_with("suffix"));
 }
 
@@ -392,19 +406,26 @@ fn positioned_first_fragment_failure_and_continuation_preserve_owner_and_units()
 fn positioned_host_rejects_unsupported_anchor_and_unshared_margin_records() {
     for mode in ["mismatch", "negative", "paper", "columns", "square"] {
         let mut d = positioned_document(60, false);
-        let Control::Table(t) = &mut d.sections[0].paragraphs[1].controls[0] else { panic!() };
+        let Control::Table(t) = &mut d.sections[0].paragraphs[1].controls[0] else {
+            panic!()
+        };
         match mode {
             "mismatch" => t.outer_margin_top = 0,
             "negative" => t.common.vertical_offset = u32::MAX,
             "paper" => t.common.horizontal_offset = 33000,
             "square" => t.common.text_wrap = TextWrap::Square,
             "columns" => {
-                let Control::ColumnDef(c) = &mut d.sections[0].paragraphs[0].controls[0] else { panic!() };
+                let Control::ColumnDef(c) = &mut d.sections[0].paragraphs[0].controls[0] else {
+                    panic!()
+                };
                 c.column_count = 2;
             }
             _ => unreachable!(),
         }
-        assert!(HostedSectionSession::from_document(&d, 0, 96., CellEndPolicy::default()).is_err(), "{mode}");
+        assert!(
+            HostedSectionSession::from_document(&d, 0, 96., CellEndPolicy::default()).is_err(),
+            "{mode}"
+        );
     }
 }
 fn session(doc: &Document) -> HostedSectionSession {
