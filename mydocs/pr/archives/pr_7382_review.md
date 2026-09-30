@@ -3103,3 +3103,11 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![#2004 HWPX 4쪽 Native 기준 PDF 비교](../assets/pr7382_20260926/stage186_issue2004_hwpx_native_review_004.png)
 ![#2004 HWP 4쪽 Native 기준 PDF 비교](../assets/pr7382_20260926/stage186_issue2004_hwp_native_review_004.png)
 ![#2004 HWPX 4쪽 fresh WASM overlay](../assets/pr7382_20260926/stage186_issue2004_hwpx_wasm_overlay_004.png)
+
+## 보정187 — #6697 본문 넘침 회귀 대상만 #7445 이관
+
+- **선행 판정과 새 증가분**: 보정160에서 [#7445에 등록한 같은 원본](../assets/issue7445/host6697_blocking_scope_validation.json)은 한컴 PDF **31쪽**·rhwp **32쪽**이고, 여러 쪽의 중첩 표·캡션 소유가 달라 관련 실패 함수 1개만 이미 제거했습니다. 이번 보정185의 본문 넘침 원장에는 이 원본의 25쪽 `PartialTable`이 본문 바닥 1046.9px을 약 3.03px 넘어 **기존 2건→현재 3건**으로 추가됐습니다. 원본 [`80550 HWPX`](../../../samples/issue6697/80550-agricultural-machinery-act-amendment.hwpx)의 SHA-256은 `e7b147f7cea66c97bed79085a3d89c2656037e0f711232f659ed3c7344984f62`, [한컴 PDF](../../../pdf/issue7382-regression-review/80550-agricultural-machinery-act-amendment-2020.pdf)는 `4e3e656a70bc1a0ba1314f949b0f35ae057266b6a25921c6dc417c8c26f587ad`입니다.
+- **현재 head의 시각 재확인**: renderer 코드 `78a1dfc65`와 SHA-256 `31b3acf8f721b52662c84c21a967bc55ba46a1e6ba41731e974cedf851de89db`인 검토 전용 Native CLI로 29~31쪽을 다시 비교했습니다. 2px 이웃 관용 내용 실루엣 일치율은 **38.03058/24.18179/28.81844%**, gate는 `re_review_required`입니다. 30쪽 review에서 한컴의 뒤 표·문단이 rhwp의 앞 표와 다른 쪽 소속으로 나타남을 직접 확인했습니다. 전체 32쪽 통과나 fresh WASM 재검증으로 보고하지 않으며, 기존 보정160의 fresh WASM 실패 증거도 유지합니다. 새 review PNG의 SHA-256은 `0721653b3e4d6ab6b0acfaf28e5d5056e249309057ebf2d9446ebf4fa65c46c4`입니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage187-issue6697/visual-native/`입니다.
+- **검사 범위 수정**: `tests/cases/body_overflow_baseline.rs`의 이미 존재하는 #7445 보류 원본 목록에 **이 한 HWPX만** 넣고, 해당 원본의 `tests/fixtures/body_overflow_baseline.tsv` 행만 제거했습니다. 원문·PDF와 다른 회귀·문서의 넘침 기준 및 공차는 유지합니다. 16개 분할 전체를 재실행한 결과 **12PASS/4FAIL**이며 #6697이 있던 분할5는 통과했습니다. 남은 실패 원본은 #3637, #6756, #6776, `k-water-rfp-2024.hwp`로 각각 별도 판정합니다. 이 단계의 분할 전체 통과나 #6697 피델리티 해결을 주장하지 않습니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage187-issue6697-body-overflow-nextest.log`입니다.
+
+![#6697 현재 Native 30쪽과 한컴 PDF의 소속 차이](../assets/issue7445/host6697_stage187_native_review_030.png)

@@ -89,6 +89,9 @@ const DEFERRED_BODY_OVERFLOW_FIXTURES: &[&str] = &[
     // #6778: 한컴2024 재출력 전12쪽도 최저17.50287%로 본문 배율·소속이 다르다.
     // 인쇄 방식4를 rhwp 출력에 반영하지 않는 전체 피델리티는 #7445에서 복원한다.
     "issue6778/156757920-animal-welfare-husbandry-guidelines.hwp",
+    // 보정160에서 #7445로 이관한 31쪽 정본/32쪽 출력의 중첩 표 문서다.
+    // 선택 쪽 최저25.15773%이며 이번 25쪽의 추가 넘침도 전체 피델리티 복원 범위다.
+    "issue6697/80550-agricultural-machinery-act-amendment.hwpx",
 ];
 
 fn collect_samples() -> Vec<(PathBuf, String)> {
