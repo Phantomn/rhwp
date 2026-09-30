@@ -572,13 +572,14 @@ pub(crate) fn owned_rowbreak_tac_height(para: &Paragraph, control_index: usize) 
 }
 
 /// TAC 표를 소유한 줄이 실제 흐름에 남기는 양의 후행 간격.
-/// 저장 줄의 간격은 전량 소비한다. 현재 재조판한 단일 RowBreak 줄의
-/// 개체 점유 프레임에만 기존 반간격 계약을 적용한다.
+/// 저장 HWP5의 표 소유 줄과 현재 재조판한 단일 RowBreak 줄은
+/// 개체 프레임 뒤의 간격 절반을 물리 흐름에 남긴다.
 pub(crate) fn tac_host_trailing_spacing(
     para: &Paragraph,
     control_index: usize,
     seg: &LineSeg,
     hwpx_stored_layout: bool,
+    native_stored_layout: bool,
     dpi: f64,
 ) -> f64 {
     let spacing = crate::renderer::hwpunit_to_px(seg.line_spacing.max(0), dpi);
@@ -586,7 +587,11 @@ pub(crate) fn tac_host_trailing_spacing(
         && para.line_segs.len() == 1
         && seg.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
         && owned_rowbreak_tac_height(para, control_index).is_some();
-    if current_owned_row {
+    if current_owned_row
+        || (native_stored_layout
+            && seg.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
+            && !para.stored_text_partition_is_dirty())
+    {
         spacing / 2.0
     } else {
         spacing

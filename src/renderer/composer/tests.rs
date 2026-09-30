@@ -2279,7 +2279,7 @@ fn owned_rowbreak_tac_height_selects_current_or_multirow_frames() {
     );
     // 저장 간격 1200HU는 96dpi에서 전량 16px를 소비한다.
     assert_eq!(
-        tac_host_trailing_spacing(&single_row, 0, &single_row.line_segs[0], true, 96.0),
+        tac_host_trailing_spacing(&single_row, 0, &single_row.line_segs[0], true, false, 96.0),
         16.0
     );
 
@@ -2297,6 +2297,7 @@ fn owned_rowbreak_tac_height_selects_current_or_multirow_frames() {
             0,
             &current_single_row.line_segs[0],
             true,
+            false,
             96.0,
         ),
         8.0
@@ -2306,6 +2307,7 @@ fn owned_rowbreak_tac_height_selects_current_or_multirow_frames() {
             &current_single_row,
             0,
             &current_single_row.line_segs[0],
+            false,
             false,
             96.0,
         ),

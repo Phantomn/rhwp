@@ -60,6 +60,7 @@ pub(super) fn measure(
                             ci,
                             seg,
                             profile.hwpx_stored_layout(),
+                            profile.hwp5_stored_pagination_layout() && !profile.session_edited(),
                             dpi,
                         )
                     } else {

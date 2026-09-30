@@ -3177,3 +3177,9 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - 앞선 전체 nextest에서 보정137 source `0a069b1f1`은 #4068의 두 함수가 PASS였고, 보정171에서는 FAIL이었습니다. 해당 구간에서 별도 소스 빌드로 이분했습니다. `0dc722184`는 동일 HWP **29쪽**, 문단 4 시작의 `cur_h=303.4px`, 행 1 컷 `[32]`의 `budget=715.5px / consumed=713.7px`입니다. 직후 `037a0ec50`은 **30쪽**, `cur_h=308.1px`, 동일 컷의 `budget=710.8px / consumed=722.5px`입니다. 첫 실패는 `037a0ec50`의 TAC 후행 간격·합성 줄 원점 변경 구간에 있습니다.
 - `037a0ec50`은 #2243의 기존 문제를 고친 변경이므로 전체 커밋을 되돌리는 것은 해결이 아닙니다. 저장 TAC 줄의 간격이 상위 표 예약과 실제 배치에 각각 어떻게 포함되는지 확인하고, 두 사례의 독립 PDF와 맞는 공통 계산을 찾습니다. 이분 빌드 로그는 `output/pr-review/planet6897-7382-20260926/stage199-*`에 있습니다. 별도 격리 작업트리는 계측 뒤 제거합니다.
+
+## 보정200 — HWP5 저장 TAC 간격의 공통 소비 시험
+
+- `037a0ec50`에서 저장 HWP5 TAC의 양수 후행 간격을 측정·배치 모두 전량 소비하도록 바꾼 것이 #4068 첫 쪽의 `cur_h`와 셀 컷 높이를 함께 키웠습니다. 시험 후보는 저장 원본 HWP5 줄에만 개체 프레임 뒤 간격의 절반을 측정과 실제 배치에서 **같이** 소비하고, 편집·재조판 줄과 #2243의 HWPX 경로는 그대로 둡니다. 문서 ID·픽셀 보정 상수로 분기하지 않았습니다.
+- 이 시험에서 `hwpx_sample2.hwp`는 **30→29쪽**, #5885는 7쪽, #6756은 5쪽을 유지합니다. #4068의 19쪽 중첩 셀 두 개가 y=**957.8px**에 돌아왔습니다. 첫 쪽 Native Visual Sweep은 **68.42791→83.17919%**이고 신청 안내 본문·표·일정이 기준 PDF와 같은 쪽에 나타납니다. 아직 90% 미만이므로 시각 gate는 보류입니다. 산출물은 `output/pr-review/planet6897-7382-20260926/stage200-issue4068-candidate-visual/`에 있습니다. 집중 회귀와 다른 HWP5 문서 영향은 별도 확인합니다.
+- **집중 회귀**: `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_4068_unclipped_cell_honors_valign) | test(issue_2243) | test(issue_5885_nested_host_row_ladder_end) | test(issue_6756_rowbreak_cut_index_in_rowspan_block)' --no-fail-fast`에서 **10PASS/0FAIL**입니다. #2243 HWPX, #5885 원본 하단선, #6756 기존 컷 검사를 함께 보존했습니다. 로그는 `stage200-focused-nextest.log`입니다. 이 10개로 전체 HWP5 영향이나 29쪽 시각 gate를 통과했다고 주장하지 않습니다.

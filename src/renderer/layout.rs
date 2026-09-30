@@ -13557,6 +13557,8 @@ impl LayoutEngine {
                             control_index,
                             seg,
                             self.profile.get().hwpx_stored_layout(),
+                            self.profile.get().hwp5_stored_pagination_layout()
+                                && !self.profile.get().session_edited(),
                             self.dpi,
                         );
                     } else if seg.line_spacing < 0 {
