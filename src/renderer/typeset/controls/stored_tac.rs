@@ -126,7 +126,10 @@ pub(super) fn prepare_computed(
     } else {
         flow_origin
     };
-    let end = origin + height + hwpunit_to_px(seg.line_spacing, dpi) + fmt.spacing_after;
+    // 개체 줄과 다음 줄이 공유하는 후행 줄간격은 반씩 소유한다.
+    // 저장 줄의 전체 높이와 표 실측 높이가 일치하는 이 경로에서도 일반 TAC
+    // 조판과 같은 끝점을 사용해야 다음 문단과 분할 예산이 중복 전진하지 않는다.
+    let end = origin + height + hwpunit_to_px(seg.line_spacing, dpi) / 2.0 + fmt.spacing_after;
     if end > available_height() {
         return None;
     }

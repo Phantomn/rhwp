@@ -3266,3 +3266,8 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - `tac_flow::tac_table_line_index`가 HWPX의 단일 저장 줄을 너무 일찍 제외해 pi50 뒤 8px이 중복된다는 가설로, 원본 HWPX·미편집·유일한 표·가시 텍스트 없는 단일 줄만 허용하는 후보를 실행했습니다. `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_1749_saved_bounds_page_break) | test(issue_3930_hwpx_hwp_save_layout)' --no-fail-fast`는 **5PASS/1FAIL**이고 #1749 pi52의 `PartialParagraph` 부재와 `[2]` 컷은 그대로입니다. #3930의 3개 대조군은 PASS입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage215-tac1749-nextest.log`입니다.
 - 효과 없는 후보는 모두 되돌려 현재 source diff가 없습니다. `RHWP_DIAG_TAC=1`의 pi50은 HWP에서 `DIAG_TAC ... table_total=383.6 fmt_total=399.6`, 종료 흐름 **658.8px**이며, HWPX에서는 `DIAG_TBLP pi=50` 블록 표 경로입니다. HWPX pi51 진입 **658.8px**, HWP pi51 진입 **650.8px**입니다. 다음에는 두 경로의 표 뒤 빈 문단 점유를 직접 대조합니다. 기준값이나 실패 검사를 변경하지 않았습니다.
+
+## 보정216 — #1749 합성 단일 TAC 줄의 공통 후행 간격
+
+- 추가 계측에서 HWPX pi50은 `stored_tac::prepare_computed` 단축을 사용했습니다. XML의 pi50은 유일한 TAC 표·`flowWithText=1`·저장 줄 높이 **28769HU**이며 표 선언 높이도 **28769HU**입니다. composer가 이 줄을 합성으로 표시하면서 단축 경로는 `line_spacing=1200HU` **16px 전량**을 표 뒤에 더했습니다. HWP 경로의 일반 TAC 종료 **658.8px**는 뒤 높이 정산에서 **650.8px**로 접혀 pi51에 전달되는데, HWPX 단축은 이 정산을 우회했습니다. 단일 표 줄이 실제 표 높이와 일치할 때 공통 TAC처럼 후행 간격의 반을 소비하도록 `stored_tac` 끝점을 수정했습니다. 문서 ID나 쪽 번호 조건은 없습니다.
+- 수정 후 HWPX pi52 첫 조각은 `[2]→[3]`으로, HWP와 같은 컷입니다. Native 전쪽 일치율은 **94.97706/98.41015/99.27944/87.67624/69.16541%**로 5쪽이 **32.98293→69.16541%** 개선됐지만 **90% 미달**입니다. `output/pr-review/planet6897-7382-20260926/stage216-hwpx1749-candidate/`를 직접 확인했고 기준값·테스트는 바꾸지 않았습니다. 다음 단계는 이어받기 표 p5 높이 HWPX **182.9px** 대 HWP **194.3px**, 뒤 pi54 첫 줄 **330.7px** 대 **326.1px**을 보정합니다. 현 단계는 중간 보정이며 승인 가능 판정이 아닙니다.
