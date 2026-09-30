@@ -3426,3 +3426,14 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![2쪽 제목 표 뒤 문단 겹침](../assets/pr7382_20260926/stage242_issue6542_native_overlay_002.png)
 
 - 대상 기존 회귀 #6569·#7049와 대조군 #1658·#1749의 focused nextest는 **14/14 PASS**(exit 0)입니다. 명령은 보정240과 같고 로그는 `output/pr-review/planet6897-7382-20260926/stage242-focused-nextest.log`입니다. 기존 검사의 절대 y 고정은 다음 단계에서 의미 관계 검사로 교체하고, fresh WASM 전쪽 비교도 별도 수행합니다. Native 시각 통과만으로 최종 PR 승인을 선언하지 않습니다.
+
+## 보정243 — fresh WASM 전쪽 및 기존 회귀의 의미 검사
+
+- 보정242 코드 커밋 `1f69e8909`에서 `CARGO_TARGET_DIR=target/pr-review scripts/wasm-pack-locked.sh --target web --out-dir pkg --no-opt`를 실행해 fresh WASM을 만들었습니다(로컬 no-opt 대체 빌드, exit 0, `rhwp_bg.wasm` SHA-256 `0f111fe0e47180553b941336ddc8e56b6ffd97881ac93017b201fe29a27ef5c1`). `--wasm-pkg pkg`로 한컴 2020 PDF와 **7/7쪽** Visual Sweep을 재실행했고 점수는 Native와 같은 **98.66535/97.29151/99.96978/99.93791/99.94973/100.00000/97.67052%**, gate `passed`입니다. `export-wasm-for-sweep.mjs`가 실제 WASM SVG·render tree를 생성했고 Native/WASM의 rhwp 페이지 PNG SHA-256은 7쪽 모두 같습니다. WASM review contact sheet를 직접 확인했습니다. 산출물은 `output/pr-review/planet6897-7382-20260926/stage243-issue6542-wasm/`입니다.
+- 기존 #6569 제목 셀 검사는 상단 괘선의 절대 y 탐색을 제거하고 **1쪽 제목 표 소속·두 글줄 순서·셀 내 첫 문단 여백 관계**를 검사합니다. #7049의 5쪽 중첩 표 검사도 절대 y를 제거하고 **상위 셀·소유 글줄 내부 포함·뒤 본문 순서**를 검사합니다. 독립 PDF의 실제 위치는 위 Native/WASM 전쪽 review가 담당합니다. 두 파일에 대한 focused nextest는 **7/7 PASS**(exit 0)이며 로그는 `output/pr-review/planet6897-7382-20260926/stage243-semantic-nextest.log`입니다.
+
+![fresh WASM 2쪽 제목 표 뒤 문단](../assets/pr7382_20260926/stage243_issue6542_wasm_review_002.png)
+
+![fresh WASM 4쪽 표 비교](../assets/pr7382_20260926/stage243_issue6542_wasm_review_004.png)
+
+- 이 단계는 해당 **7쪽 문서**와 두 기존 회귀의 증거를 닫았습니다. #7382 전체의 나머지 차단 회귀·lint·전수 nextest는 이어서 검증합니다.
