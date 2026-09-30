@@ -95,6 +95,9 @@ const DEFERRED_BODY_OVERFLOW_FIXTURES: &[&str] = &[
     // #6697과 원본 바이트가 같고 별도 한컴 PDF도 31쪽이다. 현 head의 29~31쪽
     // 최저23.93271%로 확인한 동일 #7445 범위이며 이 경로만 추가로 제외한다.
     "issue3637/regulatory_impact_nested_table_escape.hwpx",
+    // #6776: 74쪽 원문의 59·63쪽 표·참고 상자 피델리티가 각각 69.77/73.70%다.
+    // 기존 1건을 2건으로 완화하지 않고 이 원본의 본문 넘침 원장만 #7445로 이관한다.
+    "issue6776/78494-virtual-convergence-industry-decree.hwpx",
 ];
 
 fn collect_samples() -> Vec<(PathBuf, String)> {

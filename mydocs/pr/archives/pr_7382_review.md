@@ -3518,3 +3518,13 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![5쪽 교통 문서 1쪽 Native와 한컴 PDF 비교](../assets/pr7382_20260926/stage253_issue6756_native_review_001.png)
 
 ![5쪽 교통 문서 5쪽 Native와 한컴 PDF 비교](../assets/pr7382_20260926/stage253_issue6756_native_review_005.png)
+
+## 보정254 — 74쪽 #6776의 본문 넘침 원장 한 행 이관
+
+- 전체 nextest의 `body_overflow_baseline` 분할15에 남은 #6776 원본은 기존 [#7445 피델리티 보류 기록](https://github.com/edwardkim/rhwp/issues/7445)에 이미 등록된 **74쪽** `samples/issue6776/78494-virtual-convergence-industry-decree.hwpx`입니다. 현재 head `bf80909ce`의 `layout-anomaly`는 **59쪽 7.2px, 63쪽 32.7px**의 본문 하한 초과를 보고합니다. 기대 원장 1건에 실제 2건이므로 기존 검사 실패는 재현됩니다. 진단 JSON은 `output/pr-review/planet6897-7382-20260926/stage254-issue6776-anomaly.json`입니다.
+- 같은 원본·독립 한컴 PDF의 관련 59·63쪽 Native Visual Sweep은 **69.76726/73.70351%**, gate `re_review_required`입니다. review에서 59쪽 표 행·본문 글줄과 63쪽 참고 상자 원점·내용 배치가 어긋난 것을 직접 보았습니다. 전쪽 74쪽 점수나 fresh WASM 완료로 확대하지 않습니다. [#7445 추가 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5921596001)에 입력/기준 해시, 두 넘침, 시각 점수와 복귀 조건을 기록했습니다.
+- 이 원본 **한 경로만** `DEFERRED_BODY_OVERFLOW_FIXTURES`에 넣고 `body_overflow_baseline.tsv`의 기존 1건 행만 제거했습니다. 1→2로 허용치를 올리지 않았고 원본·PDF·다른 검사/문서의 기준은 보존합니다. 분할 배정이 바뀌므로 본문 넘침 16함수를 모두 재실행해 **15 PASS / 1 FAIL**, exit 100입니다. 남은 분할3의 신규 원본은 #6756과 `k-water-rfp-2024.hwp`뿐이며 #6776은 사라졌습니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage254-body-overflow-nextest.log`입니다.
+
+![74쪽 #6776 원본 59쪽 Native와 한컴 PDF 비교](../assets/pr7382_20260926/stage254_issue6776_native_review_059.png)
+
+![74쪽 #6776 원본 63쪽 Native와 한컴 PDF 비교](../assets/pr7382_20260926/stage254_issue6776_native_review_063.png)
