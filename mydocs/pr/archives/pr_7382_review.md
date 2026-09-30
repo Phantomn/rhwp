@@ -3444,3 +3444,15 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 첫 새 실패 #4068의 원본 `samples/hwpx_sample2.hwp`는 현재 rhwp **30쪽**, 독립 `pdf/hwpx_sample2-hwp-2024.pdf`는 **29쪽**입니다. 현재 렌더 19쪽은 전자계약 문단이고 PDF 19쪽은 주택 소유 기준 표여서 같은 내용을 비교하지 않습니다. 다른 보유 PDF의 19쪽도 같은 표입니다. `pdf/hwpx_sample2-2020.pdf`와의 임시 19쪽 sweep 점수 **38.83619%**는 이 쪽 어긋남이 포함된 값이며, 정상 시각 비교 점수로 사용하지 않습니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage244-hwpxsample2-p19/`입니다. 테스트의 19쪽 셀 전제가 `[]`로 무너진 것은 실제 페이지 증가와 연결해 조사합니다.
 - 기존 실패 #6632의 원본 `samples/hwpspec.hwp`는 **178쪽** PDF를 가진 대형 문서입니다. 106쪽 한 쪽 선행 sweep은 **70.54325%**이고 review에서 표·글줄 차이가 보입니다. `pdftotext -bbox-layout`은 이 PDF에서 종료 코드 -6으로 실패해 marker 분석은 미측정입니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage244-hwpspec-p106/`입니다. 이 한 쪽 점수로 전쪽 판정을 대신하지 않고, 현 PR의 차단 여부와 #7445 이관 범위를 추후 별도로 확정합니다.
 - 다음 단계는 보정242의 `다음 저장 줄이 연속이면 후행 간격 전량` 가정을 #4068의 쪽수 증가 반례에 대조합니다. 이 단계에서는 실패 검사·기준 PDF·래칫을 수정하지 않았습니다.
+
+## 보정245 — 저장 배치 원점과 분할 예산의 간격 소비 분리
+
+- 보정240 코드 head `6fb3636e6`의 격리 worktree에서 `hwpx_sample2.hwp`는 **29쪽**이었고, 보정242 이후는 **30쪽**이었습니다. 두 `dump-pages --json`을 비교하면 첫 차이는 1쪽 큰 분할 표 pi4의 끝 컷입니다. 이전에는 2행 **cut 32**까지 1쪽에 들어갔지만 보정242는 **1행 끝**에서 잘라 뒤 19쪽의 문서 내용과 테스트 전제를 밀었습니다. `RHWP_DIAG_NATIVE_TAC_NEXT` 임시 계측은 앞선 TAC 표의 저장 줄 연속에서 추가 간격이 발생함을 확인했습니다. 임시 계측은 제거했고 격리 worktree도 정리했습니다. 로그/JSON은 `output/pr-review/planet6897-7382-20260926/stage245-*`입니다.
+- 이 과정에서 서로 다른 worktree가 공유하는 `target/pr-review/debug/rhwp`를 Cargo가 오래된 파일로 재사용하는 사례를 확인했습니다. 한 번의 잘못된 **29쪽** 관측은 버리고 현재 worktree 소스를 강제로 재빌드해 재측정했습니다. 이후의 페이지 수·시각 결과는 이 재빌드 바이너리에서 얻었습니다.
+- 원인은 저장 좌표의 **배치 원점**에 필요한 전량 간격을 `tac_reconcile::measure`의 **분할 예산**에도 더한 것입니다. 분할 예산은 기존 TAC 표의 물리 점유분을 유지하고, 정확히 이어지는 비텍스트 캐리어(다음 표 또는 내용 없는 저장 줄)의 실제 layout 원점에만 전량 간격을 적용하도록 분리했습니다. 이는 7쪽 문서에서 확인한 저장 HU와 29쪽 문서의 분할 컷 반례를 함께 만족합니다. 원본 ID 분기는 없습니다.
+- `hwpx_sample2.hwp`는 다시 PDF와 같은 **29쪽**이고, 1쪽 Native 점수는 전량을 예산에도 더한 후보의 **68.42791%→94.54160%**입니다. 19쪽은 같은 내용·쪽 소속으로 복구됐지만 점수 **88.80412%**라 이 대형 문서 전쪽 시각 완료 근거는 아닙니다. 현재 #4068은 더 이상 차단하지 않아 이 문서를 #7445로 자동 이관하지 않습니다. 7쪽 `issue6542`의 Native 전쪽 점수는 **98.66535/97.29151/99.96978/91.01231/99.94973/100.00000/92.10454%**, gate `passed`입니다. 4쪽의 남은 표/차트 차이는 review에서 직접 확인했고 증적은 `stage245-issue6542-layout-only/`에 있습니다.
+- 새 실패군 #4068·#5524·#6653·#5862·#5863·호환/쪽수 검사를 포함한 focused nextest **32/32 PASS**(exit 0)입니다. 명령은 `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_4068) | test(issue_5524) | test(issue_6653) | test(issue_5862) | test(issue_5863) | test(compat_2024_changes_pagination) | test(page_counts_do_not_drift_from_hancom_oracle)' --no-fail-fast`이고 로그는 `output/pr-review/planet6897-7382-20260926/stage245-new-failures-nextest.log`입니다. 전체 nextest와 이 코드의 fresh WASM은 후속 단계에서 재검증합니다.
+
+![분할 예산 보정 뒤 29쪽 문서 1쪽](../assets/pr7382_20260926/stage245_hwpxsample2_native_review_001.png)
+
+![7쪽 원본의 현재 4쪽 비교](../assets/pr7382_20260926/stage245_issue6542_native_review_004.png)

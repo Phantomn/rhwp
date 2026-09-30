@@ -40,7 +40,8 @@ pub(super) fn measure(
     mut trace_sibling: impl FnMut(usize, usize, f64, f64),
 ) -> TacHeightCap {
     let dpi = flow.dpi();
-    // 양의 후행 간격은 실제 배치와 같은 줄 점유 결과를 소비한다.
+    // 분할 예산에는 TAC 표의 물리 점유분을 센다. 다음 저장 줄의 배치 원점은
+    // layout에서 따로 맞추며, 그 간격 전량을 분할 예산에 또 더하지 않는다.
     let mut tac_seg_total = 0.0;
     let mut tac_idx = 0;
     for (ci, c) in para.controls.iter().enumerate() {
@@ -60,15 +61,7 @@ pub(super) fn measure(
                         .map(|mt| mt.total_height)
                         .unwrap_or(0.0);
                     let effective_h = crate::renderer::tac_table_effective_height(seg_lh, mt_h);
-                    let trailing = if seg.line_spacing > 0
-                        && crate::renderer::composer::native_tac_next_line_full_spacing(
-                            para,
-                            next_para,
-                            seg,
-                            profile.hwp5_stored_pagination_layout() && !profile.session_edited(),
-                        ) {
-                        hwpunit_to_px(seg.line_spacing, dpi)
-                    } else if seg.line_spacing > 0 {
+                    let trailing = if seg.line_spacing > 0 {
                         crate::renderer::composer::tac_host_trailing_spacing(
                             para,
                             ci,
