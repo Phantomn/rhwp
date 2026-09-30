@@ -14,6 +14,9 @@ e2e 스크립트의 **단일 권위 목록**이다. 파일 추가/변경/폐기 
 
 | 파일 | 분류 | 상태 | 용도 | 샘플 | 배선 | 비고 |
 |------|------|------|------|------|------|------|
+| `table-v2-reader.test.mjs` | 상시 | active | #7353 V2 읽기 모드 실제 WASM 업로드·거부·재개·구역/쪽 이동·Legacy 격리 | issue7353_host_shape_slots/saved.hwp, issue7353_body_frame_review/portrait-saved.hwp, hwpx/form-002.hwpx | 수동 | VITE_URL 지정, --mode=headless 지원 |
+| `canvaskit-cropped-contain.test.mjs` | 상시 | active | #7235 CanvasKit crop 이후 비율·letterbox 및 제거된 영역의 픽셀 검사 | 합성 Canvas 이미지·렌더 트리 | 수동 | run-with-vite.mjs 경유 |
+| `probe-flow-input-latency-issue3794.mjs` | 진단 | active | #3794 flow 입력 지연 측정 및 runtime 정책 대조 | 스크립트 지정 HWP/HWPX | 수동 | 성능 계측용, CI 시간 게이트 아님 |
 | `automation-commands.test.mjs` | 상시 | active | studio 자동화 표면 — 커맨드 질의·실행·메뉴 모델·드리프트 가드·다이얼로그 정책 | — | npm e2e:automation |  |
 | `autosave-recovery.test.mjs` | 상시 | active | Task #1448 — 미저장 문서 자동 백업 복구 E2E | — | 수동 |  |
 | `blogform.test.mjs` | 상시 | active | BlogForm_BookReview.hwp 누름틀 안내문 | BlogForm_BookReview.hwp | 수동 |  |

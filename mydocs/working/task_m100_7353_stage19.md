@@ -12151,3 +12151,114 @@ H2는 8건의 계약 실패로 **미충족**, H4는 로컬 보존/원격 게시 
 결과 기록과 테스트 정리만 로컬 커밋하고, 이번 검증용 `/tmp/rhwp-7353-closeout-2KbqaT`는
 패치/실패 SVG/로그 보존 확인 후 제거한다. 공유 build target과 사용자의 기존 worktree·WIP는
 보존한다. 원격 push·PR·devel 병합·0.9.0 버전 변경·이슈 종료는 하지 않았다.
+
+### 2026-09-30 — 실패 원본의 V2 WASM 실행 경로 재검사
+
+작업지시자는 WASM 조판 경로를 V2로 전환한 뒤 실패 여부를 다시 확인하도록 지시했다.
+검증 runner의 문서 진입점을 `HostedSectionV2`로 고정하고 실제 Chrome의 WASM에서 실행했다.
+이 runner에는 `HwpDocument` 생성이나 Legacy fallback이 없다. 제품/Studio의 기본 문서 API를
+교체한 것은 아니며, 그 전환에는 편집·페이지 API 연결이 추가로 필요하다. 전환 범위를 질문했으나
+응답 전에는 독립된 V2 검증 경로만 실행했다.
+
+검증 head `1f28344b673b66911d14e0c1f3d8e35444b8a308`의 제품 Rust 1,100파일이 기존 fresh WASM
+source manifest와 일치함을 확인했다. 제품 코드를 변경하지 않아 Docker 빌드를 반복하지 않았다.
+WASM SHA256 `d32d8087a093b0db199134279bf93e85bc9a5f76f825069a0e9d9fca3d69526c`,
+JS SHA256 `4b88c81091df6bbc816aea8ee7568240a1976749d8516f77abcbae41540ab004`다.
+
+명령: `node output/7353/closeout/wasm-v2/recheck.mjs`.
+기록: 같은 디렉터리 `results.json`(입력 SHA/Chrome 버전/실행 engine), `run.log`.
+최종 실행 exit 1은 아래 입력 거부를 반영하며 환경·컴파일 오류가 아니다.
+구역0, 96dpi, `omit_final_paragraph_gap` 정책으로 실행했다. 한 구역 결과를 전체 문서의 쪽
+번호와 동일하다고 가정하지 않으며, 거부된 문서는 배치·기하 assertion에 도달하지 못했다.
+
+| 입력 / 연결된 기존 실패 | V2 WASM 실제 결과 |
+| --- | --- |
+| `tests/fixtures/issue7353_host_shape_slots/saved.hwp` — 승인된 정상 대조군 | `table_v2_hosted_section` engine으로 1쪽 렌더 성공. packet/SVG 보존 |
+| `samples/hwpx/form-002.hwpx` — SVG 1건 | `body page-number declaration with table controls` 거부 |
+| `samples/hwpx/issue_157.hwpx` — SVG 1건 | `table host requires resolved anchor/line/margin policy` 거부 |
+| `samples/복학원서.hwp` — SVG 1건 | `host control or multiple tables on one paragraph` 거부 |
+| `samples/exam_kor.hwp` — SVG 1건 | `master-page content requires host admission` 거부 |
+| `samples/table-in-tbox.hwp` — #6699 기하 2건 | `stored TAC carrier requires unambiguous intact rows` 거부 |
+| `samples/143E433F503322BD33.hwp` — #4961 참고 입력 | `section decoration/grid requires host admission` 거부. V2에는 동등한 font trace API도 없음 |
+
+**판정**: 기존 8건 중 조판 출력 6건은 V2 입력 거부로 원래 assertion **미검증**, 폰트 trace 1건은
+동등한 V2 API 부재로 **미검증**, CLI 저장/재로드 1건은 조판 엔진 전환 검사에 **비해당**이다.
+즉 실패 관련 6개 입력이 거부됐고 기존 8건 중 해결 확인은 0건이다. V2가 기존과 같은 좌표/해시
+오류를 냈다는 의미도 아니다. 정상 대조군 성공은 WASM V2 호출이 실제 실행된 증거이며,
+전체 V2 무회귀·Studio 전환 완료·새 시각 PASS로 확대하지 않는다.
+
+현재 확인으로는 단순 기본값 전환만으로 해당 원본의 V2 조판을 검증할 수 없다. 확인된 미지원
+조건을 임의로 해제하거나 원본을 수정하지 않았고, 이번 마감 범위에 새 구현을 자동 편입하지 않는다.
+제품 소스/테스트 계약/기준값/ignore/원격 상태는 변경하지 않았다.
+
+### 2026-09-30 — rhwp-studio에 실제 V2 WASM 읽기 경로 연결
+
+작업지시자의 추가 요청에 따라 진단 runner가 아닌 Studio 시작점에서 V2 경로를 선택하도록
+연결했다. `index.html → bootstrap.ts → table-v2-studio.ts → TableV2Session →
+HostedSectionV2 → renderPage → SVG DOM` 순서다. `table_v2_hosted_section` engine과
+페이지 인덱스를 확인한 출력만 표시한다. V2 모드에서는 Legacy `main.ts`를 import하지 않아
+기존 DocumentCore/편집/자동 저장 초기화가 실행되지 않는다. 기존 폰트 로더를 재사용하며 SVG의
+fallback family 목록을 개별 글꼴 이름으로 전달한다. 조판 Rust 및 WASM 바이너리는 변경하지 않았다.
+
+**사용 방법**:
+
+```bash
+cd /home/edward/mygithub/rhwp-task-7353/rhwp-studio
+npm run dev:v2 -- --host 127.0.0.1 --port 7735 --strictPort
+```
+
+`http://127.0.0.1:7735/?typeset=v2`에서 문서 열기로 HWP/HWPX를 선택한다. 이 dev 모드에서는
+루트 주소도 V2가 기본이다. 일반 `npm run dev`/production의 기본 편집 경로는 Legacy를 유지하며,
+`?typeset=v2`로 명시적 선택이 가능하다. 같은 서버의 `?typeset=legacy`는 기존 편집기를 연다.
+
+**정확한 범위**: V2가 조판한 SVG의 읽기 전용 표시, 구역 선택, 구역 내 쪽 이동, 배율 조절이다.
+전체 문서가 아니라 선택한 구역만 표시하며 UI에도 이를 명시했다. V2 편집·저장·CanvasView 연결은
+아직 없다. 미지원 입력은 원래 오류를 표시하고 이전 페이지를 제거한다. 자동 Legacy 우회나
+거부 조건 해제는 하지 않았다. 이 연결은 앞 절의 실패 8건을 해결했다는 의미가 아니다.
+
+검증 source는 `1f28344b673b66911d14e0c1f3d8e35444b8a308` 위의 이번 Studio 변경이며,
+WASM/JS SHA는 앞 절과 동일하다. 증적은 `output/7353/closeout/wasm-v2/`에 보존한다.
+
+- `npm run build`: TypeScript 검사 및 Vite/PWA production 빌드.
+- `npm test`: 기존 프런트엔드/편집기 테스트 및 신규 V2 모드·세션·오류·폰트 목록 계약.
+- `VITE_URL=http://127.0.0.1:7735 node e2e/table-v2-reader.test.mjs --mode=headless`:
+  실제 파일 선택 UI에서 WASM 실행, 미지원 오류/빈 화면, 정상 재열기/동일 파일 재선택,
+  잘못된 구역 선택 후 복구, 2쪽 앞뒤 이동/내용 소속, V2에서 Legacy 미초기화,
+  명시적 Legacy 편집기 초기화를 검사한다.
+- 정상 입력 `tests/fixtures/issue7353_host_shape_slots/saved.hwp`, 2쪽 입력
+  `tests/fixtures/issue7353_body_frame_review/portrait-saved.hwp`, 거부 입력
+  `samples/hwpx/form-002.hwpx`. 2쪽 내용 소속의 기대값은 정상 한컴 저장본 README에서 가져왔다.
+- 로그 `studio-{build,tests,e2e}.log`, 실행 결과 `studio/result.json`, 캡처
+  `studio/{approved-control,page-two,unsupported-input}.png`. 캡처는 Studio 연결·상태 표시 확인용이며
+  새 한컴 피델리티 판정이나 Native/fresh WASM 조판 수정 sweep을 주장하지 않는다.
+
+최종 결과: production 빌드 PASS, 프런트엔드 테스트 **1,767 PASS / 0 FAIL / 2 SKIP**
+(신규 집중 계약 6건 포함), 실제 Chrome E2E의 위 7개 흐름 PASS. 최종 캡처 3장을 직접 열어
+정상 셀/문단 표시, 두 번째 쪽 내용, 오류 시 이전 출력 제거를 확인했다. 최초 E2E에서 글자별
+SVG 노드 사이의 XML 개행을 본문으로 읽은 assertion을 수정해 `svg text` 내용만 결합했다.
+제품 조판 결과나 fixture 기대값을 변경한 것은 아니다. 서비스 HTTP 200도 확인했다.
+
+이 변경은 로컬에만 보존하며 원격 push·devel 병합·버전 변경은 하지 않는다.
+
+### 2026-10-01 — Studio 확인 후 로컬 인계 기준점 보존
+
+작업지시자가 Studio 연결을 확인하고 다음 절차를 승인했다. 이번 묶음은 H4의 로컬 보존이며,
+새 조판 기능 구현이나 전체 회귀 반복이 아니다. 이전 절의 Studio 코드·검증 기록과 V2 경로
+재검사 기록을 task 브랜치에 함께 커밋하고, 동일 commit에 로컬 `refactor/0.9.0` 브랜치를
+생성한다. 현재 작업 worktree는 `task_m100_7353`에 유지한다.
+
+- `1f28344b6` 이후 Rust/Cargo/정식 Rust 회귀 source 변화 없음. 이전 빌드·검증의 한계를 그대로
+  유지하며 같은 검사를 반복하지 않았다. Studio의 1,767 PASS/2 SKIP 및 실제 브라우저 7개 흐름
+  결과도 코드 변경 없이 재사용했다. 사용자 확인을 모든 문서 지원/전체 회귀 PASS로 확대하지 않는다.
+- 커밋 전 `python3 scripts/check_e2e_manifest.py`에서 기존 HEAD의
+  `canvaskit-cropped-contain.test.mjs`, `probe-flow-input-latency-issue3794.mjs` 미등록 2건을
+  확인했다. 실제 파일·npm/CI 배선을 대조해 목록 행만 추가했다. 실행 코드 변경이나 해당 2개
+  테스트의 재실행은 없으며, 최종 목록 검사는 **138개 파일/138개 행 PASS**다.
+- 신규 V2 소스/테스트와 관련 문서만 명시적으로 stage한다. `.agents/skills/`, `.codex/`,
+  환경 설정·비밀값·생성 빌드/로그/PNG 및 다른 worktree의 변경은 커밋하지 않는다.
+- H1/H3 완료, H2 전체 회귀 8건 미충족, H4 로컬 보존 완료/원격 인계 보류를 구분한다.
+  V2 입력 거부를 기존 실패의 해결로 세거나 baseline/golden/ignore를 변경하지 않았다.
+
+다음 승인 대상은 **남은 회귀 실패를 명시한 WIP 통합 브랜치의 원격 게시 여부와 인계 조건**이다.
+현재 계획의 H2 인계 차단을 임의로 해제하지 않는다. 원격 게시 승인 시 `refactor/0.9.0`의 목적은
+0.9.0 후속 개발의 공유 기준점이며, devel 병합·PR 생성·0.9.0 릴리즈·#7353 종료를 뜻하지 않는다.

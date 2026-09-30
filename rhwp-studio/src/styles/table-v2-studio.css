@@ -1,0 +1,15 @@
+.v2-studio { height: 100dvh; display: flex; flex-direction: column; }
+.v2-studio #studio-header, .v2-studio #icon-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  height: auto; min-height: 44px; padding: 8px 16px;
+}
+.v2-studio #studio-header span { font-size: 13px; }
+.v2-studio #icon-toolbar input[type=number] { width: 65px; }
+.v2-studio #icon-toolbar button, .v2-studio #icon-toolbar input,
+.v2-studio #icon-toolbar select { font: inherit; padding: 4px; }
+.v2-studio .v2-notice { margin: 8px 16px; font-size: 13px; }
+.v2-studio #v2-error { margin: 8px 16px; padding: 12px; white-space: pre-wrap; color: #b91c1c; }
+.v2-studio #scroll-container { flex: 1; min-height: 0; overflow: auto; padding: 20px; background: #cbd5e1; }
+.v2-studio #v2-page-host { width: max-content; margin: 0 auto; background: white; color: black; }
+.v2-studio #v2-page-host svg { display: block; }
+.v2-studio #status-bar { flex-shrink: 0; padding: 8px 16px; min-height: 30px; }
