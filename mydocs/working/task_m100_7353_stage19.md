@@ -12283,3 +12283,143 @@ Oracle advisory는 `task_m100_*` 및 해당 workflow 경로 변경에만 push로
 H4의 개발 중 원격 공유는 완료했지만 H2 회귀 8건 미충족, V2 미지원 입력, 편집/저장 미연결은
 해결되지 않았다. 후속 PR 생성이나 향후 workflow 필터 변경 시 CI 실행 여부는 별도 확인해야 한다.
 devel/main, 저장소 CI 설정, required checks, baseline/ignore, 버전 및 이슈 상태는 바꾸지 않았다.
+
+<a id="090-resume-triage"></a>
+
+### 2026-10-01 — 0.9.0 재개: 기존 실패 8건의 제한 조사
+
+작업지시자의 계속 진행 요청에 따라 `refactor/0.9.0`에서 시작했다. 조사 시작 head는
+`3b8eab0f8b4d5b21ddac6858d9d026d929b26f36`, tracked 변경은 없었다. 미추적 도구 설정은
+작업 대상에서 제외했다. 확보된 여유 공간은 277GiB다. 새 worktree/전체 빌드는 만들지 않았다.
+원격 push·devel merge·테스트 기대값 변경도 하지 않았다.
+
+#### 실제 재현: #3528은 캡션 유실이 아니라 저장 거부
+
+기존 검증 바이너리 `/home/edward/mygithub/rhwp/target/pr-review/release-test/rhwp`
+(SHA256 `2cef88814d8629807645dd9871193ba5c3692ccb31d90c7362cd8f53d36aeee1`)로 실행:
+
+```sh
+rhwp convert samples/issue1891_external_bindata_link.hwpx \
+  output/7353/closeout/triage-090-ZVmeuA/caption.hwp --verify
+```
+
+exit **1**, 출력 HWP 생성 없음. stdout/stderr는 위 디렉터리의 `caption.stdout`,
+`caption.stderr`에 보존했다. 오류는
+`HWP5 export of breakCellSeparateLine is not implemented`다. 재사용 바이너리의 진단이며
+새 head 전체 테스트 실행으로 보고하지 않는다.
+
+입력 ZIP의 `Contents/header.xml`에는 `borderFill id=15`의 해당 속성이 참이고,
+`Contents/section0.xml`의 실제 표 5개가 이를 참조한다. 미사용 스타일만의 문제가 아니다.
+입력 속성 → `parser/hwpx/header.rs` → `BorderFill.break_cell_separate_line` →
+`serializer/cfb_writer.rs::serialize_hwp_inner`의 조기 오류로 연결된다.
+`git log -S 'HWP5 export of breakCellSeparateLine'`로 유입 커밋 **bf9cc2308**을 확인했다.
+
+기존 `tests/issue_3528_nested_caption_boundary.rs`는 subprocess 상태를 검사하기 전에,
+파일이 없으면 `after=[]`로 만들어 캡션 목록 `[3]`과 비교한다. 따라서 기존 실패 메시지는
+실제 원인인 저장 거부를 가린다. 새 속성 보존 계약
+`issue_7353_table_v2_split_line_property::unsupported_hwp_export_does_not_silently_drop_enabled_property`
+는 바로 이 거부를 요구한다. **기존 변환 지원의 제한이 #7353에서 새로 생긴 것**이며,
+캡션 경계 파서가 다시 깨졌다는 증거는 아니다. 매핑 근거 없이 속성을 버리거나 테스트를
+ignore 처리하지 않았다. 이전 바이너리의 성공 비교 실행은 하지 않았으므로 그 실행 결과는 주장하지 않는다.
+
+#### 나머지 7건: 가로 배치/해시 원인 후보 묶음
+
+보존된 `output/7353/closeout/svg-mismatches.tar.gz`의 각 golden/actual SVG를 XML로
+파싱해 같은 순서의 노드·텍스트·속성을 비교했다. 새 렌더링이나 시각 통과 판정은 아니다.
+
+| 사례 | golden/actual 노드 수 | 달라진 속성 수 |
+| --- | --- | --- |
+| form-002/page-0 | 956 / 956 | x 173, transform 21 |
+| issue-157/page-1 | 523 / 523 | x 41 |
+| issue-677/bokhakwonseo-page1 | 1,010 / 1,010 | x 78 |
+| issue-617/exam-kor-page5 | 1,905 / 1,905 | transform 879, x1 1, x2 1 |
+
+노드 종류·텍스트·세로 좌표의 차이는 검출되지 않았다. 이 검사로 글립/겹침의 시각적 정확성을
+입증하지 않는다. #6699 두 실패 역시 기존 로그에서 이미지와 텍스트의 가로 간격/시작 좌표
+assertion이므로 같은 조사 묶음으로 분류했다. #4961은 `layoutHash` 불일치이며, 동일 원인인지
+또는 환경 차이인지는 아직 미검증이다.
+
+분기 기준 `7a95e46e0` 대비 `layout/paragraph_layout.rs`에는 후행 공백·마지막 텍스트 run의
+측정을 `estimate_text_width_exact`로 바꾼 공통 코드가 있다. 유입은 **cc13f573a** 및
+**780de8512**다. 이 함수들은 V2 전용 디렉터리 밖의 공통 배치 소비 지점이다. 실제 출력에 대한
+변경별 A/B 실행은 하지 않았으므로 일곱 실패의 확정 원인으로 승격하지 않는다.
+
+현재 devel 비교용 `0e8fd49fb`는 원래 분기 기준 `7a95e46e0`과 다르다. #4961 기대 hash도
+그 devel과 task 브랜치에서 다르므로, 비교 base/폰트 환경을 고정하지 않고 devel의 동일 실패나
+새 회귀라고 단정할 수 없다. 기존 8건은 여전히 실패 상태로 보존한다.
+
+이번 묶음 종료: **1건 직접 원인 확인, 6건 가로 좌표 변화 분류, 1건 hash 추가 확인 필요**.
+수정 완료 0건, 새 전체 회귀 실행 0회. V2 미지원 입력을 PASS로 세지 않았다. 다음 작업 순서는
+[구현계획 5.3](../plans/task_m100_7353_impl.md#53-2026-10-01--refactor090-작업-재개)에 연결했다.
+
+#### 후속 승인 실행 — 공통 소수 폭 변경의 원인 분리 완료
+
+작업지시자가 위 다음 작업을 승인했다. 제품 코드와 기대값은 그대로 두고, 같은 head의 임시
+detached worktree `/tmp/rhwp-090-width-odtNKR`에서 집중 실행했다. 고정 target은 기존
+`/home/edward/mygithub/rhwp/target/pr-review`를 재사용했으며 Cargo 동시 실행은 하지 않았다.
+`CARGO_BUILD_JOBS=2`, nextest test-threads=2였다. 정식 generated suite 준비 후 현재 코드의
+관련 계약 **27건: 20 PASS / 7 FAIL**, 빌드 6분24초/테스트 0.920초로 기존 실패를 재현했다.
+이는 전체 회귀 재실행이 아니다. 명령·결과는 아래 증거 디렉터리에 보존했다.
+
+대조 코드는 임시 worktree에만 넣었다. 기존 테스트 source와 assertion을 수정하지 않고,
+동일 파일들을 별도 진단 harness로 묶어 세 계산만 독립적으로 전환했다. 이 방식은 생성 suite
+전체를 조건마다 다시 컴파일하지 않기 위한 진단이며, 정식 suite 제출을 대체하지 않는다.
+진단 스위치가 꺼진 결과는 원래 27건의 결과와 같았고, 추가한 양쪽 정렬 계약도 통과했다.
+
+- `tail`: 마지막 TAC 뒤 텍스트 조각의 `seg_w`를 정수 반올림으로 복원.
+- `align`: 가운데/오른쪽 정렬에서 제외할 후행 공백 폭을 정수 반올림으로 복원.
+- `justify`: 양쪽 정렬의 후행 공백을 각 run 스타일 대신 마지막 run 스타일·정수 폭으로 복원.
+
+| 이전 계산으로 바꾼 부분 | 기존 실패 7건 중 통과로 바뀐 검사 | 정상 계약에 생긴 실패 |
+| --- | --- | --- |
+| 없음 (현재 코드) | 없음 | 없음 |
+| tail만 | #6699 2건 | TAC tail 96/192dpi 4건 |
+| align만 | 복학원서 SVG 1건 | 가운데/오른쪽 정렬 1건 |
+| justify만 | #157 SVG, 국어 시험 SVG, #4961 hash 3건 | TAC tail 4건 + 양쪽 정렬 1건 |
+| align + justify | SVG 4건과 #4961 hash 1건 | 위 정렬 2건 + TAC tail 4건 |
+| 세 계산 모두 | **기존 실패 7건 전부** | **정상 계약 6건** |
+
+나머지 두 조합 `tail+align`, `tail+justify`도 실행해 form-002가 align/justify 양쪽 변경을
+소비함을 확인했다. 3개 스위치의 8조합을 검사한 것이며 새 샘플 거부 지점으로 범위를 넓히지
+않았다. 기본 대조 28건과 별도 가운데/오른쪽 정렬 1건을 합쳐 조건별 **29개 고유 검사**다.
+현재 계산은 22 PASS/7 FAIL, 모두 복원하면 23 PASS/6 FAIL이다. 통과 수가 1개 늘어났다는
+이유로 후자를 채택하지 않는다. 기본 대조 빌드 4분58초 뒤 각 조건 실행은 약 1초였다.
+
+**독립 계약과 실제 소비 지점.** `text_measurement::estimate_text_width_exact`는 기존
+메트릭·탭 처리를 유지하고 최종 반올림만 제거한다. `estimate_line_run_widths`의 측정 →
+`trailing_space_width_after_last_inline_object`/`justified_trailing_space_width`의 후행 폭 →
+`x_start`/`compute_line_extra_spacing` → `emitted_run_layout_positions` → 최종 TextRun bbox와
+다음 `x += seg_w`까지 연결된다. exact kerning이 실제 적용되는 경로는 positions 끝값으로
+덮어쓸 수 있으며, 이를 모든 경로가 자동 공유한다고 가정하지 않았다.
+
+기대값을 새 구현의 bbox로 정하지 않고 기존 정식 계약의 독립 소비자/정렬 불변식과 대조했다:
+
+- tail 복원 시 paragraph212/192dpi에서 bbox **365**, backend replay **365.40761904761905**;
+  paragraph145/96dpi에서 bbox **53**, replay **53.444379999999995**로 불일치한다.
+  다른 두 사례는 `text preview run outside occupied line`으로 실제 V2 수용이 실패한다.
+- align 복원 시 Right/11.3/단일 스타일에서 가시 끝점 **224.875**, 줄 오른쪽 끝 **225**다.
+  기대값은 반올림 이전 snapshot 숫자가 아니라 줄의 오른쪽 정렬 불변식이다.
+- justify 복원 시 마지막 가시 글자의 replay 끝점이 저장 줄 오른쪽 끝에 닿는 계약이 실패한다.
+  #4961은 같은 바이너리·입력·환경에서 이 스위치로 실패/통과가 바뀌므로, 이번 hash 차이를
+  폰트 설치 환경 탓으로 분류할 근거는 없다.
+
+**판정:** 기존 실패 7건의 원인은 공통 폭 처리의 세 변경으로 확인됐다. 단순 되돌림은 측정/배치
+일치와 정렬 계약을 깨뜨리므로 제품에 반영하지 않는다. 다만 이 실행은 합성/기존 계약 검사이며
+4개 SVG의 한컴 피델리티 승인이나 golden 갱신 승인으로 승격하지 않는다. #6699 기존 한컴 PDF의
+첫 글자 x=250.68pt도 확인했으나, px 환산/글꼴 차이를 고려하지 않은 단일 수치로 기준을 바꾸지
+않았다. 독립 출력과의 영향 영역 비교 및 기대값 변경 근거 검토가 남는다.
+
+증거: `output/7353/closeout/triage-090-ZVmeuA/`의 `width-A.log`,
+`width-{exact,tail,align,justify,all,tail-align,tail-justify,align-justify}.log`,
+`alignment-{exact,tail,align,justify,all}.log`, `run-width-matrix.sh`,
+`width-diagnostic.patch`, `width_matrix.rs`. 진단용 환경변수 `RHWP_WIDTH_DIAGNOSTIC`는
+제품 브랜치에 추가하지 않았다. 기존 WASM/Studio 배포물도 바꾸지 않았다.
+
+이번 원인 분리 묶음은 완료한다. 제품의 현재 실패는 여전히 8건이며, 기존 #3528 저장 거부와
+가로 배치 7건을 각각 저장 지원 계약/기대값 근거 검토로 넘긴다. 전체 회귀·Clippy·fresh WASM·
+새 Visual Sweep은 실행하지 않았고 제출 완료를 주장하지 않는다. 작업 브랜치의 Rust/Cargo/
+정식 테스트/golden/ignore 변경은 없다.
+
+실험 종료 후 새로 만든 임시 worktree만 제거해 약 4.4GiB를 회수했다(여유 공간 276GiB).
+기존 두 worktree와 WIP는 보존했다. 실험은 기록한 head·진단 패치·harness로 재구성 가능하다.
+고정 target의 진단 빌드는 출시 산출물이 아니며 다음 제품 검증은 정상 source에서 빌드한다.
