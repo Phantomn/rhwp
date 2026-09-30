@@ -5,7 +5,7 @@ on:
     inputs:
       mode:
         type: choice
-        options: [phases, baseline-lto, validate, validate-browser, wrapper, wrapper-candidate]
+        options: [phases, baseline-lto, validate, validate-browser, wrapper, wrapper-candidate, wrapper-paired]
         default: phases
         description: Compiler phases or verify the fixed completed phase artifacts
 permissions:
@@ -144,5 +144,29 @@ jobs:
         with:
           name: wasm-wrapper-${{ matrix.mode }}
           path: output/wasm-wrapper-integration/
+          if-no-files-found: error
+          retention-days: 7
+
+  wrapper-paired:
+    if: inputs.mode == 'wrapper-paired' && github.repository == 'edwardkim/rhwp' && github.ref == 'refs/heads/codex/rust-build-phases-7473'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: 1.93.1
+          targets: wasm32-unknown-unknown
+      - uses: ./.github/actions/install-wasm-pack
+      - name: Seed both configurations then compare full release wrappers on one runner
+        run: python3 scripts/experiments/wasm_wrapper_paired.py
+      - name: Preserve matched-runner timings
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: wasm-wrapper-paired
+          path: output/wasm-wrapper-paired/
           if-no-files-found: error
           retention-days: 7
