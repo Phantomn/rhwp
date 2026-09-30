@@ -3057,3 +3057,10 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![#617 17쪽 Native 기준 PDF 비교](../assets/pr7382_20260926/stage180_exam617_native_review_017.png)
 
 ![#617 17쪽 fresh WASM overlay](../assets/pr7382_20260926/stage180_exam617_wasm_overlay_017.png)
+
+## 보정181 — #1772 본문 시작 회귀 검사의 절대 좌표 제거
+
+- 기존 `issue_1772_body_first_line_respects_table_outer_margin_bottom` 검사는 본문 첫 줄을 `306.7±1px`에 고정하여 현재 `308.60px`에서 실패했습니다. 원본 `samples/task1772/table_outer_margin_common_sync.hwpx`와 한컴 PDF의 단일 1쪽을 Native Visual Sweep으로 비교한 결과 내용 실루엣 **100.00%**, gate `passed`였습니다. review에서 결재 헤더 표·`1. 관련` 문단·하단 표의 상대 배치를 직접 확인했습니다.
+- 검사는 원본 표의 `outer_margin_bottom=852HU`를 읽어 상단 표의 실제 하단과 `관련: 총무과`가 포함된 첫 본문 글줄의 간격을 비교하도록 고쳤습니다. 관측 간격은 11.4px, 원본 여백은 96dpi에서 11.36px로 비율 1.0035입니다. 절대 쪽 x/y 좌표와 기존 `306.7px` 핀은 제거했습니다. 해당 검사와 원본 여백의 IR 동기화 검사는 **2PASS**, fmt, Native/WASM/전체 target Clippy, workspace build, 고정 base manifest 검사가 통과했습니다. 이 단계의 전체 nextest는 실행하지 않았고, 남은 다른 실패 및 PR 준비 완료로 보지 않습니다. [입력·PDF 해시와 검증 결과](../assets/pr7382_20260926/stage181_task1772_validation.json), 로그·전체 PNG는 `output/pr-review/planet6897-7382-20260926/stage181-task1772*`에 있습니다.
+
+![#1772 1쪽 Native 기준 PDF 비교](../assets/pr7382_20260926/stage181_task1772_native_review_001.png)
