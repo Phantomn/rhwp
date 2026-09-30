@@ -3313,3 +3313,8 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - 기존 검사는 `dump_page_items`에 별도 `PartialParagraph pi=52` 항목이 있어야 한다고 요구했지만, 현재 render tree는 4쪽의 host 본문 **4줄**을 표보다 앞에 실제 표시하고 4·5쪽 표를 `PartialTable` 항목으로 나눕니다. Native/fresh WASM 전쪽 최저 **90.57406%**와 직접 review를 선행 근거로 삼아, **기존 함수만** render tree의 내용·순서·쪽별 별표 글줄 소유 검사로 고쳤습니다. 원본 HWP/HWPX·독립 PDF·기존 HWP 물리 프레임 검사는 보존했고 새 검사 함수나 픽셀 좌표 기대값은 추가하지 않았습니다.
 - `cargo fmt --all -- --check`와 `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_1749_saved_bounds_page_break) | test(issue_3930_hwpx_hwp_save_layout)' --no-fail-fast`는 **6PASS/0FAIL**입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage224-nextest.log`입니다. 이후 전체 nextest·lint·최종 head 시각 검증이 남아 있어 PR 준비 판정은 하지 않습니다.
+
+## 보정225 — 현재 head 전체 회귀 실패 19건 재고정
+
+- 코드·기존 검사 보정 head `30dca6c5f`에서 지정된 `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 --no-fail-fast`를 완료했습니다. **10,221실행 / 10,202PASS / 19FAIL / 50SKIP**, 종료 코드 **100**, 로그는 `output/pr-review/planet6897-7382-20260926/stage225-full-nextest.log`입니다. 보정207의 27FAIL에서 제거된 차단 함수 8건과 교정된 #1811 1건을 반영하되, 새로 실패한 **#1658** 1건을 포함합니다. 이전 녹색 결과를 이 head에 재사용하지 않습니다.
+- 남은 실패는 #6569·#7049(같은 **7쪽** 원본), #6632, #6795, 본문초과 래칫2, #7203, 텍스트겹침 래칫2, #2287, #6651, #2020, #6660, #7226 두 건, #6648, chart overlap, #1658, #6681입니다. 다음 단계는 #1658이 이번 변경의 실제 회귀인지 먼저 대조하고, 이후 7쪽 #6569·#7049를 독립 PDF 전쪽 Visual Sweep으로 판단합니다. 어느 실패도 아직 승인·제외로 판정하지 않았습니다.
