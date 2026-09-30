@@ -11146,3 +11146,83 @@ fresh WASM의 `absolute-review/wasm-review-1.png`, `wasm-review-2.png`와
 **메인테이너 시각 판정 통과**다(2026-09-30 다음 작업 승인). 원본 전체 문서의 바탕쪽/본문 도형/첫 쪽 속성 통합,
 편집 후 절대 객체 재조판, 절대 표 분할, 전체 workspace CI는 완료 범위에 포함하지 않는다.
 Legacy 기본값과90% 이후 Studio V2 검토 조건은 유지했다.
+
+### 저장 바탕쪽 선택·첫 쪽 감추기·본문 TAC 도형의 공통 호스트 연결
+
+직전 절편의 메인테이너 시각 통과/다음 작업 승인에 따라 승인 상태를
+`91a8efd21`에 중간 커밋했다. 아래 작업은 그 위 WIP이며 push/PR은 하지 않았다.
+기존 도구가 추가한 `.agents/skills/rhwp-*`, `.codex/`는 이 타스크와 분리하여 보존했다.
+
+**근거/범위:** 구역의 첫 쪽 바탕쪽 감추기와 Both/Odd 선택은 본문 점유를 바꾸지 않는다.
+TAC 도형은 저장 소유 줄의 상자·기준선을 통해 문단 흐름에 참여한다. 바탕쪽을 본문
+높이에 더하거나, 본문 도형을 별도 쪽 pass에서 다시 그리지 않는다. 기존 문서 호스트의
+바탕쪽 선택 함수를 `renderer/master_page.rs`로 그대로 분리해 두 호스트가 공유한다.
+선택 함수의 기존 extension/carry 로직은 변경하지 않았고 V2는 아직 이를 수용하지 않는다.
+
+**입력 → 독립 기준 → 기대:** `issue7353_host_master_review/create.rs`가 기존2단
+대조군에 바탕쪽/본문 도형을 추가한 뒤 한컴이 LineSeg를 새로 생성해 저장했다.
+HWP save job `1ee75387-4c43-49a6-b8f7-77afd8b80032`, 동일 HWP의 PDF job
+`721cd1ff-9a4c-426c-86e2-7ce4592892fb`, runtime11.0.0.9136/3쪽/전처리 없음이다.
+1쪽 바탕쪽 없음,2쪽 BASE MASTER,3쪽 ODD MASTER와2쪽 LEFT/BOX/RIGHT/TAIL의
+최종 위치를 판독한다. 독립 HU/정렬 불변식·입력 해시는 fixture README를 따른다.
+
+| 경계 | 공통 결과와 실제 소비 |
+| --- | --- |
+| 바탕쪽 소유 | `master_page::assign_master_pages_for_section` → 최종 `PaginationResult.pages[*].active_master_page` → `host_section::render_page`가 동일 원문 master를 선택한다. 첫 쪽 감추기는 선택 단계에서 처리하며 paint 단계에서 본문을 밀지 않는다. |
+| 바탕쪽 글상자 | `host_master::outlines`는 원문을 수정하지 않은 clone에서 rectangle textbox만 분리한다. 기존 Paper/Page 원점 계산 결과의 rectangle bbox와 원문 pi/ci를 `host_master::complete → shapes::node`가 소비한다. V2가 구성한 동일 글줄의 물리 높이로 여백/세로 정렬/최종 glyph를 결정한다. bbox를 clamp하거나 뒤에서 원점을 보정하지 않는다. |
+| 본문 도형 | `host_section::prepare_shapes → host_text::prepare_content`가 기존 mixed-inline/pictures 구성 결과를 사용한다. `ObjectRow`의 확정 상자는 같은 `FlowBlock::Lines`로 페이지 예산을 차지하고 같은 payload가 최종 위치로 이동한다. 도형 높이를 다시 합산하지 않는다. |
+| 분할/이월 | 도형 소유 줄은 온전한 line unit이며 기존 `run_section` frame 전환을 사용한다. 별도 도형 continuation이나 표 컷 규칙은 추가하지 않았다. 본문 단 전환/후속 TAIL/END를 실제 최종 노드로 검사한다. |
+| 미지원 | 확장 바탕쪽, 바탕쪽 중첩 표·필드 컨트롤/세로쓰기, 본문 floating 도형, 큰 TAC 줄의 Legacy 축소, `hide_empty_line`은 수용하지 않는다. Legacy 표 layout으로 fallback하지 않는다. |
+
+초기 Native 직접 판독에서 바탕쪽 선택은 맞지만 기존 글상자 경로가 가운데 텍스트를
+아래로 미는 것을 발견했다. 단순 공통 painter 연결만으로 완료하지 않고 위 V2 텍스트
+구성 결과로 연결했다. 독립 기대값은 원문 패딩/3000HU 외곽/1200HU 글줄의 가운데
+정렬 불변식이며, 새 계약은 외곽뿐 아니라 실제 텍스트 y도 검사한다. 기존 문서 호스트의
+글상자 배치는 변경하지 않았고 selector 공유 회귀만 별도로 검사한다.
+
+2400HU 큰 도형/1800HU 피치 초안은 `shared text paint changes stored metrics`로
+거부된다. `tall-unsupported.hwp`와 `master-tall-draft/`에 보존하고 명시적 거부를
+정식 계약으로 보호했다.1200HU 초안은 한컴의 current_height1202/common.height1200
+차이로 textbox 상자에 맞지 않아 거부됐다(`master-textbox-draft/`). 최종1600HU는
+작성 단계에서 다시 지정하여 정상 저장한 **다른 대조군**이다. 초안 문제의 해결/일치로
+바꿔 보고하지 않으며, 저장 LineSeg 수용 조건도 완화하지 않았다.
+
+`issue_7353_hosted_master`7건은 정상 HWP/HWPX 왕복/96·192dpi, source 불변,
+실제 바탕쪽 외곽/텍스트 y, TAC 도형/앞뒤 텍스트/후속 문단, 첫 쪽 표시/바탕쪽 제거,
+도형 단독 줄, 미지원 명시 거부, 기존 문서 호스트의 Both/Odd 선택을 검사한다.
+합성 변형은 별도 한컴 피델리티 주장으로 승격하지 않는다.
+
+직전 승인 binary의 동일 최종 HWP는 section decoration 미지원으로 거부됐다
+(`section-scope/master-before.log`). 이는 미지원 경로의 전후 증거이며 기존 시각 회귀가
+아니다. 최종 source 신규7건 PASS(`frame-after-child/master-final-seven-*`), 기존248건과
+바탕쪽 selector #6323의2건 PASS(`section-scope/master-focused.log`)로 **257 PASS/0 FAIL**다.
+최초6건 실행과 최종 build 완료가 겹쳐 신규7건은 최종 라이브러리로 다시 검증했다.
+전체 workspace CI/통합 target Clippy를 실행한 결과는 아니다.
+Native build23.83초, Native lib Clippy33.10초, WASM lib Clippy32.09초 모두 종료0이다.
+
+최종 Native3쪽을 재캡처하고 canonical sweep을 실행했다. 비교 명령은
+`capture-positioned.mjs --master`, `python3 master-sweep.py native`이며 prefix는
+`output/7353/r19/section-scope/`다. source/입력/PDF/명령은 `master-source.sha256`,
+`master-input-test.sha256`, `master-review/native-manifest.json`에 고정했다.
+2/3쪽 직접 판독에서 바탕쪽 텍스트 가운데 정렬과 소유 위치, 본문 도형/후속 줄이 맞는다.
+글꼴 외형·폭 및 custom-paper PDF 인쇄 transform의 하단 약0.75pt 차이는 남으며
+이미지/출력 좌표를 보정하지 않았다. fresh WASM 결과는 아래에 이어 기록한다.
+
+원본 #7008 전체는 여전히 완료가 아니다. 원본의 `hide_empty_line`, 바탕쪽 쪽번호
+필드, 큰/특수 TAC 도형 및 다단 Square 결합 등의 수용/시각 근거가 남아 있다.
+이번 결과를 R3/R5 전체 완료나 Studio V2 전환으로 세지 않는다.
+
+Docker fresh WASM 빌드가 종료0/7분33초로 완료됐다. 산출 SHA256은
+`860b988c50c25bcf5e109bf4d383e2022943360bbf17bf714f0c51ab002c8713`이다.
+`capture-positioned.mjs --master --wasm`, `python3 master-sweep.py wasm`을 실행했다.
+`master-review/backend-comparison.json`은 비수치 차이0, 수치 차이85개/최대
+1.1368683772161603e-13px다. 최종 source/input 해시 검증과 fmt/diff check도 통과했다.
+
+`master-review/wasm-review-1.png`, `wasm-review-2.png`, `wasm-review-3.png` 및
+`wasm/overlay/overlay_002.png`를 직접 판독했다. 첫 쪽 바탕쪽 감추기·두 절대 표·빈 줄,
+2쪽 BASE MASTER와 LEFT/BOX/RIGHT/TAIL,3쪽 ODD MASTER/END가 보존된다.
+바탕쪽 글상자의 가운데 정렬 개선도 확인했다. 글꼴 외형/인쇄 transform 차이는 남는다.
+canonical ink-match7.36014/13.8512/12.53682%를 시각 통과 지표로 사용하지 않았다.
+근거는 `master-review/wasm-manifest.json`에 연결했다. 이 절편의 구현/집중 검증/판정 자료
+준비를 완료했으며 **메인테이너 시각 판정 통과**다(2026-09-30 다음 작업 승인).
+원본 전체 지원/전체 CI는 위 잔여 범위다.

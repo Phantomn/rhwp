@@ -42,6 +42,7 @@ pub(crate) mod kerning;
 pub mod layer_renderer;
 pub mod layout;
 pub(crate) mod layout_frame;
+pub(crate) mod master_page;
 pub mod page_layout;
 pub mod page_number;
 pub mod pagination;

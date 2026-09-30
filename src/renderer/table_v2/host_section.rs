@@ -51,12 +51,15 @@ impl HostedSectionSession {
         let def = &sec.section_def;
         if !dpi.is_finite()
             || dpi <= 0.0
-            || def.flags != 0
+            // First-page master suppression and the serialized master-kind
+            // bits do not change body flow. Other section rules stay gated.
+            || def.flags & !(0xe000_0000 | 0x0004) != 0
             || def.hide_empty_line
             || def.line_grid != 0
             || def.char_grid != 0
             || def.text_direction != 0
-            || !def.master_pages.is_empty()
+            || def.hide_header || def.hide_footer || def.hide_border || def.hide_fill
+            || def.first_page_border || def.first_page_fill
             || std::iter::once(&def.page_border_fill)
                 .chain(&def.extra_page_border_fills)
                 .any(|fill| {
@@ -70,6 +73,7 @@ impl HostedSectionSession {
         {
             return Err(fail("section decoration/grid requires host admission"));
         }
+        super::host_master::validate(&def.master_pages)?;
         if def.page_num > 1 || def.page_num_type != 0 {
             return Err(fail(
                 "section page-number origin requires host numbering context",
@@ -101,6 +105,7 @@ impl HostedSectionSession {
         let mut seen_columns = false;
         let mut tables = BTreeMap::new();
         let mut inline_paragraphs = std::collections::BTreeSet::new();
+        let mut shape_paragraphs = std::collections::BTreeSet::new();
         let mut excluded_paragraphs = std::collections::BTreeSet::new();
         let mut positioned_paragraphs = BTreeMap::new();
         let mut absolute = BTreeMap::new();
@@ -128,6 +133,19 @@ impl HostedSectionSession {
                 .any(|c| matches!(c, Control::Table(t) if t.common.treat_as_char));
             for (ci, control) in para.controls.iter().enumerate() {
                 match control {
+                    Control::Shape(s)
+                        if s.common().treat_as_char
+                            && para.controls.iter().all(|c| {
+                                matches!(
+                                    c,
+                                    Control::Shape(_)
+                                        | Control::ColumnDef(_)
+                                        | Control::SectionDef(_)
+                                )
+                            }) =>
+                    {
+                        shape_paragraphs.insert(pi);
+                    }
                     Control::SectionDef(_) if pi == 0 => {}
                     Control::ColumnDef(c) if pi == 0 && !seen_columns => {
                         columns = c.clone();
@@ -353,6 +371,17 @@ impl HostedSectionSession {
                 ) && !(absolute.contains_key(&pi) && matches!(c, Control::Table(_)))
             });
             local.column_type = ColumnBreakType::None;
+            if shape_paragraphs.contains(&pi) {
+                super::decoration::validate_paragraph_source(para.para_shape_id, &source.doc_info)?;
+                text.push(HostedParagraphPlan::prepare_shapes(
+                    &local,
+                    width,
+                    &text_styles,
+                    dpi,
+                    &source.bin_data_content,
+                )?);
+                continue;
+            }
             if inline_paragraphs.contains(&pi) {
                 // Keep the complete source control slots for the TAC character
                 // axis. Only the section driver consumes the paragraph break.
@@ -539,6 +568,13 @@ impl HostedSectionSession {
                 None => None,
             });
         }
+        crate::renderer::master_page::assign_master_pages_for_section(
+            &mut pagination,
+            section,
+            sec,
+            &None,
+            &None,
+        );
         Ok(Self {
             source: Arc::new(source.clone()),
             paragraphs: sec.paragraphs.clone(),
@@ -573,6 +609,15 @@ impl HostedSectionSession {
             .pages
             .get(index)
             .ok_or(HostedTableError::WrongDestination)?;
+        let master = page.active_master_page.as_ref().and_then(|reference| {
+            self.source
+                .sections
+                .get(reference.section_index)?
+                .section_def
+                .master_pages
+                .get(reference.master_page_index)
+        });
+        let outlines = master.map(super::host_master::outlines);
         let mut tree = LayoutEngine::new(self.dpi).build_render_tree(
             page,
             &self.paragraphs,
@@ -582,12 +627,31 @@ impl HostedSectionSession {
             &self.styles,
             &Default::default(),
             &self.source.bin_data_content,
-            None,
+            outlines.as_ref(),
             &[],
             None,
             0,
             &[],
         );
+        if let Some(source) = master {
+            if let Some(i) = tree.root.children.iter().position(|n| {
+                matches!(
+                    n.node_type,
+                    crate::renderer::render_tree::RenderNodeType::MasterPage
+                )
+            }) {
+                let mut node = tree.root.children.remove(i);
+                super::host_master::complete(
+                    &mut node,
+                    source,
+                    &self.styles,
+                    self.dpi,
+                    &self.source.bin_data_content,
+                )?;
+                super::text::assign_ids(&mut node, tree.frame_mut());
+                tree.root.children.insert(i, node);
+            }
+        }
         for mut table in self.page_tables[index].iter().cloned() {
             super::text::assign_ids(&mut table, tree.frame_mut());
             tree.root.children.push(table);

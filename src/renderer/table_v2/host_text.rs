@@ -357,6 +357,26 @@ impl HostedParagraphPlan {
         styles: &ResolvedStyleSet,
         dpi: f64,
     ) -> Result<Self, GeometryError> {
+        Self::prepare_content(para, width, styles, dpi, None)
+    }
+
+    pub(crate) fn prepare_shapes(
+        para: &Paragraph,
+        width: f64,
+        styles: &ResolvedStyleSet,
+        dpi: f64,
+        resources: &[crate::model::bin_data::BinDataContent],
+    ) -> Result<Self, GeometryError> {
+        Self::prepare_content(para, width, styles, dpi, Some(resources))
+    }
+
+    fn prepare_content(
+        para: &Paragraph,
+        width: f64,
+        styles: &ResolvedStyleSet,
+        dpi: f64,
+        shape_resources: Option<&[crate::model::bin_data::BinDataContent]>,
+    ) -> Result<Self, GeometryError> {
         // Admission has selected uniform normal columns in source-flow order.
         // A qualified zero reset consumes the next host frame: next column,
         // then next page, never an independently inferred absolute page number.
@@ -373,7 +393,17 @@ impl HostedParagraphPlan {
             dpi,
             payloads: RefCell::new(Vec::new()),
         };
-        let items = composer.compose(para, width)?;
+        let items = if let Some(resources) = shape_resources {
+            if super::shapes::mixed_inline_candidate(para) {
+                composer.compose_stored_inline_shapes(para, width, resources)?
+            } else {
+                let (items, nodes) = super::pictures::compose(para, width, styles, dpi, resources)?;
+                composer.payloads.borrow_mut().push(nodes);
+                items
+            }
+        } else {
+            composer.compose(para, width)?
+        };
         let paragraph_end = items.iter().find_map(|item| match item {
             ParagraphItem::End(end) => Some(end.clone()),
             _ => None,
@@ -381,6 +411,19 @@ impl HostedParagraphPlan {
         let mut blocks = Vec::new();
         let mut frame_breaks = Vec::new();
         for item in items {
+            // The shape adapters already resolved baseline + margins and
+            // painted the object into this same saved line envelope. Do not
+            // sum object heights or invent another page-owned shape pass.
+            let item = match item {
+                ParagraphItem::ObjectRow { line, bounds, .. } if shape_resources.is_some() => {
+                    ParagraphItem::Lines {
+                        height: bounds.height,
+                        advance: bounds.height,
+                        lines: vec![(line, bounds)],
+                    }
+                }
+                other => other,
+            };
             match item {
                 ParagraphItem::Space(h) => blocks.push(FlowBlock::Space(h)),
                 ParagraphItem::End(end) => blocks.extend(end.into_body_tail()),
