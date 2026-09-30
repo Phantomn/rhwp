@@ -416,6 +416,7 @@ pub(super) fn try_place_stored_tac_paragraph(
     if let Some(placement) = stored_tac::prepare_computed(
         para_idx,
         para,
+        paragraphs.get(para_idx + 1),
         fmt,
         measured_tables,
         st.stored_tac_page(paragraphs),

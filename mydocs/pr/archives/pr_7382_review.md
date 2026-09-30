@@ -3342,3 +3342,10 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - 보정220의 표 조각 `emit.rs`와 커서를 각각, 이어 둘 다 이전 정상 코드로 바꿔도 `끝.`은 **606.4px**였습니다. 반면 보정216의 `stored_tac.rs`까지 이전 버전으로 바꾸자 **612.8px**로 회복됐습니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage230-{old-emit,old-both,old-tac}-render-tree/`입니다. 보정216은 `prepare_computed`가 표 뒤 저장 줄간격을 전량에서 절반으로 줄였고, #1658의 **960HU/2=6.4px** 차이와 정확히 일치합니다.
 - #1658 원본에서 표 pi4의 저장 시작 **29445HU**, 줄 높이 **14139HU**, 뒤 간격 **960HU**의 합은 다음 `끝.` pi5 시작 **44544HU**와 같습니다. 따라서 이 경계에서 간격 전량을 보존해야 합니다. #1749의 다음 pi51은 빈 문단이므로 같은 결론을 적용할 수 없습니다. 문서 ID가 아닌 **다음 가시 문단의 저장 줄 시작과 직전 줄 끝의 연속성**으로 두 경로를 구분한 뒤, 원본 둘의 전체 시각 출력과 기존 회귀를 검증합니다.
+
+## 보정231 — 다음 가시 줄의 저장 연속성으로 TAC 후행 간격 보존
+
+- `stored_tac::prepare_computed`는 다음 문단이 실제 글자를 갖고 저장 시작이 `현재 시작+줄 높이+후행 간격`과 정확히 이어질 때만 **간격 전량**을 표 뒤 흐름에 전달합니다. 그 외 합성 줄은 기존 공통 TAC의 **절반 간격**을 유지합니다. `try_place_stored_tac_paragraph`가 이미 가진 문단 목록에서 다음 문단을 전달하므로 측정·수용·실제 흐름 끝은 같은 `placement.end`를 소비합니다. #1658 가시 후속 문단은 적용, #1749 pi50 뒤 빈 pi51은 비적용입니다. 문서별 예외·픽셀 상수·검사 공차 변경은 없습니다.
+- 수정 전 전체 회귀에서 #1658 기존 함수는 `끝.` 기준선 **620.013px**로 FAIL했습니다. 수정 후 render tree의 `끝.` 줄 상단은 **606.4→612.8px**, 기준 PDF의 기준선 **626.400px**에 다시 맞고 기존 #1658 3함수 모두 PASS입니다. Native Visual Sweep은 원본/PDF **1/1쪽**, **99.46309%**, gate 통과이며 review에서 표 외곽·끝 문단·하단 틀을 직접 확인했습니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage231-issue1658-visual/`입니다.
+- #1749 HWPX의 Native 전체 **5/5쪽** 일치율은 **94.97706/98.86521/99.51565/91.11617/90.57406%**, 최저 **90.57406%**로 이전 결과를 유지합니다. 4·5쪽 review에서 분할 표, 뒤 문단과 쪽 소유를 확인했습니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage231-hwpx1749-visual/`입니다. 기존 #1749 3함수와 #3930 3함수도 PASS입니다.
+- `cargo fmt --all` 뒤 `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_1658_page_bottom_fixed_exclusion) | test(issue_1749_saved_bounds_page_break) | test(issue_3930_hwpx_hwp_save_layout)' --no-fail-fast`는 **9PASS/0FAIL**, 종료 코드 **0**입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage231-focused-nextest.log`입니다. 비교용 임시 작업트리는 제거했습니다. fresh WASM·전체 회귀·필수 Rust lint는 아직 이 코드 head에서 검증하지 않았습니다.

@@ -36,6 +36,7 @@ pub(in crate::renderer::typeset) struct StoredTacControlPlacement {
 pub(super) fn prepare_computed(
     para_idx: usize,
     para: &Paragraph,
+    next_para: Option<&Paragraph>,
     fmt: &FormattedParagraph,
     measured_tables: &[MeasuredTable],
     page: StoredTacPage,
@@ -126,10 +127,23 @@ pub(super) fn prepare_computed(
     } else {
         flow_origin
     };
-    // 개체 줄과 다음 줄이 공유하는 후행 줄간격은 반씩 소유한다.
-    // 저장 줄의 전체 높이와 표 실측 높이가 일치하는 이 경로에서도 일반 TAC
-    // 조판과 같은 끝점을 사용해야 다음 문단과 분할 예산이 중복 전진하지 않는다.
-    let end = origin + height + hwpunit_to_px(seg.line_spacing, dpi) / 2.0 + fmt.spacing_after;
+    // 다음 가시 문단의 저장 시작이 이 줄의 끝과 정확히 이어지면
+    // 후행 간격 전량이 그 문단 앞에 있다. 빈 문단 경계에서는 일반 TAC
+    // 조판처럼 양쪽이 간격을 나누어 갖는다.
+    let full_trailing_spacing = next_para.is_some_and(|next| {
+        super::super::para_has_non_whitespace_text(next)
+            && next.line_segs.first().is_some_and(|next_seg| {
+                seg.vertical_pos
+                    .saturating_add(seg.line_height)
+                    .saturating_add(seg.line_spacing)
+                    == next_seg.vertical_pos
+            })
+    });
+    let trailing_fraction = if full_trailing_spacing { 1.0 } else { 0.5 };
+    let end = origin
+        + height
+        + hwpunit_to_px(seg.line_spacing, dpi) * trailing_fraction
+        + fmt.spacing_after;
     if end > available_height() {
         return None;
     }
