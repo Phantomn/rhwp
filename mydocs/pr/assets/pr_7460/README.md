@@ -161,3 +161,65 @@ Viewer control은 3008×1890, 세 성공 화면은 3024×1898입니다.
 인앱 브라우저는 파일 열기를 완료하지 못했고 Firefox 공식 예제는 Edge·Chrome 지원 안내로
 차단됐습니다. 이 미실행 경로를 Chrome의 실제 성공과 구분했습니다.
 실행 완료된 Viewer·Chrome 시험의 화면만 공개 비교 증적에 사용했습니다.
+
+## 빈 문단 저장 축의 추가 메모리 계약
+
+검토한 `actual_char_count`는 헤더 문자 수뿐 아니라 `line_segs_within_text`의 범위 필터에도
+전달됩니다. 기존 #5563 계약은 축 끝과 같은 LineSeg를 보존하는 `>` 경계입니다.
+수정 후 source `7e47b085e5f744fa6bf632c84f68b47391342aed`의 새 빌드 library를 링크한
+아래 검사로 실제 PARA_HEADER와 PARA_LINE_SEG 레코드를 판독했습니다.
+파일 입력 없이 메모리에서 생성·소비한 합성 계약 검사이며 한컴 원본·PDF 기준은 아닙니다.
+수정 전 FAIL 실행을 하지 않았으므로 결함 검출 증거로 세지 않습니다.
+
+```text
+PASS input=[] nChars=1 lineSegs=[]
+PASS input=[0] nChars=1 lineSegs=[0]
+PASS input=[0, 1] nChars=1 lineSegs=[0, 1]
+PASS input=[0, 1, 2] nChars=1 lineSegs=[0, 1]
+```
+
+링크한 `target/pr-review/release-test/deps/librhwp.rlib`의 SHA-256:
+`11c5e59d9b5efd12562eb50f29b2893cadf65cb2029ff4f9ea69b2af0af9749d`.
+아래 코드를 임시 `check_empty_axis.rs`로 저장하고 다음 명령으로 실행했습니다.
+
+```sh
+rustc --edition=2021 check_empty_axis.rs --extern rhwp=target/pr-review/release-test/deps/librhwp.rlib -L dependency=target/pr-review/release-test/deps -o check-empty-axis
+./check-empty-axis
+```
+
+```rust
+use rhwp::model::document::Section;
+use rhwp::model::paragraph::{LineSeg, Paragraph};
+use rhwp::parser::record::Record;
+use rhwp::parser::tags;
+
+fn main() {
+    for starts in [vec![], vec![0], vec![0, 1], vec![0, 1, 2]] {
+        let section = Section {
+            paragraphs: vec![Paragraph {
+                line_segs: starts.iter().map(|&text_start| LineSeg {
+                    text_start, line_height: 1000, text_height: 1000,
+                    baseline_distance: 850, segment_width: 42520,
+                    ..Default::default()
+                }).collect(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let bytes = rhwp::serializer::body_text::serialize_section(&section);
+        let records = Record::read_all(&bytes).unwrap();
+        let header = records.iter().find(|r| r.tag_id == tags::HWPTAG_PARA_HEADER).unwrap();
+        let chars = u32::from_le_bytes(header.data[0..4].try_into().unwrap()) & 0x7fff_ffff;
+        let count = u16::from_le_bytes(header.data[16..18].try_into().unwrap()) as usize;
+        let emitted: Vec<u32> = records.iter().filter(|r| r.tag_id == tags::HWPTAG_PARA_LINE_SEG)
+            .flat_map(|r| r.data.chunks_exact(36).map(|b| u32::from_le_bytes(b[0..4].try_into().unwrap())))
+            .collect();
+        let expected: Vec<u32> = starts.iter().copied().take_while(|&p| p <= 1).collect();
+        assert_eq!(chars, 1);
+        assert_eq!(count, expected.len());
+        assert_eq!(emitted, expected);
+        assert!(!records.iter().any(|r| r.tag_id == tags::HWPTAG_PARA_TEXT));
+        println!("PASS input={starts:?} nChars={chars} lineSegs={emitted:?}");
+    }
+}
+```
