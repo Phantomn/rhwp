@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 16,
-  "remaining": 10,
+  "completed": 17,
+  "remaining": 9,
   "items": [
     {
       "index": 1,
@@ -114,8 +114,8 @@
       "index": 17,
       "test": "body_overflow_baseline::body_overflow_does_not_grow_partition_10",
       "case": "body_overflow_baseline",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: #6778 재출력 한컴2024 PDF 전12쪽 Native/freshWASM 최저17.50287%·인쇄 방식4 미구현 확인, #7445 개별 이관·본문 래칫에서 이 입력만 보류, 전체16분할14PASS/2기존FAIL",
+      "evidence": "stage175_animal6778_validation.json"
     },
     {
       "index": 18,

@@ -42,6 +42,13 @@ fresh WASM SVG는 `renderPageSvgWithProfile(page, 'print')`로 생성한다. 빈
 PNG는 인쇄 프로필 실행의 점수·증적과 섞지 않고 새 출력에서 전체 영향을 다시
 확인한다. 누름틀 안내문 표시 자체는 편집 화면 프로필의 별도 회귀 검사로 확인한다.
 
+원문에 특수 인쇄 방식이 저장돼 있으면 `rhwp info --json`의 `printMethod`와
+`printMethodImpliesNup`을 먼저 확인한다. 값 4·5의 모아 찍기는 현재 rhwp 출력에
+반영되지 않으므로, 같은 쪽수·96dpi라도 한컴 PDF의 내용 배율이나 용지 배치가 다를 수
+있다. 이런 차이를 DPI·글꼴 문제로 단정하거나 SVG를 사후 확대해 통과시키지 않는다.
+같은 원문을 지정한 한컴 엔진으로 다시 PDF 출력해 용지 크기·글자 크기·대표 PNG를
+대조하고, 여전히 다른 쪽은 시각 보류와 출력 구현 범위로 기록한다(#6778).
+
 ## PR review 실루엣 gate
 
 렌더링 변경의 새 회귀 테스트 추가에도 [회귀 추가 선행 조건](../pr_review/visual_fixture_evidence.md#렌더링-회귀-테스트-신규-추가의-시각-검증-선행-조건)을 적용한다. 관련 모든 페이지·fixture의

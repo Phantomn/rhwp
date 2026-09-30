@@ -9,7 +9,7 @@ last_verified: 2026-09-30
 
 ## 최종 판정
 
-**현재 진행**: 남은26개 원장은 보정174까지16건 처리/10건 대기이며, 이전 처리 항목인 #1749 HWP 재검토는 보정168에서 해결했습니다. 작은 문서는 현재 브랜치에서 보정하고, 대용량·복잡한 다쪽 문서의 실제 차단만 #7445로 이관합니다. 보정173 전체 nextest는42FAIL이며 보정174 뒤 전수 재실행 전이므로 PR 준비는 미완료입니다.
+**현재 진행**: 남은26개 원장은 보정175까지17건 처리/9건 대기이며, 이전 처리 항목인 #1749 HWP 재검토는 보정168에서 해결했습니다. 작은 문서는 현재 브랜치에서 보정하고, 전 문서 피델리티 복원이 필요한 실제 차단만 #7445로 이관합니다. 보정173 전체 nextest는42FAIL이며 보정174·175 뒤 전수 재실행 전이므로 PR 준비는 미완료입니다.
 
 **머지 보류.** 대상 PR은 사용자께서 확인하신 #7382이며, 현재 검토 브랜치는 `review/planet6897-7382-20260926`입니다. 통합 PR은 아직 생성하지 않았습니다. #6101·#7336의 생산 보정과 긍정 시각 증거는 [보정68](../assets/pr7382_20260926/stage68_validation.json)·[보정69](../assets/pr7382_20260926/stage69_validation.json)에 기록했습니다. 이는 현재 전체 회귀 통과나 원 PR의 최종 승인 근거를 대체하지 않습니다.
 
@@ -3002,3 +3002,16 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![#1133 HWP 2쪽 Native review](../assets/pr7382_20260926/stage174_hwp_native_review_002.png)
 ![#1133 HWPX 3쪽 Native review](../assets/pr7382_20260926/stage174_hwpx_native_review_003.png)
 ![#1133 HWPX 2쪽 fresh WASM overlay](../assets/pr7382_20260926/stage174_hwpx_wasm_overlay_002.png)
+
+
+## 보정175 — #6778 재출력 PDF와 본문 넘침 입력의 개별 이관
+
+- **사전 분석**: 원장17의 본문 넘침 분할10은 `issue6778/156757920-animal-welfare-husbandry-guidelines.hwp` 2쪽 문단35 글줄이 본문 하단을23.76px 넘는 신규1건으로 실패했습니다. 원문은 한컴오피스2024 저장본·12쪽이며 `printMethod=4`, `printMethodImpliesNup=true`입니다. rhwp는 이 특수 인쇄 방식을 출력에 반영하지 않습니다. 기존 한컴 PDF도12쪽이지만 Native/fresh WASM 전12쪽에서 최저1.62198%/1.58065%, 모든 쪽90% 미만이었습니다. 1·2쪽 PNG에서 본문 배율·문단 위치가 크게 달라 단순 폰트 예외로 처리하지 않았습니다.
+- **PDF 재출력**: 사용자 지시에 따라 같은 원문을 `hwp2024-mcp-convert` `engine=2024`로 다시 변환해 [재출력 PDF](../../../pdf/issue7382-regression-review/156757920-animal-welfare-husbandry-guidelines-2024.pdf)를 별도로 보존했습니다. 새 PDF SHA-256은 `d2373f7d40c0b54953b4a55e6cce6dc488171452744934c21b3584fc171f07c3`, A4·12쪽·877608바이트입니다. 기존 PDF와 새 PDF의 2쪽 텍스트 크기·좌표 및96dpi 래스터가 동일합니다. 재출력 후 전12쪽 Native 최저17.50287%, fresh WASM 최저17.50287%이며 모두90% 미만입니다. 1·2·4쪽 review와2쪽 overlay를 직접 확인했고, PDF와 rhwp의 본문·그림 크기·위치 차이는 남습니다. 재출력 자체를 피델리티 개선으로 보고하지 않습니다.
+- **검사 범위와 후속**: [#7445에 원문·재출력·전쪽 결과·복원 조건을 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5904847678)했습니다. 현재 브랜치에서는 이 원문 한 개만 본문 넘침 래칫 자동 수집에서 보류했습니다. 원문·기존 PDF·새 PDF와 다른 회귀/입력은 유지하며 새 검사·baseline·공차 완화·생산 코드 변경0입니다. 입력 제외로 분할 배정이 바뀌므로 본문 넘침16함수를 전부 재실행해 **14PASS/2FAIL**입니다. 남은 두 함수는 다른 원문의 기존 증가(#6776, #6756, k-water)이고 #6778 신규1건은 사라졌습니다. fmt, 세 Clippy, workspace build, 고정 base manifest/unit 정책 검사 통과입니다. 보정173 전체42FAIL 뒤 보정174·175를 포함한 최종 전체 nextest는 남았습니다.
+- [원문·두 PDF 해시·재출력 job·12쪽 점수·명령·다른 실패 범위](../assets/pr7382_20260926/stage175_animal6778_validation.json). 로그와 전체 PNG는 `output/pr-review/planet6897-7382-20260926/stage175-body10-animal/`에만 둡니다. [Visual Sweep 가이드](../../manual/verification/visual_sweep_guide.md#pdf와-같은-인쇄-프로필)에 특수 인쇄 방식 대조 절차를 보완했습니다. 원장 **17처리/9대기**, 통합 PR 준비는 미완료입니다.
+
+![#6778 재출력 PDF 1쪽 Native review](../assets/pr7382_20260926/stage175_animal_native_review_001.png)
+![#6778 재출력 PDF 2쪽 Native review](../assets/pr7382_20260926/stage175_animal_native_review_002.png)
+![#6778 재출력 PDF 4쪽 Native review](../assets/pr7382_20260926/stage175_animal_native_review_004.png)
+![#6778 재출력 PDF 2쪽 fresh WASM overlay](../assets/pr7382_20260926/stage175_animal_wasm_overlay_002.png)
