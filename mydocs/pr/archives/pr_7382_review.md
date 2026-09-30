@@ -3470,3 +3470,11 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 원본 HWP와 이미 추적 중인 기준 PDF는 그대로 보존했습니다. 같은 파일의 다른 검사나 다른 문서의 회귀는 변경하지 않았습니다. `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_6632_cell_tac_shape_line_height)' --no-fail-fast`는 남은 `exam_kor.hwp` 그림 관계 대조군 **1/1 PASS**, exit 0입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage247-focused-nextest.log`에 있습니다. 다른 13개 차단은 그대로 남아 다음 단계에서 따로 판정합니다.
 
 ![178쪽 원본 중 106쪽 Native와 한컴 PDF 비교](../assets/pr7382_20260926/stage247_hwpspec_native_review_106.png)
+
+## 보정248 — 45쪽 #6795 문서의 절대 하단 검사 이관
+
+- 검토 head `c017a108f`에서 `samples/issue6795/1341000-201100013-cyber-university-application.hwp`의 분할 조각·형제 표·후속 표가 있는 **31~33쪽**을 독립 한컴 2020 PDF와 Native Visual Sweep으로 비교했습니다. 점수는 **66.99083/76.57976/98.23984%**, gate `re_review_required`입니다. 31쪽 review에서 표 내부 행 높이·글줄이 기준 출력과 크게 다릅니다. 이는 45쪽 전체 일치율을 측정한 결과가 아닙니다. 증적은 아래 PNG와 `output/pr-review/planet6897-7382-20260926/stage248-cyber6795/`입니다.
+- 차단 검사 `split_fragment_page_holds_only_the_fragment`는 분할 조각이 혼자 있다는 계약에 과거 하단 **560.1px ±8px**를 결합했습니다. 현재 같은 쪽에는 해당 조각만 있고 형제 표는 다음 쪽에 있지만 하단은 **778.2px**입니다. 31쪽이 90% 미만인 상태에서 어느 좌표도 새 정답으로 고정하지 않고, 이 실패 함수 **한 건만** 제거했습니다. [#7445 추가 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5920926127)에 원본·PDF 해시, 45쪽, 관련 쪽 점수와 후속 피델리티 검증 조건을 기록했습니다.
+- 원본 HWP·기준 PDF 및 #6795의 다른 네 검사는 유지했습니다. `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_6795_split_float_sibling_gets_its_own_page)' --no-fail-fast`는 형제의 자기 쪽 소유·본문 포함, 다음 표 순서, 겹침 금지, #2813 대조군 **4/4 PASS**, exit 0입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage248-focused-nextest.log`입니다. 다른 차단은 다음 단계에서 개별 판정합니다.
+
+![45쪽 원본 중 분할 조각 31쪽 Native와 한컴 PDF 비교](../assets/pr7382_20260926/stage248_cyber6795_native_review_031.png)
