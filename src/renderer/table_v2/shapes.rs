@@ -24,10 +24,12 @@ fn unsupported() -> GeometryError {
 pub(super) fn mixed_inline_candidate(para: &Paragraph) -> bool {
     para.text.chars().any(|c| !c.is_whitespace())
         && para.controls.iter().any(|c| matches!(c, Control::Shape(_)))
-        && para
-            .controls
-            .iter()
-            .all(|c| matches!(c, Control::Shape(_) | Control::ColumnDef(_)))
+        && para.controls.iter().all(|c| {
+            matches!(
+                c,
+                Control::Shape(_) | Control::ColumnDef(_) | Control::SectionDef(_)
+            )
+        })
 }
 
 pub(super) fn validate_inline(para: &Paragraph) -> Result<(), GeometryError> {

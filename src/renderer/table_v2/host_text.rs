@@ -36,6 +36,7 @@ pub struct HostedParagraphFragment {
     bounds: Rect,
     next_y: f64,
     first: bool,
+    last: bool,
     nodes: Vec<RenderNode>,
     exclusion: Option<Rect>,
 }
@@ -93,6 +94,7 @@ impl HostedParagraphFragment {
             bounds,
             next_y,
             first,
+            last: true,
             nodes,
             exclusion,
         }
@@ -105,6 +107,9 @@ impl HostedParagraphFragment {
     }
     pub(crate) fn is_first(&self) -> bool {
         self.first
+    }
+    pub(crate) fn is_last(&self) -> bool {
+        self.last
     }
     pub(crate) fn has_body_line(&self) -> bool {
         self.nodes
@@ -394,12 +399,21 @@ impl HostedParagraphPlan {
         // Admission has selected uniform normal columns in source-flow order.
         // A qualified zero reset consumes the next host frame: next column,
         // then next page, never an independently inferred absolute page number.
-        let starts = super::body_text::frame_starts(para)?;
+        let mixed_shapes = shape_resources.is_some() && super::shapes::mixed_inline_candidate(para);
+        let starts = if mixed_shapes {
+            super::body_text::inline_shape_frame_starts(para)?
+        } else {
+            super::body_text::frame_starts(para)?
+        };
         let continuous;
         let para = if starts.is_empty() {
             para
         } else {
-            continuous = super::stored_text::continuous_paragraph(para, &starts)?;
+            continuous = if mixed_shapes {
+                super::stored_text::continuous_inline_shapes(para, &starts)?
+            } else {
+                super::stored_text::continuous_paragraph(para, &starts)?
+            };
             &continuous
         };
         let composer = TextComposer {
@@ -409,14 +423,14 @@ impl HostedParagraphPlan {
         };
         let items = if let Some(resources) = shape_resources {
             if super::shapes::mixed_inline_candidate(para) {
-                composer.compose_stored_inline_shapes(para, width, resources)?
+                composer.compose_host_inline_shapes(para, width, resources)?
             } else {
                 let (items, nodes) = super::pictures::compose(para, width, styles, dpi, resources)?;
                 composer.payloads.borrow_mut().push(nodes);
                 items
             }
         } else {
-            composer.compose(para, width)?
+            composer.compose_host(para, width)?
         };
         let paragraph_end = items.iter().find_map(|item| match item {
             ParagraphItem::End(end) => Some(end.clone()),
@@ -587,6 +601,7 @@ impl HostedParagraphPlan {
             // A split anchored table remains block0 on later pages. First
             // ownership is determined by committed packets, not block index.
             first: !self.emitted,
+            last: fit.next.block == self.flow.blocks.len(),
             nodes,
         };
         self.cursor = fit.next;

@@ -111,6 +111,7 @@ impl HostedSectionSession {
         let mut stories = BTreeMap::new();
         let styles = super::source_units::resolve(source, dpi)?;
         for (pi, para) in sec.paragraphs.iter().enumerate() {
+            super::char_border::validate_source(para, &source.doc_info)?;
             let style = styles
                 .para_styles
                 .get(para.para_shape_id as usize)
@@ -371,7 +372,23 @@ impl HostedSectionSession {
             });
             local.column_type = ColumnBreakType::None;
             if shape_paragraphs.contains(&pi) {
-                super::decoration::validate_paragraph_source(para.para_shape_id, &source.doc_info)?;
+                // A mixed TAC story's control slots and char_offsets are one
+                // source axis. Removing secd/cold but retaining their raw gaps
+                // assigns the shape to the first structural slot. The host has
+                // already consumed these declarations; keep them for the shared
+                // text/object walk, just as for inline tables below.
+                if super::shapes::mixed_inline_candidate(para) {
+                    local = para.clone();
+                    local.column_type = ColumnBreakType::None;
+                }
+                if super::shapes::mixed_inline_candidate(&local) {
+                    super::host_border::validate_source(para.para_shape_id, &source.doc_info)?;
+                } else {
+                    super::decoration::validate_paragraph_source(
+                        para.para_shape_id,
+                        &source.doc_info,
+                    )?;
+                }
                 text.push(HostedParagraphPlan::prepare_shapes(
                     &local,
                     width,
@@ -414,6 +431,7 @@ impl HostedSectionSession {
                     continue;
                 }
             }
+            super::host_border::validate_source(para.para_shape_id, &source.doc_info)?;
             text.push(HostedParagraphPlan::prepare(
                 &local,
                 width,

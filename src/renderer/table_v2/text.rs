@@ -488,7 +488,15 @@ impl TextComposer<'_> {
         squeeze: bool,
         body_end: Option<&super::fields::BodyFieldEnd>,
     ) -> Result<Vec<ParagraphItem>, GeometryError> {
-        self.compose_shared(para, width, squeeze, body_end, InlineContent::Plain)
+        self.compose_shared(para, width, squeeze, body_end, InlineContent::Plain, false)
+    }
+
+    pub(super) fn compose_host(
+        &self,
+        para: &Paragraph,
+        width: f64,
+    ) -> Result<Vec<ParagraphItem>, GeometryError> {
+        self.compose_shared(para, width, false, None, InlineContent::Plain, true)
     }
 
     pub(super) fn compose_stored_inline_shapes(
@@ -498,7 +506,33 @@ impl TextComposer<'_> {
         resources: &[crate::model::bin_data::BinDataContent],
     ) -> Result<Vec<ParagraphItem>, GeometryError> {
         super::shapes::validate_inline(para)?;
-        self.compose_shared(para, width, false, None, InlineContent::Shapes(resources))
+        self.compose_shared(
+            para,
+            width,
+            false,
+            None,
+            InlineContent::Shapes(resources),
+            false,
+        )
+    }
+
+    /// Host fragments own paragraph outlines. Cell-local mixed shapes still
+    /// use the unpainted-border contract above; no source style is erased.
+    pub(super) fn compose_host_inline_shapes(
+        &self,
+        para: &Paragraph,
+        width: f64,
+        resources: &[crate::model::bin_data::BinDataContent],
+    ) -> Result<Vec<ParagraphItem>, GeometryError> {
+        super::shapes::validate_inline(para)?;
+        self.compose_shared(
+            para,
+            width,
+            false,
+            None,
+            InlineContent::Shapes(resources),
+            true,
+        )
     }
 
     pub(super) fn compose_page_field(
@@ -510,9 +544,17 @@ impl TextComposer<'_> {
         if !super::cell_page_field::qualify_textbox(para)? {
             return Err(GeometryError::InconsistentAtomicPlan);
         }
-        self.compose_shared(para, width, false, None, InlineContent::PageField(number))
+        self.compose_shared(
+            para,
+            width,
+            false,
+            None,
+            InlineContent::PageField(number),
+            false,
+        )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn compose_shared(
         &self,
         para: &Paragraph,
@@ -520,8 +562,23 @@ impl TextComposer<'_> {
         squeeze: bool,
         body_end: Option<&super::fields::BodyFieldEnd>,
         inline_content: InlineContent<'_>,
+        host_border: bool,
     ) -> Result<Vec<ParagraphItem>, GeometryError> {
         super::stored_text::validate_tabs(para, self.dpi)?;
+        super::char_border::qualify(para, self.styles)?;
+        // HWP range kind 1 maps to HWPX t/@charStyleIDRef: an editor's
+        // named character-style association. Effective paint/metrics already
+        // come from the run's charPrIDRef (IR char_shapes). Preserve the ranges
+        // on the paragraph; do not apply the named style a second time.
+        // Other kinds can carry paint (e.g. kind 2 markpen) and remain outside
+        // this plain-text contract. See issue_7353_character_style_ranges.
+        if para.range_tags.iter().any(|range| {
+            range.tag >> 24 != 1 || range.start > range.end || range.end > para.char_count
+        }) {
+            return Err(GeometryError::Unsupported(
+                "text preview unsupported or invalid range annotation",
+            ));
+        }
         let stored_fields = super::fields::stored_result(para)?;
         if para.column_type != crate::model::paragraph::ColumnBreakType::None
             || (!para.controls.is_empty()
@@ -531,7 +588,6 @@ impl TextComposer<'_> {
             || para.layout_only_fill_lines != 0
             || (!para.field_ranges.is_empty() && !stored_fields)
             || (!para.orphan_field_ends.is_empty() && body_end.is_none())
-            || !para.range_tags.is_empty()
             || !para.title_marks.is_empty()
             || !para.markpen_marks.is_empty()
             || para
@@ -548,7 +604,13 @@ impl TextComposer<'_> {
             .para_styles
             .get(para.para_shape_id as usize)
             .ok_or(GeometryError::Unsupported("missing paragraph style"))?;
-        if !super::decoration::paragraph_is_unpainted(style.border_fill_id, self.styles)
+        let border_supported = if host_border {
+            super::host_border::qualify(style, self.styles)?;
+            true
+        } else {
+            super::decoration::paragraph_is_unpainted(style.border_fill_id, self.styles)
+        };
+        if !border_supported
             || style.head_type != HeadType::None
             || style.keep_with_next
             || style.widow_orphan
@@ -666,6 +728,9 @@ impl TextComposer<'_> {
             squeeze,
         );
         super::contracts::nonnegative(end, "composed paragraph end")?;
+        for line in &mut column.children {
+            super::char_border::connect_outlines(line, self.styles)?;
+        }
         if let Some(centers) = centers {
             super::stored_text::align_center_runs(&centers, &mut column.children, style, self.dpi)?;
         }
@@ -693,12 +758,7 @@ impl TextComposer<'_> {
             .chain(std::iter::once(end - style.spacing_after))
             .collect();
         for (i, node) in column.children.iter_mut().enumerate() {
-            if !matches!(node.node_type, RenderNodeType::TextLine(_))
-                || node
-                    .children
-                    .iter()
-                    .any(|n| !matches!(n.node_type, RenderNodeType::TextRun(_)))
-            {
+            if !matches!(node.node_type, RenderNodeType::TextLine(_)) {
                 return Err(GeometryError::Unsupported(
                     "text preview non-text paint payload",
                 ));
@@ -710,7 +770,15 @@ impl TextComposer<'_> {
                 ));
             }
             let painted_ends = painted_inline_ends(&node.children, self.styles);
+            for child in &node.children {
+                if !matches!(child.node_type, RenderNodeType::TextRun(_)) {
+                    super::char_border::validate_child(child, node)?;
+                }
+            }
             for (run, painted_end) in node.children.iter_mut().zip(painted_ends) {
+                if !matches!(run.node_type, RenderNodeType::TextRun(_)) {
+                    continue;
+                }
                 let r = &run.bbox;
                 if [r.x, r.y, r.width, r.height].iter().any(|v| !v.is_finite())
                     || r.width < 0.0

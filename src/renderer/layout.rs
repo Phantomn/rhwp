@@ -7067,7 +7067,20 @@ impl LayoutEngine {
             .collect();
         let mut deferred_paragraph_spacing = std::collections::HashMap::new();
         for (item_ordinal, item) in col_content.items.iter().enumerate() {
-            if let PageItem::HostedParagraph { fragment, .. } = item {
+            if let PageItem::HostedParagraph {
+                fragment,
+                para_index,
+            } = item
+            {
+                super::table_v2::host_border::append(
+                    fragment,
+                    *para_index,
+                    paragraphs,
+                    styles,
+                    self.dpi,
+                    tree,
+                    &mut col_node,
+                );
                 col_node.children.extend(fragment.render_nodes(tree));
                 y_offset = fragment.next_y();
                 hcursor.min_flow_floor = y_offset;

@@ -206,6 +206,26 @@ fn mixed_inline_textbox_rejects_objects_outside_the_saved_row() {
 }
 
 #[test]
+fn cell_mixed_inline_shape_does_not_inherit_host_paragraph_border_admission() {
+    let d = source();
+    let Control::Table(original) = &d.sections[0].paragraphs[167].controls[0] else {
+        panic!()
+    };
+    let mut table = original.as_ref().clone();
+    // Same border style accepted for host p145: the cell path has no host
+    // fragment outline owner, so it must not silently accept this decoration.
+    table.cells[5].paragraphs[0].para_shape_id = d.sections[0].paragraphs[145].para_shape_id;
+    assert!(PreparedTextTable::prepare_with_end_policy(
+        &table,
+        &resolve_styles(&d.doc_info, 96.),
+        96.,
+        &d.bin_data_content,
+        CellEndPolicy::OmitFinalParagraphGap,
+    )
+    .is_err());
+}
+
+#[test]
 fn foreground_para_anchor_precedes_empty_line_spacing_without_removing_it() {
     let d = source();
     for dpi in [96., 192.] {

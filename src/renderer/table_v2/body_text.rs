@@ -9,6 +9,17 @@ use super::{FlowBlock, GeometryError};
 /// A decreasing origin returning to zero starts its next body frame;
 /// overlapping line bottoms alone do not. Nonzero resets remain unsupported.
 pub(super) fn frame_starts(para: &Paragraph) -> Result<Vec<usize>, GeometryError> {
+    frame_starts_inner(para, false)
+}
+
+/// Only the host mixed-shape composer has line-owned object payloads. A TAC
+/// object follows its stored line across a frame cut, never the whole paragraph.
+pub(super) fn inline_shape_frame_starts(para: &Paragraph) -> Result<Vec<usize>, GeometryError> {
+    super::shapes::validate_inline(para)?;
+    frame_starts_inner(para, true)
+}
+
+fn frame_starts_inner(para: &Paragraph, inline_shapes: bool) -> Result<Vec<usize>, GeometryError> {
     let mut starts = Vec::new();
     for (i, pair) in para.line_segs.windows(2).enumerate() {
         if pair[1].vertical_pos < pair[0].vertical_pos {
@@ -18,8 +29,10 @@ pub(super) fn frame_starts(para: &Paragraph) -> Result<Vec<usize>, GeometryError
                 || para.layout_only_fill_lines != 0
                 // Document admission already validated these non-occupying
                 // declarations (including the section slots inserted on save).
-                || para.controls.iter().any(|c| !matches!(c,
-                    Control::SectionDef(_) | Control::ColumnDef(_) | Control::PageNumberPos(_)))
+                || para.controls.iter().any(|c| {
+                    !matches!(c, Control::SectionDef(_) | Control::ColumnDef(_) | Control::PageNumberPos(_))
+                        && !(inline_shapes && matches!(c, Control::Shape(_)))
+                })
                 || !para.field_ranges.is_empty()
                 || !para.orphan_field_ends.is_empty()
             {

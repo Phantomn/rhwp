@@ -3,6 +3,7 @@
 use crate::{
     model::paragraph::{LineSeg, Paragraph},
     renderer::{
+        composer::stored_line_box_height,
         hwpunit_to_px,
         render_tree::{RenderNode, RenderNodeType},
     },
@@ -340,13 +341,28 @@ pub(super) fn continuous_paragraph(
             "stored cell continuation controls",
         ));
     }
+    lift_frame_origins(para, starts)
+}
+
+/// Host-only counterpart: qualify source object ownership before lifting its
+/// rows. All shape payload coordinates are produced from these lifted rows and
+/// translated with the accepted line at fit; the source control axis is intact.
+pub(super) fn continuous_inline_shapes(
+    para: &Paragraph,
+    starts: &[usize],
+) -> Result<Paragraph, GeometryError> {
+    super::shapes::validate_inline(para)?;
+    lift_frame_origins(para, starts)
+}
+
+fn lift_frame_origins(para: &Paragraph, starts: &[usize]) -> Result<Paragraph, GeometryError> {
     let mut local = para.clone();
     let mut offset = 0_i64;
     for (i, row) in para.line_segs.iter().enumerate() {
         if starts.contains(&i) {
             let previous = &local.line_segs[i - 1];
             offset = i64::from(previous.vertical_pos)
-                + i64::from(previous.line_height)
+                + i64::from(stored_line_box_height(previous))
                 + i64::from(previous.line_spacing);
             // These flags describe the source frame already owned by starts.
             local.line_segs[i].tag &=
@@ -429,10 +445,10 @@ pub(super) fn localize(
                 && row.tag & (LineSeg::TAG_FIRST_LINE_OF_PAGE | LineSeg::TAG_FIRST_LINE_OF_COLUMN)
                     != 0)
             || row.line_height <= 0
-            || row.text_height != row.line_height
+            || row.text_height <= 0
             || row.baseline_distance < 0
-            || row.baseline_distance > row.line_height
-            || i64::from(row.line_height) + i64::from(row.line_spacing) < 0
+            || row.baseline_distance > stored_line_box_height(row)
+            || i64::from(stored_line_box_height(row)) + i64::from(row.line_spacing) < 0
             || row.column_start < 0
             || row.segment_width <= 0
             || (left < content.start && !same(left, content.start))
@@ -445,7 +461,7 @@ pub(super) fn localize(
             let previous = &para.line_segs[i - 1];
             if i64::from(row.vertical_pos)
                 < i64::from(previous.vertical_pos)
-                    + i64::from(previous.line_height)
+                    + i64::from(stored_line_box_height(previous))
                     + i64::from(previous.line_spacing.min(0))
                 || para.line_seg_text_start(i) <= para.line_seg_text_start(i - 1)
                 || (!super::fields::is_row_start(para, para.line_seg_text_start(i))?
@@ -501,7 +517,9 @@ pub(super) fn validate_paint(
     dpi: f64,
 ) -> Result<(), GeometryError> {
     if nodes.len() != para.line_segs.len() || boxes.len() != nodes.len() {
-        return Err(unsupported());
+        return Err(GeometryError::Unsupported(
+            "stored text paint node count differs from saved rows",
+        ));
     }
     let mut painted = String::new();
     let chars: Vec<_> = para.text.chars().collect();
@@ -512,7 +530,10 @@ pub(super) fn validate_paint(
         if !same(node.bbox.x, boxes[i].start)
             || !same(node.bbox.width, boxes[i].end - boxes[i].start)
             || !same(node.bbox.y, before + hwpunit_to_px(row.vertical_pos, dpi))
-            || !same(node.bbox.height, hwpunit_to_px(row.line_height, dpi))
+            || !same(
+                node.bbox.height,
+                hwpunit_to_px(stored_line_box_height(row), dpi),
+            )
             || !same(line.baseline, hwpunit_to_px(row.baseline_distance, dpi))
         {
             return Err(GeometryError::Unsupported(
@@ -522,7 +543,8 @@ pub(super) fn validate_paint(
         let mut row_text = String::new();
         for run in &node.children {
             let RenderNodeType::TextRun(run) = &run.node_type else {
-                return Err(unsupported());
+                super::char_border::validate_child(run, node)?;
+                continue;
             };
             row_text.push_str(&run.text);
         }
@@ -537,7 +559,7 @@ pub(super) fn validate_paint(
         };
         let hard_break = chars[start..stop].last() == Some(&'\n');
         let visible_stop = stop - usize::from(hard_break);
-        let painted_break = node.children.last().is_some_and(
+        let painted_break = node.children.iter().rev().find(|n| matches!(n.node_type, RenderNodeType::TextRun(_))).is_some_and(
             |node| matches!(&node.node_type, RenderNodeType::TextRun(run) if run.is_line_break_end),
         );
         if row_text != chars[start..visible_stop].iter().collect::<String>()
@@ -555,7 +577,7 @@ pub(super) fn validate_paint(
     let last = para.line_segs.last().ok_or_else(unsupported)?;
     let expected_end = before
         + hwpunit_to_px(last.vertical_pos, dpi)
-        + hwpunit_to_px(last.line_height, dpi)
+        + hwpunit_to_px(stored_line_box_height(last), dpi)
         + hwpunit_to_px(last.line_spacing, dpi)
         + after;
     if painted != para.text || !same(end, expected_end) {

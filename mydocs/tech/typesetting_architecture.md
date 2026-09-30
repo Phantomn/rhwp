@@ -2,7 +2,7 @@
 kind: canonical
 status: active
 canonical: mydocs/tech/typesetting_architecture.md
-last_verified: 2026-09-23
+last_verified: 2026-09-30
 ---
 
 # 조판 코드의 책임 경계와 변경 지도
@@ -127,6 +127,31 @@ SOLID는 책임별 변경 위치·좁은 입력·가시성 경계에, CQRS는 �
 이 목록 역시 모든 legacy 예외의 전수 감사 결과는 아니다.
 
 ## 기여자가 변경할 때
+
+<a id="table-v2-handoff"></a>
+
+### #7353 실험 V2 경로의 인계 지도 (2026-09-30)
+
+위 #7280 지도는 Legacy 책임 경계다. `src/renderer/table_v2/`는 이를 기본값으로 교체하지 않는
+명시적 선택 경로다. 현재 브랜치의 기반을 전용 리팩토링 통합 브랜치에 인계하며, 지원 범위·
+검증 상태·후속 작업의 정본은 [#7353 구현계획 5.2](../plans/task_m100_7353_impl.md#7353-closeout-090)다.
+이 지도 추가는 Legacy 규칙이나 모든 문서에 대한 V2 지원 승인으로 해석하지 않는다.
+
+- **내용 생산**: `table_v2/{ir,source_units,text_ir,stored_text,tac*}`가 공통 Document IR을 줄과
+  소유 유닛으로 준비한다. 포맷별 파싱을 이 계층에 추가하지 않는다.
+- **측정·분할 조회**: `content`, `grid`, `flow`, `fragment`가 여백·물리 밴드·재귀 컷을
+  계산한다. paint 쪽에 별도 높이 계산이나 클리핑 보정을 넣어 조회 결과를 대체하지 않는다.
+- **확정·배치**: `host::HostedTableSession::query/commit`의 proposal과 packet을
+  `typeset/hosted.rs`가 예약·PageItem으로 확정하고 `layout.rs`가 그 packet을 배치한다.
+  이전 proposal의 revision·frame을 우회하거나 Legacy PartialTable 컷으로 재변환하지 않는다.
+- **진입점 구분**: `TablePreviewExportSession`은 선택 표, `DocumentV2Session`은 독립 본문,
+  `HostedSectionSession`은 기존 쪽/단 호스트 연결이다. WASM의 `TableV2Preview`, `DocumentV2`,
+  `HostedSectionV2`가 각각 대응한다. 기존 `HwpDocument`/Studio의 자동 엔진 전환은 아니다.
+- **변경과 검증**: `tests/cases/issue_7353_*.rs`에서 해당 소비 경로의 계약을 찾는다.
+  qualifier를 완화할 때 원본 IR 속성을 지워 통과시키지 않으며, 지원 밖 입력의 명시적 오류와
+  새 세션을 통한 Legacy 재실행을 보존한다. 원본 전체 검증과 분리 대조군의 검증은 구별한다.
+
+### 공통 변경 절차
 
 기존 PR 설명과 코드 문서에 다음 연결을 남긴다. 별도 양식이나 새 CI 서비스를 요구하지 않는다.
 

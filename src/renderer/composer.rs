@@ -913,7 +913,7 @@ fn inject_footnote_markers(lines: &mut [ComposedLine], positions: &[(usize, u16)
 
 // 저장 줄의 실제 점유 높이. 줄 구성과 저장 줄 소속 재사용 판정이 같은
 // 메트릭을 비교해야 글자 테두리로 높아진 정상 줄을 재조판 줄로 오인하지 않는다.
-fn stored_line_box_height(seg: &LineSeg) -> i32 {
+pub(crate) fn stored_line_box_height(seg: &LineSeg) -> i32 {
     seg.line_height.max(seg.text_height)
 }
 

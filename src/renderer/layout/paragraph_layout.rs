@@ -8186,7 +8186,11 @@ impl LayoutEngine {
                             &composed.tab_extended,
                         );
                     }
-                    let seg_w = estimate_text_width(&remaining, &seg_style);
+                    // Keep the tail on the same fractional advance contract as
+                    // estimate_line_run_widths and segments before TAC objects.
+                    // Integer rounding here changes both bbox and the next run
+                    // origin, although backend glyph replay is unrounded.
+                    let seg_w = estimate_text_width_exact(&remaining, &seg_style);
                     let trailing_space_count =
                         line_trailing_space_by_run[run_idx].min(remaining.chars().count());
                     let (seg_w, seg_layout_positions) = emitted_run_layout_positions(

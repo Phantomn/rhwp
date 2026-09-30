@@ -181,6 +181,7 @@ pub(super) fn validate_source(table: &Table, info: &DocInfo) -> Result<(), Geome
         }
         for paragraph in table.cells.iter().flat_map(|c| &c.paragraphs) {
             validate_paragraph_source(paragraph.para_shape_id, info)?;
+            super::char_border::validate_source(paragraph, info)?;
         }
         for child in table
             .cells
