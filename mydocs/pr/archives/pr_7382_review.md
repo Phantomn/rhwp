@@ -3192,3 +3192,9 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - 한컴 2020 기준 PDF 첫 쪽에는 `HCRDotum`, `MalgunGothic`, `MalgunGothicBold`가 내장돼 있습니다. Mac에는 `HCR Dotum`·맑은 고딕 실폰트가 있으며, 별도 보존된 `HCRDotum.ttf`와 Library/Fonts를 `--embed-fonts=full --font-path`로 명시해 Native 첫 쪽을 다시 캡처했습니다. 선택된 글꼴 파일·SHA는 `stage202-issue4068-font-visual/hwpx-sample2-fontcheck-p1/run_manifest.json`에 있습니다.
 - 명시적 전체 임베딩 뒤 점수는 **83.17919%로 정확히 동일**합니다. 따라서 이 사례의 90% 미달을 단순 글꼴 공급 문제나 글꼴 예외로 분류하지 않습니다. 표·문단의 남은 위치 차이와 본문 내용 실루엣을 계속 확인해야 합니다. 이번 단계는 글꼴 설치나 코드 변경 없이 증거만 남겼습니다.
+
+## 보정203 — #5820의 절대 좌표 검사 교체
+
+- 실패한 기존 검사는 `156560092_ecard_meeting_press.hwpx` 둘째 쪽 로고 글상자 y를 **385~392px**에 고정했습니다. 현재 값은 **359.0px**이고, 그 검사 주석 자체에 적힌 한컴 2022 PDF의 글상자 위치는 **358.3px**였습니다. 현재 출력이 독립 기준에 가까운 상황에서 저장 사다리 추정값을 정답으로 둔 것이 실패 원인입니다.
+- 동일 원본과 `pdf/pr_6088_6144/hancom2020/pr_6088_6144_issue5820_ecard_meeting_press_156560092_ecard_meeting_press-2020.pdf`를 Native 전쪽 비교했습니다. HWPX와 PDF는 모두 **2쪽**, 1쪽 **96.59961%**, 2쪽 **98.17717%**이며 둘째 쪽 review에서 본문·로고·바닥글의 순서와 위치를 확인했습니다. 산출물은 `output/pr-review/planet6897-7382-20260926/stage203-issue5820-visual/`입니다.
+- 기존 검사만 수정해 둘째 쪽의 이어지는 마지막 문장, 로고 글상자와 내부 내용, 바닥글의 **소속·순서·포함 관계**를 확인합니다. 절대 픽셀 범위와 SVG 문자열 파서는 제거했습니다. `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_5820_partial_page_start_keeps_body_and_logo_frame_order)'`는 **1PASS**입니다. fresh WASM 및 최종 전체 검증은 아직 수행하지 않았습니다.
