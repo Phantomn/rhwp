@@ -3,6 +3,7 @@
 use super::super::helpers::get_textbox_from_shape;
 use super::super::queries::field_query::rebuild_char_offsets;
 use super::super::queries::rendering::FocusedPageTreePatch;
+use super::formatting::restore_para_meta;
 use crate::document_core::{
     ActiveFieldInfo, DeferredPaginationDescriptor, DeferredPaginationTargetStatus, DocumentCore,
 };
@@ -3565,7 +3566,7 @@ impl DocumentCore {
                 &self.document.sections[section_idx].paragraphs[para_idx],
             );
             if let Some(meta) = restore_meta {
-                new_para.apply_meta(meta);
+                restore_para_meta(&mut new_para, meta, &self.document.doc_info.para_shapes);
             }
             self.document.sections[section_idx]
                 .paragraphs
@@ -3671,7 +3672,7 @@ impl DocumentCore {
             // 기본 상속은 유지하되, merge undo가 준 원래 문단 메타는 모든 생성 분기에서
             // 동일하게 적용해야 한다 (Task #2342 review).
             if let Some(meta) = restore_meta {
-                new_para.apply_meta(meta);
+                restore_para_meta(&mut new_para, meta, &self.document.doc_info.para_shapes);
             }
             self.document.sections[section_idx]
                 .paragraphs
@@ -3711,7 +3712,7 @@ impl DocumentCore {
         let mut new_para =
             self.document.sections[section_idx].paragraphs[para_idx].split_at(char_offset);
         if let Some(meta) = restore_meta {
-            new_para.apply_meta(meta);
+            restore_para_meta(&mut new_para, meta, &self.document.doc_info.para_shapes);
         }
 
         // 새 문단을 현재 문단 뒤에 삽입
@@ -4541,7 +4542,7 @@ impl DocumentCore {
         let original_vpos = cell_para.line_segs.first().map(|seg| seg.vertical_pos);
         let mut new_para = cell_para.split_at(char_offset);
         if let Some(meta) = restore_meta {
-            new_para.apply_meta(meta);
+            restore_para_meta(&mut new_para, meta, &self.document.doc_info.para_shapes);
         }
 
         // 새 문단을 셀/글상자에 삽입
@@ -6051,7 +6052,7 @@ impl DocumentCore {
                     .map(|seg| seg.vertical_pos);
                 let mut new_para = cell.paragraphs[cell_para_idx].split_at(char_offset);
                 if let Some(meta) = restore_meta {
-                    new_para.apply_meta(meta);
+                    restore_para_meta(&mut new_para, meta, &self.document.doc_info.para_shapes);
                 }
                 cell.paragraphs.insert(cell_para_idx + 1, new_para);
                 break;
