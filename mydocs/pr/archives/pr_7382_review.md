@@ -3462,3 +3462,11 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 보정245 head `90006da06`에서 `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 --no-fail-fast`를 완료했습니다. **10,221개 중 10,207 PASS, 14 FAIL, 50 skipped**, exit **100**입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage246-full-nextest.log`에만 남겼습니다.
 - 보정244의 25개 실패 중 쪽수 증가와 함께 발생한 #4068 두 건, #5524, #6653, #5862 세 건, #5863, 호환 쪽수 및 oracle 쪽수 세 건이 해소됐습니다. #6648 한 건은 보정244에서 통과했으나 이번 전체 실행에서 다시 실패해 별도 원인 확인이 필요합니다. 남은 14건을 하나의 원인으로 묶거나 전체 통과로 보고하지 않습니다.
 - 첫 후속 대상은 `samples/hwpspec.hwp`의 #6632 실패 한 건입니다. 이 문서의 독립 PDF는 178쪽이고 106쪽 Native Visual Sweep은 **70.54325%**입니다. 현재 검사는 해당 쪽 글리프의 x·y를 0.7px로 고정하므로 이 근거에서 회귀 계약으로 유지할 수 있는지 개별 판정합니다. 같은 파일의 다른 통과 검사나 원본 문서는 변경 대상으로 삼지 않습니다.
+
+## 보정247 — 178쪽 문서의 잘못 고정된 한 검사 이관
+
+- 검토 head `0f1e646e1`을 Native로 다시 빌드해 `samples/hwpspec.hwp`와 독립 `pdf/hwpspec-2024.pdf`의 **106쪽**을 같은 96dpi에서 직접 대조했습니다. 2px 이웃 관용 내용 실루엣 일치율은 **70.54325%**, gate `re_review_required`입니다. review에서 표·글줄 잔여 차이를 확인했습니다. 이는 178쪽 전체 검증 결과가 아니라 해당 실패 검사 쪽의 선행 판정입니다. 증적은 아래 PNG와 `output/pr-review/planet6897-7382-20260926/stage247-hwpspec-p106/`입니다.
+- 실패 검사 `text_after_a_text_and_shape_line_in_a_cell_follows_the_stored_line_height`는 글리프 절대 x/y를 ±0.7px로 고정했고, 이번 전체 회귀의 실제 y는 **536.67px**, 기대값은 **540.7px**입니다. 이 미완성 대형 문서의 위치값을 새 기준으로 바꾸지 않고 해당 검사 **한 건만** 제거했습니다. [#7445 등록 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5920893392)에 원본·PDF SHA-256, 178쪽, 106쪽 점수, 제거 범위와 후속 의미 검사의 조건을 기록했습니다. 추후 문서 피델리티와 관련 페이지의 Native/fresh WASM 일치율을 먼저 개선해야 합니다.
+- 원본 HWP와 이미 추적 중인 기준 PDF는 그대로 보존했습니다. 같은 파일의 다른 검사나 다른 문서의 회귀는 변경하지 않았습니다. `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_6632_cell_tac_shape_line_height)' --no-fail-fast`는 남은 `exam_kor.hwp` 그림 관계 대조군 **1/1 PASS**, exit 0입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage247-focused-nextest.log`에 있습니다. 다른 13개 차단은 그대로 남아 다음 단계에서 따로 판정합니다.
+
+![178쪽 원본 중 106쪽 Native와 한컴 PDF 비교](../assets/pr7382_20260926/stage247_hwpspec_native_review_106.png)
