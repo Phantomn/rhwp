@@ -3183,3 +3183,7 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - `037a0ec50`에서 저장 HWP5 TAC의 양수 후행 간격을 측정·배치 모두 전량 소비하도록 바꾼 것이 #4068 첫 쪽의 `cur_h`와 셀 컷 높이를 함께 키웠습니다. 시험 후보는 저장 원본 HWP5 줄에만 개체 프레임 뒤 간격의 절반을 측정과 실제 배치에서 **같이** 소비하고, 편집·재조판 줄과 #2243의 HWPX 경로는 그대로 둡니다. 문서 ID·픽셀 보정 상수로 분기하지 않았습니다.
 - 이 시험에서 `hwpx_sample2.hwp`는 **30→29쪽**, #5885는 7쪽, #6756은 5쪽을 유지합니다. #4068의 19쪽 중첩 셀 두 개가 y=**957.8px**에 돌아왔습니다. 첫 쪽 Native Visual Sweep은 **68.42791→83.17919%**이고 신청 안내 본문·표·일정이 기준 PDF와 같은 쪽에 나타납니다. 아직 90% 미만이므로 시각 gate는 보류입니다. 산출물은 `output/pr-review/planet6897-7382-20260926/stage200-issue4068-candidate-visual/`에 있습니다. 집중 회귀와 다른 HWP5 문서 영향은 별도 확인합니다.
 - **집중 회귀**: `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_4068_unclipped_cell_honors_valign) | test(issue_2243) | test(issue_5885_nested_host_row_ladder_end) | test(issue_6756_rowbreak_cut_index_in_rowspan_block)' --no-fail-fast`에서 **10PASS/0FAIL**입니다. #2243 HWPX, #5885 원본 하단선, #6756 기존 컷 검사를 함께 보존했습니다. 로그는 `stage200-focused-nextest.log`입니다. 이 10개로 전체 HWP5 영향이나 29쪽 시각 gate를 통과했다고 주장하지 않습니다.
+
+## 보정201 — TAC 공통 간격 수정 뒤 #6756 전쪽 재확인
+
+- `fde7f496b`로 Native 5쪽 Visual Sweep을 다시 수행했습니다. 점수는 **89.21882/83.49429/78.68970/87.45207/71.85641%**로 보정191과 동일하고, 쪽수도 5쪽입니다. 따라서 TAC 공통 간격 수정은 #6756의 남은 괘선·셀 내부 글자 원점·1쪽 본문 하한을 해결하지 않았습니다. #6756의 90% 미달은 계속 독립 차단 항목으로 둡니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage201-issue6756-visual/`입니다.
