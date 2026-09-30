@@ -13558,8 +13558,19 @@ impl LayoutEngine {
                         y_offset += if crate::renderer::composer::native_tac_next_line_full_spacing(
                             para,
                             paragraphs.get(para_index + 1),
+                            styles
+                                .para_styles
+                                .get(para.para_shape_id as usize)
+                                .map_or(0.0, |shape| shape.spacing_after),
+                            paragraphs
+                                .get(para_index + 1)
+                                .and_then(|next| {
+                                    styles.para_styles.get(next.para_shape_id as usize)
+                                })
+                                .map_or(0.0, |shape| shape.spacing_before),
                             seg,
                             native_stored_layout,
+                            self.dpi,
                         ) {
                             hwpunit_to_px(seg.line_spacing, self.dpi)
                         } else {

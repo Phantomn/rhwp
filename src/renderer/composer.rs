@@ -598,14 +598,21 @@ pub(crate) fn tac_host_trailing_spacing(
     }
 }
 
-/// 실제 표 소유 줄의 저장 끝과 다음 비텍스트 캐리어의 저장 시작이 맞닿으면
+/// 실제 표 소유 줄의 저장 끝에 앞 문단 뒤 간격과 다음 문단 앞 간격을 더한 값이
+/// 다음 저장 줄의 시작과 맞닿으면
 /// 배치 원점에는 후행 간격 전량을 적용한다. 분할 예산의 표 점유는 별도로 센다.
 pub(crate) fn native_tac_next_line_full_spacing(
     para: &Paragraph,
     next_para: Option<&Paragraph>,
+    current_spacing_after_px: f64,
+    next_spacing_before_px: f64,
     seg: &LineSeg,
     native_stored_layout: bool,
+    dpi: f64,
 ) -> bool {
+    let next_spacing_before_hu = (next_spacing_before_px / hwpunit_to_px(1, dpi)).round() as i32;
+    let current_spacing_after_hu =
+        (current_spacing_after_px / hwpunit_to_px(1, dpi)).round() as i32;
     native_stored_layout
         && !para.stored_text_partition_is_dirty()
         && para
@@ -615,17 +622,14 @@ pub(crate) fn native_tac_next_line_full_spacing(
         && seg.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
         && next_para.is_some_and(|next| {
             !next.stored_text_partition_is_dirty()
-                && ((next.text.trim().is_empty() && next.controls.is_empty())
-                    || next
-                        .controls
-                        .iter()
-                        .any(|control| matches!(control, Control::Table(_))))
                 && next.line_segs.first().is_some_and(|first| {
                     first.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
                         && seg
                             .vertical_pos
                             .saturating_add(seg.line_height)
                             .saturating_add(seg.line_spacing)
+                            .saturating_add(current_spacing_after_hu)
+                            .saturating_add(next_spacing_before_hu)
                             == first.vertical_pos
                 })
         })
