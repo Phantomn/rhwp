@@ -3407,3 +3407,9 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 2·3쪽의 글꼴 원인을 분리하려고 설치된 `/Users/tsjang/Library/Fonts`의 실제 글꼴로 `--embed-fonts=full`을 사용한 두 쪽 재출력을 했습니다. 로컬 글꼴 모드 **88.68655/86.45281%**에서 임베딩 후 **88.74580/86.46883%**로 거의 변하지 않았습니다. 따라서 단순 폰트 공급 누락으로 90% 미만을 설명할 수 없습니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage240-issue6542-embedded/`입니다. PDF와 설치 글꼴의 실제 face 버전·행 안 좌표 차이는 다음 단계에서 분석합니다.
 - 기존 #6569·#7049 회귀 검사와 PDF 기준값은 아직 변경하지 않았습니다. 전쪽 최저 90%에 도달하기 전에는 이 문서를 새 회귀 근거로 수용하지 않습니다.
 - `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_6569) | test(issue_7049) | test(issue_1658) | test(issue_1749)' --no-fail-fast`는 **14/14 PASS**(exit 0)입니다. 여기에는 대상 기존 검사와 HWPX #1658·#1749 대조군이 포함됩니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage240-focused-nextest.log`입니다. 이 통과를 2·3쪽 시각 일치의 근거로 사용하지 않습니다.
+
+## 보정241 — 2·3쪽의 글꼴 버전과 래스터 경로 분리
+
+- 독립 PDF에 임베드된 `BatangChe` subset은 TrueType revision **5.02**이고 설치된 `/Users/tsjang/Library/Fonts/batang.TTC`의 `BatangChe` face는 **2.21**입니다. 이전 검증에서 보유한 revision 5.02 `batang.ttc`·`gulim.ttc`를 `output/pr-review/planet6897-7382-20260926/stage241-font-supply/`에 실제 파일로 복사해 `--font-path`와 `--embed-fonts=full`로 2·3쪽을 재출력했습니다. 점수는 **88.52603/86.46883%**여서 90% 미만입니다. 두 글꼴의 revision이 같다는 사실만으로 PDF subset과 실제 윤곽·사용 face가 같다고 단정하지 않습니다. `embedded_font_check.json`에는 각 쪽의 바탕체·굴림·맑은 고딕 cmap 검사 통과가 기록됐습니다.
+- 같은 코드·원본·PDF를 `--svg-rasterizer rsvg`로 재비교한 점수는 **88.42859/87.00390%**입니다. 기본 webfont의 **88.68655/86.45281%**와 차이는 작고 두 경로 모두 보류입니다. 결과는 `output/pr-review/planet6897-7382-20260926/stage241-issue6542-{v502,rsvg}/`와 동명 `.log`에 있습니다. SVG 3쪽 첫 줄 x 시작은 **86.79px**, PDF `pdftotext -bbox-layout`의 **63.60pt=84.80px**이고, 끝도 약 **718px**로 가깝습니다. 큰 글줄 이동보다는 실제 글리프 윤곽·잉크 범위를 다음 단계에서 조사합니다.
+- 보정241에서는 렌더러·기존 회귀·기준 PDF를 수정하지 않았습니다. 전쪽 90% 조건과 #7382 보류는 유지합니다.
