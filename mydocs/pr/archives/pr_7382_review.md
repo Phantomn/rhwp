@@ -3494,3 +3494,13 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![4쪽 시험지 1쪽 Native와 한컴 PDF 비교](../assets/pr7382_20260926/stage250_exam6660_native_review_001.png)
 
 ![4쪽 시험지 4쪽 Native와 한컴 PDF 비교](../assets/pr7382_20260926/stage250_exam6660_native_review_004.png)
+
+## 보정251 — 코드 head 고정 Native·fresh WASM 전쪽 재검증
+
+- 보정250 코드 head **`da12278f7`**을 새 `target/pr-review/debug/rhwp`로 빌드하고, `CARGO_TARGET_DIR=target/pr-review scripts/wasm-pack-locked.sh --target web --out-dir pkg --no-opt`로 fresh WASM을 빌드했습니다(exit 0). 이것은 Mac의 `--no-opt` 로컬 대체 빌드이며 Docker 최적화 빌드 결과로 보고하지 않습니다. 빌드 로그는 `output/pr-review/planet6897-7382-20260926/stage251-*-build.log`입니다.
+- `samples/exam_science.hwp`와 추적된 `pdf/exam_science-2020.pdf`의 **4/4쪽** Native/fresh WASM 점수는 각각 **92.85080/93.98166/94.36559/90.74757%**로 같고, 두 경로 모두 gate `passed`입니다. `samples/issue6542/156678235_mid_para_vpos_rewind.hwp`와 독립 PDF의 **7/7쪽** 점수도 두 경로에서 **98.66535/97.29151/99.96978/99.93791/99.94973/100.00000/97.67052%**로 같으며 gate `passed`입니다. 전체 **11쪽**의 Native/WASM rhwp PNG SHA-256이 쪽별로 일치합니다. 비교 출력은 `output/pr-review/planet6897-7382-20260926/stage251-{exam6660,issue6542}-{native,wasm}/`입니다.
+- 4쪽의 작은 수식·글자 및 7쪽의 표/차트 잔여 차이는 review에서 직접 확인했습니다. 최저 90% 통과는 이 두 문서의 검증 범위에 한정하며 다른 실패 문서나 PR 전체의 승인 판정은 아닙니다. 다음 단계에서 같은 코드 head의 전체 nextest를 실행해 남은 차단을 분리합니다.
+
+![4쪽 시험지 4쪽 fresh WASM 비교](../assets/pr7382_20260926/stage251_exam6660_wasm_review_004.png)
+
+![7쪽 대조 문서 4쪽 fresh WASM 비교](../assets/pr7382_20260926/stage251_issue6542_wasm_review_004.png)
