@@ -800,7 +800,10 @@ impl DocumentCore {
                             ))
                     });
                     let first_source = para.line_segs.first();
-                    let source_page_break = !was_reflowed
+                    // 구역의 첫 문단에 붙은 Section 표지는 새 쪽으로 이월할
+                    // 이전 문단이 없으므로 저장 양수 vpos의 재기준 근거가 아니다.
+                    let source_page_break = pi > 0
+                        && !was_reflowed
                         && orig_span[pi].is_some()
                         // 명시적 쪽나눔은 조판기가 처리한다. 양수 프레임 원점만
                         // 위 간격을 담으며, 0은 누적 축의 생성본에서도 쓰인다.
