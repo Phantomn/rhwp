@@ -3478,3 +3478,8 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 원본 HWP·기준 PDF 및 #6795의 다른 네 검사는 유지했습니다. `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_6795_split_float_sibling_gets_its_own_page)' --no-fail-fast`는 형제의 자기 쪽 소유·본문 포함, 다음 표 순서, 겹침 금지, #2813 대조군 **4/4 PASS**, exit 0입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage248-focused-nextest.log`입니다. 다른 차단은 다음 단계에서 개별 판정합니다.
 
 ![45쪽 원본 중 분할 조각 31쪽 Native와 한컴 PDF 비교](../assets/pr7382_20260926/stage248_cyber6795_native_review_031.png)
+
+## 보정249 — 4쪽 #6660 그림 위치 실패의 공통 원점 추적
+
+- 다음 차단 #6660은 **4쪽** `samples/exam_science.hwp`입니다. 현재 head `0fb061e6a`와 기존 정본 `pdf/exam_science-2020.pdf`의 Native 전쪽 점수는 **83.84712/82.81236/84.06080/79.81701%**, gate `re_review_required`입니다. 기본 글꼴, `Library/Fonts` 전체 임베딩, 과거 성공 증적의 추가 글꼴 디렉터리까지 포함한 임베딩은 모두 같은 80%대여서 글꼴 공급만으로 해결되지 않았습니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage249-exam6660*`입니다.
+- 이 검사의 그림 원점은 1쪽 **−2.2040px**, 4쪽 **−2.3187px** 차이로 실패합니다. 과거 성공 head `a8b05c6a`의 보존된 실행 파일과 현재 render tree를 같은 원본으로 비교하면 노드 수는 1쪽 **810개로 동일**하며, 첫 좌표 차이는 앞 TAC 표 뒤 문단 pi3에서 **438.7→435.3px(−3.4px)**입니다. 그 뒤 표·그림도 같은 방향으로 앞당겨집니다. 과거 코드는 Native 저장 TAC 후행 간격을 전량 배치했고, 현재 `native_tac_next_line_full_spacing`은 다음 줄이 비텍스트 캐리어일 때만 전량을 배치합니다. 분할 예산은 보정245에서 별도로 반량을 유지하므로, 다음 단계에서 **정확히 이어지는 저장 줄의 실제 배치 원점**을 텍스트에도 적용해 전쪽 출력을 검증합니다. 좌표 기대값과 정본 PDF는 바꾸지 않았습니다.
