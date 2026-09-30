@@ -3064,3 +3064,10 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 검사는 원본 표의 `outer_margin_bottom=852HU`를 읽어 상단 표의 실제 하단과 `관련: 총무과`가 포함된 첫 본문 글줄의 간격을 비교하도록 고쳤습니다. 관측 간격은 11.4px, 원본 여백은 96dpi에서 11.36px로 비율 1.0035입니다. 절대 쪽 x/y 좌표와 기존 `306.7px` 핀은 제거했습니다. 해당 검사와 원본 여백의 IR 동기화 검사는 **2PASS**, fmt, Native/WASM/전체 target Clippy, workspace build, 고정 base manifest 검사가 통과했습니다. 이 단계의 전체 nextest는 실행하지 않았고, 남은 다른 실패 및 PR 준비 완료로 보지 않습니다. [입력·PDF 해시와 검증 결과](../assets/pr7382_20260926/stage181_task1772_validation.json), 로그·전체 PNG는 `output/pr-review/planet6897-7382-20260926/stage181-task1772*`에 있습니다.
 
 ![#1772 1쪽 Native 기준 PDF 비교](../assets/pr7382_20260926/stage181_task1772_native_review_001.png)
+
+## 보정182 — #6078 HWP3 서식의 미달 회귀 검사만 이관
+
+- 기존 `issue_6078_paper_spec_line_stays_inside_the_page`는 용지 규격 줄의 y를 `994.5±1px`에 고정하여 현재 981.3px에서 실패합니다. 원본 `samples/hwp3-table-caption.hwp`와 보존된 한컴 2020 기준 PDF의 전1쪽 Native Visual Sweep은 내용 실루엣 **30.47054%**, gate `re_review_required`입니다. review에서 표 전체의 가로 원점·셀 경계·본문 위치 차이를 직접 확인했으므로 한 줄의 기대 좌표만 갱신하지 않습니다. 글꼴 예외는 없습니다.
+- 사용자 지정 90% 기준에 따라 PR #7382를 막는 해당 검사 한 함수만 제거하고 [#7445 후속 항목](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5908796733)에 전체 피델리티 개선·회귀 재구축을 기록했습니다. 원본 HWP, 한컴 PDF, 생산 코드, 같은 원본의 유효한 `issue_5563_hwpx_lineseg_axis::hwp3_sectiondef_fallback_extends_the_comparable_lineseg_axis`는 그대로 유지하며 후자는 1PASS입니다. fmt, Native/WASM/전체 target Clippy, workspace build, 고정 base manifest 검사 통과 및 파생 suite에서 제거 함수 부재를 확인했습니다. 이 단계의 전체 nextest는 실행하지 않았고, 결함 해결이나 PR 준비 완료를 주장하지 않습니다. [원본·PDF 해시와 검증 범위](../assets/pr7382_20260926/stage182_issue6078_validation.json), 로그·전체 PNG는 `output/pr-review/planet6897-7382-20260926/stage182-issue6078*`에 있습니다.
+
+![#6078 1쪽 Native 기준 PDF 비교](../assets/pr7382_20260926/stage182_issue6078_native_review_001.png)
