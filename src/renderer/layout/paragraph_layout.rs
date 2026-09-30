@@ -3341,6 +3341,35 @@ impl LayoutEngine {
                             raw
                         }
                     });
+                // 저장 표가 앞 텍스트와 다른 글줄의 첫 요소라면 그 글줄의
+                // 들여쓰기와 정렬을 독립적으로 소비한다. 문단 전체의 공백 폭과
+                // 표 폭을 합산하면 가운데 정렬 표가 왼쪽으로 붕괴한다.
+                let table_pen_x = if table_seg_index > 0
+                    && current_y > y + 0.5
+                    && (inline_x - line_start_x).abs() < 0.5
+                {
+                    let indent = para_style.map_or(0.0, |style| style.indent);
+                    let line_indent =
+                        crate::renderer::equation_tac_flow::paragraph_line_indent_for_source(
+                            indent,
+                            table_seg_index,
+                            Some(para),
+                            para.line_segs.len(),
+                            !self.profile.get().legacy_hwp3_stored_geometry(),
+                        );
+                    let left = line_start_x + line_indent;
+                    let width = (available_width - line_indent).max(0.0);
+                    let footprint = table_declared_widths[table_idx] + om_left + om_right;
+                    match alignment {
+                        Alignment::Center | Alignment::Distribute => {
+                            left + (width - footprint).max(0.0) / 2.0
+                        }
+                        Alignment::Right => left + (width - footprint).max(0.0),
+                        _ => left,
+                    }
+                } else {
+                    inline_x
+                };
 
                 let table_bottom = self.layout_table(
                     tree,
@@ -3359,7 +3388,7 @@ impl LayoutEngine {
                     None,
                     0.0,
                     0.0,
-                    Some(inline_x + om_left),
+                    Some(table_pen_x + om_left),
                     None,
                     table_para_y,
                     None,
@@ -3378,7 +3407,7 @@ impl LayoutEngine {
                     inline_x = line_start_x;
                     wrapped_below_table = true;
                 } else {
-                    inline_x += tw + om_left + om_right;
+                    inline_x = table_pen_x + tw + om_left + om_right;
                 }
                 table_idx += 1;
             }

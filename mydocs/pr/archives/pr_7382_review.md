@@ -3071,3 +3071,16 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 사용자 지정 90% 기준에 따라 PR #7382를 막는 해당 검사 한 함수만 제거하고 [#7445 후속 항목](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5908796733)에 전체 피델리티 개선·회귀 재구축을 기록했습니다. 원본 HWP, 한컴 PDF, 생산 코드, 같은 원본의 유효한 `issue_5563_hwpx_lineseg_axis::hwp3_sectiondef_fallback_extends_the_comparable_lineseg_axis`는 그대로 유지하며 후자는 1PASS입니다. fmt, Native/WASM/전체 target Clippy, workspace build, 고정 base manifest 검사 통과 및 파생 suite에서 제거 함수 부재를 확인했습니다. 이 단계의 전체 nextest는 실행하지 않았고, 결함 해결이나 PR 준비 완료를 주장하지 않습니다. [원본·PDF 해시와 검증 범위](../assets/pr7382_20260926/stage182_issue6078_validation.json), 로그·전체 PNG는 `output/pr-review/planet6897-7382-20260926/stage182-issue6078*`에 있습니다.
 
 ![#6078 1쪽 Native 기준 PDF 비교](../assets/pr7382_20260926/stage182_issue6078_native_review_001.png)
+
+## 보정184 — #6078 한 쪽 HWP3 표·캡션·체크박스 피델리티 복원
+
+- **보정182 판정 변경**: 사용자의 10쪽 미만 문서 방침에 따라 #6078(1쪽)을 #7445 이관 대상에서 되돌리고 현 브랜치에서 해결했습니다. 원본 HWP와 한컴 2020 PDF는 그대로 사용했습니다. 보정182의 30.47054%는 수정 전 실패 증거로 유지합니다.
+- **원인과 수정**: HWP3 표 정보의 캡션 세로 크기(원본 463단위)를 파서가 버려 표가 캡션과 겹쳤습니다. 위·아래 캡션에서 남는 물리 높이와 저장 줄간격을 캡션 간격으로 전달해 측정과 배치가 함께 사용합니다. 좌·우 캡션의 가로 간격은 변경하지 않습니다. 표는 두 번째 저장 글줄에 있는데 앞 글줄의 긴 공백까지 폭에 합산하여 가운데 정렬을 잃었습니다. 표 소유 글줄의 내어쓰기·정렬·선언 폭으로 원점을 계산합니다. 추천기관의 HWP3 원시 문자 `0x2F00` 세 개는 미지원 처리로 사라졌고, 한컴 PDF에 추출되는 `□`로 복원했습니다.
+- **검사와 결과**: 고정 `994.5±1px` 회귀 핀을 제거하고 기존 #6078 검사를 복구했습니다. 한 쪽에서 캡션·표·후행 용지 규격 문단의 순서와 추천기관 체크박스 세 개를 확인합니다. 새 검사와 문자 매핑 검사 **2PASS**, 같은 HWP3 원문의 #5563 및 별도 HWP3 캡션 표 #6874 **2PASS**입니다. Native/fresh WASM 한 쪽 Visual Sweep은 각각 **91.47674%**, gate `passed`이며 출력 PNG SHA-256이 일치합니다. PDF와의 표 외곽·셀 경계·본문·체크박스 위치를 review/overlay에서 직접 확인했습니다. 글꼴 예외는 쓰지 않았습니다. Mac WASM은 `--no-opt` 로컬 대체 빌드입니다.
+- **제출 게이트**: fmt, Native/WASM/전체 target Clippy, workspace build, 고정 base `0e8fd49fb868da0d47ac1294dcbbda81f0211233` 대비 manifest/unit 정책 검사 통과입니다. 이 개별 단계에서 전체 nextest는 다시 실행하지 않았으며 다른 #7382 차단 함수 해결 및 최종 전체 검증은 남아 있습니다. [입력·기준 PDF 해시, 원인 경로, 명령·검증 증적](../assets/pr7382_20260926/stage184_issue6078_validation.json). 로그와 전체 PNG는 `output/pr-review/planet6897-7382-20260926/stage184-issue6078/`에만 있습니다.
+
+![#6078 체크박스 복구 후 한 쪽 Native 기준 PDF 비교](../assets/pr7382_20260926/stage184_issue6078_native_review_001.png)
+
+![#6078 한 쪽 Native overlay](../assets/pr7382_20260926/stage184_issue6078_native_overlay_001.png)
+
+![#6078 한 쪽 fresh WASM overlay](../assets/pr7382_20260926/stage184_issue6078_wasm_overlay_001.png)
