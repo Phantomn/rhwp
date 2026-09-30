@@ -3152,3 +3152,8 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - **원인**: `issue_4966_font_rule_projection` 검사는 봉인된 v1 규칙 830개에서 기록된 두 `retire-and-replace`만 반영했습니다. 이미 적용된 #7196의 `issue-7196-ygodic230-metric-name.json`은 독립 한컴 PDF와 실폰트 계측을 근거로 `rust-layout-metric` 규칙 한 건을 `add-rule`로 추가했습니다. 현재 정본 레지스트리는 활성 **831개**, metric projection **68개**가 맞으며, 실패의 830/67 기대값은 과거 상태입니다.
 - **수정**: v1 봉인은 유지하고 변경 기록의 종류·투영·활성 증가량을 검사한 뒤 해당 규칙만 기대 의미와 metric 투영 순서에 추가했습니다. 기존 모든 규칙의 의미·순서 비교와 공개 `find_metric` 호출 검사는 유지합니다. 렌더러 동작이나 시각 기준값은 바꾸지 않았습니다.
 - **집중 검증**: `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_4966_font_rule_projection)' --no-fail-fast`에서 **3PASS/0FAIL**입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage194-issue4966-nextest.log`입니다. 전체 nextest 결과로 확대 해석하지 않습니다.
+
+## 보정195 — #4068 검사 실패의 페이지 이동 확인
+
+- 기존 두 검사는 `hwpx_sample2.hwp`의 **19쪽(0-based 18)**, 셀 y=955~975px에서 1×2 중첩 표를 찾습니다. 현재 렌더 트리에서는 19쪽에 해당 칸이 없고 **20쪽(0-based 19) y=963.6px**에 두 칸이 있습니다. 독립 한컴 2020 PDF는 **29쪽**, 현재 rhwp는 **30쪽**입니다. 첫 쪽에서부터 한컴 PDF의 `신 청 안 내` 아래 항목이 rhwp의 다음 쪽으로 이월되어, 19쪽 대상 이동은 한 칸의 좌표 오차가 아니라 앞선 페이지 증가의 결과입니다.
+- 따라서 고정 페이지·y 범위를 20쪽으로 바꿔 통과시키지 않았습니다. 쪽수 자체가 다르므로 90% 이상 Visual Sweep 근거도 아직 성립하지 않습니다. 원본과 PDF의 페이지별 텍스트 및 19·20쪽 렌더 트리는 `output/pr-review/planet6897-7382-20260926/stage195-issue4068-*`에 저장했습니다. 다음 판단은 첫 쪽 이월의 조판 원인을 확인하고, 전체 페이지를 독립 PDF와 재비교한 뒤 관계 기반 검사로 고치는 것입니다.
