@@ -12262,3 +12262,24 @@ SVG 노드 사이의 XML 개행을 본문으로 읽은 assertion을 수정해 `s
 다음 승인 대상은 **남은 회귀 실패를 명시한 WIP 통합 브랜치의 원격 게시 여부와 인계 조건**이다.
 현재 계획의 H2 인계 차단을 임의로 해제하지 않는다. 원격 게시 승인 시 `refactor/0.9.0`의 목적은
 0.9.0 후속 개발의 공유 기준점이며, devel 병합·PR 생성·0.9.0 릴리즈·#7353 종료를 뜻하지 않는다.
+
+### 2026-10-01 — 승인된 전용 원격 브랜치 게시, CI 미실행
+
+작업지시자가 게시를 승인하고 CI가 동작하지 않도록 요청했다. 게시할 tree의 workflow 22개를
+확인했다. `CI`와 release는 `v*` 태그 push, Pages는 main, 이슈 종료/실행시간 갱신은 devel,
+Oracle advisory는 `task_m100_*` 및 해당 workflow 경로 변경에만 push로 동작한다.
+`refactor/0.9.0`은 어느 push 필터에도 해당하지 않는다. PR·태그·수동 workflow 실행은 하지
+않으므로 workflow 수정, 저장소 Actions 비활성화, `[skip ci]` 커밋 없이 게시했다.
+
+명령: `git push --set-upstream upstream refs/heads/refactor/0.9.0:refs/heads/refactor/0.9.0`.
+`edwardkim/rhwp`에 새 브랜치 생성 성공. 첫 게시 구현 SHA는
+`6873720638b891f7db65b0c15e32b9c76121e287`이며 `git ls-remote`와 일치했다.
+게시 후 branch Actions 조회는 `total_count: 0`, 해당 SHA Checks도 `total_count: 0`이었다.
+이 결과는 CI PASS가 아니라 **CI 실행 없음**이다. 본 기록은 제품 코드가 바뀌지 않은 문서 전용
+후행 커밋으로 같은 브랜치에 보존하고, 최종 head와 Actions를 다시 확인한다.
+
+최신 devel `02530b9ed567a44663edb26c65fb565c4a79f00d`은 fetch만 했으며 승인 기준점에
+병합하지 않았다. 기존 로컬 검증의 base `0e8fd49fb868da0d47ac1294dcbbda81f0211233`와 구별한다.
+H4의 개발 중 원격 공유는 완료했지만 H2 회귀 8건 미충족, V2 미지원 입력, 편집/저장 미연결은
+해결되지 않았다. 후속 PR 생성이나 향후 workflow 필터 변경 시 CI 실행 여부는 별도 확인해야 한다.
+devel/main, 저장소 CI 설정, required checks, baseline/ignore, 버전 및 이슈 상태는 바꾸지 않았다.
