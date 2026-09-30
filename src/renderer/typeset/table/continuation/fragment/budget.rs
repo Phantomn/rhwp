@@ -702,11 +702,12 @@ impl TypesetEngine {
         // y_start 점프(vert_offset)·host_before 와의 정합 확인용. 동작 불변(게이트).
         if std::env::var("RHWP_TABLE_DRIFT").is_ok() {
             eprintln!(
-                "TABLE_SPLIT_AVAIL: pi={} sec={} cursor_row={} cont={} cur_h={:.1} table_avail={:.1} caption={:.1} host_before={:.1} vert_off={:.1} outer_bottom={:.1} page_avail={:.1} header_oh={:.1} avail_for_rows={:.1} start_cut={:?}",
+                "TABLE_SPLIT_AVAIL: pi={} sec={} cursor_row={} cont={} cur_h={:.1} table_avail={:.1} caption={:.1} host_before={:.1} vert_off={:.1} outer_bottom={:.1} page_avail={:.1} header_oh={:.1} avail_for_rows={:.1} source_frame={:?} source_end={:?} allowance={:.1} start_cut={:?}",
                 para_idx, st.section_index, cursor_row, is_continuation, st.current_height,
                 table_available, caption_extra, host_before_overhead, vert_offset_overhead,
                 fragment_outer_bottom_overhead, page_avail, header_overhead, avail_for_rows,
-                start_cut,
+                saved_first_fragment_source_frame, source_first_fragment_row_end,
+                source_first_fragment_overflow_allowance, start_cut,
             );
         }
 
