@@ -1,0 +1,15 @@
+{
+  "databaseId": 36666159256,
+  "headSha": "31dac5eb61f757025847338e36803ed9ae597ad4",
+  "status": "completed",
+  "conclusion": "failure",
+  "url": "https://github.com/edwardkim/rhwp/actions/runs/36666159256",
+  "jobs": [
+    {
+      "name": "wrapper (cdylib)",
+      "conclusion": "failure",
+      "startedAt": "2026-09-30T03:49:59Z",
+      "completedAt": "2026-09-30T04:08:41Z"
+    }
+  ]
+}

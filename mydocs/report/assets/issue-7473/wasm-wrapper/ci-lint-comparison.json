@@ -1,0 +1,13 @@
+{
+  "base": {
+    "exit_code": 1,
+    "output": "<stdin>:794:9: shellcheck reported issue in this script: SC2016:info:18:10: Expressions don't expand in single quotes, use double quotes for that [shellcheck]\n    |\n794 |         run: |\n    |         ^~~~\n"
+  },
+  "candidate": {
+    "exit_code": 1,
+    "output": "<stdin>:794:9: shellcheck reported issue in this script: SC2016:info:18:10: Expressions don't expand in single quotes, use double quotes for that [shellcheck]\n    |\n794 |         run: |\n    |         ^~~~\n"
+  },
+  "syntax_without_shellcheck": {
+    "exit_code": 0
+  }
+}

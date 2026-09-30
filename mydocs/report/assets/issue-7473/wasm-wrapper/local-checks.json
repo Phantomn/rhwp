@@ -1,0 +1,27 @@
+{
+  "wrapper_contract_tests": {
+    "passed": 8,
+    "command": "python3 -m unittest discover -s scripts/tests -p 'test_wasm_pack_locked.py'"
+  },
+  "existing_docker_contract_tests": {
+    "passed": 4
+  },
+  "shell_syntax": "passed",
+  "actionlint": "passed",
+  "python_syntax": "passed",
+  "diff_check": "passed",
+  "pr_7474": {
+    "draft": true,
+    "head": "0c4a2f9812732bdfff3094caa6c624a794c86b8a"
+  },
+  "scope": "No Rust source/manifest/lock modifications in proposed change. Version probe is temporary during CI and restored in finally. No production cache, branch settings, PR creation or merge.",
+  "clean_candidate_head": "480551ed603846e50600cac135067a9bccec6154",
+  "clean_candidate_branch": "codex/wasm-release-cdylib-7473",
+  "clean_renderer_contract": "passed with actual production workflow",
+  "native_comparator_syntax_and_self_test": "passed",
+  "wrapper_and_tests_identical_to_ci_candidate": true,
+  "frontend_generated_bindings": "passed on actual candidate package with original test and source",
+  "local_node_version": "v24.15.0",
+  "workflow_wiring_tests": 3,
+  "ci_syntax": "passed without shellcheck; full actionlint has identical existing SC2016 on base and candidate"
+}

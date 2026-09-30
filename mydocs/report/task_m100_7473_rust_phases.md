@@ -128,3 +128,8 @@ cdylib만 선택하면 이를 적용한다. 처음 후보는 메타데이터를 
 
 실험 브랜치의 render-diff.yml은 dispatch 전용 임시 하니스다. 기존 production workflow를 교체하는 PR이 아니다.
 새 PR·댓글·병합·production cache 변경은 수행하지 않았다.
+
+## 실제 wrapper 통합 후속 결과
+
+[2026-09-30 후속 보고서](task_m100_7473_wasm_wrapper.md): 같은 runner에서 wasm-opt를 포함한
+전체 release 패키징 354.324 → 320.743초(−9.48%, n=1), 실제 Canvas/PDF/readiness 대조와 적용 후보.

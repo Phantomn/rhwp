@@ -1,0 +1,388 @@
+{
+  "measurements": {
+    "dual": {
+      "cold": {
+        "wall_seconds": 413.781,
+        "phase_seconds_approx": {
+          "preparation": 3.396,
+          "cargo": 286.636,
+          "bindgen_setup_and_run": 5.224,
+          "wasm_opt_and_finalize": 118.514,
+          "after_package": 0.01
+        },
+        "compiler_invocations": 178,
+        "studio_sync": {
+          "rhwp.js": true,
+          "rhwp_bg.wasm": true
+        },
+        "source_edit": {
+          "original_sha256": "1376e69f4af23bd75f0d44201df3695b84376c459e002e90ef818efcb02d543e",
+          "compiled_sha256": "1376e69f4af23bd75f0d44201df3695b84376c459e002e90ef818efcb02d543e",
+          "before": "env!(\"CARGO_PKG_VERSION\").to_string()",
+          "after": "env!(\"CARGO_PKG_VERSION\").to_string()"
+        },
+        "tools": {
+          "wasm-bindgen": {
+            "version": "wasm-bindgen 0.2.127",
+            "sha256": "f36dbe1938e78a79ce34d0ab3700907555161e293954f6f35bf6785a2f0cf916"
+          },
+          "wasm-opt": {
+            "version": "wasm-opt version 117 (version_117)",
+            "sha256": "621b5a984f16d0323ea7aa8b389ac9ccda0950ddee5de0e99292970129f571ed"
+          }
+        },
+        "root_rustc_seconds": 231.88132830799998,
+        "wasm": {
+          "sha256": "d4f9a862800dad6ac2eb56b6d452a45c385a941bbcc84a0a9e78a273bd4be095",
+          "bytes": 11341620
+        },
+        "api_version": "0.8.6"
+      },
+      "changed": {
+        "wall_seconds": 353.541,
+        "phase_seconds_approx": {
+          "preparation": 0.286,
+          "cargo": 232.969,
+          "bindgen_setup_and_run": 2.791,
+          "wasm_opt_and_finalize": 117.481,
+          "after_package": 0.014
+        },
+        "compiler_invocations": 1,
+        "studio_sync": {
+          "rhwp.js": true,
+          "rhwp_bg.wasm": true
+        },
+        "source_edit": {
+          "original_sha256": "1376e69f4af23bd75f0d44201df3695b84376c459e002e90ef818efcb02d543e",
+          "compiled_sha256": "bd1c99a331c45efd3eb8c706d314fe88fc2f4bab4af966ad37163b9892d3fa24",
+          "before": "env!(\"CARGO_PKG_VERSION\").to_string()",
+          "after": "concat!(env!(\"CARGO_PKG_VERSION\"), \"-phase-probe-1\").to_string()"
+        },
+        "tools": {
+          "wasm-bindgen": {
+            "version": "wasm-bindgen 0.2.127",
+            "sha256": "f36dbe1938e78a79ce34d0ab3700907555161e293954f6f35bf6785a2f0cf916"
+          },
+          "wasm-opt": {
+            "version": "wasm-opt version 117 (version_117)",
+            "sha256": "621b5a984f16d0323ea7aa8b389ac9ccda0950ddee5de0e99292970129f571ed"
+          }
+        },
+        "root_rustc_seconds": 232.7155896050001,
+        "wasm": {
+          "sha256": "db615689b2d67ae143e21a4ef5ce14e3c436ff9a81ae8c929f0752fef9afcbb2",
+          "bytes": 11341645
+        },
+        "api_version": "0.8.6-phase-probe-1"
+      },
+      "gates": {
+        "cold": true,
+        "changed": true,
+        "native": {
+          "command": [
+            "cargo",
+            "build",
+            "--locked",
+            "--features",
+            "native-skia",
+            "--bin",
+            "rhwp",
+            "--target-dir",
+            "target/pr-review"
+          ],
+          "seconds": 117.08879056099988,
+          "exit_code": 0
+        },
+        "renderer-contract": {
+          "command": [
+            "npm",
+            "run",
+            "e2e:renderer-contract"
+          ],
+          "seconds": 1.3064927429998079,
+          "exit_code": 1
+        },
+        "font-coverage": {
+          "command": [
+            "npm",
+            "run",
+            "e2e:canvaskit-font-coverage"
+          ],
+          "seconds": 0.5798427249999349,
+          "exit_code": 0
+        },
+        "canvas-pdf": {
+          "command": [
+            "npm",
+            "run",
+            "e2e:render-diff:ci"
+          ],
+          "seconds": 43.26863017100004,
+          "exit_code": 0
+        },
+        "readiness": {
+          "command": [
+            "python3",
+            "scripts/renderer_baseline.py",
+            "--profiles",
+            "screen",
+            "--browser-mode",
+            "headless",
+            "--readiness-only",
+            "--output",
+            "/home/runner/work/rhwp/rhwp/output/wasm-wrapper-integration/readiness"
+          ],
+          "seconds": 65.99452077700016,
+          "exit_code": 0
+        }
+      },
+      "environment": {
+        "head": "f933a249e655be881d45394370c852fc098974fc",
+        "mode": "dual",
+        "rustc": "rustc 1.93.1 (01f6ddf75 2026-02-11)\nbinary: rustc\ncommit-hash: 01f6ddf7588f42ae2d7eb0a2f21d44e8e96674cf\ncommit-date: 2026-02-11\nhost: x86_64-unknown-linux-gnu\nrelease: 1.93.1\nLLVM version: 21.1.8",
+        "wasm_pack": "wasm-pack 0.15.0",
+        "cpu_count": 4,
+        "boot_id": "cf4d9953-3245-427a-b6d3-a8031d225b7d",
+        "image": "20260920.314.1",
+        "cache_policy": "No Cargo or package restore/save; target initially absent",
+        "cpu_model": "AMD EPYC 7763 64-Core Processor"
+      },
+      "source_restoration": {
+        "restored": true,
+        "diff": ""
+      },
+      "browser_consumption_count": 18,
+      "readiness_summary": {
+        "total": 8,
+        "evaluated": 8,
+        "passed": 8,
+        "failed": 0,
+        "missing": 0
+      }
+    },
+    "cdylib": {
+      "cold": {
+        "wall_seconds": 420.202,
+        "phase_seconds_approx": {
+          "preparation": 3.041,
+          "cargo": 269.259,
+          "bindgen_setup_and_run": 4.888,
+          "wasm_opt_and_finalize": 143.001,
+          "after_package": 0.013
+        },
+        "compiler_invocations": 178,
+        "studio_sync": {
+          "rhwp.js": true,
+          "rhwp_bg.wasm": true
+        },
+        "source_edit": {
+          "original_sha256": "1376e69f4af23bd75f0d44201df3695b84376c459e002e90ef818efcb02d543e",
+          "compiled_sha256": "1376e69f4af23bd75f0d44201df3695b84376c459e002e90ef818efcb02d543e",
+          "before": "env!(\"CARGO_PKG_VERSION\").to_string()",
+          "after": "env!(\"CARGO_PKG_VERSION\").to_string()"
+        },
+        "tools": {
+          "wasm-bindgen": {
+            "version": "wasm-bindgen 0.2.127",
+            "sha256": "f36dbe1938e78a79ce34d0ab3700907555161e293954f6f35bf6785a2f0cf916"
+          },
+          "wasm-opt": {
+            "version": "wasm-opt version 117 (version_117)",
+            "sha256": "621b5a984f16d0323ea7aa8b389ac9ccda0950ddee5de0e99292970129f571ed"
+          }
+        },
+        "root_rustc_seconds": 215.87570504000018,
+        "wasm": {
+          "sha256": "4507ebb5abb9e86b18858428a1e447f0784b0d876a68de79a10eaa145eba59bb",
+          "bytes": 11303169
+        },
+        "api_version": "0.8.6"
+      },
+      "changed": {
+        "wall_seconds": 361.93,
+        "phase_seconds_approx": {
+          "preparation": 0.3,
+          "cargo": 215.871,
+          "bindgen_setup_and_run": 2.876,
+          "wasm_opt_and_finalize": 142.87,
+          "after_package": 0.013
+        },
+        "compiler_invocations": 1,
+        "studio_sync": {
+          "rhwp.js": true,
+          "rhwp_bg.wasm": true
+        },
+        "source_edit": {
+          "original_sha256": "1376e69f4af23bd75f0d44201df3695b84376c459e002e90ef818efcb02d543e",
+          "compiled_sha256": "bd1c99a331c45efd3eb8c706d314fe88fc2f4bab4af966ad37163b9892d3fa24",
+          "before": "env!(\"CARGO_PKG_VERSION\").to_string()",
+          "after": "concat!(env!(\"CARGO_PKG_VERSION\"), \"-phase-probe-1\").to_string()"
+        },
+        "tools": {
+          "wasm-bindgen": {
+            "version": "wasm-bindgen 0.2.127",
+            "sha256": "f36dbe1938e78a79ce34d0ab3700907555161e293954f6f35bf6785a2f0cf916"
+          },
+          "wasm-opt": {
+            "version": "wasm-opt version 117 (version_117)",
+            "sha256": "621b5a984f16d0323ea7aa8b389ac9ccda0950ddee5de0e99292970129f571ed"
+          }
+        },
+        "root_rustc_seconds": 215.62165000599998,
+        "wasm": {
+          "sha256": "70223af2670ac316c0ecaa51149291b7c67052d2f32615aacaa1877645d3c782",
+          "bytes": 11303194
+        },
+        "api_version": "0.8.6-phase-probe-1"
+      },
+      "gates": {
+        "cold": true,
+        "changed": true,
+        "native": {
+          "command": [
+            "cargo",
+            "build",
+            "--locked",
+            "--features",
+            "native-skia",
+            "--bin",
+            "rhwp",
+            "--target-dir",
+            "target/pr-review"
+          ],
+          "seconds": 118.43155398399995,
+          "exit_code": 0
+        },
+        "renderer-contract": {
+          "command": [
+            "npm",
+            "run",
+            "e2e:renderer-contract"
+          ],
+          "seconds": 1.2526586739998038,
+          "exit_code": 1
+        },
+        "font-coverage": {
+          "command": [
+            "npm",
+            "run",
+            "e2e:canvaskit-font-coverage"
+          ],
+          "seconds": 0.5857897789999242,
+          "exit_code": 0
+        },
+        "canvas-pdf": {
+          "command": [
+            "npm",
+            "run",
+            "e2e:render-diff:ci"
+          ],
+          "seconds": 44.714935986,
+          "exit_code": 0
+        },
+        "readiness": {
+          "command": [
+            "python3",
+            "scripts/renderer_baseline.py",
+            "--profiles",
+            "screen",
+            "--browser-mode",
+            "headless",
+            "--readiness-only",
+            "--output",
+            "/home/runner/work/rhwp/rhwp/output/wasm-wrapper-integration/readiness"
+          ],
+          "seconds": 66.4471264519998,
+          "exit_code": 0
+        }
+      },
+      "environment": {
+        "head": "31dac5eb61f757025847338e36803ed9ae597ad4",
+        "mode": "cdylib",
+        "rustc": "rustc 1.93.1 (01f6ddf75 2026-02-11)\nbinary: rustc\ncommit-hash: 01f6ddf7588f42ae2d7eb0a2f21d44e8e96674cf\ncommit-date: 2026-02-11\nhost: x86_64-unknown-linux-gnu\nrelease: 1.93.1\nLLVM version: 21.1.8",
+        "wasm_pack": "wasm-pack 0.15.0",
+        "cpu_count": 4,
+        "boot_id": "fa3f6fab-ccb7-4156-be66-9032de42aabc",
+        "image": "20260920.314.1",
+        "cache_policy": "No Cargo or package restore/save; target initially absent",
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor"
+      },
+      "source_restoration": {
+        "restored": true,
+        "diff": ""
+      },
+      "browser_consumption_count": 18,
+      "readiness_summary": {
+        "total": 8,
+        "evaluated": 8,
+        "passed": 8,
+        "failed": 0,
+        "missing": 0
+      }
+    }
+  },
+  "checks": {
+    "cold": {
+      "source_identical": true,
+      "api_identical": true,
+      "js_identical": true,
+      "tools_identical": true
+    },
+    "changed": {
+      "source_identical": true,
+      "api_identical": true,
+      "js_identical": true,
+      "tools_identical": true
+    },
+    "screenshots": {
+      "same": [
+        "biz_plan.hwp-618f6a38-p01-direct-vs-compat-diff.png",
+        "biz_plan.hwp-618f6a38-p01-pdf-raster.png",
+        "kps-ai.hwp-1f4dbe57-p01-direct-raster.png",
+        "kps-ai.hwp-1f4dbe57-p01-direct-vs-compat-diff.png",
+        "tac-case-001.hwp-097ee39c-p01-pdf-diff.png",
+        "basic_KTX.hwp-ce76d1d6-p01-legacy.png",
+        "biz_plan.hwp-618f6a38-p01-legacy.png",
+        "basic_KTX.hwp-ce76d1d6-p01-layer.png",
+        "basic_KTX.hwp-ce76d1d6-p01-pdf-raster.png",
+        "tac-case-001.hwp-097ee39c-p01-direct-vs-compat-diff.png",
+        "biz_plan.hwp-618f6a38-p01-layer.png",
+        "kps-ai.hwp-1f4dbe57-p01-pdf-raster.png",
+        "tac-case-001.hwp-097ee39c-p01-direct-raster.png",
+        "biz_plan.hwp-618f6a38-p01-direct-raster.png",
+        "basic_KTX.hwp-ce76d1d6-p01-pdf-reference.png",
+        "kps-ai.hwp-1f4dbe57-p01-pdf-diff.png",
+        "tac-case-001.hwp-097ee39c-p01-layer.png",
+        "basic_KTX.hwp-ce76d1d6-p01-pdf-diff.png",
+        "kps-ai.hwp-1f4dbe57-p01-pdf-reference.png",
+        "tac-case-001.hwp-097ee39c-p01-pdf-reference.png",
+        "tac-case-001.hwp-097ee39c-p01-pdf-raster.png",
+        "biz_plan.hwp-618f6a38-p01-pdf-reference.png",
+        "basic_KTX.hwp-ce76d1d6-p01-diff.png",
+        "tac-case-001.hwp-097ee39c-p01-diff.png",
+        "tac-case-001.hwp-097ee39c-p01-legacy.png",
+        "biz_plan.hwp-618f6a38-p01-diff.png",
+        "biz_plan.hwp-618f6a38-p01-pdf-diff.png"
+      ],
+      "different": []
+    },
+    "canvas_results_identical": true,
+    "readiness_images": {
+      "count": 16,
+      "same": true,
+      "different": []
+    },
+    "declarations": {
+      "byteIdentical": false,
+      "onlyObservedOrderDiff": true,
+      "mutuallyAssignable": true,
+      "changedReturnTypeRejected": true,
+      "typescriptVersion": "7.0.2",
+      "positiveDiagnostics": "",
+      "negativeDiagnostics": "TS2322 in both directions after intentionally changing version() return type; temporary paths omitted."
+    },
+    "report_only_pdf_warnings": 4,
+    "wasm_declarations_same_lines": true
+  },
+  "comparison_design": "Two fresh runners, n=1 cold and changed per mode. Different wrapper commits, identical Rust and measurement/gate sources. Not a paired speed estimate."
+}

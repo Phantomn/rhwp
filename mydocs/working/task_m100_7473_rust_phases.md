@@ -62,3 +62,14 @@ opt-level 3 / CGU 1 / wasm-opt를 유지했고, 기본 Canvas 3개와 API 호환
   실행한다. 전체 저장소의 Rust test/Clippy/보안 CI를 대신했다고 주장하지 않는다.
 - PR #7474는 Draft/head `0c4a2f9812732bdfff3094caa6c624a794c86b8a` 그대로다.
   연구용 workflow를 production에 병합하거나 새 PR을 생성하는 단계는 아니다.
+
+### 후속 완료
+
+같은 runner 대응 대조 [36667835874](https://github.com/edwardkim/rhwp/actions/runs/36667835874)는 성공했다.
+실제 수정 후 전체 release wrapper가 354.324 → 320.743초(−33.581초, −9.48%)였고 양쪽 본체만 재컴파일했다.
+최종 바이트는 앞선 Canvas 3/3, 직접 PDF 3/3, readiness 8/8 검증 package와 일치했다.
+다른 CPU 두 runner의 cold 결과는 일반화하지 않는다. 연구 workflow 정적 계약 실패와 clean 후보의
+로컬 계약 통과를 구분하며 전체 저장소 CI 완료로 표현하지 않는다.
+적용 후보는 최신 devel 기반 `codex/wasm-release-cdylib-7473`의 `480551ed603846e50600cac135067a9bccec6154`,
+wrapper·테스트·CI 테스트 연결·안내 네 파일이다. 새 PR은 만들지 않았다.
+[최종 후속 보고서](../report/task_m100_7473_wasm_wrapper.md)에 모든 수치·한계·적용 patch를 보존했다.

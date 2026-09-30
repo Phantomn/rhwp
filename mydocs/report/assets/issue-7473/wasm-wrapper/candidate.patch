@@ -1,0 +1,183 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 4917f94f1..3170e4033 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -1092,6 +1092,7 @@ jobs:
+           python3 -m unittest scripts/tests/test_llm_verifier_workflow.py
+           python3 -m unittest scripts/tests/test_undo_depth_e2e_workflow.py
+           python3 -m unittest scripts/tests/test_workflow_contract_wiring.py
++          python3 -m unittest scripts/tests/test_wasm_pack_locked.py
+ 
+       # [#4715] 채택 척추 — 에이전트 작업 표준(AWS)이 전 표면에서 정합한지.
+       # 바이너리 불요(커밋 문서만) — 표면이 늘어도 표준 링크가 끊기지 않게 한다.
+diff --git a/mydocs/manual/dev_environment_guide.md b/mydocs/manual/dev_environment_guide.md
+index 06239115a..a27264560 100644
+--- a/mydocs/manual/dev_environment_guide.md
++++ b/mydocs/manual/dev_environment_guide.md
+@@ -2,7 +2,7 @@
+ kind: guide
+ status: active
+ canonical: mydocs/manual/dev_environment_guide.md
+-last_verified: 2026-08-11
++last_verified: 2026-09-30
+ ---
+ 
+ # 개발 환경 가이드
+@@ -185,6 +185,22 @@ macOS/Linux의 native WASM 검증은 `wasm-pack`을 직접 실행하지 않는
+ CARGO_TARGET_DIR=target/pr-review scripts/wasm-pack-locked.sh --target web --out-dir pkg
+ ```
+ 
++WASM release의 산출물 선택을 비교하는 선택 경로는 다음과 같습니다. 기본 동작은 바뀌지 않습니다.
++
++```bash
++RHWP_WASM_CDYLIB_ONLY=1 CARGO_TARGET_DIR=target/pr-review \
++  scripts/wasm-pack-locked.sh --target web --out-dir pkg --release
++```
++
++이 POSIX wrapper 옵션은 `rhwp`의 WASM `cdylib`만 생성합니다. Rust/Cargo 1.93.1에서 기존
++`rlib+cdylib` 빌드는 `lto=true`여도 cross-crate LTO를 실행하지 않으므로, 이 경로는 명령 범위의
++`profile.release.lto=false`로 그 실효 조건을 유지합니다. manifest의 release 설정 문구를 그대로
++적용하는 경로와는 구분합니다. wasm-pack의 wasm-bindgen·wasm-opt·패키징·Studio 동기화는 유지하며,
++Native/Rust 소비자를 위한 rlib 설정은 바꾸지 않습니다. 별도 profile/config/package 인자를 함께
++넘기지 않습니다. CI에서 채택할 때는 기존 release 캐시와 산출물 선택·프로필 키를 구분해야 합니다.
++PowerShell wrapper의 옵션은 아닙니다. 근거와 검증 범위는
++[빌드 비용 조사](https://github.com/edwardkim/rhwp/blob/7aa36953478812711e671d55c16b5daa11cd7a7a/mydocs/report/task_m100_7473_rust_phases.md)를 참고합니다.
++
+ 반복 실행은 macOS/Linux 셸의 alias로 줄일 수 있습니다. alias는 현재 셸에만 적용하며, 영구 적용이 필요하면
+ 사용 중인 셸의 초기화 파일에 같은 줄을 넣습니다.
+ 
+diff --git a/scripts/tests/test_wasm_pack_locked.py b/scripts/tests/test_wasm_pack_locked.py
+new file mode 100644
+index 000000000..e6b961ccb
+--- /dev/null
++++ b/scripts/tests/test_wasm_pack_locked.py
+@@ -0,0 +1,72 @@
++import json
++import os
++from pathlib import Path
++import subprocess
++import tempfile
++import unittest
++
++WRAPPER = Path(__file__).resolve().parents[2] / 'scripts/wasm-pack-locked.sh'
++
++class WrapperContract(unittest.TestCase):
++    def run_case(self, mode='0', build=None, fail=False, custom=False, target_env=''):
++        with tempfile.TemporaryDirectory() as directory:
++            root = Path(directory)
++            (root/'rhwp-studio/public').mkdir(parents=True)
++            (root/'bin').mkdir()
++            cargo=root/'bin/real-cargo'
++            cargo.write_text('#!/usr/bin/env python3\nimport json,os,sys\nwith open(os.environ["CALLS"],"a") as f: f.write(json.dumps(sys.argv[1:])+"\\n")\nif sys.argv[1] in ("build","rustc") and os.environ["FAIL"]=="1": sys.exit(17)\n')
++            pack=root/'bin/wasm-pack'
++            pack.write_text('#!/usr/bin/env python3\nimport json,os,pathlib,subprocess\nsubprocess.run(["cargo","metadata","--format-version","1"],check=True)\nr=subprocess.run(["cargo",*json.loads(os.environ["BUILD"])])\nif r.returncode: raise SystemExit(r.returncode)\np=pathlib.Path(os.environ["OUT"]); p.mkdir()\nfor name in ("rhwp.js","rhwp_bg.wasm"): (p/name).write_text("fresh "+name)\n')
++            for file in [cargo,pack]: file.chmod(0o755)
++            env=dict(os.environ,CARGO_BUILD_TARGET=target_env,PATH=str(root/'bin')+os.pathsep+os.environ['PATH'],CARGO=str(cargo),CALLS=str(root/'calls'),FAIL=str(int(fail)),OUT='custom' if custom else 'pkg',RHWP_WASM_CDYLIB_ONLY=mode,BUILD=json.dumps(build or ['build','--lib','--release','--target','wasm32-unknown-unknown','--locked']))
++            result=subprocess.run(['sh',str(WRAPPER),'--target','web','--release','--out-dir',env['OUT']],cwd=root,env=env,capture_output=True,text=True)
++            calls=[json.loads(x) for x in (root/'calls').read_text().splitlines()] if (root/'calls').exists() else []
++            synced=(root/'rhwp-studio/public/rhwp_bg.wasm').exists()
++            return result,calls,synced
++
++    def test_default_build_and_metadata_lock(self):
++        result,calls,synced=self.run_case()
++        self.assertEqual(result.returncode,0,result.stderr)
++        self.assertEqual(calls[0],['metadata','--format-version','1','--locked'])
++        self.assertEqual(calls[1][0],'build'); self.assertTrue(synced)
++        self.assertNotIn('--crate-type',calls[1])
++
++    def test_opt_in_preserves_arguments_and_sync(self):
++        result,calls,synced=self.run_case('1')
++        self.assertEqual(result.returncode,0,result.stderr)
++        self.assertEqual(calls[1],['rustc','--lib','--release','--target','wasm32-unknown-unknown','--locked','--package','rhwp','--crate-type','cdylib','--config','profile.release.lto=false'])
++        self.assertTrue(synced)
++
++    def test_real_wasm_pack_target_environment(self):
++        result,calls,synced=self.run_case('1',build=['build','--lib','--release','--locked','--message-format=json'],target_env='wasm32-unknown-unknown')
++        self.assertEqual(result.returncode,0,result.stderr)
++        self.assertIn('--message-format=json',calls[1]); self.assertIn('rhwp',calls[1]); self.assertTrue(synced)
++
++    def test_explicit_native_target_overrides_environment(self):
++        result,_,synced=self.run_case('1',build=['build','--lib','--release','--target','x86_64-unknown-linux-gnu'],target_env='wasm32-unknown-unknown')
++        self.assertEqual(result.returncode,2); self.assertFalse(synced)
++
++    def test_failure_does_not_sync(self):
++        result,_,synced=self.run_case('1',fail=True)
++        self.assertEqual(result.returncode,17); self.assertFalse(synced)
++
++    def test_other_output_does_not_sync(self):
++        result,_,synced=self.run_case('1',custom=True)
++        self.assertEqual(result.returncode,0); self.assertFalse(synced)
++
++    def test_unsupported_invocations_are_rejected(self):
++        for build in [
++            ['build','--lib','--target','wasm32-unknown-unknown'],
++            ['build','--lib','--release','--target','x86_64-unknown-linux-gnu'],
++            ['build','--release','--target','wasm32-unknown-unknown'],
++            ['build','--lib','--release','--target','wasm32-unknown-unknown','--config','profile.release.lto=true'],
++        ]:
++            with self.subTest(build=build):
++                result,calls,synced=self.run_case('1',build=build)
++                self.assertEqual(result.returncode,2); self.assertEqual(len(calls),1); self.assertFalse(synced)
++
++    def test_invalid_mode_is_rejected(self):
++        result,calls,synced=self.run_case('yes')
++        self.assertEqual(result.returncode,2); self.assertEqual(calls,[]); self.assertFalse(synced)
++
++if __name__=='__main__': unittest.main()
+diff --git a/scripts/wasm-pack-locked.sh b/scripts/wasm-pack-locked.sh
+index 7713a8e06..855ca67dc 100755
+--- a/scripts/wasm-pack-locked.sh
++++ b/scripts/wasm-pack-locked.sh
+@@ -25,6 +25,14 @@ for arg in "$@"; do
+   esac
+ done
+ 
++# Opt-in WASM release experiment (#7473). Keep wasm-pack's packaging/wasm-opt
++# pipeline and the default build unchanged. The mixed rlib+cdylib baseline does
++# not run cross-crate LTO; cdylib alone would otherwise enable fat LTO.
++case "${RHWP_WASM_CDYLIB_ONLY:-0}" in
++  0|1) ;;
++  *) echo "RHWP_WASM_CDYLIB_ONLY must be 0 or 1" >&2; exit 2 ;;
++esac
++
+ real_cargo="${CARGO:-}"
+ if [ -z "${real_cargo}" ]; then
+   real_cargo="$(command -v cargo)"
+@@ -51,6 +59,37 @@ if [ "${1:-}" = "metadata" ]; then
+   exec "${RHWP_WASM_PACK_REAL_CARGO}" "$@" --locked
+ fi
+ 
++if [ "${RHWP_WASM_CDYLIB_ONLY:-0}" = "1" ] && [ "${1:-}" = "build" ]; then
++  shift
++  release=0
++  library=0
++  wasm=0
++  if [ "${CARGO_BUILD_TARGET:-}" = "wasm32-unknown-unknown" ]; then wasm=1; fi
++  previous=""
++  for arg in "$@"; do
++    case "${arg}" in
++      --release) release=1 ;;
++      --lib) library=1 ;;
++      --target=wasm32-unknown-unknown) wasm=1 ;;
++      --target=*) wasm=0 ;;
++      --profile|--profile=*|--config|--config=*|--package|--package=*|-p|-p?*|--workspace|--)
++        echo "cdylib-only requires the standard release invocation without profile/config overrides" >&2
++        exit 2 ;;
++    esac
++    if [ "${previous}" = "--target" ]; then
++      wasm=0
++      if [ "${arg}" = "wasm32-unknown-unknown" ]; then wasm=1; fi
++    fi
++    previous="${arg}"
++  done
++  if [ "${release}${library}${wasm}" != "111" ]; then
++    echo "cdylib-only requires --release --lib --target wasm32-unknown-unknown" >&2
++    exit 2
++  fi
++  exec "${RHWP_WASM_PACK_REAL_CARGO}" rustc "$@" \
++    --package rhwp --crate-type cdylib --config profile.release.lto=false
++fi
++
+ exec "${RHWP_WASM_PACK_REAL_CARGO}" "$@"
+ EOF
+ chmod +x "${shim_dir}/cargo"

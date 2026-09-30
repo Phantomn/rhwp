@@ -1,0 +1,12 @@
+{
+  "identical_between_runs": {
+    "Cargo.toml": true,
+    "Cargo.lock": true,
+    "src/lib.rs": true,
+    "scripts/measure_render_diff_wasm.py": true,
+    "scripts/experiments/wasm_wrapper_integration.py": true
+  },
+  "baseline_run": 36665913681,
+  "candidate_run": 36666159256,
+  "comparison_limit": "Different runner and wrapper commits; Rust sources, lock, measurement and gate scripts unchanged. One cold and one changed-source sample per condition."
+}
