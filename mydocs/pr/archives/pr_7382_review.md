@@ -3504,3 +3504,8 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![4쪽 시험지 4쪽 fresh WASM 비교](../assets/pr7382_20260926/stage251_exam6660_wasm_review_004.png)
 
 ![7쪽 대조 문서 4쪽 fresh WASM 비교](../assets/pr7382_20260926/stage251_issue6542_wasm_review_004.png)
+
+## 보정252 — 코드 head 전체 nextest 재실행과 8개 차단 분리
+
+- 보정250 코드 head `da12278f7`에 보정251의 증적 문서만 더한 상태에서 `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 --no-fail-fast`를 완료했습니다. **10,219개 중 10,211 PASS, 8 FAIL, 50 skipped**, exit **100**입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage252-full-nextest.log`에만 있습니다. 보정246의 14 FAIL에서 #6632·#6795 한 건씩 이관, #6660·#7203·#6648·#6681 네 건 보정으로 **6건 감소**했습니다. 새 실패는 없습니다.
+- 남은 차단은 `body_overflow_baseline` 분할 15·3, `text_overlap_baseline` 분할 11·13, `issue_2287_edu_rowspan_block_fragments::issue_2287_edu_p26_keeps_content`, `issue_7226_rowspan_only_row_cut` 두 건, `issue_rowbreak_chart_overlap::rowbreak_hwp_page8_keeps_continued_nested_reference_line` 한 건입니다. 기준 탐지의 분할 번호는 문서 번호가 아니므로 다음 단계에서 실패 행의 원본·쪽·증가량을 먼저 풉니다. 415쪽 교육 문서의 세 함수도 같은 원본을 쓰지만 실패 원인을 한 덩어리로 가정하지 않습니다. 전체 회귀가 실패했으므로 PR 승인·제출 완료로 판정하지 않습니다.
