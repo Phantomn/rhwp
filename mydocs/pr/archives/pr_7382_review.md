@@ -3394,3 +3394,8 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - 원상복구한 코드의 `RHWP_TABLE_DRIFT=1 export-render-tree`에서 1쪽 pi0 표는 **98.2~150.9px**, 해당 항목 뒤 `LAYOUT_Y`는 **162.7px**입니다. pi1은 **166.5~196.2px → 뒤 208.0px**, pi2는 **211.8~622.1px → 뒤 634.4px**입니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage238-layout-drift.log`와 `stage238-render-tree/`입니다. 보정237이 paginator cap을 바꿔도 이 render tree 좌표는 모두 불변이었습니다.
 - `tac_reconcile::measure`는 표 순번 `tac_idx`를 저장 LineSeg 인덱스로 쓰지만, `layout.rs`는 HWP5 저장본에서 `control_line_seg_index`로 컨트롤의 실제 소유 줄을 찾습니다. pi0은 **표 ci3·저장 줄 2개**여서 두 선택이 다를 수 있고, layout의 표 뒤 간격도 `tac_host_trailing_spacing`으로 별도 산출됩니다. 다음에는 표 소유 줄 사영 결과를 계측해 동일한 줄/간격을 측정·배치에서 소비하도록 한 뒤 전쪽 시각으로 검증합니다. 현재 코드/검사 변경은 없습니다.
+
+## 보정239 — 첫 표의 실제 소유 저장 줄 확인
+
+- `tac_reconcile::measure`의 임시 계측에서 1쪽 첫 표 **pi0 ci3**는 TAC 표 순번 **0**, `control_line_seg_index`의 실제 줄은 **1**, 저장 줄 수 **2**입니다. 뒤 pi1·pi2는 각각 순번과 실제 줄이 모두 **0**입니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage239-tac-owner.log`입니다. 즉 첫 표의 상한 측정이 표 앞 별도 저장 줄을 표 줄로 오인한 사실을 확인했습니다. 임시 계측은 제거했습니다.
+- 다음 코드 후보는 HWP5 저장 줄에서 측정과 layout이 **같은 표 소유 줄**을 선택하게 하고, 그 마지막 저장 줄 끝에 실제 다음 표가 정확히 이어질 때만 후행 간격을 전량 보존합니다. 합성·편집 줄과 빈 후속 문단은 이 근거에 해당하지 않습니다. 실제 출력과 분할 결과를 전쪽 비교한 뒤 수용 여부를 결정합니다.
