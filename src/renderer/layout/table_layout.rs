@@ -13449,6 +13449,7 @@ impl LayoutEngine {
     /// 실제 컷이 control-free 문단 경계의 `양수 vpos -> 0 이하`에서 끝날 때만
     /// 이 값을 빼서, 마지막 가시 줄은 현 쪽에 남기고 그 뒤의 공백은 물리 쪽
     /// 경계에서 버린다. control 문단의 로컬 좌표 reset은 물리 경계가 아니다.
+    /// 표의 감싸기 방식은 저장 문단의 쪽 경계 소유를 바꾸지 않는다(#6756).
     fn native_multirow_saved_reset_trailing_trim(
         &self,
         table: &crate::model::table::Table,
@@ -13463,10 +13464,6 @@ impl LayoutEngine {
             || !matches!(
                 table.page_break,
                 crate::model::table::TablePageBreak::RowBreak
-            )
-            || !matches!(
-                table.common.text_wrap,
-                crate::model::shape::TextWrap::TopAndBottom
             )
             || end_cut == 0
             || end_cut >= units.len()
