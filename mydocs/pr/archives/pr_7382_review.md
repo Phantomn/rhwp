@@ -3379,3 +3379,8 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - `prepare_computed`의 다음 문단 검사에 TAC 표를 포함한 임시 후보를 적용하고 7쪽 Native Visual Sweep을 재실행했지만, **73.97440/88.68655/86.45281/80.74023/93.67208/93.26348/92.10454%**로 전쪽이 완전히 불변이었습니다. 이 함수는 시작에서 HWPX 저장 프로필이 아니면 반환하므로 HWP 원본에는 적용되지 않습니다. 후보 코드를 원상복구했고 출력은 `output/pr-review/planet6897-7382-20260926/stage235-issue6542-visual/`에 보존했습니다.
 - HWP 원본의 `RHWP_DIAG_TAC=1 dump-pages`는 pi0에서 표 뒤 간격 **16.0px 전량**을 소비해 `cur_h=78.7px`로 종료하지만, 다음 pi1 표 진입은 **64.6px**입니다. pi1도 **117.9px**로 종료한 뒤 pi2 진입은 **113.6px**입니다. 따라서 빠진 간격은 TAC 단축의 절반 계산이 아니라 **문단 사이 저장 vpos 원점 재조정**에서 발생합니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage235-hwp-tac-diag.log`입니다. 다음 단계는 이 되감기의 생산·측정·배치 소비를 추적합니다. 기존 검사와 기준 PDF는 유지합니다.
+
+## 보정236 — HWP TAC 높이 상한의 실제 되감기 확인
+
+- `section.rs` 각 배치 단계의 임시 계측으로 되감기는 다음 문단 진입 전이 아니라 **현재 표 문단의 `controls::reconcile_tac_height` 안**임을 확인했습니다. pi0의 `DIAG_TAC_END`는 **78.7px**이지만 `place_paragraph_flow` 반환 시 **64.56px**이고, pi1은 **117.9→113.63px**, pi2는 **548.5→543.76px**입니다. `RHWP_DIAG_TACCAP=1`의 pi0 `cap=64.6 < fmt.total_height=78.7`, pi1 `cap=49.1 < 53.3`, pi2 `cap=430.1 < 434.9`와 정확히 대응합니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage236-hwp-{phases,cap}.log`입니다. 임시 계측 코드는 전부 제거했습니다.
+- `tac_reconcile::measure`는 표 줄의 `effective_h + tac_host_trailing_spacing`을 모아 cap을 정하고, 뒤 `commit_tac_capped_bottom`이 실제 흐름 끝을 그 cap으로 바꿉니다. HWP5 저장 TAC 줄의 후행 간격 절반과 여러 저장 줄 중 표 소유 줄 선택이 개입합니다. 이 원본 pi0 마지막 저장 줄 끝은 pi1 시작과, pi1 줄 끝은 pi2 시작과 **HU 단위로 연속**이고 둘 다 다음에 실제 표가 있습니다. 다음 단계는 이 연속성의 일반 조건 아래 실제 배치 끝을 cap으로 삭제하지 않는 후보를 시험하고, 7쪽 전체 및 #1658·#1749 정상 대조를 확인합니다. 표 외곽·본문 위치는 독립 PDF로 판단하며 현재 테스트 기대값을 바꾸지 않습니다.
