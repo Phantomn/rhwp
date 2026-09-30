@@ -3456,3 +3456,9 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![분할 예산 보정 뒤 29쪽 문서 1쪽](../assets/pr7382_20260926/stage245_hwpxsample2_native_review_001.png)
 
 ![7쪽 원본의 현재 4쪽 비교](../assets/pr7382_20260926/stage245_issue6542_native_review_004.png)
+
+## 보정246 — 분할 예산 분리 뒤 전체 회귀 재검증
+
+- 보정245 head `90006da06`에서 `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 --no-fail-fast`를 완료했습니다. **10,221개 중 10,207 PASS, 14 FAIL, 50 skipped**, exit **100**입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage246-full-nextest.log`에만 남겼습니다.
+- 보정244의 25개 실패 중 쪽수 증가와 함께 발생한 #4068 두 건, #5524, #6653, #5862 세 건, #5863, 호환 쪽수 및 oracle 쪽수 세 건이 해소됐습니다. #6648 한 건은 보정244에서 통과했으나 이번 전체 실행에서 다시 실패해 별도 원인 확인이 필요합니다. 남은 14건을 하나의 원인으로 묶거나 전체 통과로 보고하지 않습니다.
+- 첫 후속 대상은 `samples/hwpspec.hwp`의 #6632 실패 한 건입니다. 이 문서의 독립 PDF는 178쪽이고 106쪽 Native Visual Sweep은 **70.54325%**입니다. 현재 검사는 해당 쪽 글리프의 x·y를 0.7px로 고정하므로 이 근거에서 회귀 계약으로 유지할 수 있는지 개별 판정합니다. 같은 파일의 다른 통과 검사나 원본 문서는 변경 대상으로 삼지 않습니다.
