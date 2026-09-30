@@ -101,7 +101,66 @@ fn table_text_page_0() {
 /// Issue #157: 비-TAC wrap=위아래 표 out-of-flow 배치 — 표가 텍스트와 중첩되지 않음
 #[test]
 fn issue_157_page_1() {
-    check_snapshot("samples/hwpx/issue_157.hwpx", 1, "issue-157/page-1");
+    use serde_json::Value;
+
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/hwpx/issue_157.hwpx");
+    let doc = rhwp::wasm_api::HwpDocument::from_bytes(&fs::read(path).expect("원문 읽기"))
+        .expect("원문 열기");
+    assert_eq!(doc.page_count(), 2, "독립 한컴 PDF의 전체 쪽수");
+    let tree: Value = serde_json::from_str(&doc.get_page_render_tree(1).expect("2쪽 렌더 트리"))
+        .expect("렌더 트리 JSON");
+
+    fn collect<'a>(value: &'a Value, output: &mut Vec<&'a Value>) {
+        output.push(value);
+        if let Some(children) = value["children"].as_array() {
+            for child in children {
+                collect(child, output);
+            }
+        }
+    }
+    let mut nodes = Vec::new();
+    collect(&tree, &mut nodes);
+    let table = |pi| {
+        nodes
+            .iter()
+            .copied()
+            .find(|node| node["type"] == "Table" && node["pi"] == pi)
+            .unwrap_or_else(|| panic!("2쪽 원문 표 문단 {pi} 누락"))
+    };
+    let text = |phrase: &str| {
+        nodes
+            .iter()
+            .copied()
+            .find(|node| {
+                node["type"] == "TextRun"
+                    && node["text"]
+                        .as_str()
+                        .is_some_and(|content| content.contains(phrase))
+            })
+            .unwrap_or_else(|| panic!("2쪽 문장 {phrase} 누락"))
+    };
+    let top = |node: &Value| node["bbox"]["y"].as_f64().expect("상단");
+    let bottom = |node: &Value| top(node) + node["bbox"]["h"].as_f64().expect("높이");
+
+    let attendance = table(7);
+    assert!(
+        bottom(text("바랍니다.)")) <= top(attendance),
+        "참석장 표가 앞 문장을 덮으면 안 된다"
+    );
+    assert!(
+        bottom(attendance) <= top(text("(대리참석 위임)")),
+        "참석장 표가 뒤 문장을 덮으면 안 된다"
+    );
+
+    let delegation = table(25);
+    assert!(
+        bottom(text("기타 정기주주총회 참석")) <= top(delegation),
+        "위임인 표가 앞 문장을 덮으면 안 된다"
+    );
+    assert!(
+        bottom(delegation) <= top(text("2026")),
+        "위임인 표가 뒤 문장을 덮으면 안 된다"
+    );
 }
 
 /// Issue #267: KTX.hwp 목차 페이지 — right tab 장제목/소제목 페이지 번호 정렬

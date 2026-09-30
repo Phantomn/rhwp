@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 18,
-  "remaining": 8,
+  "completed": 19,
+  "remaining": 7,
   "items": [
     {
       "index": 1,
@@ -128,8 +128,8 @@
       "index": 19,
       "test": "svg_snapshot::issue_157_page_1",
       "case": "svg_snapshot",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 기존 #157 스냅샷의 5.68e-14px 직렬화 차이를 원문 표·앞뒤 문장 소속/겹침 의미 검사로 교정, 전2쪽 Native/freshWASM 최저93.09137%, 기존 함수1PASS",
+      "evidence": "stage177_svg157_validation.json"
     },
     {
       "index": 20,

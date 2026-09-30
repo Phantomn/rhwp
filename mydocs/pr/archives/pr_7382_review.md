@@ -9,7 +9,7 @@ last_verified: 2026-09-30
 
 ## 최종 판정
 
-**현재 진행**: 남은26개 원장은 보정176까지18건 처리/8건 대기이며, 이전 처리 항목인 #1749 HWP 재검토는 보정168에서 해결했습니다. 작은 문서는 현재 브랜치에서 보정하고, 전 문서 피델리티 복원이 필요한 실제 차단만 #7445로 이관합니다. 보정173 전체 nextest는42FAIL이며 보정174·175 뒤 전수 재실행 전이므로 PR 준비는 미완료입니다.
+**현재 진행**: 남은26개 원장은 보정177까지19건 처리/7건 대기이며, 이전 처리 항목인 #1749 HWP 재검토는 보정168에서 해결했습니다. 작은 문서는 현재 브랜치에서 보정하고, 전 문서 피델리티 복원이 필요한 실제 차단만 #7445로 이관합니다. 보정173 전체 nextest는42FAIL이며 이후 변경을 포함한 전수 재실행 전이므로 PR 준비는 미완료입니다.
 
 **머지 보류.** 대상 PR은 사용자께서 확인하신 #7382이며, 현재 검토 브랜치는 `review/planet6897-7382-20260926`입니다. 통합 PR은 아직 생성하지 않았습니다. #6101·#7336의 생산 보정과 긍정 시각 증거는 [보정68](../assets/pr7382_20260926/stage68_validation.json)·[보정69](../assets/pr7382_20260926/stage69_validation.json)에 기록했습니다. 이는 현재 전체 회귀 통과나 원 PR의 최종 승인 근거를 대체하지 않습니다.
 
@@ -3021,3 +3021,14 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - 원장18의 `nested_cell_alignment_uses_the_sequential_anchor_when_stored_positions_reset`은 보정173 전체 nextest에서 이미 PASS였습니다. 보정175 이후 최신 head에서 기존 함수를 정확히 하나만 다시 실행해 **1PASS/0FAIL**을 확인했습니다. 원래 실패 목록의 차단 함수가 아니므로 테스트·생산 코드·기준값·공차를 수정하거나 #7445로 옮기지 않았습니다.
 - 이 검사는 합성 입력의 순차 앵커 계약이며, 통과만으로 별도의 한컴 PDF 전페이지 시각 일치를 주장하지 않습니다. [현재 함수·실행 명령과 결과](../assets/pr7382_20260926/stage176_nested_alignment_validation.json). 로그는 `output/pr-review/planet6897-7382-20260926/stage176-nested-alignment/`에만 있습니다. 원장 **18처리/8대기**, 전체 검증과 PR 준비는 미완료입니다.
+
+
+## 보정177 — #157 SVG 문자열 스냅샷의 의미 검사 교정
+
+- **사전 분석**: 원장19의 `svg_snapshot::issue_157_page_1`은 golden과 실제 SVG의 바이트가 달라 실패했습니다. XML 노드523개와 태그·문자·속성 키는 모두 같으며 숫자 속성61개의 최대 차이는 `5.684341886080802e-14px`입니다. 실제 조판 차이로 판정할 수 없는 부동소수 직렬화입니다. 원본 `samples/hwpx/issue_157.hwpx`와 기존 독립 한컴 PDF는 모두2쪽입니다.
+- **검사 교정**: 기존 함수 하나를 유지하고 2쪽의 원문 표 문단 pi7·pi25와 각각의 앞뒤 문장이 실제 렌더 트리에 있으며 표가 그 문장을 덮지 않는지를 검사합니다. 페이지 절대 픽셀 위치와 SVG 문자열은 사용하지 않습니다. 오래된 golden SVG는 갱신하지 않았고 원문·PDF·생산 코드·새 검사 함수·baseline·공차 변경0입니다.
+- **검증**: Native/fresh WASM 전2쪽 Visual Sweep 점수는 둘 다 `[98.98123, 93.09137]%`, gate `passed`입니다. 2쪽 review·overlay에서 표·문단 소속을 직접 확인했습니다. 교정한 기존 함수 **1PASS**, SVG 검사 전체7함수는 **6PASS/1FAIL**이며 남은 실패는 별도 원장23의 #617입니다. fmt, 세 Clippy, workspace build, 고정 base manifest/unit 정책 검사 통과입니다. [전후 SVG 구조·시각·명령·검사 범위](../assets/pr7382_20260926/stage177_svg157_validation.json). 로그와 전체 PNG는 `output/pr-review/planet6897-7382-20260926/stage177-svg157/`에 둡니다. 원장 **19처리/7대기**, 전체 nextest와 PR 준비는 남았습니다.
+
+![#157 1쪽 Native review](../assets/pr7382_20260926/stage177_issue157_native_review_001.png)
+![#157 2쪽 Native review](../assets/pr7382_20260926/stage177_issue157_native_review_002.png)
+![#157 2쪽 fresh WASM overlay](../assets/pr7382_20260926/stage177_issue157_wasm_overlay_002.png)
