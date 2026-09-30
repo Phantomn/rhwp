@@ -136,6 +136,46 @@ impl TypesetEngine {
                 })
         })
         .flatten();
+        // 원본 누적 좌표가 닫는 첫 물리 프레임은 내용 컷과 별도로 소유한다.
+        // 첫 조각과 이어받기 조각에 같은 행 높이 경계를 전달한다.
+        let cumulative_opening_frame = (!is_continuation
+            && cursor_row == 0
+            && start_cut.is_empty()
+            && !split_end_cut.is_empty()
+            && split_end_limit > 0.0
+            && end_row_height_override.is_none()
+            && split_block_start.is_none()
+            && table_footnotes.is_empty()
+            && !st.profile.session_edited()
+            && (st.profile.hwpx_stored_layout() || st.profile.hwp5_stored_pagination_layout())
+            && !self.render_normalization.table_text_reflowed(table)
+            && std::ptr::eq(table, row_geometry_table))
+        .then(|| {
+            input.source.paragraphs_all.get(para_idx + 1).and_then(|next| {
+                crate::renderer::float_placement::stored_cumulative_rowbreak_opening_frame_height(
+                    input.source.paragraph,
+                    next,
+                    table,
+                    self.dpi,
+                )
+            })
+        })
+        .flatten();
+        if let Some(frame_height) = cumulative_opening_frame {
+            let before_last = cut_row_h
+                .iter()
+                .take(end_row.saturating_sub(1))
+                .sum::<f64>()
+                + mt.cell_spacing * end_row.saturating_sub(2) as f64;
+            let last_height = frame_height - before_last;
+            if last_height >= split_end_limit - 0.5
+                && last_height < cut_row_h[end_row - 1]
+                && frame_height <= avail_for_rows + header_overhead
+            {
+                end_row_height_override = Some(last_height);
+                partial_height = frame_height;
+            }
+        }
         let first_fragment_blank_band = !is_continuation
             && split_block_start.is_none()
             && end_row_height_override.is_none()

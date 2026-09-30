@@ -774,6 +774,38 @@ pub(crate) fn stored_rowbreak_closing_frame_height(
     (remaining == i64::from(after.vertical_pos)).then(|| hwpunit_to_px(after.vertical_pos, dpi))
 }
 
+/// 다음 빈 문단이 누적 저장 원점과 개체 프레임의 끝을 정확히 잇는 경우,
+/// 선언 높이를 첫 RowBreak 조각의 물리 높이로 반환한다.
+pub(crate) fn stored_cumulative_rowbreak_opening_frame_height(
+    host: &Paragraph,
+    successor: &Paragraph,
+    table: &Table,
+    dpi: f64,
+) -> Option<f64> {
+    let first = host.line_segs.first()?;
+    let next = successor.line_segs.first()?;
+    if host.stored_text_partition_is_dirty()
+        || successor.stored_text_partition_is_dirty()
+        || !para_has_non_whitespace_text(host)
+        || !matches!(host.controls.as_slice(), [Control::Table(_)])
+        || !successor.text.is_empty()
+        || !successor.controls.is_empty()
+        || table.common.treat_as_char
+        || !is_para_topbottom_float(&table.common)
+        || table.page_break != TablePageBreak::RowBreak
+        || table.row_count <= 1
+        || table.common.height == 0
+        || table.common.height > i32::MAX as u32
+    {
+        return None;
+    }
+    let offset = signed_hwpunit(table.common.vertical_offset);
+    let expected =
+        i64::from(first.vertical_pos) + i64::from(offset) + i64::from(table.common.height);
+    (offset > 0 && expected == i64::from(next.vertical_pos))
+        .then(|| hwpunit_to_px(table.common.height as i32, dpi))
+}
+
 /// 종료 조각의 실제 하단과 뒤 원본 줄 사이에 저장된 바깥 아래 여백이다.
 /// 원본 줄의 시작점과 프레임의 종료식이 맞는 경우만 반환한다.
 pub(crate) fn stored_terminal_rowbreak_outer_margin_px(

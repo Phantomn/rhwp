@@ -481,12 +481,43 @@ impl HeightCursor {
             let y_delta_hu =
                 ((untrimmed_y_offset - self.col_area_y) / self.dpi * 7200.0).round() as i32;
             let lazy_base_corrected = prev_vpos_end - (y_delta_hu + trailing_ls_hu);
-            let lazy_base = lazy_base_rounding::resolve_lazy_base(
-                prev_vpos_end,
-                y_delta_hu,
-                trailing_ls_hu,
-                self.trimmed_prev_spacing_before_px,
-            );
+            // 누적 HWPX 좌표와 원본의 쪽 내부 좌표가 동일한 차이로
+            // 이어지고 현재 흐름도 원본 시작점에 도착했다면, 빈 줄의
+            // 후행 간격을 역산 기준에서 다시 빼지 않는다.
+            let source_continuous_base = (self.suppress_hwpx_stale_forward
+                && !self.session_edited
+                && !synthetic_prev_seg
+                && !prev_has_text
+                && vpos_continuous)
+                .then(|| {
+                    let prev_source = *prev_para.source_line_seg_vertical_pos.as_ref()?.last()?;
+                    let curr_para = paragraphs.get(item_para)?;
+                    let curr_source = *curr_para.source_line_seg_vertical_pos.as_ref()?.first()?;
+                    let curr_model = curr_para.line_segs.first()?;
+                    let base = curr_model.vertical_pos.checked_sub(curr_source)?;
+                    (base > 0
+                        && prev_source
+                            .saturating_add(seg.line_height)
+                            .saturating_add(seg.line_spacing)
+                            == curr_source
+                        && seg.vertical_pos.checked_sub(prev_source) == Some(base)
+                        && curr_model.tag
+                            & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY
+                            == 0
+                        && (y_offset - self.col_area_y - hwpunit_to_px(curr_source, self.dpi))
+                            .abs()
+                            < 0.1)
+                        .then_some(base)
+                })
+                .flatten();
+            let lazy_base = source_continuous_base.unwrap_or_else(|| {
+                lazy_base_rounding::resolve_lazy_base(
+                    prev_vpos_end,
+                    y_delta_hu,
+                    trailing_ls_hu,
+                    self.trimmed_prev_spacing_before_px,
+                )
+            });
             if lazy_base < 0 {
                 // 역산 무효(자리차지 표 등): 이전 개체 높이가 sequential y 에 이미
                 // 반영된 상태다. 여기서 vpos 보정을 적용하면 단 상단으로 되감겨
