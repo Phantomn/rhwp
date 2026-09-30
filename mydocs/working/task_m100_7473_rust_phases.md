@@ -39,3 +39,26 @@ opt-level 3 / CGU 1 / wasm-opt를 유지했고, 기본 Canvas 3개와 API 호환
 일반적인 전체 CI 개선이나 production 적용 완료로 확대하지 않는다.
 보정된 최종 수치, nominal/effective LTO 차이, 재현 코드와 남은 검증은
 [최종 보고서](../report/task_m100_7473_rust_phases.md)에 기록했다.
+
+## 실제 wrapper 통합 후속 검증 (2026-09-30)
+
+사용자가 후속 적용·최초 빌드·release 검증 진행을 승인했다. 최신 upstream/devel은
+기존 기준 `0e8fd49fb868da0d47ac1294dcbbda81f0211233`과 같았다.
+
+- `RHWP_WASM_CDYLIB_ONLY=1`을 명시할 때만 POSIX wrapper의 root WASM release
+  Cargo 호출을 `rustc --package rhwp --crate-type cdylib --config profile.release.lto=false`로 전환한다.
+- wasm-pack 0.15.0의 JSON artifact 소비, wasm-bindgen, wasm-opt, package 생성, Studio 동기화를 그대로 사용한다.
+- 기본 경로·Native Cargo 프로필·PowerShell wrapper는 변경하지 않는다. 이번 실행 증거는 Linux다.
+- wrapper 계약 8개와 기존 Docker 계약 4개, shell/Python 구문, actionlint, diff 검사를 통과했다.
+- 독립 runner에 target이 없는 것을 확인하고 cold → 실제 version 수정 후 changed 순서로 측정한다.
+  Cargo/package cache restore/save는 없다. 처음 실행의 후보는 target 환경변수 처리 누락으로 2.780초에
+  guard에서 실패했으며 컴파일 성능 표본으로 사용하지 않는다. 실제 `CARGO_BUILD_TARGET` 전달과
+  workspace root package 선택을 보완해 후보만 재실행한다.
+- 기준선 run: [36665913681](https://github.com/edwardkim/rhwp/actions/runs/36665913681),
+  후보 run: [36666159256](https://github.com/edwardkim/rhwp/actions/runs/36666159256).
+  두 ref의 Rust 소스·manifest·lock·계측 및 gate 스크립트는 동일하다. 두 VM의 n=1 결과를
+  같은 runner 내 대응 반복 또는 전체 CI의 고정 개선율로 표현하지 않는다.
+- 기존 Render Diff의 renderer/font 계약, 기본 Canvas, Native 직접 PDF gate, CanvasKit readiness를
+  실행한다. 전체 저장소의 Rust test/Clippy/보안 CI를 대신했다고 주장하지 않는다.
+- PR #7474는 Draft/head `0c4a2f9812732bdfff3094caa6c624a794c86b8a` 그대로다.
+  연구용 workflow를 production에 병합하거나 새 PR을 생성하는 단계는 아니다.
