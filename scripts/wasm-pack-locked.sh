@@ -64,18 +64,21 @@ if [ "${RHWP_WASM_CDYLIB_ONLY:-0}" = "1" ] && [ "${1:-}" = "build" ]; then
   release=0
   library=0
   wasm=0
+  if [ "${CARGO_BUILD_TARGET:-}" = "wasm32-unknown-unknown" ]; then wasm=1; fi
   previous=""
   for arg in "$@"; do
     case "${arg}" in
       --release) release=1 ;;
       --lib) library=1 ;;
       --target=wasm32-unknown-unknown) wasm=1 ;;
-      --profile|--profile=*|--config|--config=*|--)
+      --target=*) wasm=0 ;;
+      --profile|--profile=*|--config|--config=*|--package|--package=*|-p|-p?*|--workspace|--)
         echo "cdylib-only requires the standard release invocation without profile/config overrides" >&2
         exit 2 ;;
     esac
-    if [ "${previous}" = "--target" ] && [ "${arg}" = "wasm32-unknown-unknown" ]; then
-      wasm=1
+    if [ "${previous}" = "--target" ]; then
+      wasm=0
+      if [ "${arg}" = "wasm32-unknown-unknown" ]; then wasm=1; fi
     fi
     previous="${arg}"
   done
@@ -84,7 +87,7 @@ if [ "${RHWP_WASM_CDYLIB_ONLY:-0}" = "1" ] && [ "${1:-}" = "build" ]; then
     exit 2
   fi
   exec "${RHWP_WASM_PACK_REAL_CARGO}" rustc "$@" \
-    --crate-type cdylib --config profile.release.lto=false
+    --package rhwp --crate-type cdylib --config profile.release.lto=false
 fi
 
 exec "${RHWP_WASM_PACK_REAL_CARGO}" "$@"
