@@ -3146,3 +3146,9 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - 2쪽 행 14 열 2의 저장 `valign=Center`는 분할 컷 때문에 실제 배치에서 `Top`으로 바뀝니다. 조각 상자는 y=**977.480px**, 높이=**139.893px**, 안 여백 상·하 각 **7.547px**, 조각 내용 높이 **81.600px**, 글자 시작 y=**985.027px**입니다. Center를 단순 복원하면 남는 높이의 절반 **21.600px**을 추가해 한컴 PDF에서 관찰한 약 9px 차이보다 과하게 내려갑니다.
 - 3쪽 행 20 열 2도 저장 Center→실제 Top이며 상자 y=**891.987px**, 높이=**167.093px**, 글자 시작 y=**899.533px**입니다. `composition_window` 경로의 내용 높이 계측값은 0이지만 실제 글줄은 표시됩니다. 따라서 그 0을 이용한 가운데 정렬은 근거가 없습니다. 임시 진단 코드는 제거했으며 로그는 `output/pr-review/planet6897-7382-20260926/stage193-issue6756-tree.log`에 남겼습니다. 다음 단계에서는 저장 줄 원점과 문단 간격을 실제 글줄 배치 소비 지점까지 추적해 두 행의 공통 차이를 찾습니다.
+
+## 보정194 — #4966 폰트 규칙 회귀 검사의 기록된 추가분 반영
+
+- **원인**: `issue_4966_font_rule_projection` 검사는 봉인된 v1 규칙 830개에서 기록된 두 `retire-and-replace`만 반영했습니다. 이미 적용된 #7196의 `issue-7196-ygodic230-metric-name.json`은 독립 한컴 PDF와 실폰트 계측을 근거로 `rust-layout-metric` 규칙 한 건을 `add-rule`로 추가했습니다. 현재 정본 레지스트리는 활성 **831개**, metric projection **68개**가 맞으며, 실패의 830/67 기대값은 과거 상태입니다.
+- **수정**: v1 봉인은 유지하고 변경 기록의 종류·투영·활성 증가량을 검사한 뒤 해당 규칙만 기대 의미와 metric 투영 순서에 추가했습니다. 기존 모든 규칙의 의미·순서 비교와 공개 `find_metric` 호출 검사는 유지합니다. 렌더러 동작이나 시각 기준값은 바꾸지 않았습니다.
+- **집중 검증**: `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_4966_font_rule_projection)' --no-fail-fast`에서 **3PASS/0FAIL**입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage194-issue4966-nextest.log`입니다. 전체 nextest 결과로 확대 해석하지 않습니다.
