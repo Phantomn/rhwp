@@ -3486,15 +3486,9 @@ impl Renderer for SvgRenderer {
         let dot_radius = font_size * super::render_tree::MIDDLE_DOT_RADIUS_EM;
         let dot_cy_offset = -font_size * super::render_tree::MIDDLE_DOT_CY_OFFSET_EM;
 
-        // [#5804] 3+ 연속 '-' 를 단일 가로선으로 대체하던 처리(Task #352)를 걷어냈다.
-        // 한글 2022 정본은 하이픈을 **낱글자 글리프**로 그린다 — 런마다 글자당
-        // advance 가 달라지고 끝점이 오른쪽 여백에 수렴하는 탄력 leader 다.
-        // 그 분배는 이미 레이아웃이 만든다(`compute_line_extra_spacing` 의
-        // `extra_dash_sp` → `TextStyle::extra_dash_advance`)이므로 `char_positions`
-        // 는 정본과 같은 간격을 담고 있고, 글리프를 그대로 출력하면 된다.
-        //
-        // 선으로 바꾸면 법령 개정문·신구조문대비표에서 "현행과 같음"을 뜻하는
-        // 하이픈 표기가 밑줄로 보여 읽는 사람이 생략인지 빈칸인지 구분할 수 없다.
+        // 연속 하이픈은 기본적으로 저장 글자 위치마다 낱글자로 그린다(#5804).
+        // 원 글꼴의 획이 저장 간격보다 넓어 실선으로 겹치는 경우에만 아래에서
+        // 낱글자별 짧은 획으로 그린다. 한 줄 전체를 밑줄로 대체하지 않는다.
 
         // 그림자 렌더링 (원본 아래에 오프셋된 그림자색 텍스트)
         if !self.suppress_text_glyphs && style.shadow_type > 0 {
@@ -3554,6 +3548,34 @@ impl Renderer for SvgRenderer {
             for (char_idx, cluster_str) in clusters.iter() {
                 if cluster_str == " " || cluster_str == "\t" {
                     continue;
+                }
+                if cluster_str == "-" {
+                    if let Some((start, end, y_offset, stroke)) =
+                        super::overlapping_dash_leader_segment(
+                            text,
+                            style,
+                            *char_idx,
+                            &char_positions,
+                            font_size,
+                        )
+                    {
+                        let char_x = x + char_positions[*char_idx];
+                        self.output.push_str(&format!(
+                            "<line x1=\"{:.4}\" y1=\"{:.4}\" x2=\"{:.4}\" y2=\"{:.4}\" stroke=\"{}\" stroke-width=\"{:.4}\"/>\n",
+                            char_x + start,
+                            y + y_offset,
+                            char_x + end,
+                            y + y_offset,
+                            color,
+                            stroke,
+                        ));
+                        // 가시 획은 분리하되 검색 가능한 원문 하이픈은 남긴다.
+                        self.output.push_str(&format!(
+                            "<text x=\"{:.4}\" y=\"{:.4}\" font-size=\"{}\" fill=\"{}\" fill-opacity=\"0\">-</text>\n",
+                            char_x, y, font_size, color,
+                        ));
+                        continue;
+                    }
                 }
                 // [#6127] 한컴 사각 안 숫자(U+F02B1~F02C4) 평문 폴백 — web_canvas
                 // (`draw_boxed_pua_number`)와 동일한 bounded vector 합성. raw PUA 를

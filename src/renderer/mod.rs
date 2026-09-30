@@ -147,6 +147,61 @@ pub(crate) fn clamp_tab_leader_end_x(
         .unwrap_or(leader.end_x)
 }
 
+/// 글꼴 원래 하이픈 폭이 저장 글자 간격보다 커서 연속 하이픈이 실선으로
+/// 겹칠 때만, 각 글자의 짧은 획을 그릴 공통 기하를 돌려준다.
+/// 글자마다 별도 획을 남겨 한컴 출력의 파선과 문자 소유를 보존한다.
+pub(crate) fn overlapping_dash_leader_segment(
+    text: &str,
+    style: &TextStyle,
+    char_index: usize,
+    positions: &[f64],
+    font_size: f64,
+) -> Option<(f64, f64, f64, f64)> {
+    if style.shadow_type > 0 || style.outline_type > 0 || style.emboss || style.engrave {
+        return None;
+    }
+    let face = style
+        .font_family
+        .split(',')
+        .next()?
+        .trim()
+        .trim_matches(['\'', '"']);
+    if face != "한양신명조" || positions.len() <= char_index + 1 {
+        return None;
+    }
+    let chars: Vec<char> = text.chars().collect();
+    if chars.get(char_index) != Some(&'-') {
+        return None;
+    }
+    let left = chars[..char_index]
+        .iter()
+        .rev()
+        .take_while(|ch| **ch == '-')
+        .count();
+    let right = chars[char_index + 1..]
+        .iter()
+        .take_while(|ch| **ch == '-')
+        .count();
+    if left + right + 1 < 3 {
+        return None;
+    }
+    let advance = positions[char_index + 1] - positions[char_index];
+    // 저장 폭 표는 좁은 획(588/1024em)을 쓰지만 실제 SVG 글꼴은
+    // H2MJSM의 넓은 하이픈(853/1024em)을 칠한다. 겹침 판정은 칠할
+    // 글꼴의 폭으로 해야 한다.
+    let metric =
+        font_metrics_data::find_metric_decision("HYSinMyeongJo-Medium", style.bold, style.italic)?;
+    let natural_width =
+        f64::from(metric.metric.get_width('-')?) * font_size / f64::from(metric.metric.em_size);
+    if advance <= 0.0 || natural_width <= advance + 0.25 {
+        return None;
+    }
+    // 한컴 출력의 하이픈 획은 저장 글자 원점에서 시작하며 기준선보다
+    // 0.43em 위에 있다. 길이는 저장 advance 안에서만 남긴다.
+    let end = (font_size * 0.38).min(advance * 0.7);
+    Some((0.0, end, -font_size * 0.43, font_size * 0.054))
+}
+
 /// Backend replay 직전의 optional scalar positions를 한 번 더 검증한다.
 ///
 /// `TextRunNode` accessor와 positioned `Renderer` 직접 호출이 같은 bounded
@@ -301,9 +356,10 @@ pub struct TextStyle {
     /// 측정 결정에만 쓴다 — 레이어 트리 직렬화 바이트를 보존하려고 직렬화에서 뺀다.
     #[serde(skip_serializing)]
     pub metric_font_family: Option<String>,
-    /// [#7387] `CharShape.use_font_space`(글꼴에 어울리는 빈칸)가 켜진 run 의
-    /// **영문 슬롯** 글꼴이 선언한 공백 전진폭(em). 꺼져 있으면 `None` 이고
-    /// 공백은 종전대로 반각(`em/2`)이다.
+    /// [#7387] 명시적으로 확인한 공백 전진폭(em). 주로
+    /// `CharShape.use_font_space`가 켜진 run의 **영문 슬롯** 글꼴 폭이며,
+    /// 저장 문서의 독립 출력에서 다른 폭이 확인되면 프로필이 덮어쓸 수 있다.
+    /// `None`이면 아래 일반 글꼴 측정 규칙을 따른다.
     ///
     /// 한/글은 이 속성이 켜지면 공백을 반각이 아니라 영문 슬롯 글꼴의 제 공백
     /// 글리프 전진폭으로 전진시킨다. `1382000_domestic_violence_survey` 정본

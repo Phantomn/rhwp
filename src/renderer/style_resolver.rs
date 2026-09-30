@@ -55,8 +55,9 @@ pub struct ResolvedCharStyle {
     /// `HCI Poppy` 가 그 경우이며, 그 치환(`Palatino Linotype`)은 정본 ASCII 24,662자
     /// 대조에서 중앙 오차 0.0040 em 으로 이미 맞다 — 건드리지 않는다.
     pub font_families_metric_face: Vec<Option<String>>,
-    /// [#7387] `CharShape.use_font_space` 가 켜졌고 **영문 슬롯**(1) 글꼴의 공백
-    /// 글리프 폭을 알 때, 그 전진폭(em). 그 외에는 `None` 이고 공백은 반각이다.
+    /// [#7387] 처음에는 `CharShape.use_font_space`가 켜진 run의 **영문 슬롯**(1)
+    /// 공백 글리프 폭이다. 저장 문서 프로필에서 독립 출력에 맞게 보정할 수 있다.
+    /// `None`이면 일반 글꼴 측정 규칙을 따른다.
     ///
     /// 한/글은 이 속성이 켜지면 공백을 영문 슬롯 글꼴의 제 공백폭으로 전진시킨다.
     /// 근거와 문서 내 대조군은 [`crate::renderer::TextStyle::font_space_em`] 에 있다.
@@ -436,7 +437,71 @@ pub fn resolve_styles(doc_info: &DocInfo, dpi: f64) -> ResolvedStyleSet {
 /// is passed separately to consumers that need it.
 pub(crate) fn resolve_styles_for_document(document: &Document, dpi: f64) -> ResolvedStyleSet {
     let profile = document.layout_profile();
-    resolve_styles_with_variant(&document.doc_info, dpi, profile.hwp3_layout())
+    let mut styles = resolve_styles_with_variant(&document.doc_info, dpi, profile.hwp3_layout());
+    if profile.hwpx_stored_layout() {
+        // 같은 14pt 한양신명조라도 일반 본문과 표 안의 공백 조판은 다르다.
+        // 검증 HWPX의 일반 본문은 반각, 표 안은 기존 저장 메트릭을 쓴다.
+        // 같은 글자 모양이 양쪽에 쓰이면 전역 스타일 보정으로 구분할 수
+        // 없으므로 원래 측정을 유지한다.
+        let mut body_space_styles = std::collections::HashSet::new();
+        let mut table_space_styles = std::collections::HashSet::new();
+        for section in &document.sections {
+            for para in &section.paragraphs {
+                if !para
+                    .controls
+                    .iter()
+                    .any(|control| matches!(control, crate::model::control::Control::Table(_)))
+                {
+                    collect_paragraph_space_styles(para, &mut body_space_styles);
+                }
+                for control in &para.controls {
+                    if let crate::model::control::Control::Table(table) = control {
+                        collect_table_space_styles(table, &mut table_space_styles);
+                    }
+                }
+            }
+        }
+        for (id, style) in styles.char_styles.iter_mut().enumerate() {
+            if body_space_styles.contains(&(id as u32))
+                && !table_space_styles.contains(&(id as u32))
+                && style.font_size >= 56.0 / 3.0 - 0.01
+                && style.font_family.split(',').next() == Some("한양신명조")
+                && style.font_space_em.is_none()
+            {
+                style.font_space_em = Some(0.5);
+            }
+        }
+    }
+    styles
+}
+
+fn collect_paragraph_space_styles(
+    para: &crate::model::paragraph::Paragraph,
+    ids: &mut std::collections::HashSet<u32>,
+) {
+    for (index, ch) in para.text.chars().enumerate() {
+        if ch == ' ' {
+            if let Some(id) = para.char_shape_id_at(index) {
+                ids.insert(id);
+            }
+        }
+    }
+}
+
+fn collect_table_space_styles(
+    table: &crate::model::table::Table,
+    ids: &mut std::collections::HashSet<u32>,
+) {
+    for cell in &table.cells {
+        for para in &cell.paragraphs {
+            collect_paragraph_space_styles(para, ids);
+            for control in &para.controls {
+                if let crate::model::control::Control::Table(nested) = control {
+                    collect_table_space_styles(nested, ids);
+                }
+            }
+        }
+    }
 }
 
 /// The environment selects the same final face for measurement and every painter.

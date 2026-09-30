@@ -94,7 +94,8 @@ impl TypesetEngine {
         let fragment_opens_outer_top = std::ptr::eq(row_geometry_table, table)
             && crate::renderer::float_placement::column_rowbreak_fragment_opens_outer_top(
                 st.profile.hwpx_stored_layout(),
-                st.profile.hwp5_stored_pagination_layout().then_some(para),
+                (st.profile.hwpx_stored_layout() || st.profile.hwp5_stored_pagination_layout())
+                    .then_some(para),
                 table,
                 is_continuation,
                 cursor_row,

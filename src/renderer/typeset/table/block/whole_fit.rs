@@ -302,7 +302,8 @@ impl TypesetEngine {
         use crate::renderer::float_placement as placement;
         let opens = placement::column_rowbreak_fragment_opens_outer_top(
             st.profile.hwpx_stored_layout(),
-            st.profile.hwp5_stored_pagination_layout().then_some(para),
+            (st.profile.hwpx_stored_layout() || st.profile.hwp5_stored_pagination_layout())
+                .then_some(para),
             table,
             false,
             0,

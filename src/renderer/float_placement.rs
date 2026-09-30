@@ -260,14 +260,35 @@ pub(crate) fn column_rowbreak_fragment_opens_outer_top(
             && matches!(table.common.vert_align, VertAlign::Top | VertAlign::Inside)
             && signed_hwpunit(table.common.vertical_offset) >= line.line_height
     });
+    // 저장 앵커가 첫 글줄 안에서 시작하면 그 글줄이 표 위 여백을 이미 소유한다.
+    // 독립된 본문 밴드 뒤에서 시작하는 앵커만 첫 조각과 다음 쪽에 여백을 연다.
+    let para_anchor_below_first_line = native_host.is_some_and(|host| {
+        object_only_saved_table_anchor(host, table)
+            && host
+                .line_segs
+                .first()
+                .is_some_and(|line| line.vertical_pos >= line.line_height)
+    });
     (hwpx_stored || native_object_frame)
         && !table.common.treat_as_char
         && is_para_topbottom_float(&table.common)
-        && table.common.horz_rel_to == HorzRelTo::Column
+        && (table.common.horz_rel_to == HorzRelTo::Column
+            || (hwpx_stored
+                && table.common.horz_rel_to == HorzRelTo::Para
+                && table.common.vert_rel_to == VertRelTo::Para
+                && para_anchor_below_first_line))
         && table.page_break == TablePageBreak::RowBreak
         && table.outer_margin_top > 0
         && ((!is_continuation && start_row == 0 && start_cut.is_empty())
-            || (is_continuation && starts_at_column_top))
+            || (is_continuation
+                && starts_at_column_top
+                && (table.common.horz_rel_to == HorzRelTo::Column
+                    || (hwpx_stored
+                        && native_host.is_some_and(|host| {
+                            !host.stored_text_partition_is_dirty()
+                                && !host.cell_format_vpos_dirty
+                                && !host.line_segs.is_empty()
+                        })))))
 }
 
 pub(crate) fn column_rowbreak_caption_outer_spacing_px(

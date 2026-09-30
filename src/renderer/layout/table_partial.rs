@@ -4284,11 +4284,10 @@ impl LayoutEngine {
             && enclosing_cell_ctx.is_none()
             && crate::renderer::float_placement::column_rowbreak_fragment_opens_outer_top(
                 self.profile.get().hwpx_stored_layout(),
-                self.profile
-                    .get()
-                    .hwp5_stored_pagination_layout()
-                    .then(|| paragraphs.get(para_index))
-                    .flatten(),
+                (self.profile.get().hwpx_stored_layout()
+                    || self.profile.get().hwp5_stored_pagination_layout())
+                .then(|| paragraphs.get(para_index))
+                .flatten(),
                 table,
                 is_continuation,
                 start_row,

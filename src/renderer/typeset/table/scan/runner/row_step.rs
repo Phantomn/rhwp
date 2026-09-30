@@ -764,16 +764,59 @@ impl TypesetEngine {
                 && layout_engine
                     .row_stored_terminal_zero_origin_cut(table, r, styles)
                     .is_some_and(|cut| cut == res.end_cut);
-            if r > cursor_row
+            // 저장된 물리 컷 근거가 없는 다줄 행에서 현재 쪽에 첫 유닛 하나만
+            // 남고 행 전체가 새 쪽에 들어가면 행 경계에서 이월한다. 내용 높이가
+            // 25px을 조금 넘는다는 이유만으로 첫 줄을 떼면 한컴의 행 시작과
+            // 다음 쪽의 짧은 셀 소유가 모두 달라진다. 저장 reset이나 명시적인
+            // 첫 줄 컷은 아래 기존 경로가 그대로 보존한다.
+            let defer_single_unit_row_start = st.profile.hwpx_stored_layout()
+                && mt.allows_row_break_split()
+                && r > cursor_row
+                && row_start_cut.is_empty()
+                && !self.render_normalization.table_text_reflowed(table)
+                && !res.fully_consumed
+                && res.end_cut.iter().any(|units| *units == 1)
+                && res.end_cut.iter().all(|units| *units <= 1)
+                && {
+                    // 짧은 셀의 저장 글줄은 완결되지만 이웃한 다줄 셀은 아직
+                    // 진행 중인 비대칭 행이다. 단일 거대 셀이나 양쪽이 계속되는
+                    // 행에는 이월 규칙을 적용하지 않는다.
+                    let mut single_line_cell = false;
+                    let mut multi_line_cell = false;
+                    for cell in table
+                        .cells
+                        .iter()
+                        .filter(|cell| cell.row as usize == r && cell.row_span == 1)
+                    {
+                        let saved_lines: usize = cell
+                            .paragraphs
+                            .iter()
+                            .map(|para| para.line_segs.len())
+                            .sum();
+                        single_line_cell |= saved_lines == 1;
+                        multi_line_cell |= saved_lines > 1;
+                    }
+                    single_line_cell && multi_line_cell
+                }
+                && row_total <= (st.layout.body_area.height - header_overhead).max(0.0)
                 && !cellbreak_complete_unit_keep
                 && !landscape_boundary_band_keep
                 && !stored_zero_origin_rewind_keep
                 && !stored_terminal_zero_origin_keep
-                && !row_split_meets_min_top_keep(
-                    res.consumed_height,
-                    split_total,
-                    row_split_min_keep_uses_painted_height,
-                )
+                && !uses_source_frame_tail
+                && !rowbreak_row_has_internal_saved_vpos_reset(table, r)
+                && !row_has_stored_cross_paragraph_zero_reset(table, r);
+            if r > cursor_row
+                && (defer_single_unit_row_start
+                    || (!cellbreak_complete_unit_keep
+                        && !landscape_boundary_band_keep
+                        && !stored_zero_origin_rewind_keep
+                        && !stored_terminal_zero_origin_keep
+                        && !row_split_meets_min_top_keep(
+                            res.consumed_height,
+                            split_total,
+                            row_split_min_keep_uses_painted_height,
+                        )))
             {
                 end_row = r;
             } else {

@@ -14106,10 +14106,9 @@ impl LayoutEngine {
                 let opens =
                     crate::renderer::float_placement::column_rowbreak_fragment_opens_outer_top(
                         self.profile.get().hwpx_stored_layout(),
-                        self.profile
-                            .get()
-                            .hwp5_stored_pagination_layout()
-                            .then_some(para),
+                        (self.profile.get().hwpx_stored_layout()
+                            || self.profile.get().hwp5_stored_pagination_layout())
+                        .then_some(para),
                         table,
                         false,
                         0,
