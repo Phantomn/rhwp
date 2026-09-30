@@ -598,9 +598,9 @@ pub(crate) fn tac_host_trailing_spacing(
     }
 }
 
-/// 실제 표 소유 줄의 저장 끝에 다음 표가 붙어 있으면 후행 간격 전량을
-/// 다음 표 앞의 물리 공간으로 보존한다.
-pub(crate) fn native_tac_next_table_full_spacing(
+/// 실제 표 소유 줄의 저장 끝과 다음 문단의 저장 시작이 맞닿으면
+/// 후행 간격 전량을 다음 문단 앞의 물리 공간으로 보존한다.
+pub(crate) fn native_tac_next_line_full_spacing(
     para: &Paragraph,
     next_para: Option<&Paragraph>,
     seg: &LineSeg,
@@ -615,10 +615,6 @@ pub(crate) fn native_tac_next_table_full_spacing(
         && seg.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
         && next_para.is_some_and(|next| {
             !next.stored_text_partition_is_dirty()
-                && next
-                    .controls
-                    .iter()
-                    .any(|control| matches!(control, Control::Table(_)))
                 && next.line_segs.first().is_some_and(|first| {
                     first.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
                         && seg

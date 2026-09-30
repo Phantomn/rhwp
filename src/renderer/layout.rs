@@ -13555,7 +13555,7 @@ impl LayoutEngine {
                         let native_stored_layout =
                             self.profile.get().hwp5_stored_pagination_layout()
                                 && !self.profile.get().session_edited();
-                        y_offset += if crate::renderer::composer::native_tac_next_table_full_spacing(
+                        y_offset += if crate::renderer::composer::native_tac_next_line_full_spacing(
                             para,
                             paragraphs.get(para_index + 1),
                             seg,

@@ -61,7 +61,7 @@ pub(super) fn measure(
                         .unwrap_or(0.0);
                     let effective_h = crate::renderer::tac_table_effective_height(seg_lh, mt_h);
                     let trailing = if seg.line_spacing > 0
-                        && crate::renderer::composer::native_tac_next_table_full_spacing(
+                        && crate::renderer::composer::native_tac_next_line_full_spacing(
                             para,
                             next_para,
                             seg,
