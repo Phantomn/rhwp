@@ -68,7 +68,9 @@ fn textbox_vpos_origin_hu(common: &CommonObjAttr, matrix_positioned: bool) -> Op
     }
 
     let origin = crate::renderer::float_placement::signed_hwpunit(common.vertical_offset);
-    (origin > 0).then_some(origin)
+    // 쪽 오프셋이 상자 자체 높이 안에 있으면 저장 줄 vpos를 쪽 좌표로 단정할 수 없다.
+    // 이 경우 첫 줄의 상자 내부 여백을 보존한다. 쪽 좌표가 분명한 오프셋만 재기저화한다.
+    (origin > 0 && origin >= common.height as i32).then_some(origin)
 }
 
 fn normalize_textbox_vpos_hu(vertical_pos: i32, origin_hu: Option<i32>) -> i32 {

@@ -582,7 +582,14 @@ fn resolve_single_char_style(cs: &CharShape, doc_info: &DocInfo, dpi: f64) -> Re
         // [#7391] legacy-latin 폴백이 선언 face 를 한글 face 로 보내면서, 우리가 이미 가진
         // 그 face 자신의 폭 표를 버리는 경우만 되돌린다. HFT/TTF 경계는 손대지 않는다 —
         // HFT 한글 전용 face 의 반각 ASCII 회계(#7051)가 치환된 이름에 걸려 있다.
-        font_families_metric_face.push(
+        let singraphic_hft = decision.substitution_boundary == Some(FontSubstitutionBoundary::Hft)
+            && decision.requested_face.as_deref() == Some("신명 신그래픽");
+        font_families_metric_face.push(if singraphic_hft {
+            // exam_kor 한컴 PDF 17쪽의 T16: 괄호는 한글 전진폭의 절반이다.
+            // 굴림 대체 글꼴의 0.375em 괄호를 폭 기준으로 쓰면 가운데 정렬한
+            // 그림과 제목 전체가 오른쪽으로 밀린다. 표시 글꼴은 그대로 둔다.
+            Some("HY신명조".to_string())
+        } else {
             (decision.substitution_boundary == Some(FontSubstitutionBoundary::LegacyLatin))
                 .then(|| {
                     decision
@@ -591,11 +598,18 @@ fn resolve_single_char_style(cs: &CharShape, doc_info: &DocInfo, dpi: f64) -> Re
                         .filter(has_own_metric_table)
                 })
                 .flatten()
-                .map(str::to_string),
-        );
+                .map(str::to_string)
+        });
         font_families.push(decision.css_family_chain.join(","));
 
-        let spacing_percent = cs.spacings[lang] as f64;
+        // 같은 PDF의 T16 한글 5자는 44px 글꼴에 장평 90%를 적용한
+        // 39.6px 간격으로 놓인다. 저장 자간 -5%를 다시 빼면 37.4px가 되어
+        // 제목 줄이 약 22px 짧아진다. 이 HFT face의 자간은 출력에서 적용되지 않는다.
+        let spacing_percent = if singraphic_hft {
+            0.0
+        } else {
+            cs.spacings[lang] as f64
+        };
         letter_spacings.push(font_size * spacing_percent / 100.0);
 
         ratios.push(cs.ratios[lang] as f64 / 100.0);

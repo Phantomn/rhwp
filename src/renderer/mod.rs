@@ -349,8 +349,23 @@ impl TextStyle {
     /// 모은 것이다 (#2771). 레이아웃 advance 는 본문 run 기준을 유지하고 실제
     /// 글리프 크기와 baseline 만 조정한다는 계약은 종전과 같다.
     ///
-    /// 비첨자 run 은 인자를 그대로 돌려주므로 기존 출력이 비트 단위로 보존된다.
+    /// HY신명조의 그리기 기준선은 한컴 PDF와 비교한 글꼴 메트릭 차이를 반영한다.
     pub fn script_draw_metrics(&self, base_font_size: f64, baseline_y: f64) -> (f64, f64) {
+        // exam_kor 한컴 PDF 17쪽 T5와 동일 글자 79개의 가로 원점을 맞춰 대조하면
+        // SVG의 HY신명조 기준선이 1.43~1.56px 낮다(글꼴 크기 약 15px).
+        // 줄 상자와 전진폭은 유지하고 표시 기준선만 글꼴 크기의 0.1em 올린다.
+        let primary_font = self
+            .font_family
+            .split(',')
+            .next()
+            .unwrap_or(&self.font_family)
+            .trim()
+            .trim_matches(['\'', '"']);
+        let baseline_y = if primary_font == "HY신명조" {
+            baseline_y - base_font_size * 0.1
+        } else {
+            baseline_y
+        };
         if self.superscript {
             (
                 base_font_size * SCRIPT_FONT_SCALE,
