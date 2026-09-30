@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 17,
-  "remaining": 9,
+  "completed": 18,
+  "remaining": 8,
   "items": [
     {
       "index": 1,
@@ -121,8 +121,8 @@
       "index": 18,
       "test": "stored_nested_content_flow::nested_cell_alignment_uses_the_sequential_anchor_when_stored_positions_reset",
       "case": "stored_nested_content_flow",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 보정173 전체 nextest에서 PASS, 보정175 후 동일 기존 함수 단독1PASS; 생산·검사·기준값 변경 없이 현재 차단 아님",
+      "evidence": "stage176_nested_alignment_validation.json"
     },
     {
       "index": 19,
