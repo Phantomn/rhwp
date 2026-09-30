@@ -3437,3 +3437,10 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![fresh WASM 4쪽 표 비교](../assets/pr7382_20260926/stage243_issue6542_wasm_review_004.png)
 
 - 이 단계는 해당 **7쪽 문서**와 두 기존 회귀의 증거를 닫았습니다. #7382 전체의 나머지 차단 회귀·lint·전수 nextest는 이어서 검증합니다.
+
+## 보정244 — 전체 nextest 결과와 새 페이지 회귀 판별
+
+- head `63a86626b`에서 `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 --no-fail-fast`를 완료했습니다. **10,221개 중 10,196 PASS, 25 FAIL, 50 skipped**, exit **100**이며 로그는 `output/pr-review/planet6897-7382-20260926/stage244-full-nextest.log`입니다. 보정225의 19 FAIL 중 #6569·#7049·#6651·#2020·#6648·#1658 **6건이 해소**됐고, #4068 두 건·#5524·#6653·#5862 세 건·#5863·호환 페이지·oracle 쪽수 세 건 등 **12건이 새로 실패**했습니다. 나머지 13건도 계속 실패합니다. 전체 검증은 통과하지 못했습니다.
+- 첫 새 실패 #4068의 원본 `samples/hwpx_sample2.hwp`는 현재 rhwp **30쪽**, 독립 `pdf/hwpx_sample2-hwp-2024.pdf`는 **29쪽**입니다. 현재 렌더 19쪽은 전자계약 문단이고 PDF 19쪽은 주택 소유 기준 표여서 같은 내용을 비교하지 않습니다. 다른 보유 PDF의 19쪽도 같은 표입니다. `pdf/hwpx_sample2-2020.pdf`와의 임시 19쪽 sweep 점수 **38.83619%**는 이 쪽 어긋남이 포함된 값이며, 정상 시각 비교 점수로 사용하지 않습니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage244-hwpxsample2-p19/`입니다. 테스트의 19쪽 셀 전제가 `[]`로 무너진 것은 실제 페이지 증가와 연결해 조사합니다.
+- 기존 실패 #6632의 원본 `samples/hwpspec.hwp`는 **178쪽** PDF를 가진 대형 문서입니다. 106쪽 한 쪽 선행 sweep은 **70.54325%**이고 review에서 표·글줄 차이가 보입니다. `pdftotext -bbox-layout`은 이 PDF에서 종료 코드 -6으로 실패해 marker 분석은 미측정입니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage244-hwpspec-p106/`입니다. 이 한 쪽 점수로 전쪽 판정을 대신하지 않고, 현 PR의 차단 여부와 #7445 이관 범위를 추후 별도로 확정합니다.
+- 다음 단계는 보정242의 `다음 저장 줄이 연속이면 후행 간격 전량` 가정을 #4068의 쪽수 증가 반례에 대조합니다. 이 단계에서는 실패 검사·기준 PDF·래칫을 수정하지 않았습니다.
