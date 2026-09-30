@@ -11078,3 +11078,71 @@ fresh WASM 두 `wasm-review-1.png`와 control의 canonical
 메인테이너가 위 두 비교 자료에 대해 시각 판정 통과를 확인했다. 전체 workspace CI, #7008 원본
 종단, 절대 앵커/다단/바탕쪽/본문 도형, 편집 후 어울림 재조판과 Studio V2 전환은
 이 완료 주장에 포함하지 않는다. Legacy 기본값과90% 이후 Studio 검토 조건을 유지했다.
+
+### 저장 절대 위치 표와 다단을 공통 호스트에 연결 (2026-09-30)
+
+다음 작업 승인에 따라 현재 승인 상태를 `4af6a8ce0`에 중간 커밋했다(99파일).
+새로 들어온 `.agents/skills/rhwp-*`, `.codex/`는 이 타스크와 분리하여 stage하지 않았다.
+이후 아래 변경은 그 commit 위 WIP이며 push/PR/전체 CI는 실행하지 않았다.
+
+**입력 → 독립 기준 → 기대:** `issue7353_host_absolute_review/create.rs`가 LineSeg 없는
+2단/용지 기준 표 입력을 생성하고, 한컴이 정상 HWP로 저장한 뒤 동일 HWP를 PDF로 출력했다.
+최종 save job `9a391169-102f-47db-a82b-28de1e3d7aee`, PDF job
+`4862edc8-8d1e-4296-bd55-86cfb0e1a4f3`, runtime11.0.0.9136/2쪽이다.
+줄·단·표 외곽의 HU/PDF 기대값과 입력 변경 이력은 fixture README를 따른다.
+
+| 경계 | 실제 공통 결과와 소비 |
+| --- | --- |
+| 소유 쪽/단 | `HostedAbsolute::prepare`가 원문 control UTF16 위치에서 소유 LineSeg를 결정한다. `host_section`이 `run_section`의 수용 packet에서 그 line index를 찾아 최종 page/column을 바인딩한다. 문단 첫/마지막 쪽이나 표 좌표로 소유 쪽을 추정하지 않는다. |
+| 좌표/높이 | `host_absolute.rs::place`의 PageLayoutInfo Paper/Page/Column 기준과 `PreparedTextTable.plan`의 같은 폭·높이가 정렬→PageArea fit→동일 fragment paint로 이어진다. 아래 정렬에서 실제 용지 높이를 사용한다. 미완료 continuation/용지 밖은 오류이고 clamp·임의 축소는 없다. |
+| 저장 다단 | `body_text::frame_starts`의 검증된0 리셋→`host_text`의 frame 컷→`typeset/hosted.rs::take_frame_break`→기존 `advance_column_or_new_page`. 동일 폭 Normal 단의 흐름 순서만 수용하며 겹치는 줄 하단을 경계로 오인하지 않는다. |
+| 본문 점유/배치 | 절대 표는 쪽 소유 paint packet이고 용지 여백의 위치를 본문 pen에 더하지 않는다. TopAndBottom 외곽/바깥여백이 영향을 주는 단의 모든 실제 줄·표·Square 배제 영역과 대조한 뒤 session을 공개한다. 충돌이면 재조판 필요 오류이며 기존 저장 본문을 억지로 밀지 않는다. |
+| 분할 비해당 | 이번 절대 표는 온전한 조각만 수용한다. 부분 fit를 완료로 보고하거나 뒤 paint에서 높이를 늘리지 않는다. 기존 Para anchor의 pending/분할/이어받기는 변경하지 않았다. |
+
+신규 `issue_7353_hosted_absolute`5개 계약: 정상 HWP/HWPX round-trip·96/192dpi의
+표 외곽/원문 불변/빈 줄/왼쪽→오른쪽→다음 쪽/뒤 문단, 절대 객체 없는 다단 대조,
+충돌·용지 밖 명시 오류, Page 기준 좌표, 다음 쪽 소유 줄로 컨트롤을 옮긴 합성 경계다.
+마지막 세 변형을 한컴 출력 일치로 보고하지 않는다. 소유 줄 합성의 초기 중간-control
+메타데이터는 저장 partition 검증에서 거부되어 근거로 사용하지 않고, 정확한 끝-control
+원문 축으로 계약을 고쳤다. 수용 조건 완화는 하지 않았다.
+
+최종 입력은 수정 전 export에서 `table host requires resolved anchor/line/margin policy`로
+거부된다(`absolute-before-final.log`). 수정 후 신규5 PASS는
+`frame-after-child/absolute-owner-final-issue_7353_hosted_absolute.log`이다.
+초기 `absolute-before-*`의3실패는 미지원 근거이며 기존 시각 회귀3건이라는 뜻이 아니다.
+잘못된 border 리소스 초안의4실패와 그 export 실패 이후 만들어진 임시 비교는 폐기 판정했다.
+원문 오류/실패 증거는 `absolute-border-draft/` 및 로그에 보존했다.
+
+최종 생산 코드로 기존 대조240건 PASS: hosted_section31, hosted_square6, hosted_anchor8,
+hosted_page_number5, host_square_wrap6, body_square_wrap4, document_flow160,
+table_host_bridge9, excluded_anchor_offset5, sandbox_document2, host_anchor_gap4.
+로그 `frame-after-child/absolute-final-*`. 신규5와 합계245 PASS이며 전체 CI가 아니다.
+Native build23.24초, 최종 Native lib Clippy29.53초/WASM lib Clippy32.66초 모두 종료0이다.
+
+최종 정상 입력의 Native2쪽 review를 직접 판독했다. 1쪽 두 표 외곽과 소유 단,
+LINE02 다음 빈 줄, LINE07→08 단 전환, 2쪽 LINE16~18/AFTER와 표 중복 없음이 맞는다.
+PDF custom-paper 높이399pt 대 원문400pt/인쇄 transform 차이로 하단 약0.75pt 차이가
+남으며 엔진/이미지를 보정하지 않았다. 글꼴·선 외형 차이도 별도다. source/입력/명령은
+`section-scope/absolute-{source,input-test}.sha256`, `absolute-review/native-manifest.json`.
+Docker fresh WASM 최종 결과와 판정 준비는 아래에 이어 기록한다.
+
+최종 Legacy7158 대조3건도 통과하여 이번 집중 검사는 **248 PASS / 0 FAIL**이다
+(`frame-after-child/absolute-legacy-issue_7158_square_wrap_continuation.log`).
+Docker fresh WASM은 종료0/7분35초로 완료되었다. WASM SHA256은
+`8a5fe0ef9f7b7042ff6f8abffa8043b4a73747758c5d6247dc73e711856f3fee`다.
+`capture-positioned.mjs --absolute --wasm`과 `absolute-sweep.py wasm`을 실행했고,
+Native 대비 비수치 차이0, 수치 차이56개/최대1.1368683772161603e-13px다.
+`section-scope/absolute-review/backend-comparison.json`, `wasm-manifest.json`에
+결과와 실제 source/입력/PDF/WASM 해시·명령을 연결했다. 최종 source/input 해시와
+`git diff --check`도 통과했다.
+
+fresh WASM의 `absolute-review/wasm-review-1.png`, `wasm-review-2.png`와
+`wasm/overlay/overlay_001.png`를 직접 판독했다. 용지 위 중앙 표/아래 오른쪽 단 표,
+의도된 빈 줄, 단 전환과 다음 쪽 LINE16~18/AFTER를 확인했다. 표 중복이나 추가 빈 쪽은
+없다. 앞서 기록한 PDF 하단 약0.75pt 및 글꼴·선 외형 차이는 남는다. canonical ink-match
+9.2332%/10.06514%는 시각 통과 지표로 사용하지 않았다.
+
+이번 저장 절대 표·동일 폭 Normal 다단 연결은 구현과 집중 검증을 마쳤으며
+**메인테이너 시각 판정 통과**다(2026-09-30 다음 작업 승인). 원본 전체 문서의 바탕쪽/본문 도형/첫 쪽 속성 통합,
+편집 후 절대 객체 재조판, 절대 표 분할, 전체 workspace CI는 완료 범위에 포함하지 않는다.
+Legacy 기본값과90% 이후 Studio V2 검토 조건은 유지했다.

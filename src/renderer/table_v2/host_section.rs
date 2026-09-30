@@ -31,6 +31,9 @@ pub struct HostedSectionSession {
     styles: ResolvedStyleSet,
     pagination: PaginationResult,
     page_stories: Vec<Option<RenderNode>>,
+    // Page-owned absolute objects do not add their margin position to the
+    // column's text pen. Ownership and final geometry are bound before export.
+    page_tables: Vec<Vec<RenderNode>>,
 }
 
 impl HostedSectionSession {
@@ -100,6 +103,7 @@ impl HostedSectionSession {
         let mut inline_paragraphs = std::collections::BTreeSet::new();
         let mut excluded_paragraphs = std::collections::BTreeSet::new();
         let mut positioned_paragraphs = BTreeMap::new();
+        let mut absolute = BTreeMap::new();
         let mut stories = BTreeMap::new();
         let styles = super::source_units::resolve(source, dpi)?;
         for (pi, para) in sec.paragraphs.iter().enumerate() {
@@ -150,6 +154,30 @@ impl HostedSectionSession {
                             ));
                         }
                         inline_paragraphs.insert(pi);
+                    }
+                    Control::Table(t)
+                        if !inline
+                            && matches!(
+                                t.common.vert_rel_to,
+                                VertRelTo::Paper | VertRelTo::Page
+                            ) =>
+                    {
+                        if para
+                            .controls
+                            .iter()
+                            .filter(|c| matches!(c, Control::Table(_)))
+                            .count()
+                            != 1
+                            || has_page_number_story(t)
+                        {
+                            return Err(fail("absolute table control ownership"));
+                        }
+                        absolute.insert(
+                            pi,
+                            super::host_absolute::HostedAbsolute::prepare(
+                                source, para, ci, &styles, dpi, policy,
+                            )?,
+                        );
                     }
                     Control::Table(t)
                         if !inline
@@ -322,7 +350,7 @@ impl HostedSectionSession {
                 !matches!(
                     c,
                     Control::ColumnDef(_) | Control::SectionDef(_) | Control::PageNumberPos(_)
-                )
+                ) && !(absolute.contains_key(&pi) && matches!(c, Control::Table(_)))
             });
             local.column_type = ColumnBreakType::None;
             if inline_paragraphs.contains(&pi) {
@@ -363,7 +391,6 @@ impl HostedSectionSession {
                 width,
                 &text_styles,
                 dpi,
-                columns.column_count == 1,
             )?);
         }
         let mut pagination = TypesetEngine::new(dpi).typeset_hosted_section(
@@ -375,6 +402,80 @@ impl HostedSectionSession {
             section,
             tables,
         )?;
+        // Bind each absolute object to its accepted source control line. A
+        // paragraph can span columns/pages: neither its first nor last packet
+        // substitutes for the actual line containing the control.
+        let mut page_tables = Vec::with_capacity(pagination.pages.len());
+        for page in &pagination.pages {
+            let mut placed = Vec::new();
+            for column in &page.column_contents {
+                for item in &column.items {
+                    let crate::renderer::pagination::PageItem::HostedParagraph {
+                        para_index,
+                        fragment,
+                    } = item
+                    else {
+                        continue;
+                    };
+                    if absolute
+                        .get(para_index)
+                        .is_some_and(|a| fragment.contains_line(a.owner_line))
+                    {
+                        let a = absolute
+                            .remove(para_index)
+                            .expect("qualified absolute owner");
+                        let layout = column.zone_layout.as_ref().unwrap_or(&page.layout);
+                        placed.push(a.place(
+                            layout,
+                            usize::from(column.column_index),
+                            section,
+                            *para_index,
+                            page.page_number,
+                        )?);
+                    }
+                }
+            }
+            // Stored line geometry is not permission to overlap. TopAndBottom
+            // excludes a vertical band in each horizontally affected column,
+            // including blank lines. Fresh reflow around these objects is not
+            // silently simulated by pushing the table or ignoring its area.
+            for (i, (_, outer)) in placed.iter().enumerate() {
+                for column in &page.column_contents {
+                    let layout = column.zone_layout.as_ref().unwrap_or(&page.layout);
+                    let lane = layout.column_areas[usize::from(column.column_index)];
+                    if outer.x < lane.x + lane.width && lane.x < outer.x + outer.width {
+                        let band = super::Rect {
+                            x: lane.x,
+                            width: lane.width,
+                            ..*outer
+                        };
+                        let boxes = column.items.iter().flat_map(|item| match item {
+                            crate::renderer::pagination::PageItem::HostedParagraph {
+                                fragment,
+                                ..
+                            } => fragment.flow_boxes().chain(fragment.exclusion()).collect(),
+                            crate::renderer::pagination::PageItem::HostedTable {
+                                fragment, ..
+                            } => vec![fragment.occupied()],
+                            _ => Vec::new(),
+                        });
+                        super::body_flow::validate_exclusion(band, boxes)?;
+                    }
+                }
+                super::body_flow::validate_exclusion(
+                    *outer,
+                    placed
+                        .iter()
+                        .enumerate()
+                        .filter(|(other, _)| *other != i)
+                        .map(|(_, (_, b))| *b),
+                )?;
+            }
+            page_tables.push(placed.into_iter().map(|(node, _)| node).collect());
+        }
+        if !absolute.is_empty() {
+            return Err(fail("unconsumed absolute table owner"));
+        }
         // Validate all accepted geometry, including preceding and following
         // paragraphs/tables. A side box is not allowed to publish overlapping
         // stored lanes merely because its owner paragraph was safe.
@@ -445,6 +546,7 @@ impl HostedSectionSession {
             styles,
             pagination,
             page_stories,
+            page_tables,
         })
     }
 
@@ -486,6 +588,10 @@ impl HostedSectionSession {
             0,
             &[],
         );
+        for mut table in self.page_tables[index].iter().cloned() {
+            super::text::assign_ids(&mut table, tree.frame_mut());
+            tree.root.children.push(table);
+        }
         if let Some(mut story) = self.page_stories[index].clone() {
             super::text::assign_ids(&mut story, tree.frame_mut());
             tree.root.children.push(story);

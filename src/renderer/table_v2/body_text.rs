@@ -4,8 +4,9 @@ use crate::model::{control::Control, paragraph::Paragraph};
 use super::{FlowBlock, GeometryError};
 
 /// Qualify page-local origins before lifting them for shared composition.
-/// The document caller has already established one uniform, single-column
-/// section. A decreasing origin returning to zero starts its next body frame;
+/// The caller has established uniform frames and owns their progression (one
+/// column for standalone, normal equal-width columns for the shared host).
+/// A decreasing origin returning to zero starts its next body frame;
 /// overlapping line bottoms alone do not. Nonzero resets remain unsupported.
 pub(super) fn frame_starts(para: &Paragraph) -> Result<Vec<usize>, GeometryError> {
     let mut starts = Vec::new();

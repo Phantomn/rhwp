@@ -41,6 +41,12 @@ pub struct HostedParagraphFragment {
 }
 
 impl HostedParagraphFragment {
+    pub(super) fn contains_line(&self, line: usize) -> bool {
+        self.nodes.iter().any(|n| {
+            matches!(&n.node_type,
+            RenderNodeType::TextLine(t) if t.line_index.map(|i| i as usize) == Some(line))
+        })
+    }
     pub(crate) fn line_count(&self) -> usize {
         self.nodes
             .iter()
@@ -149,7 +155,7 @@ impl HostedParagraphPlan {
         local.controls.clear();
         local.ctrl_data_records.clear();
         local.column_type = crate::model::paragraph::ColumnBreakType::None;
-        let mut plan = Self::prepare(&local, width, styles, dpi, true)?;
+        let mut plan = Self::prepare(&local, width, styles, dpi)?;
         plan.anchor = Some(super::host_anchor::HostedAnchor::prepare(
             document,
             para,
@@ -350,16 +356,11 @@ impl HostedParagraphPlan {
         width: f64,
         styles: &ResolvedStyleSet,
         dpi: f64,
-        single_column: bool,
     ) -> Result<Self, GeometryError> {
-        // A reset is a host boundary, not a negative local line gap. Support it
-        // only with an explicit column/page ownership policy, not by flattening.
+        // Admission has selected uniform normal columns in source-flow order.
+        // A qualified zero reset consumes the next host frame: next column,
+        // then next page, never an independently inferred absolute page number.
         let starts = super::body_text::frame_starts(para)?;
-        if !starts.is_empty() && !single_column {
-            return Err(GeometryError::Unsupported(
-                "stored multi-column frame ownership",
-            ));
-        }
         let continuous;
         let para = if starts.is_empty() {
             para
