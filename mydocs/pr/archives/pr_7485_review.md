@@ -7,8 +7,15 @@
 - 원 기여 head: `7da9c6ca3ee48f26c16e6b882e7cc9353bf541f6`
 - 검증한 로컬 patch SHA-256: `199f078b7b6e91d27e36e7604383571e969e1f44b6428e8cedd2cc1c030c8341`
 - 보정 code commit: `73f27d3fa70b2a00bdf014eec814dbb52f7edc0c`. 최종 trailing documentation head는 GitHub Approval 본문에 정확한 SHA로 기록한다. patch hash는 Git commit SHA가 아니다.
-- merge 전 조건: 최신 PR head의 관련 CI 성공, remote/PR SHA 일치와 mergeability 재확인, 별도 merge 승인. 작업지시자는 2026-09-30 보정·문서·이미지의 같은 PR push, 두 코멘트와 최신 CI 뒤 Approval까지 승인했다. merge는 승인 범위에 포함되지 않는다.
-- 작성 시점: 로컬 보정과 검증 완료, 원격 push·댓글·최신 head CI·Approval은 대기. 이 문서의 로컬 판정과 실제 GitHub review 상태를 구분한다.
+- merge 전 조건: 최신 PR head의 관련 CI 성공, remote/PR SHA 일치와 mergeability 재확인, 작업지시자 승인. 2026-10-01(KST) 작업지시자가 병합과 후속 처리를 승인했다. 아래 최초 검토의 캡처·측정 범위는 유지한다.
+- 후속 검토 시점: `603d8e9bb0d8bb086314bbbc08b3c1042095f856`의 Full CI와 GitHub Approval이 완료됐다. 이번 review·오늘할일 보완은 제품 변경 없는 single-parent trailing 기록이며, push 뒤 새 head의 preflight·필수 집계를 확인하기 전에는 병합하지 않는다.
+
+### 2026-10-01 병합 준비 확인
+
+- 동일 head `603d8e9bb0d8bb086314bbbc08b3c1042095f856`의 [CI / Build & Test](https://github.com/edwardkim/rhwp/actions/runs/36730234327), [CodeQL](https://github.com/edwardkim/rhwp/actions/runs/36730234101), [Render Diff](https://github.com/edwardkim/rhwp/actions/runs/36730233300), [Adapter inter-diff](https://github.com/edwardkim/rhwp/actions/runs/36730234016), [Proptest roundtrip](https://github.com/edwardkim/rhwp/actions/runs/36730234178), [CI Impact Policy](https://github.com/edwardkim/rhwp/actions/runs/36734194407)가 성공했다. code candidate의 Full 검증을 이번 문서 commit의 결과로 혼동하지 않는다.
+- [Approval 리뷰](https://github.com/edwardkim/rhwp/pull/7485#pullrequestreview-5368189384)의 본문·APPROVED 상태·검토 SHA를 API로 재확인했다. 최신 조회에서 non-draft·MERGEABLE·CLEAN이며, 원격 ref와 PR head가 일치했다.
+- rhwp의 `author:z0rimo is:pr` 전체 검색은 이번 PR 1건이며 incomplete=false였다. 이전 PR·병합 PR은 없고 GitHub association도 FIRST_TIME_CONTRIBUTOR였다. main 반영 여부만으로 첫 기여를 판단하지 않았다.
+- [오늘할일](../../orders/20261001.md)에 실제 검증과 남은 병합 gate를 기록했다. contributor 원본과 보정 commit을 보존하는 merge commit 방식을 사용하고, fork branch는 유지한다. merge 뒤 duration 갱신 결과, devel 포함, 이슈와 맞춤 환영 comment, 검토 작업공간 정리를 확인한다.
 
 ## 접수 정보
 
