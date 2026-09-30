@@ -3384,3 +3384,8 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - `section.rs` 각 배치 단계의 임시 계측으로 되감기는 다음 문단 진입 전이 아니라 **현재 표 문단의 `controls::reconcile_tac_height` 안**임을 확인했습니다. pi0의 `DIAG_TAC_END`는 **78.7px**이지만 `place_paragraph_flow` 반환 시 **64.56px**이고, pi1은 **117.9→113.63px**, pi2는 **548.5→543.76px**입니다. `RHWP_DIAG_TACCAP=1`의 pi0 `cap=64.6 < fmt.total_height=78.7`, pi1 `cap=49.1 < 53.3`, pi2 `cap=430.1 < 434.9`와 정확히 대응합니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage236-hwp-{phases,cap}.log`입니다. 임시 계측 코드는 전부 제거했습니다.
 - `tac_reconcile::measure`는 표 줄의 `effective_h + tac_host_trailing_spacing`을 모아 cap을 정하고, 뒤 `commit_tac_capped_bottom`이 실제 흐름 끝을 그 cap으로 바꿉니다. HWP5 저장 TAC 줄의 후행 간격 절반과 여러 저장 줄 중 표 소유 줄 선택이 개입합니다. 이 원본 pi0 마지막 저장 줄 끝은 pi1 시작과, pi1 줄 끝은 pi2 시작과 **HU 단위로 연속**이고 둘 다 다음에 실제 표가 있습니다. 다음 단계는 이 연속성의 일반 조건 아래 실제 배치 끝을 cap으로 삭제하지 않는 후보를 시험하고, 7쪽 전체 및 #1658·#1749 정상 대조를 확인합니다. 표 외곽·본문 위치는 독립 PDF로 판단하며 현재 테스트 기대값을 바꾸지 않습니다.
+
+## 보정237 — paginator 상한 단독 수정의 출력 비적용
+
+- HWP5 저장 줄이 다음 표의 첫 줄까지 정확히 연속하면 `tac_reconcile`의 cap을 `fmt.total_height` 이상으로 두는 후보를 시험했습니다. 진단에서 pi0 cap은 **64.6→78.7px**, pi1은 **49.1→53.3px**가 되고 `current_height`의 되감기도 사라졌습니다. 그러나 Native render tree의 제목 표 pi2 상단은 **211.8px로 불변**, 전체 7쪽 일치율도 **73.97440/88.68655/86.45281/80.74023/93.67208/93.26348/92.10454%로 불변**입니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage237-{cap.log,issue6542-visual/}`입니다.
+- 실제 `layout.rs`의 TAC 표 배치는 paginator의 최종 `current_height`가 아니라 표별 `inline_placement.advance_end`를 별도로 소비할 수 있습니다. 이 후보는 **측정과 출력이 공유되지 않아 기각**했고 코드를 원상복구했습니다. 다음 단계에서는 `표 flow placement 생산 → TAC cap 소비 → render tree의 advance_end`를 같은 경계에서 대조한 뒤 공통 결과로 수정합니다. 실패 회귀·기준값은 유지하며 이 7쪽은 여전히 보류입니다.
