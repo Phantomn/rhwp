@@ -54,24 +54,6 @@ fn issue_1811_hwpx_pi52_rowbreak_cut_matches_hwp_reference() {
         "p5 tail drift 보정 후에도 전체 5쪽이어야 한다"
     );
 
-    let page4 = doc.dump_page_items(Some(3));
-    let page4_lines: Vec<_> = page4.lines().collect();
-    let host_idx = page4_lines
-        .iter()
-        .position(|line| line.contains("PartialParagraph") && line.contains("pi=52"))
-        .unwrap_or_else(|| {
-            panic!("4쪽에서 pi=52 host 텍스트를 찾지 못함\n--- page 4 ---\n{page4}")
-        });
-    let table_idx = page4_lines
-        .iter()
-        .position(|line| line.contains("PartialTable") && line.contains("pi=52"))
-        .unwrap_or_else(|| panic!("4쪽에서 pi=52 분할 표를 찾지 못함\n--- page 4 ---\n{page4}"));
-    assert!(
-        host_idx < table_idx,
-        "HWPX RowBreak mixed 문단은 PDF 기준처럼 host 텍스트를 표 fragment 보다 먼저 소비해야 한다\n--- page 4 ---\n{page4}"
-    );
-    // HWPX 첫 조각 컷은 #7445에서 보류한다. 정상 쪽수·소비 순서와 아래 HWP/IR 검사는 유지한다.
-
     let hwp_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(HWP_SAMPLE);
     let hwp_doc =
         rhwp::document_core::DocumentCore::from_bytes(&fs::read(hwp_path).expect("HWP 원문"))
@@ -113,12 +95,55 @@ fn issue_1811_hwpx_pi52_rowbreak_cut_matches_hwp_reference() {
             star_lines(child, out);
         }
     }
-    let page4 = hwp_doc.build_page_render_tree(3).expect("HWP 4쪽");
-    let page5 = hwp_doc.build_page_render_tree(4).expect("HWP 5쪽");
+    fn para_lines(node: &RenderNode, para_index: usize, out: &mut Vec<RenderNode>) {
+        if matches!(&node.node_type,
+            RenderNodeType::TextLine(line) if line.para_index == Some(para_index))
+        {
+            out.push(node.clone());
+        }
+        for child in &node.children {
+            para_lines(child, para_index, out);
+        }
+    }
+    let hwpx_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(HWPX_SAMPLE);
+    let hwpx_doc =
+        rhwp::document_core::DocumentCore::from_bytes(&fs::read(hwpx_path).expect("HWPX 원문"))
+            .expect("HWPX 저장 문서");
+    let hwpx_page4 = hwpx_doc.build_page_render_tree(3).expect("HWPX 4쪽");
+    let hwpx_page5 = hwpx_doc.build_page_render_tree(4).expect("HWPX 5쪽");
     let table52 = |node: &RenderNode| {
         matches!(&node.node_type,
         RenderNodeType::Table(table) if table.para_index == Some(52))
     };
+    let hwpx_first = find(&hwpx_page4.root, &table52).expect("HWPX 4쪽 사회기여 표");
+    let hwpx_last = find(&hwpx_page5.root, &table52).expect("HWPX 5쪽 사회기여 표 이어받기");
+    let mut host_lines = Vec::new();
+    para_lines(&hwpx_page4.root, 52, &mut host_lines);
+    assert_eq!(host_lines.len(), 4, "4쪽 host 본문 네 줄을 보존한다");
+    assert!(
+        host_lines
+            .iter()
+            .any(|line| text(line).contains("사회기여")),
+        "표 위 host 본문이 원문 내용을 보존한다"
+    );
+    assert!(
+        host_lines
+            .iter()
+            .all(|line| line.bbox.y + line.bbox.height <= hwpx_first.bbox.y),
+        "4쪽 host 본문은 표 첫 조각보다 앞에 있어야 한다"
+    );
+    let mut hwpx_first_lines = Vec::new();
+    let mut hwpx_last_lines = Vec::new();
+    star_lines(&hwpx_first, &mut hwpx_first_lines);
+    star_lines(&hwpx_last, &mut hwpx_last_lines);
+    assert_eq!(hwpx_first_lines, [50, 67, 10], "4쪽 표 글줄의 소유와 순서");
+    assert_eq!(
+        hwpx_last_lines,
+        [67, 22, 67, 16, 67, 4],
+        "5쪽 표 이어받기 글줄의 소유와 순서"
+    );
+    let page4 = hwp_doc.build_page_render_tree(3).expect("HWP 4쪽");
+    let page5 = hwp_doc.build_page_render_tree(4).expect("HWP 5쪽");
     let first = find(&page4.root, &table52).expect("4쪽 사회기여 표");
     let last = find(&page5.root, &table52).expect("5쪽 사회기여 표 이어받기");
     let mut first_lines = Vec::new();

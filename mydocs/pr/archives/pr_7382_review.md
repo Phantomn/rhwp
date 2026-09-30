@@ -3308,3 +3308,8 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - 보정222 코드 head `a3f429bb0`에서 저장소 루트의 `CARGO_TARGET_DIR=target/pr-review scripts/wasm-pack-locked.sh --target web --out-dir pkg --no-opt`가 성공했습니다. 로컬 대체 빌드이며 Docker 최적화 빌드 통과로 보고하지 않습니다. 생성한 `pkg/rhwp_bg.wasm`의 SHA-256은 `a23f13f6e7d5fea416df9406bb36e431b8fc272551f86ef7a1d51b56d156fc0f`입니다. `visual_sweep.py --wasm-pkg pkg`의 manifest는 WASM `getPageRenderTree`와 패키지 두 파일의 해시를 기록합니다.
 - fresh WASM 전체 5쪽 일치율은 Native와 동일한 **94.97706/98.86521/99.51565/91.11617/90.57406%**이며 `rhwp_004.png`·`rhwp_005.png`의 SHA-256도 Native와 각각 같습니다. 페이지 수는 양쪽 **5쪽**입니다. `output/pr-review/planet6897-7382-20260926/stage223-wasm-build.log`, `stage223-wasm-visual/`에 결과를 보존했습니다. 기존 #1811의 `PartialParagraph` 항목 전제는 여전히 실패하므로, 이제 검사를 실제 4쪽 host 텍스트와 4·5쪽 표 내용·순서로 갱신합니다. 전체 PR 검증은 미완료입니다.
+
+## 보정224 — #1811 기존 회귀의 항목 이름 전제 교정
+
+- 기존 검사는 `dump_page_items`에 별도 `PartialParagraph pi=52` 항목이 있어야 한다고 요구했지만, 현재 render tree는 4쪽의 host 본문 **4줄**을 표보다 앞에 실제 표시하고 4·5쪽 표를 `PartialTable` 항목으로 나눕니다. Native/fresh WASM 전쪽 최저 **90.57406%**와 직접 review를 선행 근거로 삼아, **기존 함수만** render tree의 내용·순서·쪽별 별표 글줄 소유 검사로 고쳤습니다. 원본 HWP/HWPX·독립 PDF·기존 HWP 물리 프레임 검사는 보존했고 새 검사 함수나 픽셀 좌표 기대값은 추가하지 않았습니다.
+- `cargo fmt --all -- --check`와 `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_1749_saved_bounds_page_break) | test(issue_3930_hwpx_hwp_save_layout)' --no-fail-fast`는 **6PASS/0FAIL**입니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage224-nextest.log`입니다. 이후 전체 nextest·lint·최종 head 시각 검증이 남아 있어 PR 준비 판정은 하지 않습니다.
