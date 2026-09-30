@@ -92,6 +92,9 @@ const DEFERRED_BODY_OVERFLOW_FIXTURES: &[&str] = &[
     // 보정160에서 #7445로 이관한 31쪽 정본/32쪽 출력의 중첩 표 문서다.
     // 선택 쪽 최저25.15773%이며 이번 25쪽의 추가 넘침도 전체 피델리티 복원 범위다.
     "issue6697/80550-agricultural-machinery-act-amendment.hwpx",
+    // #6697과 원본 바이트가 같고 별도 한컴 PDF도 31쪽이다. 현 head의 29~31쪽
+    // 최저23.93271%로 확인한 동일 #7445 범위이며 이 경로만 추가로 제외한다.
+    "issue3637/regulatory_impact_nested_table_escape.hwpx",
 ];
 
 fn collect_samples() -> Vec<(PathBuf, String)> {

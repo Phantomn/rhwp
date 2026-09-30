@@ -3111,3 +3111,11 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - **검사 범위 수정**: `tests/cases/body_overflow_baseline.rs`의 이미 존재하는 #7445 보류 원본 목록에 **이 한 HWPX만** 넣고, 해당 원본의 `tests/fixtures/body_overflow_baseline.tsv` 행만 제거했습니다. 원문·PDF와 다른 회귀·문서의 넘침 기준 및 공차는 유지합니다. 16개 분할 전체를 재실행한 결과 **12PASS/4FAIL**이며 #6697이 있던 분할5는 통과했습니다. 남은 실패 원본은 #3637, #6756, #6776, `k-water-rfp-2024.hwp`로 각각 별도 판정합니다. 이 단계의 분할 전체 통과나 #6697 피델리티 해결을 주장하지 않습니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage187-issue6697-body-overflow-nextest.log`입니다.
 
 ![#6697 현재 Native 30쪽과 한컴 PDF의 소속 차이](../assets/issue7445/host6697_stage187_native_review_030.png)
+
+## 보정188 — #3637의 중복 원본 경로를 같은 #7445 범위로 판정
+
+- **원문과 독립 기준**: [`issue3637/regulatory_impact_nested_table_escape.hwpx`](../../../samples/issue3637/regulatory_impact_nested_table_escape.hwpx)는 확장자대로 ZIP HWPX이며, 보정187의 #6697 원본과 SHA-256 `e7b147f7cea66c97bed79085a3d89c2656037e0f711232f659ed3c7344984f62`로 **바이트까지 동일**합니다. 이 경로의 별도 [한컴 PDF](../../../pdf/issue3637/regulatory_impact_nested_table_escape-hwpx-2020.pdf)는 SHA-256 `4628627c8d6e41dea85aa022232221da982e28538e6a514a24b8ca1af3f21699`, Creator `Hwp 2022 0.0.0.0`, 31쪽입니다. 현재 rhwp는 같은 원본을 32쪽으로 출력합니다. 이전 기록의 다른 #3637 보도자료·HWP5 파일과 혼동하지 않습니다.
+- **현재 시각·회귀 증거**: renderer 코드 `78a1dfc65`의 Native CLI로 이 PDF의 29~31쪽을 직접 비교했습니다. 점수는 **38.09851/23.93271/28.73217%**, gate `re_review_required`이며 30쪽 review에서 #6697과 같은 뒤 표·문단의 쪽 소속 차이를 확인했습니다. 전체 32쪽/fresh WASM을 새로 통과했다고 주장하지 않습니다. 대표 PNG SHA-256은 `c7c313a6eff01798f549715b7ce0082151ba5e10a158381b80a85b7e5c666ca2`이고 출력은 `output/pr-review/planet6897-7382-20260926/stage188-issue3637/visual-native/`입니다.
+- **검사 범위**: #7445로 이미 보류한 동일 입력의 **이 경로만** 공용 본문 넘침 원장의 보류 목록에 넣고 해당 TSV 행을 제거했습니다. 다른 샘플·래칫·공차는 유지합니다. 16개 분할 재실행은 **14PASS/2FAIL**이며 남은 증가/신규 원본은 #6756, #6776, `k-water-rfp-2024.hwp`입니다. 이 보정은 피델리티 복원이 아니고, 전체 PR 검증은 남아 있습니다. 로그는 `output/pr-review/planet6897-7382-20260926/stage188-issue3637-body-overflow-nextest.log`에 있습니다.
+
+![#3637 중복 원본의 현재 Native 30쪽과 별도 한컴 PDF](../assets/issue7445/host3637_stage188_native_review_030.png)
