@@ -3233,3 +3233,8 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 현재 전체 nextest의 #6852 실패 **5개**는 모두 `samples/issue6797/156160455-social-pig-farm-income.hwp`를 직접 읽거나 그 IR을 변형하며, 5쪽 사각형을 고정 x/y/크기로 찾는 공통 helper에서 `0 != 2`로 중단됩니다. 같은 파일의 HWPX 원본 함수는 PASS입니다. HWP/HWPX 중 어느 쪽도 성공한 함수만으로 한컴 출력과의 일치를 입증하지 않습니다.
 - 원본 HWP와 독립 `pdf/156160455-social-pig-farm-income-2020.pdf`는 모두 **11쪽**이나 HWP Native 전쪽 최저는 **29.01913%**(5쪽), 6쪽 **30.73124%**입니다. HWPX 파생본도 같은 PDF와 비교하면 최저 **39.87618%**(6쪽), 5쪽 **42.93059%**입니다. 두 입력 모두 90% gate 미달이며 원본 HWP의 5쪽 review에서 문서 내용과 사각형 위치가 PDF와 크게 어긋납니다. 산출물은 `output/pr-review/planet6897-7382-20260926/stage209-issue6852-{visual,hwpx-visual}/`입니다.
 - 11쪽 전체 피델리티를 이 단계에서 완료하지 않습니다. 다음 단계에서는 PR #7382를 막는 **HWP 기반 5함수만** #7445로 이관하고, 현재 PASS인 HWPX 함수와 원본 HWP/HWPX·PDF는 보존합니다. 픽셀 좌표를 현재 출력에 맞춰 이동하지 않습니다.
+
+## 보정210 — #6852의 차단 함수 다섯 개만 이관
+
+- 전쪽 90% 미달인 HWP 원본에 의존하는 기존 함수 `original_hwp_foreground_and_shadow_keep_solid_strokes`, `ordinary_unfilled_rectangle_is_not_a_textbox`, `explicit_no_line_is_not_promoted_to_solid`, `empty_and_whitespace_textboxes_keep_their_strokes`, `existing_textbox_branch_is_unchanged_not_a_new_nonprinting_rule`만 제거했습니다. 실패는 모두 공통 SVG 좌표 선택에서 발생했으며 그 좌표를 현 출력으로 갱신하지 않았습니다. 원본 HWP/HWPX와 PDF는 보존했습니다.
+- 같은 테스트 파일의 HWPX 원본 검사는 그대로 유지하고 `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_6852_group_rectangle_stroke)' --no-fail-fast`에서 **1PASS**를 확인했습니다. 이 HWPX 함수의 PASS는 위에서 확인한 전쪽 피델리티 미달을 해결했다는 뜻이 아닙니다. 11쪽 전체 HWP/HWPX 렌더링 보정과 의미 기반 회귀 재구축은 #7445에서 후속 처리합니다.
