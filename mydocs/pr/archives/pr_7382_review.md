@@ -3162,3 +3162,8 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - 동일 HWP와 `pdf/hwpx_sample2-2020.pdf`를 96dpi Native Visual Sweep으로 직접 비교했습니다. **1쪽 68.42791%**, gate `re_review_required`입니다. `output/pr-review/planet6897-7382-20260926/stage196-issue4068-visual/hwpx-sample2-p1/review/review_001.png`의 한컴 쪽에는 `신 청 안 내` 제목 아래 신청 조건·표·일정이 모두 있으나 rhwp 쪽은 제목까지만 있고 나머지를 2쪽으로 이월합니다. 제목 위의 상단 내용·외곽선은 대체로 같은 위치여서 폰트만의 차이가 아닙니다.
 - 현재 #4068 검사를 페이지 20의 새 좌표로 고치거나 삭제하면 이 실제 이월을 가립니다. first-page table 배치 원인과 devel 대조를 먼저 확인해야 합니다. Visual Sweep 산출물은 `output/pr-review/planet6897-7382-20260926/stage196-issue4068-visual/`에 보존했고, 새 회귀·baseline 변경은 하지 않았습니다.
+
+## 보정197 — #4068 이월의 devel 대조
+
+- 보관된 대조 작업트리 `output/pr-review/planet6897-7382-20260926/control-stage19`의 source **`eb9142dd7`**로 별도 debug CLI를 빌드했습니다. 동일 SHA의 `samples/hwpx_sample2.hwp`를 이 CLI가 **29쪽**으로 배치하고, 현 브랜치 CLI는 **30쪽**으로 배치합니다. 이는 기준 PDF 29쪽과도 일치하므로 첫 쪽 이월은 이번 브랜치에서 새로 도입한 차단 회귀입니다. 대조 출력은 `stage197-issue4068-control-p1.json`, `stage197-issue4068-control-p1-text.json`에 보존했습니다.
+- 오래된 CLI는 현재 Visual Sweep이 전달하는 `export-svg --profile print --font-style` 조합을 지원하지 않아 대조 Visual Sweep은 실행되지 않았습니다. 대조군에서 확인된 것은 쪽수와 페이지별 텍스트이며, 픽셀 점수는 아직 없습니다. 현재 브랜치의 **1쪽 68.42791%** 증거와 분리합니다. 다음 단계에서는 첫 쪽 신청 안내 표의 paginator 예약과 실제 높이를 두 source에서 비교합니다.
