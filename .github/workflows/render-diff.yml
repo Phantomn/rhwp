@@ -5,7 +5,7 @@ on:
     inputs:
       mode:
         type: choice
-        options: [phases, baseline-lto, validate, validate-browser]
+        options: [phases, baseline-lto, validate, validate-browser, wrapper]
         default: phases
         description: Compiler phases or verify the fixed completed phase artifacts
 permissions:
@@ -107,3 +107,42 @@ jobs:
           path: output/rust-phase-validation/
           if-no-files-found: warn
           retention-days: 3
+
+  wrapper:
+    if: inputs.mode == 'wrapper' && github.repository == 'edwardkim/rhwp' && github.ref == 'refs/heads/codex/rust-build-phases-7473'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [dual, cdylib]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: 1.93.1
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22'
+      - uses: ./.github/actions/install-wasm-pack
+      - name: Prepare actual release validation runtime
+        run: |
+          sudo env DEBIAN_FRONTEND=noninteractive timeout 180 apt-get update
+          sudo env DEBIAN_FRONTEND=noninteractive timeout 180 apt-get install -y --no-install-recommends fonts-dejavu-core libfontconfig1-dev libfreetype6-dev poppler-utils
+          npm ci --prefix rhwp-studio
+          cd rhwp-studio
+          browser_path=$(npx @puppeteer/browsers install chromium@1660786 --path .cache/puppeteer --format '{{path}}' | tail -n 1)
+          echo "CHROME_PATH=$(realpath "$browser_path")" >> "$GITHUB_ENV"
+      - name: Full wrapper cold and changed-source release builds and gates
+        run: python3 scripts/experiments/wasm_wrapper_integration.py '${{ matrix.mode }}'
+      - name: Preserve wrapper and release gate evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: wasm-wrapper-${{ matrix.mode }}
+          path: output/wasm-wrapper-integration/
+          if-no-files-found: error
+          retention-days: 7
