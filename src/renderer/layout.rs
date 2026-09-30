@@ -13552,15 +13552,26 @@ impl LayoutEngine {
                 let mut stored_lh_covers_om = false;
                 if let Some(seg) = host_seg {
                     if seg.line_spacing > 0 {
-                        y_offset += crate::renderer::composer::tac_host_trailing_spacing(
-                            para,
-                            control_index,
-                            seg,
-                            self.profile.get().hwpx_stored_layout(),
+                        let native_stored_layout =
                             self.profile.get().hwp5_stored_pagination_layout()
-                                && !self.profile.get().session_edited(),
-                            self.dpi,
-                        );
+                                && !self.profile.get().session_edited();
+                        y_offset += if crate::renderer::composer::native_tac_next_table_full_spacing(
+                            para,
+                            paragraphs.get(para_index + 1),
+                            seg,
+                            native_stored_layout,
+                        ) {
+                            hwpunit_to_px(seg.line_spacing, self.dpi)
+                        } else {
+                            crate::renderer::composer::tac_host_trailing_spacing(
+                                para,
+                                control_index,
+                                seg,
+                                self.profile.get().hwpx_stored_layout(),
+                                native_stored_layout,
+                                self.dpi,
+                            )
+                        };
                     } else if seg.line_spacing < 0 {
                         // 음수 ls (Fixed 줄간격 TAC 표): y를 문단 advance로 리셋 (Task #9)
                         // 표 렌더 높이가 아닌, 일반 문단과 동일한 lh+ls advance 사용

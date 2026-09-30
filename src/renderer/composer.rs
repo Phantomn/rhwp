@@ -598,6 +598,38 @@ pub(crate) fn tac_host_trailing_spacing(
     }
 }
 
+/// 실제 표 소유 줄의 저장 끝에 다음 표가 붙어 있으면 후행 간격 전량을
+/// 다음 표 앞의 물리 공간으로 보존한다.
+pub(crate) fn native_tac_next_table_full_spacing(
+    para: &Paragraph,
+    next_para: Option<&Paragraph>,
+    seg: &LineSeg,
+    native_stored_layout: bool,
+) -> bool {
+    native_stored_layout
+        && !para.stored_text_partition_is_dirty()
+        && para
+            .line_segs
+            .last()
+            .is_some_and(|last| std::ptr::eq(last, seg))
+        && seg.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
+        && next_para.is_some_and(|next| {
+            !next.stored_text_partition_is_dirty()
+                && next
+                    .controls
+                    .iter()
+                    .any(|control| matches!(control, Control::Table(_)))
+                && next.line_segs.first().is_some_and(|first| {
+                    first.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
+                        && seg
+                            .vertical_pos
+                            .saturating_add(seg.line_height)
+                            .saturating_add(seg.line_spacing)
+                            == first.vertical_pos
+                })
+        })
+}
+
 /// 저장된 서로 다른 물리 줄을 소유한 빈/공백 캐리어 TAC 표의 흐름.
 /// top/end는 첫 저장 줄 원점 기준 HU이며, 테두리가 아닌 바깥여백 포함 pen이다.
 #[derive(Debug, Clone, Copy)]

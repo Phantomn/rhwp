@@ -46,7 +46,13 @@ pub(super) fn measure(
     for (ci, c) in para.controls.iter().enumerate() {
         if let Control::Table(t) = c {
             if flow.is_effective_tac_table(para, t, fmt) {
-                if let Some(seg) = para.line_segs.get(tac_idx) {
+                let seg_index =
+                    if profile.hwp5_stored_pagination_layout() && !profile.session_edited() {
+                        crate::renderer::layout::control_line_seg_index(para, ci).unwrap_or(tac_idx)
+                    } else {
+                        tac_idx
+                    };
+                if let Some(seg) = para.line_segs.get(seg_index) {
                     let seg_lh = hwpunit_to_px(seg.line_height, dpi);
                     let mt_h = measured_tables
                         .iter()
@@ -54,7 +60,15 @@ pub(super) fn measure(
                         .map(|mt| mt.total_height)
                         .unwrap_or(0.0);
                     let effective_h = crate::renderer::tac_table_effective_height(seg_lh, mt_h);
-                    let trailing = if seg.line_spacing > 0 {
+                    let trailing = if seg.line_spacing > 0
+                        && crate::renderer::composer::native_tac_next_table_full_spacing(
+                            para,
+                            next_para,
+                            seg,
+                            profile.hwp5_stored_pagination_layout() && !profile.session_edited(),
+                        ) {
+                        hwpunit_to_px(seg.line_spacing, dpi)
+                    } else if seg.line_spacing > 0 {
                         crate::renderer::composer::tac_host_trailing_spacing(
                             para,
                             ci,
