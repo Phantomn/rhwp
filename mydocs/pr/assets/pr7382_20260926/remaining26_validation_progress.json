@@ -2,8 +2,8 @@
   "started_head": "ecdde0050",
   "origin_stage": 156,
   "total": 26,
-  "completed": 19,
-  "remaining": 7,
+  "completed": 22,
+  "remaining": 4,
   "items": [
     {
       "index": 1,
@@ -135,22 +135,22 @@
       "index": 20,
       "test": "svg_snapshot::form_002_page_0",
       "case": "svg_snapshot",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 보정177의 현재 SVG 검사 묶음에서 기존 함수 PASS; 생산·검사·golden 변경 없이 현재 차단 아님",
+      "evidence": "stage178_svg_existing_pass_validation.json"
     },
     {
       "index": 21,
       "test": "svg_snapshot::issue_267_ktx_toc_page",
       "case": "svg_snapshot",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 보정177의 현재 SVG 검사 묶음에서 기존 함수 PASS; 생산·검사·golden 변경 없이 현재 차단 아님",
+      "evidence": "stage178_svg_existing_pass_validation.json"
     },
     {
       "index": 22,
       "test": "svg_snapshot::issue_147_aift_page3",
       "case": "svg_snapshot",
-      "status": "개별검토대기",
-      "evidence": null
+      "status": "완료: 보정177의 현재 SVG 검사 묶음에서 기존 함수 PASS; 생산·검사·golden 변경 없이 현재 차단 아님",
+      "evidence": "stage178_svg_existing_pass_validation.json"
     },
     {
       "index": 23,
