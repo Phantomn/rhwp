@@ -216,7 +216,9 @@ pub(in crate::renderer::typeset) fn native_hwp5_body_footnote_tail_reset(
 ) -> Option<(usize, usize)> {
     if !stored_body_note_pagination(st)
         || st.col_count != 1
-        || para.controls.len() != 1
+        // 여러 각주가 있는 문단도 각 표시가 든 저장 글줄로 소유를 결정한다.
+        // 표·그림 등 다른 흐름 개체가 섞인 문단은 이 본문 경로에서 제외한다.
+        || para.controls.iter().any(|control| !matches!(control, Control::Footnote(_)))
         || !matches!(para.controls.get(ctrl_idx), Some(Control::Footnote(_)))
         || !para_has_visible_text(para)
     {
