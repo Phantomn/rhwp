@@ -79,8 +79,8 @@ impl TypesetEngine {
             })
             .unwrap_or(0.0);
         // [Task #866] 직전 zone 의 마지막 paragraph 가 wrap=위아래 인 글자처럼-취급 표(헤더 띠)를
-        // 보유하고 그 zone 의 1단 ColumnDef 간격이 0 이면, 한컴은 표 band 높이(표 본체 +
-        // outer_margin top/bottom)만큼을 표 아래에 추가로 비워둔다(한컴 PDF 측정:
+        // 보유하고 그 zone 의 1단 ColumnDef 간격이 0 이면, 표의 저장 줄 수에 따라
+        // 전체 band 또는 선행 줄이 소비하고 남은 높이를 예약한다(한컴 PDF 측정:
         // shortcut.hwp 2·3쪽 헤더 띠 하단↔본문 ~28~33px). ColumnDef 간격>0 인 헤더 띠(1쪽
         // 등)는 그 간격이 이미 zone 사이 여백이 되므로 제외.
         // [Task #874 Stage 2] design_spacing 조건을 ≤ 1mm(=3.8px) 까지 인정. 페이지 break 후
@@ -99,11 +99,23 @@ impl TypesetEngine {
                                     crate::model::shape::TextWrap::TopAndBottom
                                 ) =>
                         {
-                            Some(
-                                hwpunit_to_px(t.common.height as i32, self.dpi)
-                                    + hwpunit_to_px(t.outer_margin_top as i32, self.dpi)
-                                    + hwpunit_to_px(t.outer_margin_bottom as i32, self.dpi),
-                            )
+                            if paragraphs[pi].line_segs.len() > 1 {
+                                Some(crate::renderer::partial_tac_header_tail_px(
+                                    t.common.height,
+                                    t.outer_margin_bottom,
+                                    paragraphs[pi]
+                                        .line_segs
+                                        .last()
+                                        .map_or(0, |line| line.line_spacing),
+                                    self.dpi,
+                                ))
+                            } else {
+                                Some(
+                                    hwpunit_to_px(t.common.height as i32, self.dpi)
+                                        + hwpunit_to_px(t.outer_margin_top as i32, self.dpi)
+                                        + hwpunit_to_px(t.outer_margin_bottom as i32, self.dpi),
+                                )
+                            }
                         }
                         _ => None,
                     })
@@ -125,15 +137,14 @@ impl TypesetEngine {
         });
         let leaving_solo_zero = st.col_count <= 1 && st.current_zone_design_spacing_px < 0.5;
         // [Task #866 v3 Stage 1] 헤더 띠 zone (TAC wrap=TopAndBottom 표) 의 leaving 은
-        // `tac_band_extra` 가 이미 표 band 높이만큼 패딩을 추가하므로 `solo_zone_pad` 를 또
-        // 더하면 한컴 PDF 대비 본문 첫 줄이 ~13pt 더 아래로 밀려 사용자 "넓다" 피드백 발생.
-        // tac_band_extra>0 == 헤더 띠 leaving 케이스 → solo_zone_pad 의 leaving 분기 제외.
+        // `tac_band_extra` 는 표의 저장 줄 수에 맞는 잔여 높이를 이미 예약한다.
+        // 헤더 띠 다음의 명시 단나누기까지 추가 pad 로 세면 같은 물리 간격을
+        // 다시 더하므로, 이 경우에는 진입·이탈 pad 를 모두 제외한다.
         let leaving_is_header_band = leaving_solo_zero && tac_band_extra > 0.5;
         let column_break_new_band = paragraphs[para_idx].column_type == ColumnBreakType::Column;
-        let solo_zone_pad = if entering_solo_zero
-            || (leaving_solo_zero && !leaving_is_header_band)
-            || column_break_new_band
-        {
+        let solo_zone_pad = if leaving_is_header_band {
+            0.0
+        } else if entering_solo_zero || leaving_solo_zero || column_break_new_band {
             crate::renderer::solo_zone_pad_px(entering_solo_zero, st.col_count > 1, self.dpi)
         } else {
             0.0

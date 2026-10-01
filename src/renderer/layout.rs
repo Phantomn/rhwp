@@ -6624,10 +6624,9 @@ impl LayoutEngine {
                     .and_then(|pi| paragraphs.get(pi))
                     .map(|p| p.column_type == crate::model::paragraph::ColumnBreakType::Column)
                     .unwrap_or(false);
-                let solo_zone_pad = if new_zone_is_solo_zero
-                    || (prev_zone_is_solo_zero && !prev_zone_was_header_band)
-                    || column_break_new_band
-                {
+                let solo_zone_pad = if prev_zone_was_header_band {
+                    0.0
+                } else if new_zone_is_solo_zero || prev_zone_is_solo_zero || column_break_new_band {
                     super::solo_zone_pad_px(new_zone_is_solo_zero, prev_zone_was_multi, self.dpi)
                 } else {
                     0.0
@@ -6748,19 +6747,10 @@ impl LayoutEngine {
             if y_offset_no_trailing > prev_zone_y_end {
                 prev_zone_y_end = y_offset_no_trailing;
             }
-            // [Task #866] 헤더 띠 zone (wrap=위아래 인 글자처럼-취급 표 보유 + 1단 ColumnDef
-            // 간격=0) 의 leaving 시 zone 아래 band 가산 + header_band flag 갱신.
-            //
-            // 이력:
-            // - 초기 (#866): `prev_zone_y_end += band` 전체 가산 (≈31px) — 페이지 6 (Table-only
-            //   pi=210) 형식 정합, 그러나 페이지 2·3 (PartialParagraph + Table pi=36/81) 형식
-            //   에서는 본문 첫 줄 +30pt 넓다 (사용자 피드백).
-            // - #874 Case 1: 전체 제거 — 페이지 2·3 -8~-16pt 좁다 over-correction.
-            // - #874 Case 1 v2 (현재): **items 수로 분기**.
-            //     items==1 (Table only, pi=210 형식, 페이지 6 헤더 띠 zone): y_offset 이
-            //       표 높이만 advance 하므로 표 본체 + outer_margin 만큼 추가 가산 필요.
-            //     items>1 (PartialParagraph + Table, pi=36/81 형식, 페이지 2·3): y_offset 이
-            //       text 라인 + 표 라인 까지 advance 한 상태 — band 추가 가산은 이중 가산.
+            // [Task #866] 헤더 띠의 저장 줄 수로 잔여 높이를 구분한다. 한 줄 표는
+            // 전체 띠를 예약하고, 선행 줄을 포함한 표는 그 줄이 소비한 몫을 뺀다.
+            // 이전의 items 수와 band/2 추정은 같은 31.09px 띠에서도 2·3쪽 본문
+            // 첫 줄을 각각 +4.59px, −8.21px 어긋나게 했다.
             prev_zone_was_header_band = false;
             if let Some(last_para_idx) = col_content.items.last().and_then(|it| match it {
                 PageItem::Table { para_index, .. } => Some(*para_index),
@@ -6790,31 +6780,36 @@ impl LayoutEngine {
                             .unwrap_or(false)
                     };
                     if cd_gap_zero {
-                        if let Some(band) = p.controls.iter().find_map(|c| match c {
-                            Control::Table(t)
-                                if t.common.treat_as_char
-                                    && matches!(
-                                        t.common.text_wrap,
-                                        crate::model::shape::TextWrap::TopAndBottom
-                                    ) =>
-                            {
-                                Some(
-                                    hwpunit_to_px(t.common.height as i32, self.dpi)
-                                        + hwpunit_to_px(t.outer_margin_top as i32, self.dpi)
-                                        + hwpunit_to_px(t.outer_margin_bottom as i32, self.dpi),
-                                )
-                            }
-                            _ => None,
-                        }) {
-                            // Table-only zone (페이지 6 pi=210 형식): 전체 band 가산.
-                            //   y_offset 이 표 높이만 advance → outer_margin 까지 추가 필요.
-                            // PartialParagraph + Table zone (페이지 2·3 pi=36/81 형식):
-                            //   y_offset 이 text 라인 + 표 라인 까지 advance — 일부 중복.
-                            //   half (band/2) 가산으로 측정 정합 (페이지 2 +3.8, 페이지 3 -5.6).
-                            if col_content.items.len() == 1 {
+                        if let Some((band, partial_tail)) =
+                            p.controls.iter().find_map(|c| match c {
+                                Control::Table(t)
+                                    if t.common.treat_as_char
+                                        && matches!(
+                                            t.common.text_wrap,
+                                            crate::model::shape::TextWrap::TopAndBottom
+                                        ) =>
+                                {
+                                    Some((
+                                        hwpunit_to_px(t.common.height as i32, self.dpi)
+                                            + hwpunit_to_px(t.outer_margin_top as i32, self.dpi)
+                                            + hwpunit_to_px(t.outer_margin_bottom as i32, self.dpi),
+                                        super::partial_tac_header_tail_px(
+                                            t.common.height,
+                                            t.outer_margin_bottom,
+                                            p.line_segs.last().map_or(0, |line| line.line_spacing),
+                                            self.dpi,
+                                        ),
+                                    ))
+                                }
+                                _ => None,
+                            })
+                        {
+                            // 저장 줄이 하나면 표의 전체 띠를 예약한다. 둘 이상이면
+                            // 선행 줄의 소비를 뺀 공통 잔여 높이를 조판과 같이 쓴다.
+                            if p.line_segs.len() <= 1 {
                                 prev_zone_y_end += band;
                             } else {
-                                prev_zone_y_end += band / 2.0;
+                                prev_zone_y_end += partial_tail;
                             }
                             prev_zone_was_header_band = true;
                         }

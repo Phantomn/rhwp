@@ -1871,6 +1871,20 @@ pub(crate) fn solo_zone_pad_px(entering_solo: bool, prior_multicol: bool, dpi: f
     )
 }
 
+/// 저장 줄을 먼저 소비한 헤더 띠 뒤의 잔여 높이.
+/// 표 본체와 아래 여백은 남고, 선행 줄의 마지막 줄간격 절반은 이미 소비됐다.
+pub(crate) fn partial_tac_header_tail_px(
+    table_height_hu: u32,
+    margin_bottom_hu: i16,
+    line_spacing_hu: i32,
+    dpi: f64,
+) -> f64 {
+    (hwpunit_to_px(table_height_hu.min(i32::MAX as u32) as i32, dpi)
+        + hwpunit_to_px(i32::from(margin_bottom_hu), dpi)
+        - hwpunit_to_px(line_spacing_hu, dpi) / 2.0)
+        .max(0.0)
+}
+
 /// 픽셀을 HWPUNIT으로 변환
 #[inline]
 pub fn px_to_hwpunit(px: f64, dpi: f64) -> i32 {
