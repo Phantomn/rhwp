@@ -2,12 +2,24 @@
 kind: snapshot
 status: active
 canonical: mydocs/manual/pr_review_workflow.md
-last_verified: 2026-09-30
+last_verified: 2026-10-01
 ---
 
 # PR #7382 리뷰 — 분할 표와 저장 각주 경계
 
 ## 최종 판정
+
+**PR 준비 미완료·머지 보류.** 현재 검토 브랜치는 `review/planet6897-7382-20260926`입니다. 최신 `upstream/devel` (`02530b9ed567a44663edb26c65fb565c4a79f00d`)을 합친 코드 후보는 `1c1d088cb6997ebcbd330c1119d923460aa59bfc`입니다. 통합 PR은 아직 생성하지 않았습니다.
+
+- 마지막 작은 문서 차단인 `basic/shortcut.hwp` **7쪽**을 현재 브랜치에서 개선했습니다. 최신 base를 반영한 Native와 fresh WASM 전체 7쪽이 독립 PDF와 같은 쪽수이며, 최저 일치율은 양쪽 모두 **96.12686%**입니다. 기존 회귀는 쪽·단·문단 소유를 검사하도록 교정했고 새 테스트 함수는 추가하지 않았습니다.
+- 보정296 집중 검증은 **27/27 PASS**입니다. 최신 base 반영 후 Visual Sweep 도구 검사 **77 PASS**, 글꼴 규칙 Node 검사 **22 PASS**입니다. 이것을 전체 Rust 회귀 통과로 보고하지 않습니다.
+- 보정298 전체 `cargo nextest`를 위 코드 후보에서 `release-test`, `target/pr-review`, **threads=8**, `--no-fail-fast`로 실행 중입니다. 최종 exit와 summary는 아직 확인하지 않았습니다. 로그: `output/pr-review/planet6897-7382-20260926/stage298-full-nextest.log`.
+- 남은 게이트는 전체 nextest 결과 분석, Native Skia 3개 경로, 필수 lint·정책 검사·빌드와 원 PR 문서 전체 Native/fresh WASM의 최종 후보 검증입니다. 이전 단계의 통과나 전수 tree 동일성을 최신 전체 래스터 통과로 승격하지 않습니다.
+- #7445 이관은 #7382를 실제로 차단하는 대형·복합 입력의 해당 검사에 한정합니다. 정상 검사·원본 HWP/HWPX·독립 PDF는 보존합니다. 작은 문서의 간단한 결함은 현재 브랜치에서 해결합니다.
+
+### 이전 단계의 판정 기록
+
+아래 건수는 해당 단계에서 관찰한 결과이며 현재 실패 수가 아닙니다. 최신 진행은 위 요약과 각 보정의 실행 증거를 따릅니다.
 
 **현재 진행**: 남은26개 원장은 보정178까지22건 처리/4건 대기이며, 이전 처리 항목인 #1749 HWP 재검토는 보정168에서 해결했습니다. 작은 문서는 현재 브랜치에서 보정하고, 전 문서 피델리티 복원이 필요한 실제 차단만 #7445로 이관합니다. 보정173 전체 nextest는42FAIL이며 이후 변경을 포함한 전수 재실행 전이므로 PR 준비는 미완료입니다.
 
@@ -3827,3 +3839,11 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_702) | test(issue_6030) | test(issue_2299) | test(issue_2318) | test(issue_6318) | test(text_overlaps_do_not_grow_partition_15)' --no-fail-fast`는 **27/27 PASS**, 10238개 미선택, exit 0다(`stage296-focused-nextest.log`). 분할15 전체 코퍼스와 #6318 실제 바탕쪽 사이드바 충돌, #2318 뒤쪽 replay, 다른 TAC/편집 대조군도 통과했다. 파생 suite 준비·fmt·diff check 통과. CLI의 원시 진단 83건은 그대로이며 원장 통과를 렌더 변경으로 오해하지 않는다.
 - Native와 WASM의 각 쪽 `rhwp_png/rhwp_001..007.png`는 **7/7 바이트 동일**하다. 전체 비교 점수와 실제 렌더도 일치하며, 두 backend의 역할 문자열·표 구역 보존 근거를 공유한다. PR 전체의 최종 검증은 아직 남는다.
 - 최신 대상 `upstream/devel=02530b9ed567a44663edb26c65fb565c4a79f00d`를 fetch했고 검토 branch와 **46/400개**로 갈린다. `git merge-tree --write-tree upstream/devel HEAD`는 `mydocs/orders/20260930.md` add/add 한 곳만 보고하며 코드 텍스트 충돌은 없다. 최종 검증 전에 같은 브랜치에서 최신 대상 변경을 반영하고 양쪽 오늘할일을 보존한다.
+
+
+## 보정297 — 최신 devel 반영 후 작은 문서와 도구 재검증
+
+- 최신 `upstream/devel`의 `02530b9ed567a44663edb26c65fb565c4a79f00d`을 현재 검토 브랜치에 합쳤습니다. 후보는 `1c1d088cb6997ebcbd330c1119d923460aa59bfc`입니다. 충돌은 `mydocs/orders/20260930.md`의 독립 작업 기록뿐이며 양쪽 기록을 보존했습니다. source/test 충돌은 없었습니다.
+- 후보에서 Native CLI와 fresh WASM을 각각 새로 빌드했습니다. 단축키 입력의 Native/fresh WASM 전체 7쪽은 독립 PDF와 같은 쪽수이고 최저 **96.12686%**, 양쪽 gate `passed`입니다. 일치율은 **99.97829/99.76583/97.53365/96.12686/99.95349/99.90031/99.95321%**입니다. 두 backend의 결과 PNG 바이트도 **7/7쪽 동일**합니다. 이전 후보의 판독을 최신 전쪽 직접 판독으로 표현하지 않으며, 점수는 2px 관용 비교여서 완전 픽셀 일치를 뜻하지 않습니다. [최신 base 검증](../assets/pr7382_20260926/stage297_current_base_validation.json)에 manifest와 해시를 기록했습니다.
+- Visual Sweep Python 도구 검사는 **77 PASS**, 글꼴 규칙 Node 검사는 **22 PASS**, 각각 exit 0입니다. WASM 빌드는 Mac 로컬 대체 빌드이며 Docker 최적화 빌드 통과로 보고하지 않습니다.
+- 비교 출력은 `output/pr-review/planet6897-7382-20260926/stage297-native-current-base/shortcut/review/`와 `stage297-wasm-current-base/shortcut/review/`입니다. 원본 HWP와 PDF는 현재 커밋 blob과 같은 바이트임을 확인했습니다. PDF나 허용치를 변경하지 않았습니다. 전체 nextest와 Native Skia·lint·원 PR 최종 전수 시각 검증은 별도 게이트로 유지합니다.
