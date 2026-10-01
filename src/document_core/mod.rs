@@ -31,7 +31,9 @@ pub mod hyperlink;
 pub mod queries;
 pub mod table_calc;
 pub mod text_security;
+mod typesetting;
 pub mod validation;
+pub use typesetting::TypesettingEngine;
 
 use crate::model::control::Control;
 use crate::model::document::Document;
@@ -177,6 +179,8 @@ pub(crate) struct RenderNormalizationState {
 /// 문서 데이터, 레이아웃 상태, 설정, 캐시를 포함한다.
 /// WASM 바인딩 없이 순수 Rust 타입만 사용한다.
 pub struct DocumentCore {
+    pub(crate) typesetting_engine: TypesettingEngine,
+    pub(crate) v2_layout: Option<Result<crate::renderer::table_v2::HostedDocumentLayout, String>>,
     /// IR 문서
     pub(crate) document: Document,
     /// 페이지 분할 결과
@@ -365,6 +369,9 @@ pub struct ActiveFieldInfo {
 impl DocumentCore {
     /// 총 페이지 수를 반환한다.
     pub fn page_count(&self) -> u32 {
+        if self.ensure_typesetting_ready().is_err() {
+            return 0;
+        }
         self.pagination
             .iter()
             .map(|pr| pr.pages.len() as u32)
@@ -503,6 +510,8 @@ impl DocumentCore {
     /// 빈 문서를 생성한다 (테스트/미리보기용).
     pub fn new_empty() -> Self {
         DocumentCore {
+            typesetting_engine: TypesettingEngine::Legacy,
+            v2_layout: None,
             document: Document::default(),
             pagination: Vec::new(),
             styles: ResolvedStyleSet::default(),

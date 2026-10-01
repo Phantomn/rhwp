@@ -19,6 +19,7 @@ pub(super) struct HostedSectionFlow {
     tables: BTreeMap<usize, HostedTableSession>,
     page_numbers: crate::renderer::page_number::PageNumberAssigner<'static>,
     assigned_numbers: Vec<u32>,
+    page_offset: u32,
     revision: u64,
     pending: VecDeque<(usize, HostedAnchor, (u32, u16))>,
     hidden_empty: Option<((u32, u16), u8)>,
@@ -36,6 +37,8 @@ impl TypesetEngine {
         section: usize,
         hide_empty_line: bool,
         tables: BTreeMap<usize, HostedTableSession>,
+        page_offset: u32,
+        first_number: u32,
     ) -> Result<PaginationResult, HostedTableError> {
         if text.len() != paragraphs.len() {
             return Err(HostedTableError::UnsupportedHost(
@@ -47,8 +50,12 @@ impl TypesetEngine {
             tables,
             // Admission excludes NewNumber and nondefault section start numbers.
             // Number each physical page, not each column, as in finalization.
-            page_numbers: crate::renderer::page_number::PageNumberAssigner::new_for_pages(&[], 1),
+            page_numbers: crate::renderer::page_number::PageNumberAssigner::new_for_pages(
+                &[],
+                first_number,
+            ),
             assigned_numbers: Vec::new(),
+            page_offset,
             revision: 0,
             pending: VecDeque::new(),
             hidden_empty: None,
@@ -214,7 +221,10 @@ impl HostedSectionFlow {
                     &st.layout,
                     TableHostAddress {
                         section: st.section_index,
-                        page: st.pages.last().expect("host page ensured").page_index,
+                        page: self
+                            .page_offset
+                            .checked_add(st.pages.last().expect("host page ensured").page_index)
+                            .ok_or(HostedTableError::RevisionOverflow)?,
                         column: Some(usize::from(st.current_column)),
                         revision: self.revision,
                     },

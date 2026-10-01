@@ -933,6 +933,11 @@ impl DocumentCore {
     }
 
     pub(crate) fn recompose_all_with_horizontal_shaping(&mut self) {
+        if self.typesetting_engine == super::super::TypesettingEngine::V2 {
+            self.invalidate_v2_layout();
+            self.composed.clear();
+            return;
+        }
         self.composed = self
             .document
             .sections
@@ -1115,6 +1120,7 @@ impl DocumentCore {
         page_num: u32,
         profile: RenderProfile,
     ) -> Result<PageLayerTree, HwpError> {
+        self.ensure_typesetting_ready()?;
         let _overflows = self.layout_engine.take_overflows();
         let idx = page_num as usize;
         let fingerprint = self
@@ -4060,6 +4066,10 @@ impl DocumentCore {
 
     /// 구역을 재조판하고 dirty로 표시한다.
     pub(crate) fn recompose_section(&mut self, section_idx: usize) {
+        if self.typesetting_engine == super::super::TypesettingEngine::V2 {
+            self.mark_section_dirty(section_idx);
+            return;
+        }
         self.invalidate_page_tree_cache();
         self.composed[section_idx] = compose_section_with_horizontal_shaping(
             &self.document.sections[section_idx],
@@ -4075,6 +4085,7 @@ impl DocumentCore {
     /// 구역을 dirty로 표시만 한다 (재조판 없이).
     /// 셀 내부 편집처럼 composed 데이터가 불변인 경우 사용.
     pub(crate) fn mark_section_dirty(&mut self, section_idx: usize) {
+        self.invalidate_v2_layout();
         self.mark_section_pagination_dirty(section_idx);
         self.invalidate_render_normalization_section(section_idx);
     }
@@ -4124,6 +4135,10 @@ impl DocumentCore {
 
     /// 단일 문단만 재조판한다.
     pub(crate) fn recompose_paragraph(&mut self, section_idx: usize, para_idx: usize) {
+        if self.typesetting_engine == super::super::TypesettingEngine::V2 {
+            self.mark_section_dirty(section_idx);
+            return;
+        }
         self.invalidate_page_tree_cache();
         let para = &self.document.sections[section_idx].paragraphs[para_idx];
         self.composed[section_idx][para_idx] =
@@ -4134,6 +4149,10 @@ impl DocumentCore {
 
     /// composed 벡터에 새 문단 항목을 삽입한다 (문단 분할/붙여넣기 후).
     pub(crate) fn insert_composed_paragraph(&mut self, section_idx: usize, para_idx: usize) {
+        if self.typesetting_engine == super::super::TypesettingEngine::V2 {
+            self.mark_section_dirty(section_idx);
+            return;
+        }
         self.invalidate_page_tree_cache();
         let para = &self.document.sections[section_idx].paragraphs[para_idx];
         let composed = compose_paragraph_with_horizontal_shaping(para, &self.styles);
@@ -4401,6 +4420,16 @@ impl DocumentCore {
         fragment_budget: usize,
     ) -> DeferredPaginationStepResult {
         self.pending_pagination_job = None;
+        if self.typesetting_engine == super::super::TypesettingEngine::V2 {
+            // The Legacy continuation protocol cannot own V2 fragment cuts.
+            // Caller may use the synchronous V2 pagination barrier instead.
+            return DeferredPaginationStepResult {
+                state: DeferredPaginationJobState::Fallback,
+                revision: self.deferred_pagination_revision,
+                fragments_processed: 0,
+                page_count: self.page_count(),
+            };
+        }
         let Some(descriptor) = self.deferred_pagination_descriptor.clone() else {
             return DeferredPaginationStepResult {
                 state: DeferredPaginationJobState::None,
@@ -4749,6 +4778,10 @@ impl DocumentCore {
     /// 측정 통일(B). `paginate_pass` 의 `force_break_before` 훅과 `LayoutOverflow` 의
     /// section_index/is_first_in_column 계측은 측정 통일 작업의 진단·후속용으로 유지한다.
     pub(crate) fn paginate(&mut self) {
+        if self.typesetting_engine == super::super::TypesettingEngine::V2 {
+            self.paginate_v2();
+            return;
+        }
         self.pending_pagination_job = None;
         let sec_count = self.document.sections.len().max(1);
         let empty_breaks: Vec<std::collections::HashSet<usize>> =
@@ -5927,6 +5960,7 @@ impl DocumentCore {
         ),
         HwpError,
     > {
+        self.ensure_typesetting_ready()?;
         let mut offset = 0u32;
         for (sec_idx, pr) in self.pagination.iter().enumerate() {
             if (page_num as usize) < offset as usize + pr.pages.len() {
@@ -7195,6 +7229,7 @@ impl DocumentCore {
 
     /// 캐시된 페이지 렌더 트리를 반환한다 (캐시 미스 시 빌드 후 캐시).
     pub(crate) fn build_page_tree_cached(&self, page_num: u32) -> Result<PageRenderTree, HwpError> {
+        self.ensure_typesetting_ready()?;
         let idx = page_num as usize;
 
         // 캐시 크기 확보 + 히트 확인
@@ -7334,6 +7369,10 @@ impl DocumentCore {
 
     /// 페이지 렌더 트리를 빌드한다.
     pub(crate) fn build_page_tree(&self, page_num: u32) -> Result<PageRenderTree, HwpError> {
+        self.ensure_typesetting_ready()?;
+        if let Some(Ok(layout)) = &self.v2_layout {
+            return layout.render_page(&self.document, page_num);
+        }
         self.build_page_tree_with_header_footer_override(page_num, None)
     }
 
@@ -7342,6 +7381,11 @@ impl DocumentCore {
         page_num: u32,
         header_footer_override: Option<(usize, bool, u8)>,
     ) -> Result<PageRenderTree, HwpError> {
+        if self.typesetting_engine == super::super::TypesettingEngine::V2 {
+            return Err(HwpError::RenderError(
+                "V2: header/footer edit preview is not supported".into(),
+            ));
+        }
         use crate::model::style::HeadType;
         use crate::renderer::layout::resolve_numbering_id;
         use crate::renderer::pagination::PageItem;

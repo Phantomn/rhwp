@@ -328,7 +328,8 @@ impl TypesetEngine {
                 // do not subsequently run Legacy table cuts, saved-vpos snapping
                 // or paragraph-tail height corrections over these packets.
                 st.ensure_page();
-                flow.place_paragraph(&mut st, para_idx, para)?;
+                flow.place_paragraph(&mut st, para_idx, para)
+                    .map_err(|e| e.in_paragraph(para_idx))?;
                 variant_prev_para_idx = Some(para_idx);
                 continue;
             }

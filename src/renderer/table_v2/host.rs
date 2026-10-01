@@ -55,6 +55,10 @@ pub enum HostedTableError {
     WrongDestination,
     RevisionOverflow,
     UnsupportedHost(&'static str),
+    Paragraph {
+        index: usize,
+        cause: Box<HostedTableError>,
+    },
     NoProgress,
 }
 
@@ -64,6 +68,14 @@ impl std::fmt::Display for HostedTableError {
     }
 }
 impl std::error::Error for HostedTableError {}
+impl HostedTableError {
+    pub(crate) fn in_paragraph(self, index: usize) -> Self {
+        Self::Paragraph {
+            index,
+            cause: Box::new(self),
+        }
+    }
+}
 impl From<GeometryError> for HostedTableError {
     fn from(value: GeometryError) -> Self {
         Self::Geometry(value)

@@ -146,7 +146,7 @@ pub struct EndnoteParaSource {
 }
 
 /// 페이지 분할 결과: 페이지별 콘텐츠 참조
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PaginationResult {
     /// 페이지별 콘텐츠 목록
     pub pages: Vec<PageContent>,

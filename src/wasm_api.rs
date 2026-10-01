@@ -594,6 +594,29 @@ impl HwpDocument {
             .map_err(|e| e.into())
     }
 
+    /// Explicit product V2 route (not the separate SVG preview session).
+    /// The default constructor remains Legacy until the editing gate completes.
+    #[wasm_bindgen(js_name = openWithTypesetter)]
+    pub fn open_with_typesetter(data: &[u8], engine: &str) -> Result<HwpDocument, JsValue> {
+        let engine = match engine {
+            "v2" => crate::document_core::TypesettingEngine::V2,
+            "legacy" => crate::document_core::TypesettingEngine::Legacy,
+            _ => return Err(JsValue::from_str("typesetter must be 'v2' or 'legacy'")),
+        };
+        DocumentCore::from_bytes_with_engine(data, engine)
+            .map(|core| HwpDocument { core })
+            .map_err(Into::into)
+    }
+
+    #[wasm_bindgen(js_name = getTypesetter)]
+    pub fn get_typesetter(&self) -> String {
+        match self.core.typesetting_engine() {
+            crate::document_core::TypesettingEngine::Legacy => "legacy",
+            crate::document_core::TypesettingEngine::V2 => "v2",
+        }
+        .into()
+    }
+
     /// 비밀번호로 보호된 HWP/HWPX 파일을 비밀번호와 함께 로드한다.
     ///
     /// HWP5 EncryptVersion 4, 압축 HWP3와 ODF AES-256-CBC HWPX를 지원한다.

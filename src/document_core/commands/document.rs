@@ -3,7 +3,7 @@
 use crate::document_core::validation::{
     CellPath, ValidationReport, ValidationWarning, WarningKind,
 };
-use crate::document_core::{DocumentCore, DEFAULT_FALLBACK_FONT};
+use crate::document_core::{DocumentCore, TypesettingEngine, DEFAULT_FALLBACK_FONT};
 use crate::error::HwpError;
 use crate::model::control::Control;
 use crate::model::document::Document;
@@ -153,7 +153,15 @@ impl DocumentCore {
     }
 
     pub fn from_bytes(data: &[u8]) -> Result<DocumentCore, HwpError> {
-        Self::from_bytes_inner(data, None)
+        Self::from_bytes_with_engine(data, TypesettingEngine::Legacy)
+    }
+
+    /// Explicit product typesetter selection, before any Legacy composition.
+    pub fn from_bytes_with_engine(
+        data: &[u8],
+        engine: TypesettingEngine,
+    ) -> Result<DocumentCore, HwpError> {
+        Self::from_bytes_inner(data, None, engine)
     }
 
     /// 비밀번호로 보호된 HWP/HWPX 파일을 비밀번호와 함께 로드한다.
@@ -165,10 +173,22 @@ impl DocumentCore {
         data: &[u8],
         password: &[u8],
     ) -> Result<DocumentCore, HwpError> {
-        Self::from_bytes_inner(data, Some(password))
+        Self::from_bytes_inner(data, Some(password), TypesettingEngine::Legacy)
     }
 
-    fn from_bytes_inner(data: &[u8], password: Option<&[u8]>) -> Result<DocumentCore, HwpError> {
+    pub fn from_bytes_with_password_and_engine(
+        data: &[u8],
+        password: &[u8],
+        engine: TypesettingEngine,
+    ) -> Result<DocumentCore, HwpError> {
+        Self::from_bytes_inner(data, Some(password), engine)
+    }
+
+    fn from_bytes_inner(
+        data: &[u8],
+        password: Option<&[u8]>,
+        engine: TypesettingEngine,
+    ) -> Result<DocumentCore, HwpError> {
         let source_format = crate::parser::detect_format(data);
         let parsed = match password {
             Some(pwd) => crate::parser::parse_document_with_metadata_password(data, pwd),
@@ -180,13 +200,15 @@ impl DocumentCore {
 
         // [#4813] 손상 입력 DoS 방어 — 파싱 직후, compose/pagination/layout 이 저장
         // line_seg 를 소비하기 전에 물리적으로 불가능한 과다 line_seg 배열을 제거한다.
-        Self::drop_corrupt_oversized_linesegs(&mut document);
+        if engine == TypesettingEngine::Legacy {
+            Self::drop_corrupt_oversized_linesegs(&mut document);
+        }
 
         // [#2279 실험 전용] 본문 저장 lineseg 전면 무시 → fresh 재계산.
         // 기계생성 결재문서의 부분-사다리 불신 실험 계측용 (기본 no-op).
         // 주의: 92셋 전수 실측(2026-07-18)에서 전면 fresh 는 88→76 광역 회귀 —
         // 부분 사다리의 정합을 fresh 가 아직 대체하지 못함. 판별-자동화 금지.
-        if std::env::var("RHWP_EXP_BODY_FRESH").is_ok() {
+        if engine == TypesettingEngine::Legacy && std::env::var("RHWP_EXP_BODY_FRESH").is_ok() {
             for sec in document.sections.iter_mut() {
                 for para in sec.paragraphs.iter_mut() {
                     para.line_segs.clear();
@@ -231,29 +253,35 @@ impl DocumentCore {
         // 본문 텍스트 문단 합성은 흐름 소비 팽창으로 sijang 밀도 핀 -5쪽(#2070v2).
         // HWP3 변환본은 #998 게이트(sample16-hwp5=64) 정합상 종전 유지.
         let include_cell_empty = !document.layout_profile().hwp3_layout();
-        Self::reflow_zero_height_paragraphs(
-            &mut document,
-            &styles,
-            DEFAULT_DPI,
-            include_empty,
-            include_cell_empty,
-        );
-        Self::clear_missing_lineseg_placeholders(&mut document);
+        if engine == TypesettingEngine::Legacy {
+            Self::reflow_zero_height_paragraphs(
+                &mut document,
+                &styles,
+                DEFAULT_DPI,
+                include_empty,
+                include_cell_empty,
+            );
+            Self::clear_missing_lineseg_placeholders(&mut document);
+        }
 
         // XML import → HWP 라운드트립 일관성 normalize (#314):
         // XML 파서가 채우지 않는 paragraph 필드를 HWP 직렬화/파싱 라운드트립 결과와 일치시킨다.
         // 1) char_shapes 빈 paragraph 에 default [(0,0)] 추가 (HWP 스펙상 최소 1개 요구)
         // 2) control_mask 를 controls 기반으로 재계산
-        if use_xml_import_semantics {
+        if engine == TypesettingEngine::Legacy && use_xml_import_semantics {
             Self::normalize_xml_import_paragraphs(&mut document);
         }
 
         // 초기 상태(properties bit 15 == 0) 누름틀의 안내문 텍스트를 삭제하여 빈 필드로 정규화
         // (한컴에서 메모 추가 시 안내문 텍스트가 필드 값으로 삽입됨 — compose 전에 제거해야 정합성 유지)
-        Self::clear_initial_field_texts(&mut document);
+        if engine == TypesettingEngine::Legacy {
+            Self::clear_initial_field_texts(&mut document);
+        }
 
         let sec_count = document.sections.len();
         let mut doc = DocumentCore {
+            typesetting_engine: engine,
+            v2_layout: None,
             document,
             pagination: Vec::new(),
             styles,
@@ -311,6 +339,7 @@ impl DocumentCore {
         doc.rebuild_embedded_exact_font_sources();
         doc.recompose_all_with_horizontal_shaping();
         doc.paginate();
+        doc.ensure_typesetting_ready()?;
 
         // [#4488/#4495] 로드 픽스업(손상 lineseg 제거·빈 문단 reflow·안내문 제거)과
         // 첫 paginate 의 materialization(그림 img_dim 등)까지 끝난 뒤 본문을 다시
@@ -2043,6 +2072,7 @@ impl DocumentCore {
     /// [Task #741 후속] 문서의 IR mutable 참조를 반환한다.
     /// WASM 영역 영역 외부 image inject 영역 의 영역 영역 영역.
     pub fn document_mut(&mut self) -> &mut Document {
+        self.invalidate_v2_layout();
         &mut self.document
     }
 
