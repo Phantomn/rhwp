@@ -13,8 +13,8 @@ last_verified: 2026-10-01
 
 - 마지막 작은 문서 차단인 `basic/shortcut.hwp` **7쪽**을 현재 브랜치에서 개선했습니다. 최신 base를 반영한 Native와 fresh WASM 전체 7쪽이 독립 PDF와 같은 쪽수이며, 최저 일치율은 양쪽 모두 **96.12686%**입니다. 기존 회귀는 쪽·단·문단 소유를 검사하도록 교정했고 새 테스트 함수는 추가하지 않았습니다.
 - 보정296 집중 검증은 **27/27 PASS**입니다. 최신 base 반영 후 Visual Sweep 도구 검사 **77 PASS**, 글꼴 규칙 Node 검사 **22 PASS**입니다. 이것을 전체 Rust 회귀 통과로 보고하지 않습니다.
-- 보정298 전체 `cargo nextest`는 위 코드 후보에서 `release-test`, `target/pr-review`, **threads=8**, `--no-fail-fast`로 완료했습니다. 결과는 **10,228 PASS / 1 FAIL / 50 SKIP**, exit 100입니다. 실패는 #7442의 고정 좌표 문자 hit-test 한 건이며 개별 분석 중입니다. 로그: `output/pr-review/planet6897-7382-20260926/stage298-full-nextest.log`.
-- 남은 게이트는 전체 nextest 결과 분석, Native Skia 3개 경로, 필수 lint·정책 검사·빌드와 원 PR 문서 전체 Native/fresh WASM의 최종 후보 검증입니다. 이전 단계의 통과나 전수 tree 동일성을 최신 전체 래스터 통과로 승격하지 않습니다.
+- 보정301 전체 `cargo nextest`는 #7442 기대 교정 후보 `afcb5dcea`에서 `release-test`, `target/pr-review`, **threads=8**, `--no-fail-fast`로 완료했습니다. 결과는 **10,229 PASS / 0 FAIL / 50 SKIP**, exit **0**입니다. 보정298의 단일 실패를 개별 분석·수정하고 전수 재실행으로 해소를 확인했습니다. 로그: `output/pr-review/planet6897-7382-20260926/stage301-full-nextest.log`.
+- 남은 게이트는 Native Skia 3개 경로, 필수 lint·정책 검사·빌드와 원 PR 문서 전체 Native/fresh WASM의 최종 후보 검증입니다. 이전 단계의 통과나 전수 tree 동일성을 최신 전체 래스터 통과로 승격하지 않습니다.
 - #7445 이관은 #7382를 실제로 차단하는 대형·복합 입력의 해당 검사에 한정합니다. 정상 검사·원본 HWP/HWPX·독립 PDF는 보존합니다. 작은 문서의 간단한 결함은 현재 브랜치에서 해결합니다.
 
 ### 이전 단계의 판정 기록
@@ -3862,3 +3862,10 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 기존 함수 한 개를 원본 `* ` 모델 텍스트 확인, 가시 별표 앞뒤 커서 경계 0·1의 hit-test 왕복과 전체 중첩 경로·부모 문단·section 소유 검사로 교정했습니다. 절대 픽셀 클릭을 없앴으며 기대 2를 단순히 1로 바꾸지 않았습니다. 나머지 #7442 함수 6개와 source는 유지했고 새 테스트 함수는 추가하지 않았습니다. 집중 **11/11 PASS**, exit 0입니다. [실행·시각 한계 기록](../assets/pr7382_20260926/stage300_issue7442_validation.json).
 - Native 전체 4쪽을 두 기존 독립 PDF와 비교했습니다. 최신 보존 PDF의 해당 1쪽은 **91.49%**이고 review를 직접 확인했습니다. 3쪽은 최신 PDF **87.04102%**, 원래 #1994 PDF **87.12326%**로 남습니다. 해당 review도 직접 읽었으며 전 문서 시각 승인으로 보고하지 않습니다. 이번 변경은 편집 hit-test의 기대 교정이고 렌더링 배치를 변경하거나 회귀 fixture를 신규 등록하지 않습니다. PDF·허용치·기존 렌더링 검사는 유지합니다.
 - 전체 후보를 다시 실행해 전수 통과 여부를 확인한 뒤 Native Skia와 나머지 필수 게이트를 진행합니다. 현재 통합 PR 준비·전체 시각 승인은 계속 보류입니다. 로그와 전쪽 비교는 `output/pr-review/planet6897-7382-20260926/stage299-issue7442-*`, `stage300-issue7442-focused.log`에 보존합니다.
+
+
+## 보정301 — 기존 회귀 전수 통과
+
+- 후보 `afcb5dcea`의 전체 nextest는 **10,229개 실행 / 10,229 PASS / 0 FAIL / 50 SKIP**, 523.871초, exit **0**입니다. 로그의 최종 summary와 실제 프로세스 exit를 모두 확인했습니다. [고정 후보·명령·로그 해시](../assets/pr7382_20260926/stage301_full_nextest_validation.json).
+- #7442 기대 교정 뒤 기존 전체 corpus와 유지 회귀를 다시 실행했습니다. 이번 단계에서 새 회귀를 추가하거나 추가 함수를 skip·#7445 이관하지 않았습니다. 50 SKIP은 유지된 기존 보류 상태이며 해소로 보고하지 않습니다.
+- 전체 통과 결과를 별도 커밋하고 Native Skia lib 전체와 공식 통합 두 경로, 필수 lint/빌드 및 최종 시각 증거를 이어서 확인합니다. 원 PR 문서·4쪽 주보의 남은 시각 차이와 PR 생성/merge는 아직 완료가 아닙니다.
