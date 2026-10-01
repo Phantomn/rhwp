@@ -2993,6 +2993,12 @@ impl DocumentCore {
     ) -> Result<Option<String>, HwpError> {
         use crate::model::control::Control;
 
+        self.ensure_typesetting_ready()?;
+        if self.typesetting_engine == crate::document_core::TypesettingEngine::V2 {
+            // Legacy row cuts/cell units cannot answer V2 fragment positions.
+            return Ok(None);
+        }
+
         // 캡션 센티널(65534)·비표 컨트롤은 legacy 전용
         if cell_idx == 65534 {
             return Ok(None);

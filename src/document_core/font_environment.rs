@@ -25,6 +25,7 @@ impl DocumentCore {
         self.pending_pagination_job = None;
         self.deferred_pagination_descriptor = None;
         self.rebuild_derived_state();
+        self.ensure_typesetting_ready()?;
         Ok(true)
     }
 

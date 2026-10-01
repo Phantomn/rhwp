@@ -52,6 +52,7 @@ pub(super) struct TextPaint {
     pub tables: HashMap<PayloadKey, OrderedPaint<Arc<TextPaint>>>,
     pub background: super::decoration::Background,
     pub cells: HashMap<(usize, usize), super::decoration::Background>,
+    pub cell_indices: HashMap<(usize, usize), u32>,
     pub borders: Option<super::borders::CellBorders>,
     pub zones: Vec<super::zones::Zone>,
     pub diagonals: HashMap<(usize, usize), super::diagonal::Diagonal>,
@@ -246,7 +247,7 @@ impl TextPaint {
                     text_direction: 0,
                     clip: false,
                     page_fragment: true,
-                    model_cell_index: None,
+                    model_cell_index: self.cell_indices.get(&(cell.row, cell.column)).copied(),
                 }),
                 bbox(cell.bounds),
             );
@@ -267,6 +268,9 @@ impl TextPaint {
                 let dx = line.bounds.x - payload.bbox.x;
                 let dy = line.bounds.y - payload.bbox.y;
                 translate(&mut payload, dx, dy);
+                if let RenderNodeType::TextLine(value) = &mut payload.node_type {
+                    value.para_index = Some(line.owner.paragraph);
+                }
                 ordered.push((entry.order, payload));
             }
             for child in &cell.tables {
@@ -282,10 +286,12 @@ impl TextPaint {
                     .ok_or(GeometryError::InconsistentAtomicPlan)?;
                 // Recursive fit already returned page coordinates. Do not add the
                 // parent origin again or recompute the child's reserved height.
-                ordered.push((
-                    entry.order,
-                    entry.value.build_node(&child.placement, number)?,
-                ));
+                let mut nested = entry.value.build_node(&child.placement, number)?;
+                if let RenderNodeType::Table(value) = &mut nested.node_type {
+                    value.para_index = Some(child.owner.paragraph);
+                    value.control_index = Some(child.owner.control);
+                }
+                ordered.push((entry.order, nested));
             }
             ordered.sort_by_key(|(order, _)| *order);
             node.children

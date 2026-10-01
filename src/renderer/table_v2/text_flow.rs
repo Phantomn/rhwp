@@ -86,6 +86,7 @@ impl PreparedTextTable {
             tables: HashMap::new(),
             background: Default::default(),
             cells: HashMap::new(),
+            cell_indices: HashMap::new(),
             borders: None,
             zones: Vec::new(),
             diagonals: HashMap::new(),

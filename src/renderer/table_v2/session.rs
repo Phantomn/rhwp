@@ -289,6 +289,17 @@ pub(super) fn prepare_selected_table(
     dpi: f64,
     policy: super::CellEndPolicy,
 ) -> Result<PreparedTextTable, TablePreviewError> {
+    let styles = super::source_units::resolve(document, dpi)?;
+    prepare_selected_table_with_styles(document, selection, dpi, policy, &styles)
+}
+
+pub(super) fn prepare_selected_table_with_styles(
+    document: &Document,
+    selection: TableSelection,
+    dpi: f64,
+    policy: super::CellEndPolicy,
+    styles: &crate::renderer::style_resolver::ResolvedStyleSet,
+) -> Result<PreparedTextTable, TablePreviewError> {
     super::contracts::finite(dpi, "preview DPI")?;
     if dpi <= 0.0 {
         return Err(GeometryError::InvalidNumber("preview DPI").into());
@@ -302,10 +313,9 @@ pub(super) fn prepare_selected_table(
         return Err(TablePreviewError::InvalidSelection(selection));
     };
     super::decoration::validate_source(table, &document.doc_info)?;
-    let styles = super::source_units::resolve(document, dpi)?;
     Ok(PreparedTextTable::prepare_with_end_policy(
         table,
-        &styles,
+        styles,
         dpi,
         &document.bin_data_content,
         policy,

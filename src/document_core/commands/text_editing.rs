@@ -585,6 +585,11 @@ impl DocumentCore {
     where
         F: FnOnce(&mut Paragraph),
     {
+        if self.typesetting_engine == crate::document_core::TypesettingEngine::V2 {
+            // The Legacy picture-band shadow owns Legacy pagination/composed
+            // buffers. V2 edits must reach its own document preparation barrier.
+            return Ok(false);
+        }
         // Keep the ordinary scalar path cheap: only build the full staging
         // core after the live state proves this paragraph belongs to a
         // supported Picture band.
@@ -1534,6 +1539,9 @@ impl DocumentCore {
             offset: char_offset,
             len: new_chars_count,
         });
+        if !self.batch_mode {
+            self.ensure_typesetting_ready()?;
+        }
         Ok(super::super::helpers::json_ok_with(&format!(
             "\"charOffset\":{}",
             new_offset
@@ -1811,7 +1819,9 @@ impl DocumentCore {
         paginate_immediately: bool,
     ) -> Result<String, HwpError> {
         let new_chars_count = text.chars().count();
-        let focused_target_is_table_cell = !paginate_immediately
+        let focused_target_is_table_cell = self.typesetting_engine
+            == crate::document_core::TypesettingEngine::Legacy
+            && !paginate_immediately
             && is_focused_table_cell_target(
                 &self.document,
                 section_idx,
@@ -2077,6 +2087,9 @@ impl DocumentCore {
         }
         if paginate_immediately {
             self.paginate_if_needed();
+            if !self.batch_mode {
+                self.ensure_typesetting_ready()?;
+            }
         }
 
         self.event_log.push(DocumentEvent::CellTextChanged {
@@ -5459,6 +5472,13 @@ impl DocumentCore {
     ) -> Result<Vec<u32>, HwpError> {
         use crate::model::control::Control;
         use crate::renderer::pagination::PageItem;
+
+        self.ensure_typesetting_ready()?;
+        if self.typesetting_engine == crate::document_core::TypesettingEngine::V2 {
+            // Candidate pages only; the V2 render tree resolves the exact cell
+            // and character. Do not reconstruct Legacy PartialTable cuts.
+            return self.find_pages_for_paragraph(section_idx, parent_para_idx);
+        }
 
         let resolved = self
             .document

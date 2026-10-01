@@ -1734,7 +1734,7 @@ impl DocumentCore {
         let page_count_before = self.page_count();
         let bytes = self.export_hwp_with_adapter()?;
         let bytes_len = bytes.len();
-        let reloaded = DocumentCore::from_bytes(&bytes)?;
+        let reloaded = DocumentCore::from_bytes_with_engine(&bytes, self.typesetting_engine)?;
         let page_count_after = reloaded.page_count();
 
         Ok(HwpExportVerification {
@@ -2325,6 +2325,7 @@ impl DocumentCore {
     pub fn end_batch_native(&mut self) -> Result<String, HwpError> {
         self.batch_mode = false;
         self.paginate();
+        self.ensure_typesetting_ready()?;
         let result = self.serialize_event_log();
         self.event_log.clear();
         Ok(result)
@@ -2395,6 +2396,7 @@ impl DocumentCore {
         self.bump_bin_data_epoch();
         // 문서를 통째로 갈아끼웠으므로 파생 상태는 전부 새 원본에서 다시 만든다.
         self.rebuild_derived_state();
+        self.ensure_typesetting_ready()?;
         Ok(super::super::helpers::json_ok())
     }
 

@@ -12,7 +12,11 @@ pub(crate) struct HostedDocumentLayout {
 }
 
 impl HostedDocumentLayout {
-    pub(crate) fn prepare(source: &Document, dpi: f64) -> Result<Self, HwpError> {
+    pub(crate) fn prepare(
+        source: &Document,
+        dpi: f64,
+        styles: &crate::renderer::style_resolver::ResolvedStyleSet,
+    ) -> Result<Self, HwpError> {
         if source.sections.is_empty() {
             return Err(HwpError::RenderError("V2: document has no section".into()));
         }
@@ -46,6 +50,7 @@ impl HostedDocumentLayout {
                 CellEndPolicy::OmitFinalParagraphGap,
                 page_offset,
                 first_number,
+                Some(styles),
             )
             .map_err(|e| failure(si, e))?;
             let count = u32::try_from(layout.pagination().pages.len())

@@ -274,6 +274,26 @@ impl HostedTableSession {
         self.cursor.is_complete()
     }
 
+    pub(super) fn from_document_with_styles(
+        document: &Document,
+        selection: TableSelection,
+        dpi: f64,
+        policy: CellEndPolicy,
+        styles: &crate::renderer::style_resolver::ResolvedStyleSet,
+    ) -> Result<Self, HostedTableError> {
+        let prepared = super::session::prepare_selected_table_with_styles(
+            document, selection, dpi, policy, styles,
+        )
+        .map_err(HostedTableError::Source)?;
+        Ok(Self {
+            owner: Arc::new(()),
+            revision: 0,
+            cursor: prepared.start(),
+            selection,
+            dpi,
+        })
+    }
+
     /// Pure query: repeated fit, non-fit and an abandoned proposal consume no
     /// content. The same snapshot supplies the bounds and eventual paint.
     pub fn query(&self, frame: TableHostFrame) -> Result<HostedTableFit, HostedTableError> {

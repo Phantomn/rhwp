@@ -7,7 +7,14 @@ use crate::{
 };
 
 pub(super) fn resolve(document: &Document, dpi: f64) -> Result<ResolvedStyleSet, GeometryError> {
-    let mut styles = resolve_styles_for_document(document, dpi);
+    qualify(document, dpi, resolve_styles_for_document(document, dpi))
+}
+
+pub(super) fn qualify(
+    document: &Document,
+    dpi: f64,
+    mut styles: ResolvedStyleSet,
+) -> Result<ResolvedStyleSet, GeometryError> {
     for (source, resolved) in document
         .doc_info
         .para_shapes

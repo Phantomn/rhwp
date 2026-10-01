@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// W1 actual HwpDocument product route, not HostedSectionV2 SVG preview.
+// Actual HwpDocument product output/editing, not HostedSectionV2 SVG preview.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -87,12 +87,80 @@ try {
     await page.setViewport(size);
     await page.screenshot({ path: join(out, 'browser', `canvas-${i + 1}.png`) });
   }
+  let editing;
+  if (process.argv.includes('--edit') || process.argv.includes('--edit-cell')) {
+    editing = await page.evaluate(async table => {
+      const { HwpDocument } = await import('/rhwp.js');
+      const doc = window.documentV2;
+      const check = (ok, message) => { if (!ok) throw new Error(message); };
+      // SVG can emit separate tspans for glyphs; inspect displayed text rather
+      // than requiring the serialization to contain one contiguous string.
+      const svgText = svg => Array.from(new DOMParser().parseFromString(svg, 'image/svg+xml').querySelectorAll('text'), node => node.textContent).join('');
+      check(!table || Array.from({ length: doc.pageCount() }, (_, i) => doc.renderPageSvg(i)).some(svg => svgText(svg).replace(/\s/g, '').includes('ROW01')), 'cell journey requires the saved split-table fixture');
+      const target = table ? 1 : 0;
+      const before = doc.renderPageSvg(target);
+      const undo = doc.saveSnapshot();
+      const editResult = table ? doc.insertTextInCell(0, 1, 0, 0, 0, 0, 'EDIT ') : doc.insertText(0, 0, 0, 'EDIT ');
+      const edited = doc.renderPageSvg(target);
+      check(svgText(edited).includes('EDIT'), `edit must reach product output: ${JSON.stringify({ table, editResult, text: svgText(edited) })}`);
+      const cursor = JSON.parse(table ? doc.getCursorRectInCell(0, 1, 0, 0, 0, 0) : doc.getCursorRect(0, 0, 0));
+      const hit = JSON.parse(doc.hitTest(cursor.pageIndex, cursor.x + 1, cursor.y + 1));
+      check(cursor.pageIndex === target, 'caret must address the painted fragment');
+      check(!table || cursor.height === 12 && cursor.x === 25, '9pt cell glyph and 5px padding');
+      check(!table || hit.parentParaIndex === 1 && hit.cellIndex === 0, 'hit-test must preserve cell ownership');
+      const selection = JSON.parse(table ? doc.getSelectionRectsInCell(0, 1, 0, 0, 0, 0, 0, 4) : doc.getSelectionRects(0, 0, 0, 0, 4));
+      check(selection.length > 0 && selection.every(r => r.pageIndex === target && r.width > 0 && r.height > 0), 'selection must cover the edited run');
+      const canvas = document.querySelector('canvas');
+      doc.renderPageToCanvas(target, canvas, 1);
+      const redo = doc.saveSnapshot();
+      doc.restoreSnapshot(undo);
+      check(doc.renderPageSvg(target) === before, 'undo must restore exact geometry and paint');
+      doc.restoreSnapshot(redo);
+      check(doc.renderPageSvg(target) === edited, 'redo must restore exact geometry and paint');
+      const reopened = HwpDocument.openWithTypesetter(doc.exportHwp(), doc.getTypesetter());
+      check(reopened.getTypesetter() === 'v2' && svgText(reopened.renderPageSvg(target)).includes('EDIT'), 'save/reopen must retain edited V2 content');
+      reopened.free();
+      let growth, paragraphSplit;
+      if (table) {
+        const pagesBefore = doc.pageCount();
+        const offset = doc.getCellParagraphLength(0, 1, 0, 0, 0);
+        const added = Array.from({ length: 30 }, (_, i) => `\nADDED${String(i).padStart(2, '0')}`).join('');
+        doc.insertTextInCell(0, 1, 0, 0, 0, offset, added);
+        const pages = Array.from({ length: doc.pageCount() }, (_, i) => doc.renderPageSvg(i));
+        check(pages.length > pagesBefore, 'cell growth must paginate');
+        const markerPage = pages.findIndex(svg => svgText(svg).includes('ADDED29'));
+        check(markerPage >= 0, 'last added line must be painted');
+        const end = doc.getCellParagraphLength(0, 1, 0, 0, 0);
+        const caret = JSON.parse(doc.getCursorRectInCell(0, 1, 0, 0, 0, end - 1));
+        const rects = JSON.parse(doc.getSelectionRectsInCell(0, 1, 0, 0, 0, end - 7, 0, end));
+        check(caret.pageIndex === markerPage && caret.height === 12, 'grown-cell caret must address the last painted line');
+        check(rects.length > 0 && rects.every(r => r.pageIndex === markerPage && r.width > 0 && r.height > 0), 'grown-cell selection must address the last painted line');
+        growth = { pagesBefore, pagesAfter: pages.length, markerPage, caret, selection: rects };
+        doc.restoreSnapshot(redo);
+        check(doc.renderPageSvg(target) === edited, 'growth undo must restore edited page');
+        const countBefore = doc.getCellParagraphCount(0, 1, 0, 0);
+        doc.splitParagraphInCell(0, 1, 0, 0, 0, 5, undefined);
+        check(doc.getCellParagraphCount(0, 1, 0, 0) === countBefore + 1, 'Enter must create a cell paragraph');
+        const splitCaret = JSON.parse(doc.getCursorRectInCell(0, 1, 0, 0, 1, 0));
+        const splitHit = JSON.parse(doc.hitTest(splitCaret.pageIndex, splitCaret.x + 1, splitCaret.y + 1));
+        check(splitCaret.y > cursor.y && splitHit.cellParaIndex === 1, 'Enter caret/hit must use the new paragraph line');
+        const splitSelection = JSON.parse(doc.getSelectionRectsInCell(0, 1, 0, 0, 1, 0, 1, 3));
+        check(splitSelection.length > 0 && splitSelection.every(r => r.pageIndex === splitCaret.pageIndex && r.y > selection[0].y), 'Enter selection must follow the new line');
+        paragraphSplit = { cursor: splitCaret, hit: splitHit, selection: splitSelection };
+        doc.restoreSnapshot(redo);
+        check(doc.renderPageSvg(target) === edited, 'Enter undo must restore the original cell paragraph');
+      }
+      return { result: 'PASS', scope: 'product APIs, not Studio history UI', table, target, cursor, hit, selection, growth, paragraphSplit };
+    }, process.argv.includes('--edit-cell'));
+    await page.screenshot({ path: join(out, 'browser', 'edited-canvas.png') });
+    writeFileSync(join(out, 'editing.json'), JSON.stringify(editing, null, 2));
+  }
   const sha = data => createHash('sha256').update(data).digest('hex');
   writeFileSync(join(out, 'browser-manifest.json'), JSON.stringify({
     result: 'PASS', route: 'HwpDocument.openWithTypesetter(v2) -> product Canvas/SVG',
     browser: await browser.version(), input_sha256: sha(readFileSync(input)),
     wasm_sha256: sha(files.get('/rhwp_bg.wasm')[1]), js_sha256: sha(files.get('/rhwp.js')[1]), pages: result.pages.length,
-    scope: 'W1 reading/output only; editing and default switch are W2/W3',
+    scope: editing ? 'W2 product editing APIs; Studio default/history UI remain W3' : 'W1 reading/output only; editing and default switch are W2/W3', editing,
   }, null, 2));
   console.log(`PASS: ${result.pages.length} product pages; Native/WASM SVG parity; actual Canvas captures`);
 } finally {

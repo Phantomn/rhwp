@@ -16,6 +16,259 @@ fn open(data: &[u8]) -> DocumentCore {
     DocumentCore::from_bytes_with_engine(data, TypesettingEngine::V2).unwrap()
 }
 
+#[test]
+fn product_v2_edit_body_snapshot_and_save_keep_engine() {
+    let mut core = open(SAVED);
+    let before = core.render_page_svg_native(0).unwrap();
+    let undo = core.save_snapshot_native();
+    core.insert_text_native(0, 0, 0, "EDIT ").unwrap();
+    core.ensure_typesetting_ready().unwrap();
+    assert!(text(&core.build_page_render_tree(0).unwrap().root).contains("EDIT BEFORE"));
+    let edited = core.render_page_svg_native(0).unwrap();
+    let redo = core.save_snapshot_native();
+    core.restore_snapshot_native(undo).unwrap();
+    assert_eq!(core.render_page_svg_native(0).unwrap(), before);
+    core.restore_snapshot_native(redo).unwrap();
+    assert_eq!(core.render_page_svg_native(0).unwrap(), edited);
+    assert_eq!(core.typesetting_engine(), TypesettingEngine::V2);
+    let reopened = open(&core.export_hwp_native().unwrap());
+    assert!(text(&reopened.build_page_render_tree(0).unwrap().root).contains("EDIT BEFORE"));
+}
+
+#[test]
+fn product_v2_deferred_cell_edit_hides_old_generation() {
+    let mut core = open(include_bytes!(
+        "../fixtures/issue7353_host_owner_review/split-saved.hwp"
+    ));
+    let pi = core.document().sections[0]
+        .paragraphs
+        .iter()
+        .position(|p| p.controls.iter().any(|c| matches!(c, Control::Table(_))))
+        .unwrap();
+    let ci = core.document().sections[0].paragraphs[pi]
+        .controls
+        .iter()
+        .position(|c| matches!(c, Control::Table(_)))
+        .unwrap();
+    core.render_page_svg_native(1).unwrap();
+    core.insert_text_in_cell_native_deferred_pagination(0, pi, ci, 0, 0, 0, "EDIT ")
+        .unwrap();
+    assert!(
+        core.render_page_svg_native(1).is_err(),
+        "unpublished edit must not return old V2 packet"
+    );
+    core.repaginate_if_needed();
+    core.ensure_typesetting_ready().unwrap();
+    assert!(text(&core.build_page_render_tree(1).unwrap().root).contains("EDIT ROW"));
+}
+
+#[test]
+fn product_v2_failed_batch_is_not_reported_as_success() {
+    let mut core = open(SAVED);
+    let undo = core.save_snapshot_native();
+    core.begin_batch_native().unwrap();
+    core.document_mut().sections[0].section_def.line_grid = 1;
+    assert!(
+        core.end_batch_native().is_err(),
+        "V2 admission failure must propagate from commit barrier"
+    );
+    assert_eq!(core.page_count(), 0);
+    assert!(core.render_page_svg_native(0).is_err());
+    core.restore_snapshot_native(undo).unwrap();
+    core.ensure_typesetting_ready().unwrap();
+    assert_eq!(core.page_count(), 2);
+}
+
+#[test]
+fn product_v2_font_environment_and_dpi_invalidate_body_and_table() {
+    for data in [
+        SAVED,
+        include_bytes!("../fixtures/issue7353_host_owner_review/split-saved.hwp").as_slice(),
+    ] {
+        let mut core = open(data);
+        let original = core.render_page_svg_native(0).unwrap();
+        let mut replacements = serde_json::Map::new();
+        for font in core.document().doc_info.font_faces.iter().flatten() {
+            replacements.insert(font.name.clone(), serde_json::json!("Courier New"));
+        }
+        let environment = rhwp::renderer::font_environment::FontEnvironment::from_json(
+            &serde_json::json!({"id":"w2-font-test", "substitutions":replacements}).to_string(),
+        )
+        .unwrap();
+        core.set_font_environment(Some(environment)).unwrap();
+        for page in 0..core.page_count() {
+            assert!(core
+                .render_page_svg_native(page)
+                .unwrap()
+                .contains("Courier New"));
+        }
+        core.set_font_environment(None).unwrap();
+        assert_eq!(core.render_page_svg_native(0).unwrap(), original);
+        let width = core.build_page_render_tree(0).unwrap().root.bbox.width;
+        core.set_dpi(144.);
+        core.ensure_typesetting_ready().unwrap();
+        assert_eq!(
+            core.build_page_render_tree(0).unwrap().root.bbox.width,
+            width * 1.5
+        );
+        core.set_dpi(96.);
+        assert_eq!(core.render_page_svg_native(0).unwrap(), original);
+    }
+}
+
+#[test]
+fn product_v2_edit_cell_cursor_tracks_fragment() {
+    let mut core = open(include_bytes!(
+        "../fixtures/issue7353_host_owner_review/split-saved.hwp"
+    ));
+    let pi = core.document().sections[0]
+        .paragraphs
+        .iter()
+        .position(|p| p.controls.iter().any(|c| matches!(c, Control::Table(_))))
+        .unwrap();
+    let ci = core.document().sections[0].paragraphs[pi]
+        .controls
+        .iter()
+        .position(|c| matches!(c, Control::Table(_)))
+        .unwrap();
+    let undo = core.save_snapshot_native();
+    let before = core.render_page_svg_native(1).unwrap();
+    core.insert_text_in_cell_native(0, pi, ci, 0, 0, 0, "EDIT ")
+        .unwrap();
+    core.ensure_typesetting_ready().unwrap();
+    assert!(text(&core.build_page_render_tree(1).unwrap().root).contains("EDIT ROW"));
+    let cursor: serde_json::Value = serde_json::from_str(
+        &core
+            .get_cursor_rect_in_cell_native(0, pi, ci, 0, 0, 0)
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(cursor["pageIndex"], 1, "{cursor}");
+    // Saved fixture uses 9pt glyphs at 96dpi, not the 360px fragment box.
+    assert_eq!(cursor["height"], 12., "{cursor}");
+    assert_eq!(
+        cursor["x"], 25.,
+        "20px page origin + 5px cell padding: {cursor}"
+    );
+    let hit = core
+        .hit_test_native(
+            1,
+            cursor["x"].as_f64().unwrap() + 1.,
+            cursor["y"].as_f64().unwrap() + 1.,
+        )
+        .unwrap();
+    eprintln!("cell cursor={cursor} hit={hit}");
+    let hit: serde_json::Value = serde_json::from_str(&hit).unwrap();
+    assert_eq!(hit["cellIndex"], 0, "{hit}");
+    core.restore_snapshot_native(undo).unwrap();
+    assert_eq!(core.render_page_svg_native(1).unwrap(), before);
+}
+
+#[test]
+fn product_v2_cell_growth_reflows_and_restores_complete_units() {
+    let mut core = open(include_bytes!(
+        "../fixtures/issue7353_host_owner_review/split-saved.hwp"
+    ));
+    let undo = core.save_snapshot_native();
+    let before: Vec<_> = (0..core.page_count())
+        .map(|p| core.render_page_svg_native(p).unwrap())
+        .collect();
+    let Control::Table(table) = &core.document().sections[0].paragraphs[1].controls[0] else {
+        panic!()
+    };
+    let end = table.cells[0].paragraphs[0].text.chars().count();
+    let added = (0..30)
+        .map(|i| format!("\nADDED{i:02}"))
+        .collect::<String>();
+    core.insert_text_in_cell_native(0, 1, 0, 0, 0, end, &added)
+        .unwrap();
+    core.ensure_typesetting_ready().unwrap();
+    assert!(core.page_count() > before.len() as u32);
+    let all = (0..core.page_count())
+        .map(|p| text(&core.build_page_render_tree(p).unwrap().root))
+        .collect::<String>();
+    for i in 0..30 {
+        assert_eq!(all.matches(&format!("ADDED{i:02}")).count(), 1);
+    }
+    // Page ownership comes from the actual painted marker, not a fixed page
+    // count or Legacy continuation estimate. 9pt at 96dpi remains 12px.
+    let marker_page = (0..core.page_count())
+        .find(|p| text(&core.build_page_render_tree(*p).unwrap().root).contains("ADDED29"))
+        .unwrap();
+    let cursor: serde_json::Value = serde_json::from_str(
+        &core
+            .get_cursor_rect_in_cell_native(0, 1, 0, 0, 0, end + added.chars().count() - 1)
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(cursor["pageIndex"], marker_page);
+    assert_eq!(cursor["height"], 12.);
+    let redo = core.save_snapshot_native();
+    let after: Vec<_> = (0..core.page_count())
+        .map(|p| core.render_page_svg_native(p).unwrap())
+        .collect();
+    core.restore_snapshot_native(undo).unwrap();
+    assert_eq!(
+        (0..core.page_count())
+            .map(|p| core.render_page_svg_native(p).unwrap())
+            .collect::<Vec<_>>(),
+        before
+    );
+    core.restore_snapshot_native(redo).unwrap();
+    assert_eq!(
+        (0..core.page_count())
+            .map(|p| core.render_page_svg_native(p).unwrap())
+            .collect::<Vec<_>>(),
+        after
+    );
+}
+
+#[test]
+fn product_v2_cell_enter_preserves_new_paragraph_query_owner() {
+    let mut core = open(include_bytes!(
+        "../fixtures/issue7353_host_owner_review/split-saved.hwp"
+    ));
+    core.insert_text_in_cell_native(0, 1, 0, 0, 0, 0, "EDIT ")
+        .unwrap();
+    let snapshot = core.save_snapshot_native();
+    let before = core.render_page_svg_native(1).unwrap();
+    let count = core.get_cell_paragraph_count_native(0, 1, 0, 0).unwrap();
+    core.split_paragraph_in_cell_native(0, 1, 0, 0, 0, 5, None)
+        .unwrap();
+    assert_eq!(
+        core.get_cell_paragraph_count_native(0, 1, 0, 0).unwrap(),
+        count + 1
+    );
+    let cursor: serde_json::Value = serde_json::from_str(
+        &core
+            .get_cursor_rect_in_cell_native(0, 1, 0, 0, 1, 0)
+            .unwrap(),
+    )
+    .unwrap();
+    let first: serde_json::Value = serde_json::from_str(
+        &core
+            .get_cursor_rect_in_cell_native(0, 1, 0, 0, 0, 0)
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(cursor["y"].as_f64().unwrap() > first["y"].as_f64().unwrap());
+    let hit: serde_json::Value = serde_json::from_str(
+        &core
+            .hit_test_native(
+                cursor["pageIndex"].as_u64().unwrap() as u32,
+                cursor["x"].as_f64().unwrap() + 1.,
+                cursor["y"].as_f64().unwrap() + 1.,
+            )
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(hit["parentParaIndex"], 1);
+    assert_eq!(hit["cellIndex"], 0);
+    assert_eq!(hit["cellParaIndex"], 1);
+    core.restore_snapshot_native(snapshot).unwrap();
+    assert_eq!(core.render_page_svg_native(1).unwrap(), before);
+}
+
 fn text(node: &RenderNode) -> String {
     let mut out = match &node.node_type {
         RenderNodeType::TextRun(run) => run.display_text.as_ref().unwrap_or(&run.text).clone(),

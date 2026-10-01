@@ -54,7 +54,8 @@ Native/WASM tree·layer·SVG를 대조하고 실제 `renderPageToCanvas`를 별�
 ### W1 결과 — 2026-10-01
 
 W1의 명시적 V2 읽기·공통 출력 연결과 집중 검증은 완료했다. 전체 WASM 제품 전환 완료는 아니다.
-W2/W3, 전체 회귀 및 최종 제출 검증은 아래에 남긴다. W1 코드는 아직 미커밋이며 원격 게시하지 않았다.
+W2/W3, 전체 회귀 및 최종 제출 검증은 아래에 남긴다. W1은 다음 단계 승인 후 로컬 커밋
+`a2289c9b2`로 보존했다. 원격 게시하지 않았다. W2 기록은 [stage21](task_m100_7353_stage21.md)이다.
 
 - 검증 source: `8df0aa1d1` + W1 변경. 12개 Rust 파일의 정확한 바이트는
   `output/7353/wasm-product/w1/source-sha256.txt`로 고정하고 빌드 후 `sha256sum -c` 통과.

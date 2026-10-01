@@ -30,11 +30,14 @@ impl DocumentCore {
     }
 
     pub(crate) fn paginate_v2(&mut self) {
+        // document_mut/set_document may also replace DocInfo. Derive the style
+        // generation from the current IR and font environment before fitting.
+        self.rebuild_resolved_styles();
         self.invalidate_page_tree_cache();
         self.pending_pagination_job = None;
         self.deferred_pagination_descriptor = None;
         self.pagination.clear();
-        let result = HostedDocumentLayout::prepare(&self.document, self.dpi);
+        let result = HostedDocumentLayout::prepare(&self.document, self.dpi, &self.styles);
         if let Ok(layout) = &result {
             self.pagination = layout.pagination();
             self.dirty_sections.fill(false);

@@ -49,16 +49,15 @@ impl HostedSectionSession {
         dpi: f64,
         policy: CellEndPolicy,
     ) -> Result<Self, HostedTableError> {
-        let layout = HostedSectionLayout::prepare(source, section, dpi, policy, 0, 1).map_err(
-            |mut error| {
+        let layout = HostedSectionLayout::prepare(source, section, dpi, policy, 0, 1, None)
+            .map_err(|mut error| {
                 // Preserve the established preview API's typed rejection contract.
                 // Product preparation retains the new paragraph/section address.
                 while let HostedTableError::Paragraph { cause, .. } = error {
                     error = *cause;
                 }
                 error
-            },
-        )?;
+            })?;
         Ok(Self {
             source: Arc::new(source.clone()),
             layout,
@@ -94,6 +93,7 @@ impl HostedSectionLayout {
         policy: CellEndPolicy,
         page_offset: u32,
         first_number: u32,
+        product_styles: Option<&ResolvedStyleSet>,
     ) -> Result<Self, HostedTableError> {
         let fail = HostedTableError::UnsupportedHost;
         let sec = source
@@ -161,7 +161,10 @@ impl HostedSectionLayout {
         let mut positioned_paragraphs = BTreeMap::new();
         let mut absolute = BTreeMap::new();
         let mut stories = BTreeMap::new();
-        let styles = super::source_units::resolve(source, dpi)?;
+        let styles = match product_styles {
+            Some(styles) => super::source_units::qualify(source, dpi, styles.clone())?,
+            None => super::source_units::resolve(source, dpi)?,
+        };
         for (pi, para) in sec.paragraphs.iter().enumerate() {
             (|| -> Result<(), HostedTableError> {
                 super::char_border::validate_source(para, &source.doc_info)?;
@@ -334,7 +337,7 @@ impl HostedSectionLayout {
                     }
                     tables.insert(
                         pi,
-                        HostedTableSession::from_document(
+                        HostedTableSession::from_document_with_styles(
                             source,
                             TableSelection {
                                 section,
@@ -343,6 +346,7 @@ impl HostedSectionLayout {
                             },
                             dpi,
                             policy,
+                            &styles,
                         )?,
                     );
                 }
@@ -751,6 +755,7 @@ impl HostedSectionLayout {
             super::text::assign_ids(&mut story, tree.frame_mut());
             tree.root.children.push(story);
         }
+        super::ownership::bind(&mut tree.root, self.section, None);
         Ok(tree)
     }
 }

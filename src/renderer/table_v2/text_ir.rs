@@ -355,6 +355,12 @@ fn bind_paint(
             table.page_break == crate::model::table::TablePageBreak::None,
         )?,
         cells: HashMap::new(),
+        cell_indices: table
+            .cells
+            .iter()
+            .enumerate()
+            .map(|(i, c)| ((usize::from(c.row), usize::from(c.col)), i as u32))
+            .collect(),
         borders: super::borders::CellBorders::prepare(table, styles, dpi)?,
         zones,
         diagonals: HashMap::new(),
