@@ -44,3 +44,21 @@ status: active
 - 별도 테스트 중 Legacy private helper/타입만 검증하는 항목: V2 이전 여부를 확인하고 구현과 함께 제거한다.
 - `#7140` 등의 실제 문서 넘침·최종 배치 검사: Legacy 함수명이 주석에 있다는 이유로 삭제하지 않는다. 사용자 기능 계약을 V2 최종 배치 검사로 유지한다.
 - 신규 architecture guard는 페이지/바탕쪽/도형 소비 경로의 Legacy 호출 재유입을 검사한다. 실제 배치·편집 회귀를 대체하지 않는다.
+
+## 후속 묶음 — V2 페이지 상태 독립
+
+- 앞 묶음을 `4b7b529d0`으로 로컬 커밋했다. 원격 push는 하지 않았다.
+- `host_section → host_flow::paginate → PageFlow`로 연결하여 V2 제품 페이지네이션의 `TypesetEngine::run_section`/`TypesetState` 호출을 제거한다. 기존 **V2** 예약·fit·commit 코드를 `typeset/hosted.rs`에서 V2 소유 모듈로 옮겼으며 Legacy 표 측정/분할 알고리즘을 복사하지 않았다.
+- 공통 결과의 소비: `HostedTableSession::query/commit` 또는 `HostedParagraphPlan::fit`이 확정한 조각 → `occupied/next_y`의 본문 예약 → 다음 쪽/단의 잔여 예산 → `host_page`의 동일 조각 paint. 실패한 fit은 컷을 소비하지 않는다. 앞 문단의 미완료 예약을 마친 뒤 다음 문단의 명시적 쪽/단 나눔을 적용한다.
+- V2 페이지 상태는 빈 문단을 Legacy 종료 휴리스틱으로 흡수하지 않는다. 합성 단일 단 문서의 `prefix → 단 나눔을 가진 빈 문단` 계약은 상단 여백 2250HU=30px, 글자 9pt=12px, 고정 줄간격 2700HU=18px에서 기대값을 정했다. 정상 저장 문서의 한컴 일치 증거와는 구별한다.
+- 동일 새 테스트를 변경 전 `4b7b529d0`의 `release-test/deps/librhwp.rlib`에 직접 연결해 실행: `section boundary absorbed a V2 paragraph`로 **FAIL**. 컴파일 실패가 아니라 실제 V2 로드 거부를 확인했다. 로그: `output/7353/legacy-pagination/before-contract.log`.
+- 검증 소스: `4b7b529d0` 이후 이 묶음의 미커밋 변경. `output/7353/legacy-pagination/source-sha256.txt`는 실제 페이지네이션 변경 파일 5개의 SHA256 목록이며 목록 자체의 SHA256은 `107582b28a2d8cc2928fcd1f8edabeec994ecb05fde744244a10c24a55063257`이다. 모듈 등록과 테스트 변경은 같은 작업 트리에 포함되어 있다.
+- Native check, Native/WASM lib Clippy, 변경 integration target(`regression_suite_017`, `regression_suite_023`) Clippy, `cargo fmt --all -- --check`: **PASS**. 로그: `output/7353/legacy-pagination/clippy-{native,wasm,tests}.log`. 전체 workspace lint를 실행했다고 주장하지 않는다.
+- 집중 회귀는 앞 묶음과 동일한 7개 suite·필터로 **203 PASS, 0 FAIL**(1439 filtered). 이전 U1 거부 계약 2건은 이전과 동일하게 제외했고 ignore/기준값 변경을 하지 않았다. 로그: `output/7353/legacy-pagination/focused.log`.
+- 새 빈 문단 계약의 수정 후 **PASS**: `output/7353/legacy-pagination/after-contract.log`. `rustc --edition=2021 --test tests/cases/issue_7353_hosted_section.rs --extern rhwp=<shared-target>/release-test/deps/librhwp.rlib --extern serde_json=<shared-target>/release-test/deps/libserde_json-cd3bf15989922071.rlib -L dependency=<shared-target>/release-test/deps -o <before-or-after-contract>`로 동일 테스트를 전후 라이브러리에 연결했다. `<shared-target>`은 `/home/edward/mygithub/rhwp/target/pr-review`이다. 해당 파일의 31개 계약도 모두 통과했다(`hosted-section.log`).
+- 정상 한컴 저장 master/stories/wrap/body/table **5종 15페이지**: 변경 전 `legacy-removal/after`와 이번 `legacy-pagination/after`의 Native tree/layer/SVG 완전 일치. 입력·기준 PDF는 앞 묶음과 같으며 재저장/기준값 갱신 없이 사용했다.
+- Docker 표준 fresh WASM 빌드 **PASS, 8분 35초**. 앞 묶음과 동일 compose 명령. WASM SHA256 `a1024dd14ce611af6cbcd4612fe40eef0bb7f697b5264bf9af6a3e8642d146aa`; Studio `:7700`의 실제 제공 파일과도 일치. 로그: `output/7353/legacy-pagination/wasm-build.log`.
+- `verify-product-v2-wasm.mjs --pkg pkg --input <fixture> --out output/7353/legacy-pagination/after/<case> --default-v2 --hf-addresses` **5종 15페이지 PASS**. body `--edit`, table `--edit-cell`도 통과. Native/WASM tree/layer/SVG 일치, 실제 Canvas 캡처, 셀 성장 페이지네이션·마지막 줄 보존을 검사했다. 세부 해시/결과: 각 `browser-manifest.json`, 로그: `wasm-verification.log`.
+- Native와 fresh Canvas의 compare/standalone overlay/review를 새로 생성했다. master 2쪽·stories 5쪽 review, wrap 1쪽 Canvas overlay, Studio 셀 편집 캡처를 직접 판독했다. 본문 줄/단, 바탕쪽 외곽, 어울림 공간, 이어지는 표 및 뒤 문단이 유지된다. 기존 글꼴·획 차이를 해결했다고 주장하지 않는다. 증적: `output/7353/legacy-pagination/after/{master,stories,wrap}/visual/{native,canvas}`.
+- Windows Chrome CDP Studio 실키보드 여정 **PASS**: `CHROME_CDP=http://localhost:19222 VITE_URL=http://localhost:7700 RHWP_V2_E2E_OUT=../output/7353/legacy-pagination/studio node e2e/product-v2.test.mjs --mode=host`. 본문/셀 입력, undo/redo, 커서/선택, 저장/재열기, 새 문서, 명시적 Legacy 대조군 확인. 브라우저 미처리 오류 **0**. 결과: `studio/result.json`, 대표 캡처 `studio/cell-edited.png`, 실행 로그 `studio.log`.
+- 남은 제거 차단점은 `table_v2/text.rs`의 `LayoutEngine` 텍스트 paint와 DocumentCore의 명시적 Legacy API/캐시다. `table_layout.rs`와 그 전용 테스트는 아직 삭제하지 않았다.

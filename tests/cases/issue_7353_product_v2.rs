@@ -19,12 +19,16 @@ fn product_v2_page_and_shape_paint_do_not_dispatch_to_legacy_engine() {
     for source in [
         include_str!("../../src/renderer/table_v2/host_page.rs"),
         include_str!("../../src/renderer/table_v2/host_section.rs"),
+        include_str!("../../src/renderer/table_v2/host_flow.rs"),
+        include_str!("../../src/renderer/table_v2/host_flow_state.rs"),
         include_str!("../../src/renderer/table_v2/host_master.rs"),
         include_str!("../../src/renderer/table_v2/shapes.rs"),
     ] {
         assert!(!source.contains("LayoutEngine::"));
         assert!(!source.contains("layout::table_layout"));
         assert!(!source.contains(".layout_table("));
+        assert!(!source.contains("TypesetEngine"));
+        assert!(!source.contains("TypesetState"));
     }
 }
 

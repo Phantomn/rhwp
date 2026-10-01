@@ -3198,7 +3198,6 @@ pub(crate) struct DumpFormattedParagraphHeight {
 }
 
 mod controls;
-mod hosted;
 #[path = "typeset/inline_flow.rs"]
 mod inline_flow;
 mod notes;
@@ -3721,9 +3720,7 @@ impl TypesetEngine {
             endnote_shape,
             force_break_before,
             endnote_deferral,
-            None,
         )
-        .expect("Legacy section flow cannot return a V2 placement error")
     }
 
     // ========================================================

@@ -1,19 +1,23 @@
-//! V2 placement policy for the existing section driver. This module has no
-//! source-order loop or separate page finalization: run_section owns both.
+//! V2 paragraph/table reservations and their page owner. No Legacy table state.
+use super::host_flow_state::PageFlow;
+use super::{
+    HostedAnchor, HostedParagraphPlan, HostedTableError, HostedTableFit, HostedTableSession, Rect,
+    TableHostAddress, TableHostFrame,
+};
+use crate::{
+    model::{
+        page::{ColumnDef, PageDef},
+        paragraph::Paragraph,
+    },
+    renderer::{
+        pagination::{PageItem, PaginationResult},
+        style_resolver::ResolvedStyleSet,
+    },
+};
 use std::{
     collections::{BTreeMap, VecDeque},
     sync::Arc,
 };
-
-use super::{
-    ColumnDef, EndnoteDeferral, PageDef, PageItem, PaginationResult, Paragraph, ResolvedStyleSet,
-    TypesetEngine, TypesetState,
-};
-use crate::renderer::table_v2::{
-    HostedAnchor, HostedParagraphPlan, HostedTableError, HostedTableFit, HostedTableSession, Rect,
-    TableHostAddress, TableHostFrame,
-};
-
 pub(super) struct HostedSectionFlow {
     text: Vec<Option<HostedParagraphPlan>>,
     tables: BTreeMap<usize, HostedTableSession>,
@@ -25,60 +29,66 @@ pub(super) struct HostedSectionFlow {
     hidden_empty: Option<((u32, u16), u8)>,
 }
 
-impl TypesetEngine {
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn typeset_hosted_section(
-        &self,
-        paragraphs: &[Paragraph],
-        text: Vec<HostedParagraphPlan>,
-        styles: &ResolvedStyleSet,
-        page: &PageDef,
-        columns: &ColumnDef,
-        section: usize,
-        hide_empty_line: bool,
-        tables: BTreeMap<usize, HostedTableSession>,
-        page_offset: u32,
-        first_number: u32,
-    ) -> Result<PaginationResult, HostedTableError> {
-        if text.len() != paragraphs.len() {
-            return Err(HostedTableError::UnsupportedHost(
-                "incomplete paragraph composition",
-            ));
-        }
-        let mut flow = HostedSectionFlow {
-            text: text.into_iter().map(Some).collect(),
-            tables,
-            // Admission excludes NewNumber and nondefault section start numbers.
-            // Number each physical page, not each column, as in finalization.
-            page_numbers: crate::renderer::page_number::PageNumberAssigner::new_for_pages(
-                &[],
-                first_number,
-            ),
-            assigned_numbers: Vec::new(),
-            page_offset,
-            revision: 0,
-            pending: VecDeque::new(),
-            hidden_empty: None,
-        };
-        self.run_section(
-            paragraphs,
-            &[],
-            styles,
-            page,
-            columns,
-            section,
-            &[],
-            hide_empty_line,
-            Default::default(),
-            false,
-            false,
-            None,
-            None,
-            &Default::default(),
-            EndnoteDeferral::None,
-            Some(&mut flow),
-        )
+#[allow(clippy::too_many_arguments)]
+pub(super) fn paginate(
+    paragraphs: &[Paragraph],
+    text: Vec<HostedParagraphPlan>,
+    styles: &ResolvedStyleSet,
+    page: &PageDef,
+    columns: &ColumnDef,
+    section: usize,
+    hide_empty_line: bool,
+    tables: BTreeMap<usize, HostedTableSession>,
+    page_offset: u32,
+    first_number: u32,
+    dpi: f64,
+) -> Result<PaginationResult, HostedTableError> {
+    if text.len() != paragraphs.len() {
+        return Err(HostedTableError::UnsupportedHost(
+            "incomplete paragraph composition",
+        ));
     }
+    let mut flow = HostedSectionFlow {
+        text: text.into_iter().map(Some).collect(),
+        tables,
+        page_numbers: crate::renderer::page_number::PageNumberAssigner::new_for_pages(
+            &[],
+            first_number,
+        ),
+        assigned_numbers: Vec::new(),
+        page_offset,
+        revision: 0,
+        pending: VecDeque::new(),
+        hidden_empty: None,
+    };
+    let mut state = PageFlow::new(page, columns, section, hide_empty_line, dpi);
+    for (pi, source) in paragraphs.iter().enumerate() {
+        use crate::model::paragraph::ColumnBreakType;
+        let page_break = matches!(
+            source.column_type,
+            ColumnBreakType::Page | ColumnBreakType::Section
+        ) || styles
+            .para_styles
+            .get(source.para_shape_id as usize)
+            .is_some_and(|s| s.page_break_before);
+        let column_break = source.column_type == ColumnBreakType::Column;
+        // A source boundary follows every preceding deferred reservation. It
+        // never reassigns that reservation to the following paragraph's page.
+        if page_break || column_break {
+            flow.finish_pending(&mut state)?;
+        }
+        if !state.current_items.is_empty() {
+            if page_break {
+                state.force_new_page();
+            } else if column_break {
+                state.advance_column_or_new_page();
+            }
+        }
+        flow.place_paragraph(&mut state, pi, source)
+            .map_err(|e| e.in_paragraph(pi))?;
+    }
+    flow.finish(&mut state)?;
+    Ok(state.finish())
 }
 
 impl HostedSectionFlow {
@@ -88,7 +98,7 @@ impl HostedSectionFlow {
     /// Do not substitute invisible control owners or blank multiline text.
     fn hide_overflowing_empty(
         &mut self,
-        st: &mut TypesetState,
+        st: &mut PageFlow,
         pi: usize,
         source: &Paragraph,
         paragraph: &HostedParagraphPlan,
@@ -119,14 +129,14 @@ impl HostedSectionFlow {
         Ok(true)
     }
 
-    fn frame(st: &TypesetState) -> (u32, u16) {
+    fn frame(st: &PageFlow) -> (u32, u16) {
         (
             st.pages.last().expect("host page ensured").page_index,
             st.current_column,
         )
     }
 
-    fn number(&mut self, st: &TypesetState) -> u32 {
+    fn number(&mut self, st: &PageFlow) -> u32 {
         for page in &st.pages[self.assigned_numbers.len()..] {
             self.assigned_numbers.push(self.page_numbers.assign(page));
         }
@@ -135,7 +145,7 @@ impl HostedSectionFlow {
 
     /// Deferred reservations wait for a new frame, then precede its story.
     /// Already accepted partial tables drain before following paragraphs.
-    fn drain_pending(&mut self, st: &mut TypesetState) -> Result<(), HostedTableError> {
+    fn drain_pending(&mut self, st: &mut PageFlow) -> Result<(), HostedTableError> {
         while let Some((pi, mut anchor, blocked)) = self.pending.pop_front() {
             if blocked == Self::frame(st) {
                 self.pending.push_front((pi, anchor, blocked));
@@ -181,7 +191,7 @@ impl HostedSectionFlow {
 
     pub(super) fn place_paragraph(
         &mut self,
-        st: &mut TypesetState,
+        st: &mut PageFlow,
         pi: usize,
         source: &Paragraph,
     ) -> Result<(), HostedTableError> {
@@ -396,7 +406,7 @@ impl HostedSectionFlow {
         Ok(())
     }
 
-    pub(super) fn finish_pending(&mut self, st: &mut TypesetState) -> Result<(), HostedTableError> {
+    pub(super) fn finish_pending(&mut self, st: &mut PageFlow) -> Result<(), HostedTableError> {
         if !self.pending.is_empty() {
             if self
                 .pending
@@ -410,7 +420,7 @@ impl HostedSectionFlow {
         Ok(())
     }
 
-    pub(super) fn finish(&mut self, st: &mut TypesetState) -> Result<(), HostedTableError> {
+    pub(super) fn finish(&mut self, st: &mut PageFlow) -> Result<(), HostedTableError> {
         self.finish_pending(st)?;
         if !self.tables.is_empty() || self.text.iter().any(Option::is_some) {
             return Err(HostedTableError::UnsupportedHost(

@@ -1,5 +1,5 @@
 //! Explicit immutable host integration session. Unlike the standalone BodyPlan,
-//! column/page advancement and final painting go through the existing engines.
+//! column/page advancement and final painting consume accepted V2 packets.
 //! Fresh and qualified stored text share fit/paint; unsupported source properties
 //! are errors, never erased or retried via Legacy. This is NOT a Studio switch.
 use super::{
@@ -18,7 +18,6 @@ use crate::{
         pagination::PaginationResult,
         render_tree::{PageRenderTree, RenderNode},
         style_resolver::ResolvedStyleSet,
-        typeset::TypesetEngine,
     },
 };
 use std::{collections::BTreeMap, sync::Arc};
@@ -551,7 +550,7 @@ impl HostedSectionLayout {
             })()
             .map_err(|e| e.in_paragraph(pi))?;
         }
-        let mut pagination = TypesetEngine::new(dpi).typeset_hosted_section(
+        let mut pagination = super::host_flow::paginate(
             &sec.paragraphs,
             text,
             &styles,
@@ -562,6 +561,7 @@ impl HostedSectionLayout {
             tables,
             page_offset,
             first_number,
+            dpi,
         )?;
         // Packets already consumed the document numbering context during fit.
         // Bind the public host addresses before absolute objects/master paint.

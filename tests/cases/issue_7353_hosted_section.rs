@@ -1,4 +1,4 @@
-//! Actual TypesetEngine -> PageContent -> LayoutEngine contracts. Fresh IR:
+//! V2 source -> accepted fragments -> page paint contracts. Fresh IR:
 //! 9pt text occupies12px; fixed2700HU advances18px; padding225/300HU=3/4px.
 //! 480px paper,20px side margins,16px gutter -> two212px columns. Body40px.
 //! Fresh IR assertions are synthetic contracts. Stored-text tests separately use
@@ -893,19 +893,24 @@ fn section_driver_does_not_absorb_a_table_only_terminal_paragraph() {
 }
 
 #[test]
-fn section_driver_rejects_legacy_absorption_instead_of_losing_v2_line() {
+fn section_driver_preserves_terminal_empty_column_break() {
     let mut d = document();
     d.sections[0].paragraphs = vec![paragraph("prefix"), paragraph("")];
     d.sections[0].paragraphs[1].column_type = rhwp::model::paragraph::ColumnBreakType::Column;
-    // Legacy intentionally absorbs a terminal empty single-column break.
-    // This V2 line has not been admitted under that rule: fail closed rather
-    // than claiming the full source was placed while a composition remains.
-    assert!(matches!(
-        HostedSectionSession::from_document(&d, 0, 96., CellEndPolicy::default()),
-        Err(HostedTableError::UnsupportedHost(
-            "section boundary absorbed a V2 paragraph"
-        ))
-    ));
+    // Replacing the prefix also removes ColumnDef: in this single-column
+    // document the explicit column break places the authored blank on page 2.
+    // Independent geometry: top margin2250HU=30px, 9pt glyph box=12px,
+    // fixed2700HU paragraph pitch=18px. Blank text must not mean zero space.
+    let s = session(&d);
+    assert_eq!(s.pagination().pages.len(), 2);
+    assert_eq!(text(&s.render_page(0).unwrap().root), "prefix");
+    let second = s.render_page(1).unwrap();
+    let rows = lines(&second.root);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(text(rows[0]), "");
+    close(rows[0].bbox.y, 30.);
+    close(rows[0].bbox.height, 12.);
+    close(s.pagination().pages[1].column_contents[0].used_height, 18.);
 }
 
 #[test]
