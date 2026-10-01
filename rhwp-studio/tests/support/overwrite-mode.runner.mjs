@@ -545,6 +545,43 @@ scenario('24. 입력 하나는 문자소 단위로 덮고, 밖에서는 누름�
   assert.equal(run('👍🏽b', 0, 'X', []).text, 'Xb', '덮는 글자도 문자소 하나 전체여야 한다');
 });
 
+scenario('25. 빈 누름틀 바로 앞 글자를 덮지 않아 친 글자가 누름틀 값이 되지 않는다', () => {
+  // ab·빈 누름틀 E(2..2)·cd. b 를 지우면 E 가 삽입 자리로 당겨져 입력을 값으로 받는다.
+  const run = (act, { at = 1, cell = false, insertMode = false } = {}) => {
+    const ranges = [['field', 2, 2]];
+    const wasm = cell ? makeWasm({ cell: 'abcd', cellRanges: ranges }) : makeWasm({ body: 'abcd', ranges });
+    const key = cell ? 'cellRanges' : 'ranges';
+    const h = makeHandler(wasm, (cell ? cellPos : bodyPos)(at), { insertMode });
+    act(h);
+    const typed = `${cell ? wasm.doc.cell : wasm.doc.body} ${rangesOf(wasm, key)}`;
+    while (h.history.canUndo()) h.undo();
+    assert.equal(`${cell ? wasm.doc.cell : wasm.doc.body} ${rangesOf(wasm, key)}`, 'abcd field 2-2', '되돌리면 원래대로여야 한다');
+    return typed;
+  };
+  const cases = {
+    'X': [(h) => h.type('X')],
+    '표 셀 X': [(h) => h.type('X'), { cell: true }],
+    'IME 하': [(h) => h.compose('ㅎ', '하')],
+    '입력 하나 XYZ': [(h) => h.input('XYZ')],
+    '캐럿 0 입력 하나 XYZ': [(h) => h.input('XYZ'), { at: 0 }],
+    '캐럿 0 키 XY': [(h) => h.type('XY'), { at: 0 }],
+  };
+  const actual = Object.fromEntries(Object.entries(cases).map(([name, [act, opts]]) => [name, run(act, opts)]));
+  assert.deepEqual(actual, {
+    'X': 'aXbcd field 3-3',
+    '표 셀 X': 'aXbcd field 3-3',
+    'IME 하': 'a하bcd field 3-3',
+    '입력 하나 XYZ': 'aXYZbcd field 5-5',
+    '캐럿 0 입력 하나 XYZ': 'XYZbcd field 4-4',
+    '캐럿 0 키 XY': 'XYbcd field 3-3',
+  });
+  // 캐럿 1 에서는 덮을 글자가 없으니 삽입 모드와 같아야 한다.
+  for (const name of ['X', '표 셀 X', 'IME 하', '입력 하나 XYZ']) {
+    const [act, opts] = cases[name];
+    assert.equal(actual[name], run(act, { ...opts, insertMode: true }), `${name}: 삽입 모드와 같아야 한다`);
+  }
+});
+
 if (failures.length > 0) {
   console.error(failures.join('\n'));
   process.exit(1);

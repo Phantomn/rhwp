@@ -60,8 +60,8 @@ function graphemes(s: string): string[] {
  * 한컴처럼 입력한 글자 수만큼 같은 문단의 일반 글자만 덮어쓴다. 글자는 입력과 문서 모두 문자소로
  * 센다. 문단 끝, 탭·강제 줄바꿈 같은 제어 문자, 본문의 글자처럼 취급한 개체를 만나면 멈추고
  * 나머지는 삽입한다. 누름틀 안에서는 그 끝을 넘지 않고, 누름틀 밖(빠져나온 끝 포함)에서는 누름틀
- * 글자 앞에서 멈춘다. 빠져나온 누름틀 시작에서는 덮어쓰지 않는다. 양식 모드에서 지울 수 없는
- * 글자도 덮어쓰지 않는다. 머리말/꼬리말·각주는 글자를 읽는 API가 없어 삽입을 유지한다.
+ * 글자와 빈 누름틀 앞에서 멈춘다. 빠져나온 누름틀 시작에서는 덮어쓰지 않는다. 양식 모드에서 지울
+ * 수 없는 글자도 덮어쓰지 않는다. 머리말/꼬리말·각주는 글자를 읽는 API가 없어 삽입을 유지한다.
  * 조회가 실패해도 삽입한다.
  */
 function overwrittenTextAt(this: any, pos: DocumentPosition, text: string): string {
@@ -95,9 +95,12 @@ function overwrittenTextAt(this: any, pos: DocumentPosition, text: string): stri
       if (end > fieldEnd) break;
       if (fieldEnd === Infinity) {
         // 누름틀 조회는 시작·끝 자리를 모두 안으로 치고 앞선 누름틀을 먼저 돌려준다.
-        // 글자 양쪽 자리를 조회해 이 글자에 걸친 누름틀이 있으면 멈춘다.
+        // 글자 양쪽 자리를 조회해 이 글자에 걸친 누름틀이 있으면 멈춘다. 빈 누름틀은 닿기만 해도
+        // 멈춘다 — 글자를 지우면 삽입 자리로 당겨져 친 글자를 값으로 받는다.
         const after = this.wasm.getFieldInfoAt({ ...pos, charOffset: end });
-        if ([before, after].some((f) => f.inField && f.startCharIdx < end && f.endCharIdx > offset)) break;
+        const blocks = (f: any) =>
+          f.inField && (f.startCharIdx === f.endCharIdx || (f.startCharIdx < end && f.endCharIdx > offset));
+        if (blocks(before) || blocks(after)) break;
         before = after;
       }
       if (inBody) {
