@@ -1930,6 +1930,13 @@ pub(crate) fn parallel_blank_tail_spacing_excess_px(
     hwpunit_to_px(excess_hu, dpi) / 2.0
 }
 
+/// 한 줄 표 헤더 뒤의 예약 높이. 아래 바깥여백은 저장 줄에서 이미 소비했다.
+pub(crate) fn single_tac_header_tail_px(table_height_hu: u32, margin_top_hu: i16, dpi: f64) -> f64 {
+    (hwpunit_to_px(table_height_hu.min(i32::MAX as u32) as i32, dpi)
+        + hwpunit_to_px(i32::from(margin_top_hu), dpi))
+    .max(0.0)
+}
+
 /// 저장 줄을 먼저 소비한 헤더 띠 뒤의 잔여 높이.
 /// 표 본체와 아래 여백은 남고, 선행 줄의 마지막 줄간격 절반은 이미 소비됐다.
 pub(crate) fn partial_tac_header_tail_px(

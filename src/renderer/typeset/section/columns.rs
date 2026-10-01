@@ -80,7 +80,7 @@ impl TypesetEngine {
             .unwrap_or(0.0);
         // [Task #866] 직전 zone 의 마지막 paragraph 가 wrap=위아래 인 글자처럼-취급 표(헤더 띠)를
         // 보유하고 그 zone 의 1단 ColumnDef 간격이 0 이면, 표의 저장 줄 수에 따라
-        // 전체 band 또는 선행 줄이 소비하고 남은 높이를 예약한다(한컴 PDF 측정:
+        // 저장 줄이 소비한 아래 여백 또는 선행 줄의 몫을 제외한 높이를 예약한다(한컴 PDF 측정:
         // shortcut.hwp 2·3쪽 헤더 띠 하단↔본문 ~28~33px). ColumnDef 간격>0 인 헤더 띠(1쪽
         // 등)는 그 간격이 이미 zone 사이 여백이 되므로 제외.
         // [Task #874 Stage 2] design_spacing 조건을 ≤ 1mm(=3.8px) 까지 인정. 페이지 break 후
@@ -110,11 +110,11 @@ impl TypesetEngine {
                                     self.dpi,
                                 ))
                             } else {
-                                Some(
-                                    hwpunit_to_px(t.common.height as i32, self.dpi)
-                                        + hwpunit_to_px(t.outer_margin_top as i32, self.dpi)
-                                        + hwpunit_to_px(t.outer_margin_bottom as i32, self.dpi),
-                                )
+                                Some(crate::renderer::single_tac_header_tail_px(
+                                    t.common.height,
+                                    t.outer_margin_top,
+                                    self.dpi,
+                                ))
                             }
                         }
                         _ => None,

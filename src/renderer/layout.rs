@@ -6759,7 +6759,7 @@ impl LayoutEngine {
                 prev_zone_y_end = y_offset_no_trailing;
             }
             // [Task #866] 헤더 띠의 저장 줄 수로 잔여 높이를 구분한다. 한 줄 표는
-            // 전체 띠를 예약하고, 선행 줄을 포함한 표는 그 줄이 소비한 몫을 뺀다.
+            // 소비한 아래 여백을 빼고, 선행 줄을 포함한 표는 그 줄이 소비한 몫을 뺀다.
             // 이전의 items 수와 band/2 추정은 같은 31.09px 띠에서도 2·3쪽 본문
             // 첫 줄을 각각 +4.59px, −8.21px 어긋나게 했다.
             prev_zone_was_header_band = false;
@@ -6801,9 +6801,11 @@ impl LayoutEngine {
                                         ) =>
                                 {
                                     Some((
-                                        hwpunit_to_px(t.common.height as i32, self.dpi)
-                                            + hwpunit_to_px(t.outer_margin_top as i32, self.dpi)
-                                            + hwpunit_to_px(t.outer_margin_bottom as i32, self.dpi),
+                                        super::single_tac_header_tail_px(
+                                            t.common.height,
+                                            t.outer_margin_top,
+                                            self.dpi,
+                                        ),
                                         super::partial_tac_header_tail_px(
                                             t.common.height,
                                             t.outer_margin_bottom,
@@ -6815,7 +6817,7 @@ impl LayoutEngine {
                                 _ => None,
                             })
                         {
-                            // 저장 줄이 하나면 표의 전체 띠를 예약한다. 둘 이상이면
+                            // 저장 줄이 하나면 소비한 아래 여백을 다시 예약하지 않는다. 둘 이상이면
                             // 선행 줄의 소비를 뺀 공통 잔여 높이를 조판과 같이 쓴다.
                             if p.line_segs.len() <= 1 {
                                 prev_zone_y_end += band;
