@@ -25,6 +25,7 @@ impl TypesetEngine {
         BlockTableContinuationContext,
         BlockTableContinuationSource<'a>,
     ) {
+        let mut first_anchor_offset_consumed = false;
         let BlockTableInput {
             para_idx,
             ctrl_idx,
@@ -791,6 +792,29 @@ impl TypesetEngine {
                     composed_all,
                     styles,
                 );
+                // 내용 유닛을 수용하지 못한 저장 흐름 표는 호스트 쪽을 떠났다.
+                // 거리 소진은 추정 임계값이 아니라 이 실제 전이에서 확정한다.
+                first_anchor_offset_consumed = st.col_count == 1
+                    && (st.profile.hwpx_stored_layout()
+                        || st.profile.hwp5_stored_pagination_layout())
+                    && !st.profile.session_edited()
+                    && !para.stored_text_partition_is_dirty()
+                    && !para.line_segs.is_empty()
+                    && para
+                        .line_segs
+                        .iter()
+                        .all(|line| !is_synthetic_line_seg(line))
+                    && !para_has_visible_text(para)
+                    && is_para_topbottom_float(&table.common)
+                    && table.common.flow_with_text
+                    // 이월 사실만으로 셀의 전체 측정 상자가 흐름을 소비한다고 가정하지 않는다.
+                    // 선언 프레임이 실제 행 점유를 덮는 경우에만 공통 새 쪽 원점을 연다.
+                    // 선언 높이가 첫 물리 조각만 나타내는 표는 기존 저장 프레임 경로를 따른다.
+                    && mt.row_heights.iter().sum::<f64>()
+                        + cs * row_count.saturating_sub(1) as f64
+                        <= (declared_object_total - host_spacing_total).max(0.0) + 0.5
+                    && !table.common.allow_overlap
+                    && (table.common.vertical_offset as i32) > 0;
                 st.advance_column_or_new_page();
             }
         }
@@ -985,6 +1009,7 @@ impl TypesetEngine {
             (fragment_host_placement, host_frame)
         };
         let prepared = BlockTableContinuationPreparedState {
+            first_anchor_offset_consumed,
             host_placement: fragment_host_placement,
             host_frame,
             empty_opening_row_frame,

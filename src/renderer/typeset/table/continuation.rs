@@ -96,6 +96,9 @@ impl TableContinuationCursor {
 
 /// [#2424] continuation loop 진입 전에 한번 계산하는 owned 준비 상태.
 pub(in crate::renderer::typeset) struct BlockTableContinuationPreparedState {
+    /// 첫 행을 전혀 소비하지 못해 저장 호스트 쪽을 떠난 실제 전이 사실.
+    /// 예산과 출력은 새 쪽에서 문단 앵커 거리를 다시 적용하지 않는다.
+    pub(in crate::renderer::typeset) first_anchor_offset_consumed: bool,
     /// 현재 host frame에서 확정한 좌표. 다른 단으로 진행하면 앵커 거리는 소진된다.
     pub(in crate::renderer::typeset) host_placement:
         Option<crate::renderer::float_placement::ParagraphFloatPlacement>,
