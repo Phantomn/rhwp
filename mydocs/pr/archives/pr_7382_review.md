@@ -3769,7 +3769,7 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - 공통 `single_tac_header_tail_px`에서 한 줄 헤더의 본체와 위 바깥여백만 뒤쪽 높이로 반환한다. 저장 LineSeg에서 이미 소비한 아래 바깥여백은 다시 더하지 않는다. 조판의 `tac_band_extra`와 배치의 `prev_zone_y_end`가 같은 결과를 소비하며, 두 줄 이상인 헤더의 보정278 계약은 그대로다. 한 줄 저장 헤더라는 조건에 적용하고 특정 문서명·문단 번호로 분기하지 않는다.
 - Native 96dpi 전체 7쪽은 PDF와 페이지 수가 같고, 일치율은 **87.53556/99.85249/96.20308/79.44127/96.55237/99.77244/99.95534%**다. 5쪽 **95.15637→96.55237%**, 6쪽 **88.39918→99.77244%**, 1쪽 **85.04493→87.53556%**로 개선됐으며 다른 쪽은 동일하다. 5·6쪽 review를 직접 열어 표 헤더 뒤 본문 간격·뒤 제목·표 구역과 내용 소유가 유지됨을 확인했다. 전쪽 최저는 4쪽 **79.44127%**로 여전히 `re_review_required`이며 새 회귀는 추가하지 않는다. fresh WASM·전체 회귀·lint는 아직 미실행이다. 출력은 `output/pr-review/planet6897-7382-20260926/stage288-single-tail/`에 있다.
-- `cargo fmt --all -- --check`, `git diff --check` 통과. 기존 관련 회귀 21건은 `stage288-focused-nextest.log`에서 실행 중이며 결과는 완료 후 기록한다.
+- `cargo fmt --all -- --check`, `git diff --check` 통과. 기존 관련 회귀는 `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_702) | test(issue_6030) | test(issue_2299)' --no-fail-fast`로 **21/21 PASS**, 10244개 미선택이다(`stage288-focused-nextest.log`, exit 0). 이 결과는 보정288 코드 `241cb8ba6`에 해당한다.
 
 ![단축키 6쪽 한 줄 헤더의 소비 여백 중복 제거](../assets/pr7382_20260926/stage288_shortcut_native_review_006.png)
 
