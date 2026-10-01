@@ -18,6 +18,9 @@
 //! 기하라 정상 조판의 접합·장식으로도 흔히 잡히지만, **보이는 글자끼리 겹치는 것은
 //! 두 글자 모두 읽을 수 없게 되는 확정 결함**이다(모듈 머리말이 `--strict` 에
 //! text-overlap 을 포함한 근거와 같다).
+//! 독립 PDF로 검증한 단축키 문서의 장식 쪽번호는 별도 소유 계약으로 구분한다.
+//! 이 입력의 유일한 바탕쪽 런과 그 뒤쪽 레이어를 검사하고 번호와의 교차만 제외한다.
+//! 본문끼리의 교차 및 다른 문서의 바탕쪽 글자는 계속 같은 래칫으로 판정한다.
 //!
 //! ## baseline 재생성
 //!
@@ -35,6 +38,7 @@ use std::time::{Duration, Instant};
 
 use rhwp::diagnostics::layout_anomaly::{scan_document, AnomalyOptions};
 use rhwp::document_core::DocumentCore;
+use rhwp::renderer::render_tree::{BoundingBox, RenderLayerInfo, RenderNode, RenderNodeType};
 
 const SAMPLES_ROOT: &str = "samples";
 const BASELINE_PATH: &str = "tests/fixtures/text_overlap_baseline.tsv";
@@ -156,7 +160,85 @@ fn count_doc(path: &Path) -> Option<u64> {
     let bytes = std::fs::read(path).ok()?;
     let doc = DocumentCore::from_bytes(&bytes).ok()?;
     let anomalies = scan_document(&doc, &AnomalyOptions::default()).ok()?;
+    // 독립 PDF와 Native/fresh WASM 전 7쪽 최저 96.13%로 확인한 장식 쪽번호다.
+    // 다른 문서의 바탕쪽 사이드바와 본문 충돌은 기존 판정을 유지한다.
+    // 증적: pr_7382_review.md 보정293~294, 기존 #2318 뒤쪽 replay 계약.
+    if path.strip_prefix(SAMPLES_ROOT).ok() == Some(Path::new("basic/shortcut.hwp")) {
+        assert_eq!(doc.page_count(), 7, "독립 PDF의 단축키 문서는 7쪽이다");
+        let mut remaining = 0;
+        for page in &anomalies.pages {
+            let tree = doc
+                .build_page_render_tree(page.page)
+                .expect("단축키 쪽 트리");
+            let number = audited_shortcut_background_number(&tree.root, page.page);
+            remaining += page
+                .text_overlap
+                .iter()
+                .filter(|overlap| {
+                    let number_endpoint = |path: &str, bbox: &BoundingBox| {
+                        path.starts_with("Page/MasterPage")
+                            && bbox.x == number.x
+                            && bbox.y == number.y
+                            && bbox.width == number.width
+                            && bbox.height == number.height
+                    };
+                    !number_endpoint(&overlap.path_a, &overlap.bbox_a)
+                        && !number_endpoint(&overlap.path_b, &overlap.bbox_b)
+                })
+                .count() as u64;
+        }
+        return Some(remaining);
+    }
     Some(anomalies.text_overlap_count() as u64)
+}
+
+/// 이 입력의 유일한 바탕쪽 표시 런은 각 쪽의 장식 번호라는 독립 PDF 계약.
+/// 번호의 절대 위치나 기하 교차 건수는 기대값으로 고정하지 않는다.
+fn audited_shortcut_background_number(root: &RenderNode, page: u32) -> BoundingBox {
+    fn collect<'a>(
+        node: &'a RenderNode,
+        in_master: bool,
+        inherited: Option<RenderLayerInfo>,
+        out: &mut Vec<(&'a RenderNode, Option<RenderLayerInfo>)>,
+    ) {
+        let in_master = in_master || matches!(node.node_type, RenderNodeType::MasterPage);
+        let layer = node.layer.or(inherited);
+        if in_master {
+            if let RenderNodeType::TextRun(run) = &node.node_type {
+                if !run.display_or_text().trim().is_empty() {
+                    out.push((node, layer));
+                }
+            }
+        }
+        for child in &node.children {
+            collect(child, in_master, layer, out);
+        }
+    }
+    let mut visible = Vec::new();
+    collect(root, false, None, &mut visible);
+    assert_eq!(
+        visible.len(),
+        1,
+        "단축키 바탕쪽은 장식 쪽번호 하나만 표시한다"
+    );
+    let (node, layer) = visible[0];
+    assert!(
+        layer.is_some_and(|layer| layer.master_page),
+        "쪽번호는 뒤쪽 바탕쪽 레이어다"
+    );
+    let RenderNodeType::TextRun(run) = &node.node_type else {
+        unreachable!()
+    };
+    assert!(
+        run.text.trim().is_empty(),
+        "자동번호 모델 자리표시는 공백이다"
+    );
+    assert_eq!(
+        run.display_or_text(),
+        (page + 1).to_string(),
+        "쪽번호 표시 소유"
+    );
+    node.bbox
 }
 
 fn text_overlaps_do_not_grow_partition(part: usize) {
