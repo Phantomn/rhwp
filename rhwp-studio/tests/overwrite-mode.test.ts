@@ -7,7 +7,8 @@ import * as nodeModule from 'node:module';
 
 // [#7489] Insert 키로 수정 모드를 켜면 입력이 캐럿 뒤 글자를 덮어써야 한다(한컴과 같다).
 // 종전에는 상태 표시줄 문구만 바뀌고 입력은 항상 끼워 넣었다. 실제 입력 핸들러와
-// InsertTextCommand·CommandHistory 를 러너에서 실행해 문서 결과와 되돌리기를 검증한다.
+// InsertTextCommand·CommandHistory 를 러너에서 실행해 문서 결과와 되돌리기, 링크·누름틀
+// 범위와 글자 모양 복원, 양식 모드 보호를 검증한다.
 
 const here = dirname(fileURLToPath(import.meta.url));
 const runner = join(here, 'support', 'overwrite-mode.runner.mjs');

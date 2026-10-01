@@ -15,6 +15,7 @@ import {
   insertTextWithMutationEffects,
   deleteTextWithMutationEffects,
   replaceTextWithMutationEffects,
+  captureTextFragment,
   cellParaIndexOf,
   IMMEDIATE_TEXT_MUTATION_EFFECTS,
   NO_TEXT_MUTATION_EFFECTS,
@@ -49,10 +50,12 @@ function charCount(s: string): number {
  * [#7489] 수정(덮어쓰기) 모드에서 `text`가 덮어쓸 캐럿 뒤 글자를 돌려준다. 삽입 모드면 ''.
  *
  * 한컴처럼 입력한 글자 수만큼 같은 문단의 일반 글자만 덮어쓴다. 문단 끝, 탭·강제 줄바꿈 같은
- * 제어 문자, 본문의 글자처럼 취급한 개체, 누름틀 경계를 만나면 멈추고 나머지는 삽입한다.
- * 머리말/꼬리말·각주는 글자를 읽는 API가 없어 삽입을 유지한다. 조회가 실패해도 삽입한다.
+ * 제어 문자, 본문의 글자처럼 취급한 개체를 만나면 멈추고 나머지는 삽입한다. 누름틀 안에서는
+ * 그 끝을 넘지 않고, 빠져나온 누름틀 시작에서는 덮어쓰지 않는다. 양식 모드에서 지울 수 없는
+ * 글자도 덮어쓰지 않는다. 머리말/꼬리말·각주는 글자를 읽는 API가 없어 삽입을 유지한다.
+ * 조회가 실패해도 삽입한다.
  */
-export function overwrittenTextAt(this: any, pos: DocumentPosition, text: string): string {
+function overwrittenTextAt(this: any, pos: DocumentPosition, text: string): string {
   if (this.insertMode !== false || !text) return '';
   if (this.cursor.isInHeaderFooter() || this.cursor.isInFootnote()) return '';
   try {
@@ -80,6 +83,7 @@ export function overwrittenTextAt(this: any, pos: DocumentPosition, text: string
       }
       count++;
     }
+    if (count === 0 || !this.canDeleteTextInFormMode?.(pos, count)) return '';
     return next.slice(0, count).join('');
   } catch {
     return '';
@@ -487,7 +491,9 @@ export function onCompositionEnd(this: any): void {
   const finalLength = this.compositionLength;
   const headerFooterSelectionComposition = this.headerFooterSelectionComposition === true;
   const covered: string = this._compositionCovered || '';
+  const fragmentId: number | null = this._compositionFragment;
   this._compositionCovered = '';
+  this._compositionFragment = null;
 
   this.isComposing = false;
   this.compositionAnchor = null;
@@ -497,10 +503,18 @@ export function onCompositionEnd(this: any): void {
   this.updateCaret();
   this.resetRawTextMutationEffects();
 
-  // [#7489] 조합이 글자 없이 끝나면(취소) 덮었던 글자를 제자리에 되살린다. 기록할 편집은 없다.
+  // [#7489] 조합이 글자 없이 끝나면(취소) 덮었던 글자를 범위·글자 모양까지 되살린다.
+  // 기록할 편집은 없다.
   if (anchor && finalLength === 0 && covered) {
-    this.insertTextAtRaw(anchor, covered);
-    this.consumeRawTextMutationBeforeCursor();
+    if (fragmentId !== null) {
+      // 되돌리기(handleUndo)와 같은 순서로 지연 조판을 먼저 끝내고 문단을 되돌린다.
+      this.flushDeferredPaginationIfNeeded('before-undo', false);
+      this.wasm.restoreDeleteFragment(fragmentId);
+      this.prepareTextMutationBeforeCursor(IMMEDIATE_TEXT_MUTATION_EFFECTS);
+    } else {
+      this.insertTextAtRaw(anchor, covered);
+      this.consumeRawTextMutationBeforeCursor();
+    }
     this.afterEdit();
   }
 
@@ -538,12 +552,16 @@ export function onCompositionEnd(this: any): void {
     } else {
       const insertedText = this.getTextAt(anchor, finalLength);
       if (insertedText) {
-        // execute() 없이 히스토리에만 기록 (텍스트는 이미 문서에 있음). 덮어쓴 글자도 함께
-        // 기록해 한 번의 되돌리기로 되살린다.
+        // execute() 없이 히스토리에만 기록 (텍스트는 이미 문서에 있음). 덮어쓴 글자와 덮기 전
+        // 문단 조각도 함께 기록해 한 번의 되돌리기로 되살린다.
         this.executeOperation({
           kind: 'record',
-          command: new InsertTextCommand(anchor, insertedText, undefined, undefined, covered),
+          command: new InsertTextCommand(
+            anchor, insertedText, undefined, undefined, covered, fragmentId === null ? [] : [fragmentId],
+          ),
         });
+      } else if (fragmentId !== null) {
+        this.wasm.discardDeleteFragment(fragmentId);
       }
     }
   }
@@ -603,6 +621,7 @@ export function onInput(this: any, e?: InputEvent): void {
     const covering = this._compositionCovered === null && text;
     if (covering) {
       this._compositionCovered = overwrittenTextAt.call(this, anchor, text);
+      if (this._compositionCovered) this._compositionFragment = captureTextFragment(this.wasm, anchor);
       this.compositionLength += charCount(this._compositionCovered);
     }
     try {
@@ -625,7 +644,11 @@ export function onInput(this: any, e?: InputEvent): void {
       this.compositionAnchor = anchor;
       this.compositionLength = 0;
       // 거부된 replace는 이번에 덮으려던 글자도 지우지 않았다.
-      if (covering) this._compositionCovered = '';
+      if (covering) {
+        this._compositionCovered = '';
+        if (this._compositionFragment !== null) this.wasm.discardDeleteFragment(this._compositionFragment);
+        this._compositionFragment = null;
+      }
       try {
         this.replaceTextAtRaw(anchor, 0, text);
       } catch (err2) {
