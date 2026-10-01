@@ -37,39 +37,54 @@ const { CommandHistory } = await import(pathToFileURL(join(srcDir, 'engine', 'hi
  * 밖(앞)으로, 빈 누름틀에 넣은 글자는 누름틀 안으로 간다. 빈 링크는 그대로 남는다. 새 글자는
  * 앞 글자의 모양을 따른다. 그래서 지운 글자를 다시 넣기만 하면 범위·모양이 원래대로 안 돌아온다.
  * 문단 조각(captureDeleteRange)은 문단을 통째로 복사해 두었다가 되돌린다.
+ *
+ * 캐럿이 들어간 누름틀은 활성(setActiveField)이 된다. 실제 rhwp 처럼 활성 누름틀은 시작·끝에
+ * 넣은 글자도 안으로 받는다. 활성 상태는 문서 데이터가 아니어서 조각 복원과 무관하다.
+ * 셀 문단도 같은 규칙의 누름틀 범위(`cellRanges`)를 가진다.
  */
-function makeWasm({ body = '', cell = '', objects = [], ranges = [], bold = [] } = {}) {
+function makeWasm({ body = '', cell = '', objects = [], ranges = [], cellRanges = [], bold = [] } = {}) {
+  const toRanges = (list) => list.map(([kind, start, end]) => ({ kind, start, end }));
   const doc = {
     body,
     cell,
-    ranges: ranges.map(([kind, start, end]) => ({ kind, start, end })),
+    ranges: toRanges(ranges),
+    cellRanges: toRanges(cellRanges),
     bold: [...body].map((_, i) => i >= bold[0] && i < bold[1]),
   };
   const fragments = new Map();
   let nextFragmentId = 1;
+  let active = null; // { inCell, index }
+  const rangesAt = (pos) => (pos.parentParaIndex === undefined ? doc.ranges : doc.cellRanges);
+  const fieldIndexAt = (pos) =>
+    rangesAt(pos).findIndex((r) => r.kind === 'field' && r.start <= pos.charOffset && pos.charOffset <= r.end);
+  const moveRanges = (ranges, inCell, off, del, n) => {
+    ranges.forEach((r, i) => {
+      const shrink = (p) => (p >= off + del ? p - del : Math.min(p, off));
+      r.start = shrink(r.start);
+      r.end = shrink(r.end);
+      if (n === 0) return;
+      const inside = r.kind === 'field' && active?.inCell === inCell && active.index === i;
+      if (r.start > off || (r.start === off && r.start < r.end && !inside)) {
+        r.start += n;
+        r.end += n;
+      } else if (r.start === off ? r.kind === 'field' : off < r.end || (off === r.end && inside)) {
+        r.end += n;
+      }
+    });
+  };
   const editBody = (off, del, ins) => {
     const chars = [...doc.body];
     const added = [...ins];
     chars.splice(off, del, ...added);
     doc.body = chars.join('');
     doc.bold.splice(off, del, ...added.map(() => off > 0 && doc.bold[off - 1]));
-    for (const r of doc.ranges) {
-      const shrink = (p) => (p >= off + del ? p - del : Math.min(p, off));
-      r.start = shrink(r.start);
-      r.end = shrink(r.end);
-      if (added.length === 0) continue;
-      if (r.start > off || (r.start === off && r.start < r.end)) {
-        r.start += added.length;
-        r.end += added.length;
-      } else if (r.start === off ? r.kind === 'field' : off < r.end) {
-        r.end += added.length;
-      }
-    }
+    moveRanges(doc.ranges, false, off, del, added.length);
   };
   const editCell = (off, del, ins) => {
     const chars = [...doc.cell];
     chars.splice(off, del, ...ins);
     doc.cell = chars.join('');
+    moveRanges(doc.cellRanges, true, off, del, ins.length);
   };
   const cellResult = (off) => ({ ok: true, charOffset: off, paginationDeferred: false, cellFlowChanged: false });
   return {
@@ -95,13 +110,20 @@ function makeWasm({ body = '', cell = '', objects = [], ranges = [], bold = [] }
     },
     textToLogicalOffset: (_s, _p, off) => off + objects.filter((p) => p < off).length,
     getFieldInfoAt: (pos) => {
-      const fieldId = pos.parentParaIndex === undefined
-        ? doc.ranges.findIndex((r) => r.kind === 'field' && r.start <= pos.charOffset && pos.charOffset <= r.end)
-        : -1;
+      const fieldId = fieldIndexAt(pos);
       if (fieldId < 0) return { inField: false };
-      const { start, end } = doc.ranges[fieldId];
+      const { start, end } = rangesAt(pos)[fieldId];
       return { inField: true, fieldType: 'clickhere', fieldId, startCharIdx: start, endCharIdx: end, editableInForm: true };
     },
+    // 실제 rhwp 처럼 누름틀이 없는 자리면 활성 상태를 그대로 둔다.
+    setActiveField: (pos) => {
+      const index = fieldIndexAt(pos);
+      const inCell = pos.parentParaIndex !== undefined;
+      if (index < 0 || (active?.inCell === inCell && active.index === index)) return false;
+      active = { inCell, index };
+      return true;
+    },
+    clearActiveField: () => { active = null; },
     captureDeleteRange: () => {
       fragments.set(nextFragmentId, structuredClone(doc));
       return nextFragmentId++;
@@ -122,7 +144,7 @@ const cellPos = (charOffset) => ({
   sectionIndex: 0, paragraphIndex: 0, charOffset,
   parentParaIndex: 0, controlIndex: 0, cellIndex: 0, cellParaIndex: 0,
 });
-const rangesOf = (wasm) => wasm.doc.ranges.map((r) => `${r.kind} ${r.start}-${r.end}`).join(', ');
+const rangesOf = (wasm, key = 'ranges') => wasm.doc[key].map((r) => `${r.kind} ${r.start}-${r.end}`).join(', ');
 const boldOf = (wasm) => [...wasm.doc.body].map((ch, i) => (wasm.doc.bold[i] ? ch.toUpperCase() : ch)).join('');
 
 /** InputHandler 가 이 경로에서 실제로 쓰는 필드·메서드만 채운 mock this. */
@@ -133,6 +155,12 @@ function makeHandler(wasm, start, { insertMode = false, editMode = 'normal', exi
   const fieldAt = (pos) => {
     const fi = wasm.getFieldInfoAt(pos);
     return editMode === 'form' && fi.inField && fi.editableInForm ? fi : null;
+  };
+  // InputHandler.updateFieldMarkers 와 같다: 캐럿이 누름틀 안이면 활성화하고, 밖이나 빠져나온 끝이면 해제한다.
+  const syncActiveField = () => {
+    const fi = wasm.getFieldInfoAt(position);
+    if (fi.inField && !h.isAtExitedFieldEnd(position, fi)) wasm.setActiveField(position);
+    else wasm.clearActiveField();
   };
   const h = {
     active: true,
@@ -172,20 +200,22 @@ function makeHandler(wasm, start, { insertMode = false, editMode = 'normal', exi
     consumeRawTextMutationBeforeCursor: () => false,
     prepareTextMutationBeforeCursor: () => false,
     flushDeferredPaginationIfNeeded() {},
-    afterTextInputEdit() {},
-    afterEdit() {},
-    updateCaret() {},
+    // 실제 화면 갱신은 모두 updateCaret → updateFieldMarkers 를 거친다.
+    afterTextInputEdit: syncActiveField,
+    afterEdit: syncActiveField,
+    updateCaret: syncActiveField,
     executeOperation(desc) {
       // InputHandler.isOperationAllowedInEditMode 와 같다: 기록은 늘 통과, 입력은 넣을 수 있는 자리만.
       if (desc.kind === 'command') {
         if (!this.canInsertTextInFormMode(desc.command.position)) return;
         position = history.execute(desc.command, wasm);
+        syncActiveField();
       } else {
         history.recordWithoutExecute(desc.command, wasm);
       }
     },
-    undo() { position = history.undo(wasm); },
-    redo() { position = history.redo(wasm); },
+    undo() { position = history.undo(wasm); syncActiveField(); },
+    redo() { position = history.redo(wasm); syncActiveField(); },
     type(s) {
       for (const ch of s) {
         this.textarea.value = ch;
@@ -205,6 +235,7 @@ function makeHandler(wasm, start, { insertMode = false, editMode = 'normal', exi
   h.getTextAt = (pos, n) => text.getTextAt.call(h, pos, n);
   h.replaceTextAtRaw = (pos, del, t) => text.replaceTextAtRaw.call(h, pos, del, t);
   h.insertTextAtRaw = (pos, t) => text.insertTextAtRaw.call(h, pos, t);
+  syncActiveField();
   return h;
 }
 
@@ -393,6 +424,41 @@ scenario('16. 양식 모드: 같은 자리의 IME 확정은 삽입 모드와 같
   assert.equal(overwrite.body.at(-1), 'e', '보호된 e 가 남아야 한다');
   assert.deepEqual(overwrite, formRun(true, (h) => h.compose('ㅎ', '하')), '삽입 모드와 같아야 한다');
   assert.equal(formRun(false, act).body, 'abcde', '기록된 편집을 되돌리면 원문이어야 한다');
+});
+
+// ── 누름틀 바로 앞의 IME: abcde 의 cd(2..4)가 누름틀 ───────────────────────────────
+// b 를 덮은 첫 조합 글자 뒤 캐럿이 누름틀 시작에 서면 누름틀이 활성화된다. 다음 조합 갱신이
+// 그 글자를 지웠다 다시 넣어도 누름틀 안으로 끌려가면 안 된다.
+const fieldDoc = () => makeWasm({ body: 'abcde', ranges: [['field', 2, 4]] });
+
+scenario('17. 누름틀 바로 앞 글자를 덮은 IME 조합은 누름틀 밖에 남는다', () => {
+  // Home, → 로 캐럿 1
+  let wasm = fieldDoc();
+  const h = makeHandler(wasm, bodyPos(1));
+  h.compose('ㅎ', '하');
+  assert.equal(wasm.doc.body, 'a하cde');
+  assert.equal(rangesOf(wasm), 'field 2-4', '하가 누름틀 안으로 들어가면 안 된다');
+  // 이어 치면 일반 입력처럼 누름틀 안 글자를 덮는다.
+  h.compose('ㄷ', '다');
+  assert.equal(wasm.doc.body, 'a하다de');
+  assert.equal(rangesOf(wasm), 'field 2-4');
+  h.undo();
+  assert.equal(wasm.doc.body, 'abcde');
+  assert.equal(rangesOf(wasm), 'field 2-4');
+  // 처음부터 '한글' — 두 번째 음절이 b 를 덮는다.
+  wasm = fieldDoc();
+  const h2 = makeHandler(wasm, bodyPos(0));
+  h2.compose('ㅎ', '하', '한');
+  h2.compose('ㄱ', '그', '글');
+  assert.equal(wasm.doc.body, '한글cde');
+  assert.equal(rangesOf(wasm), 'field 2-4', '글이 누름틀 안으로 들어가면 안 된다');
+});
+
+scenario('18. 표 셀에서도 누름틀 바로 앞 IME 조합은 누름틀 밖에 남는다', () => {
+  const wasm = makeWasm({ cell: 'abcde', cellRanges: [['field', 2, 4]] });
+  makeHandler(wasm, cellPos(1)).compose('ㅎ', '하');
+  assert.equal(wasm.doc.cell, 'a하cde');
+  assert.equal(rangesOf(wasm, 'cellRanges'), 'field 2-4', '하가 누름틀 안으로 들어가면 안 된다');
 });
 
 if (failures.length > 0) {

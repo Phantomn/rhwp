@@ -624,6 +624,9 @@ export function onInput(this: any, e?: InputEvent): void {
       if (this._compositionCovered) this._compositionFragment = captureTextFragment(this.wasm, anchor);
       this.compositionLength += charCount(this._compositionCovered);
     }
+    // [#7489] 덮은 글자 뒤 캐럿이 누름틀 시작에 서면 그 누름틀이 활성화된다. 앵커가 누름틀 밖이면
+    // replace 전에 해제해, 지웠다 다시 넣는 조합 글자가 누름틀 안으로 끌려가지 않게 한다.
+    if (this._compositionCovered && !this.wasm.getFieldInfoAt(anchor).inField) this.wasm.clearActiveField();
     try {
       this.replaceTextAtRaw(anchor, this.compositionLength, text);
     } catch (err) {
