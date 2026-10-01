@@ -4,8 +4,8 @@ use super::HostedTableError;
 use crate::{
     model::paragraph::Paragraph,
     renderer::{
-        layout::layout_rect_to_bbox,
         pagination::{PageContent, PageItem},
+        paint_resources::layout_rect_to_bbox,
         render_tree::{PageBackgroundNode, PageRenderTree, RenderNode, RenderNodeType},
         style_resolver::ResolvedStyleSet,
     },

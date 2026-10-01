@@ -10,11 +10,12 @@ use crate::{
         table::Table,
     },
     renderer::{
-        layout::{estimate_text_width, format_page_number},
         page_layout::PageLayoutInfo,
+        paint_resources::format_page_number,
         render_tree::{
             BoundingBox, FieldMarkerType, RenderNode, RenderNodeType, TextLineNode, TextRunNode,
         },
+        text_measurement::estimate_text_width,
         TextStyle,
     },
 };

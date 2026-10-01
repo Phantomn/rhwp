@@ -15,7 +15,7 @@ use crate::{
         table::Table,
     },
     renderer::{
-        layout::border_width_to_px,
+        border_paint::border_width_to_px,
         render_tree::{LineNode, RenderNode, RenderNodeType},
         style_resolver::ResolvedStyleSet,
         LineStyle,

@@ -162,14 +162,14 @@ function policyFor(candidate) {
     Object.assign(policy, {
       relationType: 'measured-overlay',
       evidenceStatus: 'verified-by-test',
-      tests: ['src/renderer/layout/text_measurement.rs#tests'],
+      tests: ['src/renderer/text_measurement.rs#tests'],
       knownLimitations: ['The overlay is gated by face and size and must not become a global metric alias.'],
     });
   } else if (boundary === 'rust-measurement.estimate-width') {
     Object.assign(policy, {
       relationType: 'unknown',
       evidenceStatus: 'inferred',
-      tests: ['src/renderer/layout/text_measurement.rs#tests'],
+      tests: ['src/renderer/text_measurement.rs#tests'],
       knownLimitations: ['Separate exact metric lookup, heuristic estimation, and synthetic styling in W2 trace output.'],
     });
   } else if (boundary === 'rust-paint-chain.installed-aliases') {

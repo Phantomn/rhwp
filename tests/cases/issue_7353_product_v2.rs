@@ -30,13 +30,83 @@ fn product_v2_page_and_shape_paint_do_not_dispatch_to_legacy_engine() {
         include_str!("../../src/renderer/paragraph_paint/inline.rs"),
         include_str!("../../src/renderer/paragraph_paint/markers.rs"),
         include_str!("../../src/renderer/paragraph_paint/fields.rs"),
+        include_str!("../../src/renderer/paragraph_paint/helpers.rs"),
+        include_str!("../../src/renderer/table_v2/ownership.rs"),
+        include_str!("../../src/renderer/table_v2/borders.rs"),
+        include_str!("../../src/renderer/table_v2/diagonal.rs"),
+        include_str!("../../src/renderer/table_v2/host_border.rs"),
+        include_str!("../../src/renderer/table_v2/pictures.rs"),
+        include_str!("../../src/renderer/table_v2/tac_spaces.rs"),
+        include_str!("../../src/renderer/table_v2/page_number.rs"),
+        include_str!("../../src/renderer/cell_context.rs"),
+        include_str!("../../src/renderer/text_measurement.rs"),
+        include_str!("../../src/renderer/paint_resources.rs"),
+        include_str!("../../src/renderer/border_paint.rs"),
+        include_str!("../../src/renderer/render_tree.rs"),
+        include_str!("../../src/renderer/page_paint.rs"),
+        include_str!("../../src/renderer/shape_paint.rs"),
     ] {
         assert!(!source.contains("LayoutEngine::"));
         assert!(!source.contains("layout::table_layout"));
         assert!(!source.contains(".layout_table("));
         assert!(!source.contains("TypesetEngine"));
         assert!(!source.contains("TypesetState"));
+        assert!(!source.contains("renderer::layout::"));
+        assert!(!source.contains("super::layout::"));
+        assert!(!source
+            .lines()
+            .any(|line| line.trim_start().starts_with("layout::")));
     }
+}
+
+#[test]
+fn shared_cell_ownership_preserves_nested_addresses_and_public_compatibility() {
+    use rhwp::renderer::cell_context::{CellContext, CellPathEntry};
+    let context = CellContext {
+        parent_para_index: 7,
+        in_textbox: false,
+        path: vec![
+            CellPathEntry {
+                control_index: 2,
+                cell_index: 3,
+                cell_para_index: 5,
+                text_direction: 0,
+            },
+            CellPathEntry {
+                control_index: 1,
+                cell_index: 4,
+                cell_para_index: 6,
+                text_direction: 2,
+            },
+        ],
+    };
+    // The old public path is the same type, not a converted Legacy owner.
+    let compatible: rhwp::renderer::layout::CellContext = context.clone();
+    assert_eq!(compatible, context);
+    assert_eq!(context.outermost_control(), Some(2));
+    assert_eq!(context.outermost_cell(), Some(3));
+    assert_eq!(context.outermost_cell_para(), Some(5));
+    assert_eq!(context.nested_table_meta(), Some((5, 1)));
+    assert_eq!(context.last_image_indices(), (Some(4), Some(6), Some(1)));
+    assert_eq!(context.text_direction(), Some(2));
+    assert_eq!(
+        serde_json::to_value(&context).unwrap(),
+        serde_json::json!({
+            "parent_para_index": 7, "in_textbox": false,
+            "path": [
+                { "control_index": 2, "cell_index": 3, "cell_para_index": 5, "text_direction": 0 },
+                { "control_index": 1, "cell_index": 4, "cell_para_index": 6, "text_direction": 2 }
+            ]
+        })
+    );
+    let empty = CellContext {
+        path: vec![],
+        ..context
+    };
+    assert_eq!(empty.nested_table_meta(), None);
+    assert_eq!(empty.outermost_control(), None);
+    assert_eq!(empty.text_direction(), None);
+    assert_eq!(empty.last_image_indices(), (None, None, None));
 }
 
 fn open(data: &[u8]) -> DocumentCore {

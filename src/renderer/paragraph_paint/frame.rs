@@ -4,14 +4,14 @@ use crate::model::paragraph::{LineSeg, Paragraph};
 use crate::model::shape::{ShapeObject, TextWrap};
 use crate::model::style::{Alignment, HeadType, LineSpacingType};
 use crate::model::table::Table;
+use crate::renderer::cell_context::CellContext;
 use crate::renderer::composer::{
     compose_paragraph, effective_text_for_metrics, ComposedLine, ComposedParagraph,
 };
-use crate::renderer::layout::text_measurement::{estimate_text_width, resolved_to_text_style};
-use crate::renderer::layout::CellContext;
 use crate::renderer::page_layout::LayoutRect;
 use crate::renderer::render_tree::*;
 use crate::renderer::style_resolver::ResolvedStyleSet;
+use crate::renderer::text_measurement::{estimate_text_width, resolved_to_text_style};
 use crate::renderer::{hwpunit_to_px, px_to_hwpunit};
 
 use super::helpers::*;

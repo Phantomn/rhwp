@@ -415,7 +415,7 @@ fn painted_inline_ends(nodes: &[RenderNode], styles: &ResolvedStyleSet) -> Vec<O
             // Consume those same positions and glyph-fit projection; do not
             // resize the run, the saved lane, or the following paragraph.
             let positions = run.replay_positions_for(&run.text);
-            crate::renderer::layout::split_into_clusters(trimmed)
+            crate::renderer::text_measurement::split_into_clusters(trimmed)
                 .iter()
                 .try_fold(0.0_f64, |end, (start, cluster)| {
                     let x = *positions.get(*start)?;

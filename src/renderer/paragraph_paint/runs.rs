@@ -3,18 +3,18 @@ use crate::model::control::Control;
 use crate::model::paragraph::{LineSeg, Paragraph};
 use crate::model::style::Alignment;
 use crate::model::table::Table;
+use crate::renderer::border_paint::create_border_line_nodes;
+use crate::renderer::cell_context::CellContext;
 use crate::renderer::composer::{effective_text_for_metrics, ComposedLine, ComposedParagraph};
 use crate::renderer::kerning::{ExactFontSlot, KerningLayoutSession};
-use crate::renderer::layout::border_rendering::create_border_line_nodes;
-use crate::renderer::layout::text_measurement::{
+use crate::renderer::page_layout::LayoutRect;
+use crate::renderer::paint_resources::find_bin_data_bytes;
+use crate::renderer::render_tree::*;
+use crate::renderer::style_resolver::ResolvedStyleSet;
+use crate::renderer::text_measurement::{
     compute_char_positions, estimate_text_width, estimate_text_width_exact,
     estimate_text_width_unrounded, extract_tab_leaders_with_extended,
 };
-use crate::renderer::layout::utils::find_bin_data_bytes;
-use crate::renderer::layout::CellContext;
-use crate::renderer::page_layout::LayoutRect;
-use crate::renderer::render_tree::*;
-use crate::renderer::style_resolver::ResolvedStyleSet;
 use crate::renderer::{hwpunit_to_px, ShapeStyle, TabStop, TextStyle};
 
 use super::helpers::*;

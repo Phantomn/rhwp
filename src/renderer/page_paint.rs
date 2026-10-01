@@ -35,7 +35,7 @@ pub(crate) fn append_column_separators(
     if zone_layout.column_areas.len() < 2 || zone_layout.separator_type == 0 || y_end <= y_start {
         return;
     }
-    let line_width = super::layout::border_width_to_px(zone_layout.separator_width).max(0.5);
+    let line_width = super::border_paint::border_width_to_px(zone_layout.separator_width).max(0.5);
     let dash = match zone_layout.separator_type {
         2 => StrokeDash::Dash,
         3 => StrokeDash::Dot,

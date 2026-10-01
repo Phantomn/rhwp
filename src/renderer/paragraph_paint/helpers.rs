@@ -5,21 +5,21 @@ use crate::model::shape::{
 };
 use crate::model::style::{Alignment, LineSpacingType, UnderlineType};
 use crate::model::table::Table;
+use crate::renderer::cell_context::CellContext;
 use crate::renderer::composer::{
     compose_paragraph, effective_text_for_metrics, ComposedLine, ComposedParagraph, ComposedTextRun,
 };
 use crate::renderer::kerning::{
     ExactFontSlot, KerningLayoutSession, KerningRunMeasurementDisposition,
 };
-use crate::renderer::layout::text_measurement::{
+use crate::renderer::page_layout::LayoutRect;
+use crate::renderer::paint_resources::{extract_shape_transform, picture_display_size_hu};
+use crate::renderer::render_tree::*;
+use crate::renderer::style_resolver::ResolvedStyleSet;
+use crate::renderer::text_measurement::{
     compute_char_positions, estimate_text_width, estimate_text_width_exact,
     estimate_text_width_unrounded, find_next_tab_stop, resolved_to_text_style,
 };
-use crate::renderer::layout::utils::{extract_shape_transform, picture_display_size_hu};
-use crate::renderer::layout::CellContext;
-use crate::renderer::page_layout::LayoutRect;
-use crate::renderer::render_tree::*;
-use crate::renderer::style_resolver::ResolvedStyleSet;
 use crate::renderer::{format_number, hwpunit_to_px, NumberFormat as NumFmt, TabStop, TextStyle};
 
 pub(crate) const CAPTION_CELL_SENTINEL: usize = 65534;
@@ -2174,7 +2174,7 @@ pub(crate) fn make_picture_image_node(
             text_wrap: (!pic.common.treat_as_char).then_some(pic.common.text_wrap),
             transform: extract_shape_transform(&pic.shape_attr),
             external_path: pic.image_attr.external_path.clone(),
-            content_inset: crate::renderer::layout::utils::picture_content_inset(pic),
+            content_inset: crate::renderer::paint_resources::picture_content_inset(pic),
             ..ImageNode::new(bin_data_id, image_data)
         }),
         bbox,

@@ -9,9 +9,11 @@ use crate::model::control::Control;
 use crate::model::paragraph::LineSeg;
 use crate::model::style::{LineSpacingType, UnderlineType};
 
+pub(crate) mod border_paint;
 pub mod canvas;
 pub mod canvas_text_font;
 pub mod canvaskit_policy;
+pub mod cell_context;
 pub mod composer;
 pub mod equation;
 pub(crate) mod equation_tac_flow;
@@ -48,6 +50,7 @@ pub mod page_layout;
 pub mod page_number;
 pub(crate) mod page_paint;
 pub mod pagination;
+pub(crate) mod paint_resources;
 pub(crate) mod paragraph_paint;
 #[cfg(any(target_arch = "wasm32", test))]
 pub(crate) mod partial_replay;
@@ -82,6 +85,7 @@ pub mod svg_layer;
 #[doc(hidden)]
 pub mod table_v2;
 pub(crate) mod text_decoration;
+pub(crate) mod text_measurement;
 pub mod typeset;
 #[cfg(target_arch = "wasm32")]
 pub mod web_canvas;

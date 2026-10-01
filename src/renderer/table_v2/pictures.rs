@@ -14,7 +14,7 @@ use crate::{
         },
     },
     renderer::{
-        layout::find_bin_data_bytes,
+        paint_resources::find_bin_data_bytes,
         render_tree::{
             BoundingBox, GroupNode, ImageNode, PlaceholderNode, RenderNode, RenderNodeType,
             TextLineNode,

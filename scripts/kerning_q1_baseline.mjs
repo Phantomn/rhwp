@@ -121,7 +121,7 @@ function assertSourceBoundary() {
   const sources = [
     ['src/renderer/style_resolver.rs', 'pub kerning: bool'],
     ['src/renderer/mod.rs', 'pub struct TextStyle'],
-    ['src/renderer/layout/text_measurement.rs', 'pub(crate) fn resolved_to_text_style'],
+    ['src/renderer/text_measurement.rs', 'pub(crate) fn resolved_to_text_style'],
     ['src/paint/paint_op.rs', 'pub struct PaintTextStyle'],
     ['src/paint/json.rs', '\\\"type\\\":\\\"glyphRun\\\"'],
     ['src/renderer/font_metrics_data.rs', 'pub struct FontMetric'],

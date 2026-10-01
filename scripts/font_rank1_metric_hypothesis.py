@@ -419,7 +419,7 @@ def build_projection(
             "fixture": {"artifact": "mydocs/tech/investigations/issue-4963/fixtures/oracle_typesetting_fixture.hwpx", "sha256": sha256_file(paths["fixture"])},
             "metricSource": {"artifact": "src/renderer/font_metrics_generated.rs", "sha256": sha256_file(paths["metricSource"])},
             "metricLookupSource": {"artifact": "src/renderer/font_metrics_data.rs", "sha256": sha256_file(paths["metricLookupSource"])},
-            "textMeasurementSource": {"artifact": "src/renderer/layout/text_measurement.rs", "sha256": sha256_file(paths["textMeasurementSource"])},
+            "textMeasurementSource": {"artifact": "src/renderer/text_measurement.rs", "sha256": sha256_file(paths["textMeasurementSource"])},
             "fontDecisionSource": {"artifact": "src/document_core/queries/font_decision.rs", "sha256": sha256_file(paths["fontDecisionSource"])},
             "metricLineage": {"artifact": "mydocs/tech/investigations/issue-4964/font_metric_lineage_manifest.json", "sha256": sha256_file(paths["lineage"])},
             "nativeBinary": {"artifact": "target/debug/rhwp-q-font-trace", "sha256": sha256_file(paths["nativeBinary"])},

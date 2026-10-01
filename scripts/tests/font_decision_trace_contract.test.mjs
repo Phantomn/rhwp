@@ -234,7 +234,14 @@ test('W1 source digest drift is detected without exposing an absolute checkout p
   assert.deepEqual(currentDrift.map(entry => entry.path), expectedTraceDrift);
   for (const entry of currentDrift) {
     assert.match(entry.expectedSha256, /^[0-9a-f]{64}$/);
-    assert.match(entry.actualSha256, /^[0-9a-f]{64}$/);
+    // The W1 snapshot retains its historical paths. Moving a source must be
+    // reported as a missing original, not silently rebased to the new file.
+    if (entry.path === 'src/renderer/layout/text_measurement.rs') {
+      assert.equal(entry.actualSha256, null);
+      assert.ok(fs.existsSync(path.join(ROOT, 'src/renderer/text_measurement.rs')));
+    } else {
+      assert.match(entry.actualSha256, /^[0-9a-f]{64}$/);
+    }
     assert.equal(path.isAbsolute(entry.path), false);
   }
 

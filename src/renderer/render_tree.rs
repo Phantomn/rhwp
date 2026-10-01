@@ -6,8 +6,8 @@
 use serde::Serialize;
 use std::ops::{Deref, DerefMut};
 
+use super::cell_context::CellContext;
 use super::composer::{legacy_hancom_product_display_text, CharOverlapInfo};
-use super::layout::CellContext;
 use super::shaping_publication::{
     HorizontalShapingPageSidecars, HorizontalShapingRunDecision, HorizontalShapingRunRange,
     HorizontalShapingSidecarRejectReason,
@@ -476,7 +476,7 @@ pub struct RawSvgNode {
     /// 다른 차트를 조용히 여는 오매칭이 성립한다(Image 노드의 #1151/#1161 과 동형).
     /// 레이어 JSON 에는 불필요하므로 직렬화 제외.
     #[serde(skip)]
-    pub cell_context: Option<crate::renderer::layout::CellContext>,
+    pub cell_context: Option<crate::renderer::cell_context::CellContext>,
 }
 
 impl RawSvgNode {
@@ -493,7 +493,7 @@ impl RawSvgNode {
         section_index: usize,
         para_index: usize,
         control_index: usize,
-        cell_context: Option<crate::renderer::layout::CellContext>,
+        cell_context: Option<crate::renderer::cell_context::CellContext>,
     ) -> Self {
         Self {
             svg,
@@ -533,7 +533,7 @@ pub struct PlaceholderNode {
     /// (hit-test 소스)의 cellPath 방출에 사용. 레이어 JSON 에는 불필요하므로
     /// 직렬화 제외.
     #[serde(skip)]
-    pub cell_context: Option<crate::renderer::layout::CellContext>,
+    pub cell_context: Option<crate::renderer::cell_context::CellContext>,
 }
 
 /// [Task #2225] placeholder 의미 구분.
@@ -570,7 +570,7 @@ impl PlaceholderNode {
         section_index: Option<usize>,
         para_index: Option<usize>,
         control_index: Option<usize>,
-        cell_context: Option<crate::renderer::layout::CellContext>,
+        cell_context: Option<crate::renderer::cell_context::CellContext>,
     ) -> Self {
         let control_ref = match (section_index, para_index, control_index) {
             (Some(si), Some(pi), Some(ci)) => Some(ObjectControlRef::picture(si, pi, ci)),
@@ -593,7 +593,7 @@ impl PlaceholderNode {
         section_index: usize,
         para_index: usize,
         control_index: usize,
-        cell_context: Option<crate::renderer::layout::CellContext>,
+        cell_context: Option<crate::renderer::cell_context::CellContext>,
     ) -> Self {
         Self {
             fill_color,
@@ -1061,7 +1061,7 @@ impl TextRunNode {
             }
         }
 
-        std::borrow::Cow::Owned(super::layout::compute_char_positions(
+        std::borrow::Cow::Owned(super::text_measurement::compute_char_positions(
             prefix_replay_text,
             &self.style,
         ))
@@ -1624,7 +1624,7 @@ pub type InlineShapeKey = (usize, usize, usize, Vec<(usize, usize, usize)>);
 /// (lexicographic) 비교로 정렬한다 — `Vec<u32>` 의 `Ord` 구현이 그대로 이 의미다
 /// (공통 접두사까지 원소별 비교, 그 다음 길이).
 ///
-/// [`InlineShapeKey`]/[`CellContext::path`](crate::renderer::layout::CellContext) 와
+/// [`InlineShapeKey`]/[`CellContext::path`](crate::renderer::cell_context::CellContext) 와
 /// 같은 좌표계를 재사용한다 — 새 이름공간을 만들지 않는다. `paper_node_sort_key` 가
 /// 이 값을 `RenderLayerInfo.stable_index`(레이어 있는 노드) 와 `node.id` 폴백(레이어
 /// 없는 inline 노드) 을 모두 대신해 쓴다.
@@ -1653,7 +1653,7 @@ pub type InlineShapeKey = (usize, usize, usize, Vec<(usize, usize, usize)>);
 /// 노드의 삽입 순서를 보존한다.
 pub(crate) type DocPath = Vec<u32>;
 
-fn push_cell_path(path: &mut DocPath, cell_path: &[crate::renderer::layout::CellPathEntry]) {
+fn push_cell_path(path: &mut DocPath, cell_path: &[crate::renderer::cell_context::CellPathEntry]) {
     for entry in cell_path {
         path.push(entry.control_index as u32);
         path.push(entry.cell_index as u32);
@@ -1834,7 +1834,7 @@ impl PageLayoutContext {
 
     /// `CellContext` 를 InlineShapeKey 의 cell_path 부분으로 변환.
     fn cell_path_from_ctx(
-        cell_ctx: Option<&crate::renderer::layout::CellContext>,
+        cell_ctx: Option<&crate::renderer::cell_context::CellContext>,
     ) -> Vec<(usize, usize, usize)> {
         cell_ctx
             .map(|ctx| {
@@ -1857,7 +1857,7 @@ impl PageLayoutContext {
         sec: usize,
         para: usize,
         ctrl: usize,
-        cell_ctx: Option<&crate::renderer::layout::CellContext>,
+        cell_ctx: Option<&crate::renderer::cell_context::CellContext>,
         x: f64,
         y: f64,
     ) {
@@ -1874,7 +1874,7 @@ impl PageLayoutContext {
         sec: usize,
         para: usize,
         ctrl: usize,
-        cell_ctx: Option<&crate::renderer::layout::CellContext>,
+        cell_ctx: Option<&crate::renderer::cell_context::CellContext>,
     ) -> Option<(f64, f64)> {
         let cell_path = Self::cell_path_from_ctx(cell_ctx);
         let para_for_key = cell_ctx.map(|c| c.parent_para_index).unwrap_or(para);
@@ -2071,7 +2071,7 @@ impl PageRenderTree {
         sec: usize,
         para: usize,
         ctrl: usize,
-        cell_ctx: Option<&crate::renderer::layout::CellContext>,
+        cell_ctx: Option<&crate::renderer::cell_context::CellContext>,
         x: f64,
         y: f64,
     ) {
@@ -2085,7 +2085,7 @@ impl PageRenderTree {
         sec: usize,
         para: usize,
         ctrl: usize,
-        cell_ctx: Option<&crate::renderer::layout::CellContext>,
+        cell_ctx: Option<&crate::renderer::cell_context::CellContext>,
     ) -> Option<(f64, f64)> {
         self.frame
             .get_inline_shape_position(sec, para, ctrl, cell_ctx)

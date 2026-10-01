@@ -2,11 +2,11 @@ use crate::model::bin_data::BinDataContent;
 use crate::model::control::Control;
 use crate::model::paragraph::Paragraph;
 use crate::model::style::Alignment;
+use crate::renderer::cell_context::CellContext;
 use crate::renderer::composer::{ComposedLine, ComposedParagraph};
 use crate::renderer::hwpunit_to_px;
-use crate::renderer::layout::utils::find_bin_data_bytes;
-use crate::renderer::layout::CellContext;
 use crate::renderer::page_layout::LayoutRect;
+use crate::renderer::paint_resources::find_bin_data_bytes;
 use crate::renderer::render_tree::*;
 use crate::renderer::style_resolver::ResolvedStyleSet;
 

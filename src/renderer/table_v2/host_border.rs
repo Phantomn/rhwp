@@ -9,7 +9,7 @@ use crate::{
         style::{BorderLineType, CenterLine},
     },
     renderer::{
-        layout::border_width_to_px,
+        border_paint::border_width_to_px,
         render_tree::{LineNode, PageLayoutContext, RenderNode, RenderNodeType},
         style_resolver::{ResolvedParaStyle, ResolvedStyleSet},
         LineStyle,

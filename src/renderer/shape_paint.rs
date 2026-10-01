@@ -2,7 +2,7 @@
 //! Bounds have already been resolved by the owner; no document/table layout.
 use super::{
     hwpunit_to_px,
-    layout::drawing_to_line_style,
+    paint_resources::drawing_to_line_style,
     render_tree::{BoundingBox, LineNode, PathNode, RenderNode, RenderNodeType, ShapeTransform},
     PathCommand, ShapeStyle,
 };

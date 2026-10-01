@@ -1,7 +1,7 @@
 //! Bind explicit fragment ownership to product query metadata. Geometry is not
 //! inspected or changed: row/cell/paragraph/control owners come from the plan.
 use crate::renderer::{
-    layout::{CellContext, CellPathEntry},
+    cell_context::{CellContext, CellPathEntry},
     render_tree::{RenderNode, RenderNodeType},
 };
 

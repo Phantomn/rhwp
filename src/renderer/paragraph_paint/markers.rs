@@ -1,11 +1,11 @@
 use crate::model::control::Control;
 use crate::model::paragraph::Paragraph;
 use crate::model::style::Alignment;
+use crate::renderer::cell_context::CellContext;
 use crate::renderer::composer::ComposedLine;
-use crate::renderer::layout::text_measurement::{estimate_text_width, resolved_to_text_style};
-use crate::renderer::layout::CellContext;
 use crate::renderer::render_tree::*;
 use crate::renderer::style_resolver::ResolvedStyleSet;
+use crate::renderer::text_measurement::{estimate_text_width, resolved_to_text_style};
 
 use super::helpers::*;
 use super::ParagraphPaintSession;

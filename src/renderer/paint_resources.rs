@@ -1,13 +1,13 @@
-//! 유틸리티 함수 (BinData 검색, 번호 포맷, 도형 스타일 변환)
+//! Engine-independent paint inputs: BinData lookup, numbering and style conversion.
 
-use super::super::page_layout::LayoutRect;
-use super::super::render_tree::*;
-use super::super::{
-    format_number, ArrowStyle, LineStyle, NumberFormat as NumFmt, ShapeStyle, StrokeDash,
-};
 use crate::model::bin_data::BinDataContent;
 use crate::model::image::Picture;
 use crate::model::style::{HeadType, Numbering};
+use crate::renderer::page_layout::LayoutRect;
+use crate::renderer::render_tree::*;
+use crate::renderer::{
+    format_number, ArrowStyle, LineStyle, NumberFormat as NumFmt, ShapeStyle, StrokeDash,
+};
 
 /// bin_data_id(1-indexed 순번)로 BinDataContent를 찾는다.
 /// bin_data_id는 doc_info의 BinData 레코드 순번(1부터 시작)이며,
@@ -322,9 +322,9 @@ pub(crate) fn extract_shape_transform(
 
 pub(crate) fn drawing_to_shape_style(
     drawing: &crate::model::shape::DrawingObjAttr,
-) -> (ShapeStyle, Option<Box<super::super::GradientFillInfo>>) {
-    use super::super::GradientFillInfo;
+) -> (ShapeStyle, Option<Box<crate::renderer::GradientFillInfo>>) {
     use crate::model::style::FillType;
+    use crate::renderer::GradientFillInfo;
 
     // 배경색: solid 필드가 있으면 fill_type과 무관하게 배경색 적용
     // (Image/Gradient와 단색 채우기가 동시에 적용되는 케이스 지원)
@@ -349,8 +349,12 @@ pub(crate) fn drawing_to_shape_style(
                 g.positions.iter().map(|&p| p as f64 / 100.0).collect()
             };
             // [#6822] `step`(띠 개수)·`step_center`(전이 위치)를 stop 으로 편다.
-            let (colors, positions) =
-                super::super::expand_gradient_steps(&g.colors, &positions, g.blur, g.step_center);
+            let (colors, positions) = crate::renderer::expand_gradient_steps(
+                &g.colors,
+                &positions,
+                g.blur,
+                g.step_center,
+            );
             Box::new(GradientFillInfo {
                 gradient_type: g.gradient_type,
                 angle: g.angle,
@@ -417,7 +421,7 @@ pub(crate) fn drawing_to_shape_style(
     // 패턴 채우기: pattern_type > 0일 때만 패턴 정보 생성 (1=가로줄, 2=세로줄, ..., 6=격자)
     let pattern = drawing.fill.solid.and_then(|s| {
         if s.pattern_type > 0 {
-            Some(super::super::PatternFillInfo {
+            Some(crate::renderer::PatternFillInfo {
                 pattern_type: s.pattern_type,
                 pattern_color: s.pattern_color,
                 background_color: s.background_color,
@@ -429,11 +433,11 @@ pub(crate) fn drawing_to_shape_style(
 
     // 그림자
     let shadow = if drawing.shadow_type > 0 {
-        Some(super::super::ShadowStyle {
+        Some(crate::renderer::ShadowStyle {
             shadow_type: drawing.shadow_type,
             color: drawing.shadow_color,
-            offset_x: super::super::hwpunit_to_px(drawing.shadow_offset_x, 96.0),
-            offset_y: super::super::hwpunit_to_px(drawing.shadow_offset_y, 96.0),
+            offset_x: crate::renderer::hwpunit_to_px(drawing.shadow_offset_x, 96.0),
+            offset_y: crate::renderer::hwpunit_to_px(drawing.shadow_offset_y, 96.0),
             alpha: drawing.shadow_alpha,
         })
     } else {
@@ -470,27 +474,30 @@ pub(crate) fn drawing_to_line_style(drawing: &crate::model::shape::DrawingObjAtt
     let shape_line_type = attr & 0x3F;
 
     let (dash, line_render_type) = match shape_line_type {
-        0 | 1 => (StrokeDash::Solid, super::super::LineRenderType::Single),
-        2 => (StrokeDash::Dash, super::super::LineRenderType::Single),
-        3 => (StrokeDash::Dot, super::super::LineRenderType::Single),
-        4 => (StrokeDash::DashDot, super::super::LineRenderType::Single),
-        5 => (StrokeDash::DashDotDot, super::super::LineRenderType::Single),
-        6 => (StrokeDash::Dash, super::super::LineRenderType::Single), // LongDash
-        7 => (StrokeDash::Dot, super::super::LineRenderType::Single),  // CircleDot
-        8 => (StrokeDash::Solid, super::super::LineRenderType::Double),
+        0 | 1 => (StrokeDash::Solid, crate::renderer::LineRenderType::Single),
+        2 => (StrokeDash::Dash, crate::renderer::LineRenderType::Single),
+        3 => (StrokeDash::Dot, crate::renderer::LineRenderType::Single),
+        4 => (StrokeDash::DashDot, crate::renderer::LineRenderType::Single),
+        5 => (
+            StrokeDash::DashDotDot,
+            crate::renderer::LineRenderType::Single,
+        ),
+        6 => (StrokeDash::Dash, crate::renderer::LineRenderType::Single), // LongDash
+        7 => (StrokeDash::Dot, crate::renderer::LineRenderType::Single),  // CircleDot
+        8 => (StrokeDash::Solid, crate::renderer::LineRenderType::Double),
         9 => (
             StrokeDash::Solid,
-            super::super::LineRenderType::ThinThickDouble,
+            crate::renderer::LineRenderType::ThinThickDouble,
         ),
         10 => (
             StrokeDash::Solid,
-            super::super::LineRenderType::ThickThinDouble,
+            crate::renderer::LineRenderType::ThickThinDouble,
         ),
         11 => (
             StrokeDash::Solid,
-            super::super::LineRenderType::ThinThickThinTriple,
+            crate::renderer::LineRenderType::ThinThickThinTriple,
         ),
-        _ => (StrokeDash::Solid, super::super::LineRenderType::Single),
+        _ => (StrokeDash::Solid, crate::renderer::LineRenderType::Single),
     };
 
     // 화살표 시작 모양: bit 10-15
@@ -508,11 +515,11 @@ pub(crate) fn drawing_to_line_style(drawing: &crate::model::shape::DrawingObjAtt
     let end_arrow_size = ((attr >> 26) & 0x0F) as u8;
 
     let shadow = if drawing.shadow_type > 0 {
-        Some(super::super::ShadowStyle {
+        Some(crate::renderer::ShadowStyle {
             shadow_type: drawing.shadow_type,
             color: drawing.shadow_color,
-            offset_x: super::super::hwpunit_to_px(drawing.shadow_offset_x, 96.0),
-            offset_y: super::super::hwpunit_to_px(drawing.shadow_offset_y, 96.0),
+            offset_x: crate::renderer::hwpunit_to_px(drawing.shadow_offset_x, 96.0),
+            offset_y: crate::renderer::hwpunit_to_px(drawing.shadow_offset_y, 96.0),
             alpha: drawing.shadow_alpha,
         })
     } else {

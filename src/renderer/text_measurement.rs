@@ -1,9 +1,11 @@
 //! 텍스트 폭 측정, 문자 클러스터 분할, CJK 판별 관련 함수
 
-use super::super::font_metrics_data;
-use super::super::kerning::{ExactFontSourceHandle, KerningRunMeasurement, KerningSourceSession};
-use super::super::style_resolver::ResolvedStyleSet;
-use super::super::{TabLeaderInfo, TabStop, TextStyle};
+use crate::renderer::font_metrics_data;
+use crate::renderer::kerning::{
+    ExactFontSourceHandle, KerningRunMeasurement, KerningSourceSession,
+};
+use crate::renderer::style_resolver::ResolvedStyleSet;
+use crate::renderer::{TabLeaderInfo, TabStop, TextStyle};
 
 // ── TextMeasurer trait ──────────────────────────────────────────────
 
@@ -358,7 +360,7 @@ fn compute_char_positions_walk(
     let cluster_len = build_cluster_len(&chars);
     let has_custom_tabs = !style.tab_stops.is_empty() || style.auto_tab_right;
 
-    let supplemental = super::super::supplemental_metrics::standalone_scalar_mask(text, style);
+    let supplemental = crate::renderer::supplemental_metrics::standalone_scalar_mask(text, style);
     let char_width = |i: usize| -> f64 {
         char_width_decision(
             &chars,
@@ -479,7 +481,8 @@ impl EmbeddedTextMeasurer {
         let char_count = chars.len();
         let has_custom_tabs = !style.tab_stops.is_empty() || style.auto_tab_right;
 
-        let supplemental = super::super::supplemental_metrics::standalone_scalar_mask(text, style);
+        let supplemental =
+            crate::renderer::supplemental_metrics::standalone_scalar_mask(text, style);
         let char_width = |i: usize| -> f64 {
             char_width_decision(
                 &chars,
@@ -1522,7 +1525,7 @@ pub(crate) fn estimate_text_width_unrounded(text: &str, style: &TextStyle) -> f6
     let cluster_len = build_cluster_len(&chars);
     let char_count = chars.len();
 
-    let supplemental = super::super::supplemental_metrics::standalone_scalar_mask(text, style);
+    let supplemental = crate::renderer::supplemental_metrics::standalone_scalar_mask(text, style);
     let char_width = |i: usize| -> f64 {
         char_width_decision(
             &chars,
@@ -1594,7 +1597,7 @@ pub(crate) fn compute_kerning_run_measurement(
 ) -> KerningRunMeasurement {
     let (effective_font_size_px, width_ratio, _) = style_params(style);
     let base_positions = compute_char_positions(text, style);
-    super::super::kerning::compute_kerning_run_measurement(
+    crate::renderer::kerning::compute_kerning_run_measurement(
         text,
         style.kerning,
         base_positions,
@@ -1614,7 +1617,7 @@ pub(crate) fn trace_char_width_decisions<'a>(
     let chars: Vec<char> = text.chars().collect();
     let cluster_len = build_cluster_len(&chars);
     let positions = compute_char_positions(text, style);
-    let supplemental = super::super::supplemental_metrics::standalone_scalar_mask(text, style);
+    let supplemental = crate::renderer::supplemental_metrics::standalone_scalar_mask(text, style);
     chars
         .iter()
         .enumerate()

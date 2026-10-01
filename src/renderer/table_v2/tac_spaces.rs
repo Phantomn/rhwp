@@ -3,9 +3,9 @@ use super::GeometryError;
 use crate::{
     model::paragraph::Paragraph,
     renderer::{
-        layout::{compute_char_positions, resolved_to_text_style},
         render_tree::{BoundingBox, RenderNode, RenderNodeType, TextRunNode},
         style_resolver::{detect_lang_category, ResolvedStyleSet},
+        text_measurement::{compute_char_positions, resolved_to_text_style},
     },
 };
 

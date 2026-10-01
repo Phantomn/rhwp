@@ -203,7 +203,8 @@ pub(super) fn node_with_page_number(
     // Geometry was resolved by the owning line/anchor. Ungrouped component
     // offsets are not another paragraph translation. Reapplying source scaling
     // to current common.width/height would scale the rectangle twice.
-    let (mut style, gradient) = crate::renderer::layout::drawing_to_shape_style(&rect.drawing);
+    let (mut style, gradient) =
+        crate::renderer::paint_resources::drawing_to_shape_style(&rect.drawing);
     // The source pen is in HU, and the accepted owner already resolved bounds.
     style.stroke_width = if rect.drawing.border_line.attr & 0x3f == 1 {
         f64::from(rect.drawing.border_line.width) * dpi / 7200.0
@@ -333,7 +334,7 @@ fn line_node(
     {
         return Err(unsupported());
     }
-    let mut style = crate::renderer::layout::drawing_to_line_style(&line.drawing);
+    let mut style = crate::renderer::paint_resources::drawing_to_line_style(&line.drawing);
     style.width = f64::from(line.drawing.border_line.width) * dpi / 7200.0;
     let x = |v| bounds.x + f64::from(v) / f64::from(a.original_width) * bounds.width;
     let y = |v| bounds.y + f64::from(v) / f64::from(a.original_height) * bounds.height;

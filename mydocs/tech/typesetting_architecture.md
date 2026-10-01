@@ -148,6 +148,11 @@ devel 반영, 모든 문서 지원 또는 Legacy 파일 삭제 완료를 뜻하�
   물리 프레임을 소비한다. V2 text는 Legacy 엔진을 생성하지 않는다. 명시적 Legacy 호출자는
   같은 paint에 기존 상태를 빌려주되 인라인 표 배치는 `layout/paragraph_layout`의 어댑터가
   소유한다. 이 어댑터를 V2에 연결하거나 Legacy 표 캐시를 공통 paint에 옮기지 않는다.
+- **공통 primitive**: `cell_context`는 셀/글상자의 원본 주소, `text_measurement`는 글자 폭과
+  클러스터, `paint_resources`는 BinData·번호·도형 스타일 변환, `border_paint`는 선 노드를
+  소유한다. V2·공통 문단 paint·RenderTree는 이 모듈을 직접 사용한다. `layout`의 호환
+  재수출은 기존 호출자를 위한 것이며 신규 V2 의존 경로로 사용하지 않는다. 표 그리드·컷·
+  이어받기와 Legacy 셀 캐시는 이 공통 계층에 포함하지 않는다.
 - **문서·글꼴 상태**: `DocumentCore`가 엔진 선택을 소유하며 V2 문서에는 지속 Legacy 엔진이
   없다. `FontLayoutState`가 exact font 등록·측정 snapshot을 소유한다. 편집·초기화는 같은
   등록 세대의 측정 context와 실제 출력을 갱신해야 한다.
