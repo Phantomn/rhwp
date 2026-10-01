@@ -13477,8 +13477,8 @@ impl LayoutEngine {
         None
     }
 
-    /// [#3931] native HWP5 다행 RowBreak 셀의 저장 page reset 직전에서
-    /// paint되지 않는 마지막 줄의 trailing line/paragraph spacing.
+    /// [#3931] 저장 다행 RowBreak 셀의 물리 쪽 재시작 직전에서
+    /// 그려지지 않는 마지막 줄간격과 문단 뒤 간격.
     ///
     /// `CellUnit` 전체 높이는 표를 통째로 측정할 때 필요하므로 변경하지 않는다.
     /// 실제 컷이 control-free 문단 경계의 `양수 vpos -> 0 이하`에서 끝날 때만
@@ -13493,7 +13493,15 @@ impl LayoutEngine {
         end_cut: usize,
         styles: &ResolvedStyleSet,
     ) -> f64 {
-        if !self.profile.get().hwp5_stored_pagination_layout()
+        let profile = self.profile.get();
+        let direct_hwpx_frame = profile.hwpx_stored_layout()
+            && !profile.hwp5_origin_hwpx()
+            && !profile.session_edited()
+            && !self
+                .render_normalization
+                .borrow()
+                .table_text_reflowed(table);
+        if !(profile.hwp5_stored_pagination_layout() || direct_hwpx_frame)
             || table.row_count <= 1
             || table.common.treat_as_char
             || !matches!(
@@ -13602,13 +13610,60 @@ impl LayoutEngine {
             .map(|style| style.spacing_after)
             .unwrap_or(0.0)
             .max(0.0);
-        (line_spacing
+        let trim = (line_spacing
             + if same_paragraph {
                 0.0
             } else {
                 paragraph_spacing
             })
-        .min(previous_unit.height.max(0.0))
+        .min(previous_unit.height.max(0.0));
+        if direct_hwpx_frame {
+            // 셀 최소 높이나 로컬 재시작만으로 물리 쪽을 추정하지 않는다.
+            // 선언 첫 표 프레임이 이 가시 prefix와 형제 셀 전체를 정확히 담아야 한다.
+            if table.common.height == 0
+                || cell.row == 0
+                || same_paragraph
+                || table.cells.iter().any(|cell| {
+                    cell.row_span != 1
+                        || cell.paragraphs.iter().any(|para| {
+                            !para.controls.is_empty()
+                                || para.stored_text_partition_is_dirty()
+                                || para.line_segs.iter().any(|line| {
+                                    line.tag
+                            & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0
+                                })
+                        })
+                })
+            {
+                return 0.0;
+            }
+            let (_, _, top, bottom) = self.resolve_cell_padding(cell, table);
+            let prefix =
+                units[..end_cut].iter().map(|unit| unit.height).sum::<f64>() - trim + top + bottom;
+            let before = (0..cell.row as usize)
+                .map(|row| self.row_cut_content_height(table, row, &[], &[], styles))
+                .sum::<f64>()
+                + hwpunit_to_px(table.cell_spacing as i32, self.dpi) * f64::from(cell.row);
+            if (before + prefix - hwpunit_to_px(table.common.height as i32, self.dpi)).abs() > 0.5
+                || table
+                    .cells
+                    .iter()
+                    .filter(|other| other.row == cell.row && other.col != cell.col)
+                    .any(|other| {
+                        let (_, _, top, bottom) = self.resolve_cell_padding(other, table);
+                        self.cell_units(other, table, styles)
+                            .iter()
+                            .map(|unit| unit.height)
+                            .sum::<f64>()
+                            + top
+                            + bottom
+                            > prefix + 0.5
+                    })
+            {
+                return 0.0;
+            }
+        }
+        trim
     }
 
     /// 첫 줄0 다음에도0으로 재시작하는 저장 프레임의 끝 간격이다.
