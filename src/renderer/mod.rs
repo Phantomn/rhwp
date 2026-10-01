@@ -48,6 +48,7 @@ pub mod page_layout;
 pub mod page_number;
 pub(crate) mod page_paint;
 pub mod pagination;
+pub(crate) mod paragraph_paint;
 #[cfg(any(target_arch = "wasm32", test))]
 pub(crate) mod partial_replay;
 #[cfg(not(target_arch = "wasm32"))]

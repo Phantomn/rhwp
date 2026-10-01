@@ -23,6 +23,13 @@ fn product_v2_page_and_shape_paint_do_not_dispatch_to_legacy_engine() {
         include_str!("../../src/renderer/table_v2/host_flow_state.rs"),
         include_str!("../../src/renderer/table_v2/host_master.rs"),
         include_str!("../../src/renderer/table_v2/shapes.rs"),
+        include_str!("../../src/renderer/table_v2/text.rs"),
+        include_str!("../../src/renderer/paragraph_paint/mod.rs"),
+        include_str!("../../src/renderer/paragraph_paint/frame.rs"),
+        include_str!("../../src/renderer/paragraph_paint/runs.rs"),
+        include_str!("../../src/renderer/paragraph_paint/inline.rs"),
+        include_str!("../../src/renderer/paragraph_paint/markers.rs"),
+        include_str!("../../src/renderer/paragraph_paint/fields.rs"),
     ] {
         assert!(!source.contains("LayoutEngine::"));
         assert!(!source.contains("layout::table_layout"));

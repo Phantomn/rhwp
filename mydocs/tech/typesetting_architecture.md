@@ -2,7 +2,7 @@
 kind: canonical
 status: active
 canonical: mydocs/tech/typesetting_architecture.md
-last_verified: 2026-09-30
+last_verified: 2026-10-01
 ---
 
 # 조판 코드의 책임 경계와 변경 지도
@@ -130,26 +130,35 @@ SOLID는 책임별 변경 위치·좁은 입력·가시성 경계에, CQRS는 �
 
 <a id="table-v2-handoff"></a>
 
-### #7353 실험 V2 경로의 인계 지도 (2026-09-30)
+### #7353 V2 제품 경로의 책임 지도 (refactor/0.9.0, 2026-10-01)
 
-위 #7280 지도는 Legacy 책임 경계다. `src/renderer/table_v2/`는 이를 기본값으로 교체하지 않는
-명시적 선택 경로다. 현재 브랜치의 기반을 전용 리팩토링 통합 브랜치에 인계하며, 지원 범위·
-검증 상태·후속 작업의 정본은 [#7353 구현계획 5.2](../plans/task_m100_7353_impl.md#7353-closeout-090)다.
-이 지도 추가는 Legacy 규칙이나 모든 문서에 대한 V2 지원 승인으로 해석하지 않는다.
+위 #7280 지도는 Legacy 책임 경계다. 현재 리팩토링 브랜치의 WASM/Studio 기본 경로는 V2이며,
+Legacy 표 구현을 실제 제거하는 작업을 진행 중이다. 지원 범위·검증 상태·후속 작업의 정본은
+[#7353 구현계획](../plans/task_m100_7353_impl.md)의 5.7이다. 아래 연결은 현재 브랜치 기준이며
+devel 반영, 모든 문서 지원 또는 Legacy 파일 삭제 완료를 뜻하지 않는다.
 
 - **내용 생산**: `table_v2/{ir,source_units,text_ir,stored_text,tac*}`가 공통 Document IR을 줄과
   소유 유닛으로 준비한다. 포맷별 파싱을 이 계층에 추가하지 않는다.
 - **측정·분할 조회**: `content`, `grid`, `flow`, `fragment`가 여백·물리 밴드·재귀 컷을
   계산한다. paint 쪽에 별도 높이 계산이나 클리핑 보정을 넣어 조회 결과를 대체하지 않는다.
 - **확정·배치**: `host::HostedTableSession::query/commit`의 proposal과 packet을
-  `typeset/hosted.rs`가 예약·PageItem으로 확정하고 `layout.rs`가 그 packet을 배치한다.
+  `host_flow`와 `host_flow_state::PageFlow`가 예약·확정하고 `host_page`가 동일 조각을 배치한다.
   이전 proposal의 revision·frame을 우회하거나 Legacy PartialTable 컷으로 재변환하지 않는다.
+- **텍스트 paint**: `paragraph_paint/{frame,runs,inline,markers,fields}`는 구성된 줄과
+  물리 프레임을 소비한다. V2 text는 Legacy 엔진을 생성하지 않는다. 명시적 Legacy 호출자는
+  같은 paint에 기존 상태를 빌려주되 인라인 표 배치는 `layout/paragraph_layout`의 어댑터가
+  소유한다. 이 어댑터를 V2에 연결하거나 Legacy 표 캐시를 공통 paint에 옮기지 않는다.
+- **문서·글꼴 상태**: `DocumentCore`가 엔진 선택을 소유하며 V2 문서에는 지속 Legacy 엔진이
+  없다. `FontLayoutState`가 exact font 등록·측정 snapshot을 소유한다. 편집·초기화는 같은
+  등록 세대의 측정 context와 실제 출력을 갱신해야 한다.
 - **진입점 구분**: `TablePreviewExportSession`은 선택 표, `DocumentV2Session`은 독립 본문,
   `HostedSectionSession`은 기존 쪽/단 호스트 연결이다. WASM의 `TableV2Preview`, `DocumentV2`,
-  `HostedSectionV2`가 각각 대응한다. 기존 `HwpDocument`/Studio의 자동 엔진 전환은 아니다.
+  `HostedSectionV2`가 각각 대응한다. 제품 `HwpDocument`/Studio의 기본 V2 경로와 별도 preview
+  API의 지원 범위를 혼동하지 않는다.
 - **변경과 검증**: `tests/cases/issue_7353_*.rs`에서 해당 소비 경로의 계약을 찾는다.
-  qualifier를 완화할 때 원본 IR 속성을 지워 통과시키지 않으며, 지원 밖 입력의 명시적 오류와
-  새 세션을 통한 Legacy 재실행을 보존한다. 원본 전체 검증과 분리 대조군의 검증은 구별한다.
+  qualifier를 완화할 때 원본 IR 속성을 지워 통과시키지 않으며, 지원 밖 입력을 Legacy fallback이나
+  빈 성공으로 숨기지 않는다. 아직 남은 명시적 Legacy API는 별도 대조군이며 삭제 작업의 잔여
+  범위다. 원본 전체 검증과 분리 대조군의 검증은 구별한다.
 
 ### 공통 변경 절차
 

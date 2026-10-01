@@ -501,27 +501,9 @@ impl LayoutEngine {
         body_area: &LayoutRect,
         paper_area: &LayoutRect,
     ) -> (f64, f64) {
-        use crate::model::shape::SizeCriterion;
-
-        let raw_w = common.width as f64;
-        let raw_h = common.height as f64;
-
-        let obj_width = match common.width_criterion {
-            SizeCriterion::Absolute => hwpunit_to_px(common.width as i32, self.dpi),
-            SizeCriterion::Paper => paper_area.width * raw_w / 10000.0,
-            SizeCriterion::Page => body_area.width * raw_w / 10000.0,
-            SizeCriterion::Column => col_area.width * raw_w / 10000.0,
-            SizeCriterion::Para => col_area.width * raw_w / 10000.0,
-        };
-
-        let obj_height = match common.height_criterion {
-            SizeCriterion::Absolute => hwpunit_to_px(common.height as i32, self.dpi),
-            SizeCriterion::Paper => paper_area.height * raw_h / 10000.0,
-            SizeCriterion::Page => body_area.height * raw_h / 10000.0,
-            _ => hwpunit_to_px(common.height as i32, self.dpi),
-        };
-
-        (obj_width, obj_height)
+        crate::renderer::paragraph_paint::object_size(
+            common, col_area, body_area, paper_area, self.dpi,
+        )
     }
 
     pub(crate) fn compute_object_position(

@@ -6,7 +6,6 @@ use crate::model::{paragraph::Paragraph, style::HeadType, table::Table};
 use crate::renderer::{
     composer::{compose_paragraph, layout_paragraph_in_physical_frame},
     hwpunit_to_px,
-    layout::LayoutEngine,
     layout_frame::ParagraphBox,
     page_layout::LayoutRect,
     render_tree::{
@@ -693,10 +692,11 @@ impl TextComposer<'_> {
         )?;
         let mut composed = compose_paragraph(&fresh);
         if let InlineContent::PageField(Some(number)) = inline_content {
-            LayoutEngine::new(self.dpi).substitute_page_auto_numbers_in_composed(
+            crate::renderer::paragraph_paint::fields::substitute_auto_numbers_in_composed(
                 &fresh,
                 &mut composed,
                 number,
+                0,
             );
         }
         let mut frame = PageLayoutContext::new(0, width, 0.0);
@@ -711,28 +711,18 @@ impl TextComposer<'_> {
             width,
             height: 0.0,
         };
-        let end = LayoutEngine::new(self.dpi).layout_composed_paragraph_in_frame(
+        let end = crate::renderer::paragraph_paint::paint_physical_frame(
             &mut frame,
             &mut column,
             &composed,
             self.styles,
             &area,
-            0.0,
-            0,
-            composed.lines.len(),
-            0,
-            0,
-            None,
-            true,
-            false,
-            0.0,
-            None,
-            Some(&fresh),
-            None,
-            None,
-            Some(&physical_rows),
+            &fresh,
+            &physical_rows,
             squeeze,
-        );
+            self.dpi,
+        )
+        .map_err(GeometryError::Unsupported)?;
         super::contracts::nonnegative(end, "composed paragraph end")?;
         for line in &mut column.children {
             super::char_border::connect_outlines(line, self.styles)?;
