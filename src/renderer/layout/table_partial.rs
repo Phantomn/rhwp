@@ -5108,6 +5108,23 @@ impl LayoutEngine {
             align_saved_opening_frame,
         );
 
+        // 어울림 표가 행 안에서 다음 쪽으로 이어지면 새 물리 조각의 맨 위는
+        // 원본 셀의 윗변이 아니다. 반복 제목행이 없는 경우 그 컷 경계에
+        // 수집된 가로선을 그리지 않는다. 2020 PDF의 #6756·#6549는 열린
+        // 윗변을, 자리차지 #5885는 닫힌 윗변을 각각 보여 준다.
+        if is_continuation
+            && !start_cut.is_empty()
+            && header_rows.is_empty()
+            && matches!(
+                table.common.text_wrap,
+                crate::model::shape::TextWrap::Square
+            )
+        {
+            if let Some(first_edge) = h_edges.first_mut() {
+                first_edge.fill(None);
+            }
+        }
+
         // A recovered terminal Square-flow line also owns the final frame edge.
         // Keep the paginator's consumed height separate from this paint-only expansion.
         if self.profile.get().hwp5_stored_pagination_layout()
