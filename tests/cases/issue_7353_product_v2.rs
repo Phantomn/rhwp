@@ -407,7 +407,7 @@ fn product_v2_multisection_preserves_global_address_paper_and_source_ownership()
     for p in &mut second.paragraphs {
         for c in &mut p.controls {
             if let Control::SectionDef(def) = c {
-                *def = Box::new(second.section_def.clone());
+                **def = second.section_def.clone();
             }
         }
     }

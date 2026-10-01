@@ -3,7 +3,7 @@ import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { runTest, loadApp, createNewDocument, assert, screenshot, setTestCase } from './helpers.mjs';
 
-const out = resolve('../output/7353/wasm-product/w3/studio');
+const out = resolve(process.env.RHWP_V2_E2E_OUT ?? '../output/7353/wasm-product/w3/studio');
 mkdirSync(out, { recursive: true });
 const pause = page => page.evaluate(() => new Promise(ok => setTimeout(ok, 300)));
 async function historyKey(page, key) {
