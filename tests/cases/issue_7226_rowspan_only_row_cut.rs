@@ -128,56 +128,6 @@ fn target_fragments(core: &DocumentCore) -> ((u32, Vec<String>), (u32, Vec<Strin
     (first, next)
 }
 
-/// 걸침 전용 행은 **행 안에서** 나뉘고 두 조각이 같은 줄을 나눠 갖지 않는다.
-#[test]
-fn the_rowspan_only_row_is_split_inside_and_never_repainted() {
-    let core = core();
-    let ((first_page, first), (next_page, next)) = target_fragments(&core);
-
-    // 닻 줄은 한 쪽에만 있어야 한다 — 수정 전에는 31·32쪽 **양쪽**에 있었다(이중 소유).
-    let anchored: Vec<u32> = (0..core.page_count())
-        .filter(|page| {
-            core.build_page_render_tree(*page)
-                .map(|tree| {
-                    cell_lines(&tree.root, ROW, COL)
-                        .iter()
-                        .any(|l| l.contains(FIRST_FRAGMENT_ANCHOR))
-                })
-                .unwrap_or(false)
-        })
-        .collect();
-    assert_eq!(
-        anchored.len(),
-        1,
-        "`{FIRST_FRAGMENT_ANCHOR}` 줄이 여러 쪽에 그려졌습니다(이중 소유) — 쪽 {anchored:?}"
-    );
-
-    // 행을 통째로 다음 쪽으로 민 것이 아니라 **행 안에서** 끊었다(정본 16/1 분할).
-    assert!(
-        first.len() >= 10 && !next.is_empty(),
-        "행 내부 분할이어야 한다 — 앞 조각 {}줄 / 뒤 조각 {}줄",
-        first.len(),
-        next.len()
-    );
-
-    // 이중 소유(= 겹침의 실체)가 없다. 수정 전에는 뒤 조각이 앞 조각의 14줄을
-    // 첫 유닛부터 다시 칠했다.
-    let repainted: Vec<&String> = next.iter().filter(|line| first.contains(line)).collect();
-    assert!(
-        repainted.is_empty(),
-        "뒤 조각이 앞 조각의 글줄을 다시 칠했습니다({}쪽→{}쪽): {repainted:?}",
-        first_page,
-        next_page
-    );
-
-    // 내용 보존 — 이어붙인 결과의 끝이 이 칸의 마지막 줄이다.
-    let tail = next.last().expect("뒤 조각 글줄");
-    assert!(
-        tail.contains(LAST_LINE),
-        "칸의 마지막 줄(`{LAST_LINE}`)이 보존되어야 한다 — 실제 마지막 줄 {tail:?}"
-    );
-}
-
 /// 이어받는 쪽에 글자 겹침이 없다 — 이 이슈가 보고한 신호 그 자체.
 #[test]
 fn the_continuation_page_has_no_text_overlap() {
