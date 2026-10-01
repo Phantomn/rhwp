@@ -76,6 +76,7 @@
 - 페이지별 일치율은 [TSV 전용 절차](mydocs/manual/verification/visual_sweep_guide.md#실루엣-보조값만-빠르게-tsv-산출)를 우선 사용한다.
   검증 대상 전체 페이지의 Native/fresh WASM TSV에서 최저값·90% 미만·누락 쪽을 기록하고,
   미달/구조 차이/대표 경계만 비교 PNG를 추가 생성해 직접 판독한다. 대표 PR 이미지 제출은 유지한다.
+  실루엣 계산 방법·이진화 원값·색상 경계 대조 픽셀 수도 함께 기록한다.
   TSV 성공·`not_evaluated`만으로 승인하지 않으며 각주 수량·문단 소속·누락·중복·전체 쪽수를 별도 검증한다.
   기존 PNG 재사용 결과와 최신 코드 재출력을 구분하고 입력 해시·빌드/글꼴 출처를 보존한다.
 - **렌더링 변경은 [Visual Sweep](mydocs/manual/verification/visual_sweep_guide.md)으로 검증한다.**

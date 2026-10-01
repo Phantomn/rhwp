@@ -46,6 +46,34 @@ class SubpixelTolerantContentMatchTests(unittest.TestCase):
         self.assertIsNotNone(value)
         self.assertLess(value, 100.0)
 
+    def test_visible_color_across_ink_boundary_keeps_same_silhouette(self) -> None:
+        native = Image.new("RGB", (16, 16), (224, 235, 255))
+        pdf = Image.new("RGB", (16, 16), (234, 242, 255))
+        details = SWEEP.subpixel_tolerant_content_match_details(native, pdf)
+        self.assertEqual(details["silhouette_raw_match_percent"], 0.0)
+        self.assertEqual(details["tolerant_content_match_percent"], 100.0)
+        self.assertEqual(details["silhouette_boundary_reconciled_pixels"], 256)
+        self.assertEqual(details, SWEEP.subpixel_tolerant_content_match_details(pdf, native))
+
+    def test_missing_pale_picture_is_not_reconciled_with_white(self) -> None:
+        native = Image.new("RGB", (16, 16), (224, 235, 255))
+        for white in [(255, 255, 255), (244, 244, 244)]:
+            with self.subTest(white=white):
+                pdf = Image.new("RGB", (16, 16), white)
+                self.assertEqual(SWEEP.subpixel_tolerant_content_match_percent(native, pdf), 0.0)
+
+    def test_large_color_change_across_boundary_remains_unmatched(self) -> None:
+        native = Image.new("RGB", (16, 16), (180, 200, 255))
+        pdf = Image.new("RGB", (16, 16), (234, 242, 255))
+        self.assertEqual(SWEEP.subpixel_tolerant_content_match_percent(native, pdf), 0.0)
+
+    def test_displaced_pale_picture_is_not_matched_to_white(self) -> None:
+        native = Image.new("RGB", (40, 32), "white")
+        pdf = native.copy()
+        ImageDraw.Draw(native).rectangle((4, 4, 12, 27), fill=(224, 235, 255))
+        ImageDraw.Draw(pdf).rectangle((20, 4, 28, 27), fill=(234, 242, 255))
+        self.assertEqual(SWEEP.subpixel_tolerant_content_match_percent(native, pdf), 0.0)
+
 
 class PrReviewGateTests(unittest.TestCase):
     def test_help_renders_the_percent_threshold(self) -> None:

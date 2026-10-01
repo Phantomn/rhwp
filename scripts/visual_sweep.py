@@ -103,6 +103,7 @@ FRAME_TAIL_LINE_OVERFLOW_MIN_PX = 4.0
 COLUMN_X_OVERLAP_LIMIT = 0.55
 QUESTION_MARKER_Y_DRIFT_LIMIT_PX = 42.0
 DEFAULT_PIXEL_DIFF_THRESHOLD = 32
+SILHOUETTE_METHOD = "threshold_boundary_color_support_v1"
 PR_REVIEW_MIN_TOLERANT_CONTENT_MATCH_PERCENT = 90.0
 VISUAL_SWEEP_RUN_SCHEMA_VERSION = 2
 VISUAL_SWEEP_PAGE_SCHEMA_VERSION = 1
@@ -1772,9 +1773,9 @@ def is_content_pixel(pixel: tuple[int, int, int]) -> bool:
     return min(r, g, b) < 232 or max(r, g, b) - min(r, g, b) > 24
 
 
-def subpixel_tolerant_content_match_percent(
+def subpixel_tolerant_content_match_details(
     rhwp: Image.Image, pdf: Image.Image, *, radius_px: int = 2
-) -> float | None:
+) -> dict[str, object]:
     """작은 rasterization 오프셋을 허용해 내용 실루엣을 비교한다.
 
     엄격 ink 지표는 색상·픽셀 차이의 검토 기준으로 남기고, 이 값은
@@ -1802,15 +1803,52 @@ def subpixel_tolerant_content_match_percent(
         pdf_near = pdf_mask
 
     content_union = ImageChops.lighter(rhwp_mask, pdf_mask).histogram()[255]
-    mismatched = ImageChops.lighter(
+    unresolved_mask = ImageChops.lighter(
         ImageChops.subtract(rhwp_mask, pdf_near),
         ImageChops.subtract(pdf_mask, rhwp_near),
-    ).histogram()[255]
-    if not content_union:
-        # 양쪽에 내용 픽셀이 없는 빈 쪽은 같은 실루엣이다. 한쪽만 비면
-        # union이 양수이므로 아래 식에서 0%이며, 누락된 캡처와 구분한다.
-        return 100.0
-    return round((1.0 - mismatched / content_union) * 100.0, 5)
+    )
+    raw_mismatched = unresolved_mask.histogram()[255]
+    mismatched = raw_mismatched
+    # 이진화 경계의 양쪽에 걸친 유사한 유색 픽셀도 같은 위치에 내용이 있다.
+    # 진짜 흰 배경은 제외하므로 옅은 그림의 누락을 색상 허용치로 숨기지 않는다.
+    rhwp_channels, pdf_channels = rhwp.split(), pdf.split()
+    rhwp_min = ImageChops.darker(ImageChops.darker(*rhwp_channels[:2]), rhwp_channels[2])
+    pdf_min = ImageChops.darker(ImageChops.darker(*pdf_channels[:2]), pdf_channels[2])
+    visible = ImageChops.multiply(
+        rhwp_min.point([255 if value < 244 else 0 for value in range(256)]),
+        pdf_min.point([255 if value < 244 else 0 for value in range(256)]),
+    )
+    delta_channels = [ImageChops.difference(a, b) for a, b in zip(rhwp_channels, pdf_channels)]
+    max_delta = ImageChops.lighter(ImageChops.lighter(*delta_channels[:2]), delta_channels[2])
+    similar = max_delta.point([
+        255 if value <= DEFAULT_PIXEL_DIFF_THRESHOLD else 0 for value in range(256)
+    ])
+    boundary_disagreement = ImageChops.difference(rhwp_mask, pdf_mask)
+    same_position_support = ImageChops.multiply(
+        boundary_disagreement, ImageChops.multiply(visible, similar)
+    )
+    reconciled = ImageChops.multiply(unresolved_mask, same_position_support).histogram()[255]
+    mismatched -= reconciled
+    details = {
+        "silhouette_method": SILHOUETTE_METHOD,
+        "silhouette_raw_match_percent": round((1.0 - raw_mismatched / content_union) * 100.0, 5)
+        if content_union else 100.0,
+        "silhouette_boundary_reconciled_pixels": reconciled,
+        "silhouette_color_tolerance": DEFAULT_PIXEL_DIFF_THRESHOLD,
+        "silhouette_content_union_pixels": content_union,
+        "tolerant_content_match_percent": round((1.0 - mismatched / content_union) * 100.0, 5)
+        if content_union else 100.0,
+    }
+    return details
+
+
+def subpixel_tolerant_content_match_percent(
+    rhwp: Image.Image, pdf: Image.Image, *, radius_px: int = 2
+) -> float:
+    """공통 실루엣 계산 결과의 일치율만 반환한다."""
+    return float(subpixel_tolerant_content_match_details(
+        rhwp, pdf, radius_px=radius_px
+    )["tolerant_content_match_percent"])
 
 
 def is_dark_pixel(pixel: tuple[int, int, int]) -> bool:
@@ -5091,9 +5129,10 @@ def make_overlay_page(
     ink_match_percent = (1.0 - ink_diff_ratio) * 100.0 if ink_union_pixels else None
     visual_accuracy_proxy_percent = ink_match_percent if ink_match_percent is not None else pixel_match_percent
     tolerant_radius_px = 2
-    tolerant_content_match_percent = subpixel_tolerant_content_match_percent(
+    silhouette_details = subpixel_tolerant_content_match_details(
         rhwp, pdf, radius_px=tolerant_radius_px
     )
+    tolerant_content_match_percent = silhouette_details["tolerant_content_match_percent"]
     diff_bbox = None
     if bbox_max_x >= 0:
         diff_bbox = [bbox_min_x, bbox_min_y, bbox_max_x, bbox_max_y]
@@ -5105,6 +5144,7 @@ def make_overlay_page(
             {
                 "visual_accuracy_proxy_percent": visual_accuracy_proxy_percent,
                 "tolerant_content_match_percent": tolerant_content_match_percent,
+                **silhouette_details,
             }
         ),
         font,
@@ -5141,7 +5181,7 @@ def make_overlay_page(
         "ink_match_percent": round(ink_match_percent, 5) if ink_match_percent is not None else None,
         "visual_accuracy_proxy_percent": round(visual_accuracy_proxy_percent, 5),
         "tolerant_content_match_radius_px": tolerant_radius_px,
-        "tolerant_content_match_percent": tolerant_content_match_percent,
+        **silhouette_details,
         "mean_abs_channel_delta": round(total_abs_delta / (total_pixels * 3), 3)
         if total_pixels
         else 0.0,
@@ -5188,9 +5228,11 @@ def review_comment_line(metrics: dict[str, object] | None) -> str:
     strict_percent = metrics.get("visual_accuracy_proxy_percent") if metrics else None
     tolerant_percent = metrics.get("tolerant_content_match_percent") if metrics else None
     if isinstance(strict_percent, (int, float)) and isinstance(tolerant_percent, (int, float)):
+        raw = metrics.get("silhouette_raw_match_percent") if metrics else None
+        boundary_note = f" 이진화 원값 {raw:.2f}%." if isinstance(raw, (int, float)) else ""
         return (
             "코멘트: 2px 이웃 관용 내용 실루엣 일치율 보조값 = 약 "
-            f"{tolerant_percent:.2f}% (엄격 내용 픽셀: {strict_percent:.2f}%)."
+            f"{tolerant_percent:.2f}% (엄격 내용 픽셀: {strict_percent:.2f}%)." + boundary_note
         )
     if isinstance(strict_percent, (int, float)):
         return f"코멘트: 내용 픽셀 중심 자동 일치율 보조값 = 약 {strict_percent:.2f}%."
@@ -5298,12 +5340,15 @@ def write_silhouette_tsv(
     metrics = []
     inputs = []
     with tsv.open("w", encoding="utf-8") as stream:
-        stream.write("page\ttolerant_content_match_percent\tbelow_90\n")
+        stream.write("page\ttolerant_content_match_percent\tbelow_90\tsilhouette_raw_match_percent\tsilhouette_boundary_reconciled_pixels\n")
         for page, rhwp_path, pdf_path in pairs:
             with Image.open(rhwp_path) as rhwp, Image.open(pdf_path) as pdf:
-                value = subpixel_tolerant_content_match_percent(rhwp, pdf)
-            metrics.append({"page": page, "tolerant_content_match_percent": value})
-            stream.write(f"{page}\t{value:.5f}\t{int(value < PR_REVIEW_MIN_TOLERANT_CONTENT_MATCH_PERCENT)}\n")
+                details = subpixel_tolerant_content_match_details(rhwp, pdf)
+                value = details["tolerant_content_match_percent"]
+            metrics.append({"page": page, **details})
+            stream.write(f"{page}\t{value:.5f}\t{int(value < PR_REVIEW_MIN_TOLERANT_CONTENT_MATCH_PERCENT)}"
+                         f"\t{details['silhouette_raw_match_percent']:.5f}"
+                         f"\t{details['silhouette_boundary_reconciled_pixels']}\n")
             inputs.append({
                 "page": page,
                 "rhwp_png": str(rhwp_path),
@@ -5319,7 +5364,8 @@ def write_silhouette_tsv(
         "requested_pages": [page for page, _, _ in pairs],
         "completed_pages": [page for page, _, _ in pairs],
         "missing_pages": [], "tsv": str(tsv), "radius_px": 2,
-        "inputs": inputs, "pr_review_gate": gate,
+        "inputs": inputs, "metrics": metrics, "silhouette_method": SILHOUETTE_METHOD,
+        "color_tolerance": DEFAULT_PIXEL_DIFF_THRESHOLD, "pr_review_gate": gate,
     }
     write_json_atomic(out_dir / "silhouette_manifest.json", manifest)
     print(f"실루엣 보조값 {len(pairs)}쪽: {tsv}", flush=True)

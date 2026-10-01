@@ -97,7 +97,16 @@ WASM은 같은 원문·PDF에 `--wasm-pkg pkg`와 검증한 `--rhwp-bin`을 명�
 대표 이미지의 PR 본문 표시 의무는 유지하며, 그 밖의 전쪽 overlay 합성은 기본 요구가 아니다.
 코드가 바뀌면 영향 범위의 TSV와 대표 이미지도 새 head에서 다시 산출한다.
 
-TSV 열은 `page`, `tolerant_content_match_percent`, `below_90`이다.
+TSV의 첫 세 열은 `page`, `tolerant_content_match_percent`, `below_90`이며,
+`silhouette_raw_match_percent`, `silhouette_boundary_reconciled_pixels`를 뒤에 함께 기록한다.
+232 이진화 경계가 유색 PDF 픽셀을 빈 영역으로 오판하는 경우를 구분하기 위해 원값을 보존한다.
+내용 마스크232·2px 반경은 유지하며, 원래 불일치 픽셀 중 같은 위치 양쪽 모두 흰 배경
+(모든 RGB 채널244 이상)이 아니고 RGB 최대 차이가 고정32 이내이면 내용의 존재가 일치한다.
+32는 기존 엄격 overlay의 기본 색상 허용치이며 사용자 `--pixel-diff-threshold`와 무관하게
+실루엣 산출에서는 고정한다. 실제 흰 영역의 그림 누락, 2px 밖 이동, 큰 색상 변화는 제외하지 않는다.
+엄격 색상·픽셀 지표도 그대로 남기며 변경된 보조값만으로 색상 정확도나 최종 승인을 주장하지 않는다.
+기존 실행과 비교할 때에는 방법 버전 `threshold_boundary_color_support_v1`·원값·조정 픽셀 수를
+함께 보고 전체 검증 대상으로 다시 산출한다. 특정 문서만 임계값·영역을 바꾸지 않는다.
 `--pages 10,17,28`로 선택할 수 있으며, 번호 중복·양쪽 입력 누락을 허용하지 않는다.
 `silhouette_manifest.json`에 입력 PNG 해시와 비교 쪽을 기록한다. 기존 PNG 해시는
 현재 코드로 출력했다는 증명이 아니므로 원래 실행의 source/build provenance를 함께 확인한다.
