@@ -9,7 +9,7 @@ last_verified: 2026-10-02
 
 ## 최종 판정
 
-**메인터너 보정 후 수용 가능.** 검토 브랜치는 `review/planet6897-7382-20260926`이며, 생산 코드 검증 후보는 `cd85bdf434f5c2522f2a24c3a59f3413f644a5a4`, base는 `02530b9ed567a44663edb26c65fb565c4a79f00d`입니다. 원 PR head `81a402179dc556cce781d844d4b9252be36ba8af` 자체의 승인이 아니라 체리픽·메인터너 보정 통합 후보의 판정입니다. 통합 PR의 정확한 최종 head CI와 mergeability를 확인한 뒤 병합합니다.
+**메인터너 보정 후 수용 가능.** 검토 브랜치는 `review/planet6897-7382-20260926`이며, 생산 코드 검증 후보는 `cd85bdf434f5c2522f2a24c3a59f3413f644a5a4`, base는 `02530b9ed567a44663edb26c65fb565c4a79f00d`입니다. 원 PR head `81a402179dc556cce781d844d4b9252be36ba8af` 자체의 승인이 아니라 체리픽·메인터너 보정 통합 후보의 판정입니다. [통합 PR #7505](https://github.com/edwardkim/rhwp/pull/7505)의 코드 후보 `b8da28d30e4bd6cddc0bccac55d22d53f623c5db` Full CI가 통과했습니다. 아래 문서 보완 trailing head의 게이트와 mergeability를 확인한 뒤 병합합니다.
 
 - 최종 코드 전체 nextest: **10,229 PASS / 0 FAIL / 50 SKIP**, threads=8, release-test, locked, no-fail-fast, exit0. Native Skia lib·그림·직접 PDF 내보내기 3개 경로, doc tests, Native/WASM Clippy, workspace build/all-target Clippy, fmt와 suite/unit 정책 검사도 통과했습니다. generated harness를 재생성한 뒤 정책 검사를 재실행했으며 파생 파일은 커밋하지 않습니다.
 - 원본 HWPX와 독립 한컴2024 PDF는 모두 **215쪽**입니다. Native/fresh WASM 전수215쪽 TSV의 최저는 **22쪽90.01587%**, **90% 미만0쪽**, 88쪽은 **98.62448%**입니다. 휴먼명조 TrueType을 확인한 [명시적 글꼴 환경](../assets/pr7382_20260926/stage325_font_environment.json), print·96dpi·전체 글꼴 임베드를 사용했습니다.
@@ -4152,3 +4152,10 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 2. 원 PR #7382에는 원 기여의 진단·표/각주 예약 개선을 인정하고, 추가 쪽 경계·글꼴·수식·기존 검사 교정이 필요한 이유와 통합 증거를 한국어 존댓말로 설명한 뒤 통합 PR 링크와 함께 close합니다. 기여자 fork branch는 보존합니다.
 3. #7379의 실제 종료 상태를 확인하고215쪽·다섯 경계 증거를 연결합니다. #7445와 다른 미해결 피델리티 이슈는 종료하지 않습니다.
 4. devel 동기화와 이번 작업의 소유 브랜치·output 정리를 수행합니다. 원본 문서·커밋한 증적·공유 target/pr-review는 보존합니다. 병합 전에는 후속 완료로 기록하지 않습니다.
+
+
+## 통합 PR #7505 코드 후보 CI 완료
+
+- 코드+증적 head `b8da28d30e4bd6cddc0bccac55d22d53f623c5db`의 [Full CI / Build & Test](https://github.com/edwardkim/rhwp/actions/runs/36900285152)가 성공했습니다. 실제 default-feature Archive A/B/C/D, Native Skia, lint와 frontend package gate를 수행했습니다. 원 contributor CI나 과거 head를 재사용한 판정이 아닙니다.
+- [Render Diff](https://github.com/edwardkim/rhwp/actions/runs/36900284576), [Adapter inter-diff](https://github.com/edwardkim/rhwp/actions/runs/36900285143), [Proptest](https://github.com/edwardkim/rhwp/actions/runs/36900285134), [CodeQL](https://github.com/edwardkim/rhwp/actions/runs/36900285288), Skill router와 CI Impact Policy도 성공했습니다.
+- 코드 후보 CI 녹색 이후 이 기록과 오늘할일의 통합 링크만 같은 PR의 trailing 문서 commit으로 보완합니다. source·test·baseline·기준 PDF·시각 증거는 변경하지 않습니다. 새 문서 head의 preflight/집계와 정확한 SHA를 별도로 확인합니다. 병합 후 확정 merge SHA·duration 결과와 실제 원 PR/이슈 후속 상태는 GitHub 후속 comment에 기록하며 별도 번호용 검토 문서나 기록 전용 PR을 만들지 않습니다.
