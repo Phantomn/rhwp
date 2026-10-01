@@ -156,10 +156,19 @@ function makeHandler(wasm, start, { insertMode = false, editMode = 'normal', exi
     const fi = wasm.getFieldInfoAt(pos);
     return editMode === 'form' && fi.inField && fi.editableInForm ? fi : null;
   };
-  // InputHandler.updateFieldMarkers 와 같다: 캐럿이 누름틀 안이면 활성화하고, 밖이나 빠져나온 끝이면 해제한다.
+  // InputHandler.fieldBoundaryKey 처럼 빠져나온 누름틀 끝을 문단·누름틀·끝 위치로 기억한다.
+  const exitKeyOf = (pos, fi) => `${pos.parentParaIndex ?? -1}:${fi?.fieldId}:${fi?.endCharIdx}`;
+  let fieldEndExitKey = exitedFieldEnd ? exitKeyOf(start, wasm.getFieldInfoAt(start)) : null;
+  // InputHandler.updateFieldMarkers 와 같다: 빠져나온 끝이면 해제한다. 아니면 빠져나온 상태를 잊고
+  // 캐럿이 누름틀 안이면 활성화, 밖이면 해제한다.
   const syncActiveField = () => {
     const fi = wasm.getFieldInfoAt(position);
-    if (fi.inField && !h.isAtExitedFieldEnd(position, fi)) wasm.setActiveField(position);
+    if (fi.inField && h.isAtExitedFieldEnd(position, fi)) {
+      wasm.clearActiveField();
+      return;
+    }
+    fieldEndExitKey = null;
+    if (fi.inField) wasm.setActiveField(position);
     else wasm.clearActiveField();
   };
   const h = {
@@ -195,7 +204,7 @@ function makeHandler(wasm, start, { insertMode = false, editMode = 'normal', exi
       return !!fi && pos.charOffset >= fi.startCharIdx && pos.charOffset + count <= fi.endCharIdx;
     },
     // 오른쪽 화살표로 누름틀 끝을 빠져나온 상태
-    isAtExitedFieldEnd: (pos, fi) => exitedFieldEnd && pos.charOffset === fi?.endCharIdx,
+    isAtExitedFieldEnd: (pos, fi) => fieldEndExitKey !== null && fieldEndExitKey === exitKeyOf(pos, fi),
     resetRawTextMutationEffects() {},
     consumeRawTextMutationBeforeCursor: () => false,
     prepareTextMutationBeforeCursor: () => false,
@@ -459,6 +468,44 @@ scenario('18. 표 셀에서도 누름틀 바로 앞 IME 조합은 누름틀 밖�
   makeHandler(wasm, cellPos(1)).compose('ㅎ', '하');
   assert.equal(wasm.doc.cell, 'a하cde');
   assert.equal(rangesOf(wasm, 'cellRanges'), 'field 2-4', '하가 누름틀 안으로 들어가면 안 된다');
+});
+
+// ── 빠져나온 누름틀 끝의 IME: abcde 의 ab(0..2)·de(3..5)가 누름틀 A·B, 캐럿은 → 로 A 끝을 나온 2 ──
+// 누름틀 조회는 끝 위치도 A 안으로 친다. c 를 덮은 첫 조합 글자 뒤 캐럿이 B 시작에 서면 B 가
+// 활성화되고, 다음 조합 갱신이 그 글자를 지웠다 다시 넣어도 B 안으로 끌려가면 안 된다.
+function exitedEndRun(act, { body = 'abcde', ranges = [['field', 0, 2], ['field', 3, 5]], at = 2, cell = false, insertMode = false } = {}) {
+  const wasm = cell ? makeWasm({ cell: body, cellRanges: ranges }) : makeWasm({ body, ranges });
+  const h = makeHandler(wasm, (cell ? cellPos : bodyPos)(at), { insertMode, exitedFieldEnd: true });
+  act(h);
+  return { text: cell ? wasm.doc.cell : wasm.doc.body, ranges: rangesOf(wasm, cell ? 'cellRanges' : 'ranges') };
+}
+const twoFields = 'field 0-2, field 3-5';
+
+scenario('19. 빠져나온 누름틀 끝의 IME 조합은 다음 누름틀로 끌려가지 않는다', () => {
+  assert.deepEqual(exitedEndRun((h) => h.compose('ㅎ', '하')), { text: 'ab하de', ranges: twoFields },
+    '하가 B 안으로 들어가면 안 된다');
+  assert.equal(exitedEndRun((h) => h.type('X')).ranges, twoFields, '일반 입력도 범위를 그대로 둔다');
+  assert.deepEqual(exitedEndRun((h) => { h.compose('ㅎ', '하'); h.undo(); }), { text: 'abcde', ranges: twoFields });
+  assert.deepEqual(exitedEndRun((h) => h.compose('ㅎ', '하'), { insertMode: true }),
+    { text: 'ab하cde', ranges: 'field 0-2, field 4-6' }, '삽입 모드는 그대로다');
+});
+
+scenario('20. 표 셀에서도 빠져나온 누름틀 끝의 IME 조합은 다음 누름틀 밖에 남는다', () => {
+  assert.deepEqual(exitedEndRun((h) => h.compose('ㅎ', '하'), { cell: true }), { text: 'ab하de', ranges: twoFields });
+});
+
+scenario('21. 빠져나온 누름틀 끝에서 두 음절을 치면 일반 입력과 같은 범위가 된다', () => {
+  assert.deepEqual(exitedEndRun((h) => { h.compose('ㅎ', '하'); h.compose('ㄷ', '다'); }),
+    { text: 'ab하다e', ranges: twoFields });
+  assert.equal(exitedEndRun((h) => h.type('XY')).ranges, twoFields);
+});
+
+scenario('22. 양식 같은 "홍 길동": 이름 누름틀 끝에서 공백을 덮은 글자는 다음 누름틀 밖에 남는다', () => {
+  const form = { body: '홍 길동', ranges: [['field', 0, 1], ['field', 2, 4]], at: 1 };
+  assert.deepEqual(exitedEndRun((h) => h.compose('ㅇ', '이'), form), { text: '홍이길동', ranges: 'field 0-1, field 2-4' },
+    '이가 길동 누름틀 안으로 들어가면 안 된다');
+  assert.deepEqual(exitedEndRun((h) => { h.compose('ㅇ', '이'); h.undo(); }, form),
+    { text: '홍 길동', ranges: 'field 0-1, field 2-4' });
 });
 
 if (failures.length > 0) {

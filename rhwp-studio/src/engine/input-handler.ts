@@ -531,6 +531,8 @@ export class InputHandler {
   private _compositionCovered: string | null = '';
   /** [#7489] 이번 조합이 덮기 직전 문단 조각. 조합 취소면 되살리고, 확정이면 기록에 넘긴다. */
   private _compositionFragment: number | null = null;
+  /** [#7489] 덮은 조합의 앵커가 누름틀 밖(빠져나온 끝 포함)인가. 덮을 글자를 정할 때 함께 정한다. */
+  private _compositionOutsideField = false;
   private _lastCompositionText = '';
   private _lastComposedText = '';
   /** HF 선택 위 IME는 선택 삭제와 최종 조합 문자열을 하나의 snapshot으로 기록한다. */

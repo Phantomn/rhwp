@@ -621,12 +621,18 @@ export function onInput(this: any, e?: InputEvent): void {
     const covering = this._compositionCovered === null && text;
     if (covering) {
       this._compositionCovered = overwrittenTextAt.call(this, anchor, text);
-      if (this._compositionCovered) this._compositionFragment = captureTextFragment(this.wasm, anchor);
+      if (this._compositionCovered) {
+        this._compositionFragment = captureTextFragment(this.wasm, anchor);
+        // 앵커가 누름틀 밖인지 편집기의 빠져나온 끝 상태로 지금 정한다(빠져나온 시작에서는 덮지 않는다).
+        // 누름틀 조회는 끝 위치도 안으로 치고, 그 상태는 첫 갱신 뒤 캐럿이 다음 누름틀에 들어가면 지워진다.
+        const fi = this.wasm.getFieldInfoAt(anchor);
+        this._compositionOutsideField = !fi.inField || this.isAtExitedFieldEnd?.(anchor, fi);
+      }
       this.compositionLength += charCount(this._compositionCovered);
     }
     // [#7489] 덮은 글자 뒤 캐럿이 누름틀 시작에 서면 그 누름틀이 활성화된다. 앵커가 누름틀 밖이면
-    // replace 전에 해제해, 지웠다 다시 넣는 조합 글자가 누름틀 안으로 끌려가지 않게 한다.
-    if (this._compositionCovered && !this.wasm.getFieldInfoAt(anchor).inField) this.wasm.clearActiveField();
+    // replace 전마다 해제해, 지웠다 다시 넣는 조합 글자가 누름틀 안으로 끌려가지 않게 한다.
+    if (this._compositionCovered && this._compositionOutsideField) this.wasm.clearActiveField();
     try {
       this.replaceTextAtRaw(anchor, this.compositionLength, text);
     } catch (err) {
