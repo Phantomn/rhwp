@@ -13870,6 +13870,18 @@ impl LayoutEngine {
                             && before.vertical_pos > 0
                             && after.vertical_pos == 0
                         {
+                            // reset은 다음 내용의 소유 경계이지 현재 물리 프레임의
+                            // 마지막 간격을 항상 버리라는 뜻이 아니다. 선언 첫 프레임이
+                            // 온전한 prefix와 padding을 담으면 그 간격도 첫 쪽에 남는다.
+                            let (_, _, top, bottom) = self.resolve_cell_padding(cell, table);
+                            let full_prefix =
+                                units[..end_cut].iter().map(|unit| unit.height).sum::<f64>()
+                                    + top
+                                    + bottom;
+                            let declared = hwpunit_to_px(table.common.height as i32, self.dpi);
+                            if declared > 0.0 && (declared - full_prefix).abs() <= 0.5 {
+                                return 0.0;
+                            }
                             return hwpunit_to_px(before.line_spacing.max(0), self.dpi)
                                 .min(closing.height);
                         }
