@@ -522,9 +522,9 @@ pub(in crate::renderer::typeset) fn native_hwp5_existing_body_footnote_area_heig
     Some(total)
 }
 
-/// 이미 예약된 각주 영역을 침범하는 native HWP5 본문 reset tail을 찾는다.
+/// 이미 예약된 각주 영역을 침범하는 안정된 저장 본문의 reset 꼬리를 찾는다.
 ///
-/// HWP5는 한 문단의 뒤쪽 줄을 다음 physical page에 두면서 `vpos=0`으로 저장한다.
+/// HWP/HWPX는 한 문단의 뒤쪽 줄을 다음 물리 쪽에 두면서 `vpos=0`으로 저장한다.
 /// 기존 각주가 있는 page에서 이 신호를 전역으로 따르면 과분할될 수 있으므로, source 좌표가
 /// 현재 flow와 맞고 reset 직전 줄은 FootnoteArea 위에 끝나며 다음 줄만 실제 각주 경계를
 /// 침범하는 경우에만 허용한다. 이 조건은 p43의 pi=512처럼 body tail이 separator/첫 각주를
@@ -536,7 +536,7 @@ pub(in crate::renderer::typeset) fn native_hwp5_existing_footnote_reset_overlap_
     paragraphs: &[Paragraph],
     dpi: f64,
 ) -> Option<usize> {
-    if !st.profile.hwp5_stored_pagination_layout()
+    if !stored_body_note_pagination(st)
         || st.col_count != 1
         || st.current_footnote_height <= 0.0
         || !para_has_visible_text(para)
