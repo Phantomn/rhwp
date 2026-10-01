@@ -2,8 +2,9 @@
 
 use crate::renderer::typeset::{
     controls, hwpunit_to_px, is_synthetic_line_seg, nearest_saved_rowbreak_frame_row_end,
-    para_has_non_whitespace_text, paragraph, partial_rowbreak_fragment_spacing_px,
-    row_geometry_table, saved_rowbreak_first_fragment_flow_overflow_allowance, table,
+    para_has_non_whitespace_text, para_has_visible_text, paragraph,
+    partial_rowbreak_fragment_spacing_px, row_geometry_table,
+    saved_rowbreak_first_fragment_flow_overflow_allowance, table,
     table_declared_object_covers_cell_row_frames, Control, TypesetEngine, TypesetState,
     SINGLE_ROW_DECLARED_TRUST_MAX_RATIO,
 };
@@ -581,6 +582,55 @@ impl TypesetEngine {
         } else {
             None
         };
+        // 뒤 호스트의 양수 되감김과 선언 높이가 같은 온전한 행 끝을 가리키면,
+        // 첫 조각은 그 행까지만 소유한다. 일반 최근접 스냅이나 꼬리말 여유로
+        // 다음 행을 앞당겨 수용하지 않는다. 실제 출력의 온전한 행 높이를 쓴다.
+        let exact_source_row_end = (!is_continuation
+            && cursor_row == 0
+            && start_cut.is_empty()
+            && source_next_positive_rewind
+            && (st.profile.hwp5_stored_pagination_layout() || st.profile.hwpx_stored_layout())
+            && !st.profile.session_edited()
+            && !para.stored_text_partition_is_dirty()
+            && !para_has_visible_text(para)
+            && !self.render_normalization.table_text_reflowed(table)
+            && !table.common.treat_as_char
+            && table_footnotes.is_empty()
+            && st.current_footnote_height <= 0.0
+            && std::ptr::eq(row_geometry_table, table)
+            && table.cells.iter().all(|cell| cell.row_span == 1)
+            && matches!(
+                table.page_break,
+                crate::model::table::TablePageBreak::RowBreak
+            ))
+        .then(|| {
+            let line = para
+                .line_segs
+                .iter()
+                .find(|line| !is_synthetic_line_seg(line))?;
+            let anchor =
+                hwpunit_to_px(line.vertical_pos - st.vpos_page_base.unwrap_or(0), self.dpi);
+            let frame = hwpunit_to_px(table.common.height as i32, self.dpi);
+            if frame <= 0.0
+                || (anchor - st.current_height).abs() > 0.5
+                || anchor + frame > table_available + 0.5
+            {
+                return None;
+            }
+            let mut bottom = 0.0;
+            prepared
+                .whole_row_fit_heights
+                .iter()
+                .enumerate()
+                .take(row_count.saturating_sub(1))
+                .find_map(|(row, height)| {
+                    bottom += height + if row > 0 { cs } else { 0.0 };
+                    ((bottom - frame).abs() <= 0.5).then_some(row + 1)
+                })
+        })
+        .flatten();
+        let scan_row_count =
+            exact_source_row_end.map_or(scan_row_count, |end| scan_row_count.min(end));
         // [#6123] 저장 행 높이(행 안 row_span==1 셀의 최대 저장 높이). 프레임
         // 바닥이 진짜 행 경계인지 저장 좌표계에서 검산하는 데 쓴다.
         let stored_row_heights: Vec<f64> = (0..row_count)
