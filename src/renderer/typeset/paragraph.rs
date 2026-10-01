@@ -567,6 +567,15 @@ pub(super) fn try_absorb_rowbreak_guide(
     false
 }
 
+/// 저장 줄 상자가 본문 높이를 넘으면 빈 꼬리 흡수와 끝 쪽 제거 모두에서 보존한다.
+/// Enter 재조판은 쪽 경계에서 vpos를 되감지 않으므로 이 줄은 실제 흐름을 점유한다.
+pub(super) fn stored_line_overflows_body(para: &Paragraph, body_height: f64, dpi: f64) -> bool {
+    let body_height_hu = crate::renderer::px_to_hwpunit(body_height, dpi);
+    para.line_segs
+        .first()
+        .is_some_and(|ls| ls.vertical_pos.saturating_add(ls.line_height) > body_height_hu)
+}
+
 /// 다단 조판의 조기 반환 뒤에서만 실행한다. 숨김 옵션의 페이지 수명과 구역 끝 처리를 구분한다.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn try_absorb_empty_paragraph(
@@ -596,6 +605,11 @@ pub(super) fn try_absorb_empty_paragraph(
             st.commit_counted_hidden_paragraph(para_idx);
             return true;
         }
+    }
+    // 마지막 빈 문단도 유효한 줄 상자를 소유한다. 저장 줄이 이미 본문 밖에
+    // 있으면 미세 drift용 Hidden/Unadvanced 처리로 그 소유를 없애지 않는다.
+    if stored_line_overflows_body(para, st.layout.body_area.height, st.layout.dpi) {
+        return false;
     }
     match empty::trailing_disposition(
         para,

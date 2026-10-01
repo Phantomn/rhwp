@@ -1,4 +1,5 @@
 //! 확정 페이지의 빈 꼬리·머리말·꼬리말·쪽 번호를 마무리한다.
+use crate::renderer::typeset::paragraph::stored_line_overflows_body;
 use crate::renderer::typeset::{
     stored_vpos_top_collision, ColumnBreakType, Control, HeaderFooterApply, HeaderFooterRef,
     PageContent, PageItem, Paragraph,
@@ -29,8 +30,6 @@ pub(super) fn discard_terminal_blank_only_page(
     let Some(last_page) = pages.last() else {
         return;
     };
-    let body_height_hu =
-        crate::renderer::px_to_hwpunit(last_page.layout.body_area.height, last_page.layout.dpi);
     let mut has_item = false;
     let blank_only = last_page.column_contents.iter().all(|column| {
         if !column.wrap_around_paras.is_empty() {
@@ -53,10 +52,11 @@ pub(super) fn discard_terminal_blank_only_page(
                 && paragraphs
                     .get(*para_index - 1)
                     .is_some_and(|prev| stored_vpos_top_collision(prev, para));
-            let stored_line_overflows_body = para
-                .line_segs
-                .first()
-                .is_some_and(|ls| ls.vertical_pos.saturating_add(ls.line_height) > body_height_hu);
+            let stored_line_overflows_body = stored_line_overflows_body(
+                para,
+                last_page.layout.body_area.height,
+                last_page.layout.dpi,
+            );
             no_visible_text
                 && para.controls.is_empty()
                 && !opened_by_stored_vpos_reset
