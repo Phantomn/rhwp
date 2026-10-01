@@ -234,6 +234,40 @@ impl HeightCursor {
         let Some(prev_para) = paragraphs.get(prev_pi) else {
             return y_offset;
         };
+        // 수식 부분 재조판으로 바뀐 높이를 연속된 옛 저장 사다리가 복원하지 않게 한다.
+        // 단/쪽 리셋이나 실제 저장 gap은 아래 기존 경로가 소유한다.
+        if self.suppress_hwpx_stale_forward
+            && !self.session_edited
+            && crate::renderer::composer::uses_remeasured_equation_frame(prev_para)
+        {
+            if let Some((previous, current)) = prev_para.line_segs.last().zip(
+                paragraphs
+                    .get(item_para)
+                    .and_then(|para| para.line_segs.first()),
+            ) {
+                let previous_end = previous
+                    .vertical_pos
+                    .saturating_add(previous.line_height)
+                    .saturating_add(previous.line_spacing);
+                if current.vertical_pos > previous.vertical_pos
+                    && current.vertical_pos == previous_end
+                {
+                    let anchor = if self.vpos_page_base.is_some() {
+                        self.col_anchor_y
+                    } else {
+                        self.col_area_y
+                    };
+                    let base = current.vertical_pos
+                        - crate::renderer::px_to_hwpunit(y_offset - anchor, self.dpi);
+                    if self.vpos_page_base.is_some() {
+                        self.vpos_page_base = Some(base);
+                    } else {
+                        self.vpos_lazy_base = Some(base);
+                    }
+                    return y_offset;
+                }
+            }
+        }
         // 재조판한 일반 본문은 이미 소비한 실제 줄 끝에서 이어진다.
         // 합성 vpos에는 문단 앞 간격이나 이전 재조판의 높이가 반영되지 않을 수
         // 있으므로 저장 절대 원점처럼 다시 적용하지 않는다. 그 뒤의 저장 빈 줄도

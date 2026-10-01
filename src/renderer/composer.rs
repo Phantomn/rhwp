@@ -4200,3 +4200,10 @@ pub(crate) fn bullet_marker_width(para: &Paragraph, styles: &ResolvedStyleSet) -
     let lang = para.text.chars().next().map_or(0, detect_lang_category);
     estimate_text_width(&text, &resolved_to_text_style(styles, style_id, lang))
 }
+
+/// 공유 프레임이 저장 수식 메트릭을 실제 부분 재조판하는 경로인지 판별한다.
+pub(crate) fn uses_remeasured_equation_frame(para: &Paragraph) -> bool {
+    line_breaking::remeasured_equation_start_row(para).is_some()
+        && line_breaking::supports_cached_body_frame_controls(para)
+        && !para.stored_text_partition_is_dirty()
+}
