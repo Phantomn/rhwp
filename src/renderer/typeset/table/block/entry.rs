@@ -1362,7 +1362,14 @@ impl TypesetEngine {
                     else {
                         return false;
                     };
+                    // 흐름 커서에는 표 뒤의 글줄·간격도 포함된다. 이미 확정한
+                    // 표의 점유 끝을 넘는 저장 원점은 앞 표와 충돌하지 않는다.
+                    // 배치 계획이 없는 표는 기존의 보수적인 이월 판정을 유지한다.
                     *para_index != para_idx
+                        && !st
+                            .paragraph_float_placements
+                            .get(&(*para_index, *control_index))
+                            .is_some_and(|previous| previous.occupied_bottom <= placement.table_top)
                         && paragraphs_all
                             .get(*para_index)
                             .and_then(|host| host.controls.get(*control_index))
