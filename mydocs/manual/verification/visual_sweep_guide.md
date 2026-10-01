@@ -2,7 +2,7 @@
 kind: guide
 status: active
 canonical: mydocs/manual/verification/visual_verification_governance.md
-last_verified: 2026-09-30
+last_verified: 2026-10-01
 ---
 
 # PDF/SVG visual sweep 가이드
@@ -48,6 +48,37 @@ PNG는 인쇄 프로필 실행의 점수·증적과 섞지 않고 새 출력에�
 있다. 이런 차이를 DPI·글꼴 문제로 단정하거나 SVG를 사후 확대해 통과시키지 않는다.
 같은 원문을 지정한 한컴 엔진으로 다시 PDF 출력해 용지 크기·글자 크기·대표 PNG를
 대조하고, 여전히 다른 쪽은 시각 보류와 출력 구현 범위로 기록한다(#6778).
+
+## 실루엣 보조값만 빠르게 TSV 산출
+
+`--silhouette-only`는 기존과 같은 2px 관용 실루엣 계산식으로 `silhouette.tsv`를
+저장한다. compare·overlay·review PNG와 상세 구조 분석은 생성하지 않는다.
+원문 입력 시 비교용 SVG/PDF raster는 필요하므로 생성하며, 이미 있는 PNG는
+`--png-pair`로 재사용해 원문 export·raster 작업도 생략할 수 있다.
+
+```bash
+python3 scripts/visual_sweep.py --silhouette-only \
+  --png-pair output/<기존 실행>/<key>/rhwp_png output/<기존 실행>/<key>/pdf_png \
+  --out output/<새 실행>/silhouette
+```
+
+```bash
+python3 scripts/visual_sweep.py --silhouette-only \
+  --hwp samples/<원문>.hwp --pdf pdf/<기준>.pdf --key <key> \
+  --rhwp-bin target/pr-review/release-test/rhwp --dpi 96 \
+  --out output/<새 실행>
+```
+
+TSV 열은 `page`, `tolerant_content_match_percent`, `below_90`이다.
+`--pages 10,17,28`로 선택할 수 있으며, 번호 중복·양쪽 입력 누락을 허용하지 않는다.
+`silhouette_manifest.json`에 입력 PNG 해시와 비교 쪽을 기록한다. 기존 PNG 해시는
+현재 코드로 출력했다는 증명이 아니므로 원래 실행의 source/build provenance를 함께 확인한다.
+일반 PNG checkpoint를 사용하는 `--resume`과는 함께 실행하지 않는다.
+
+90% 미만이면 TSV를 남기고 exit 1로 끝난다. 모두 90% 이상이어도 이 모드의
+PR 판정은 `not_evaluated`다. 전체 쪽수, 각주·문단 소속, 누락·중복은 별도로 확인하고,
+문제가 있는 쪽은 일반 실행으로 review PNG를 생성해 직접 검토한다.
+실루엣 보조값만으로 PR 승인이나 회귀 fixture 적합성을 판정하지 않는다.
 
 ## PR review 실루엣 gate
 

@@ -3917,3 +3917,11 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 겹침 검사의 전체16개 partition **16/16 PASS**, 기존 #7379 **14/14 PASS**, 각각 exit0입니다. 첫 컴파일의 누락 import를 수정한 뒤 재컴파일·재검증했습니다. 원본 HWP/HWPX CLI는 각각215쪽을 유지합니다. 새 회귀 함수·기준값 변경은 없습니다. [검증 원장](../assets/pr7382_20260926/stage311_text_content_reservation_validation.json).
 - 생산 코드 후 전체 nextest는 아직 재실행 전입니다. 사용자가 확인한 그림·각주 잔존을 순서대로 검토하고 마지막 후보로 전수 검증합니다.
 - 원본의 fresh Hancom2024 PDF 변환은 성공(215쪽,3,790,026bytes)했습니다. 그림3 JPEG의 배경색도 기존PDF와 같아 재출력만으로10쪽67%가 해소되지 않음을 확인했습니다. 기존PDF는 유지하며 새PDF는 현재 ignored output에서 대조 중입니다.
+
+
+## 보정312 — PNG 합성 없는 실루엣 TSV 모드
+
+- 사전 분석: 전쪽 sweep에서 raster 이후 compare·overlay·review 합성과 상세 분석이 보조값 확인을 지연합니다. 기존 2px·90% 계산 계약을 유지하고 별도 `--silhouette-only` 모드와 기존 raster 재사용 `--png-pair`를 추가했습니다. 최소 RGB 마스크와 불일치 집계를 동일한 PIL 연산으로 계산해 픽셀별 Python 순회도 줄였습니다.
+- 실제 Native 10·11·17·28·75·84·85·88쪽 8개를 **0.891초**에 TSV로 산출했습니다. 기존 overlay 지표와 소수점5자리까지 **8/8 동일**, 새 PNG0개입니다. 90% 미만 쪽이 있어 예상대로 exit1입니다. 원문 선택11쪽 export 경로도 exit0이고 compare·overlay·review 디렉터리를 생성하지 않았습니다.
+- 기존 Python 도구 테스트 **77/77 PASS**, exit0입니다. 새 테스트 함수를 추가하지 않고 기존 검사에서 TSV 지표 일치·PNG 미생성·누락 입력 거부·승인 판정 금지를 확인했습니다. 가이드에 명령·입력 provenance·검증 범위를 추가했습니다. [실행 증거](../assets/pr7382_20260926/stage312_silhouette_tsv_validation.json).
+- 보조값이 모두90% 이상이어도 이 모드는 `not_evaluated`로 기록합니다. 각주·문단 소속과 전체 쪽수 및 직접 시각 검토는 별도로 필요합니다. 사용자 확인 시각 차단과 최종 전체 renderer 검증은 해결·통과로 기록하지 않습니다.

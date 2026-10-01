@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 
 LABEL_FONT_ENV = "RHWP_VISUAL_SWEEP_LABEL_FONT"
@@ -1474,6 +1474,7 @@ def render_target(
     embed_fonts: str | None = None,
     font_paths: list[Path] | None = None,
     font_mismatch_evidence: Path | None = None,
+    silhouette_only: bool = False,
 ) -> dict[str, object]:
     print(f"== {target.key} ==", flush=True)
     if dpi <= 0:
@@ -1502,17 +1503,10 @@ def render_target(
         # 기본 실행은 이 target의 이전 산출물을 새 실행과 섞지 않는다. 기존과 달리
         # --resume일 때만 이 디렉터리를 보존한다.
         clean_dir(base)
-    for directory in (
-        svg_dir,
-        rhwp_png_dir,
-        pdf_png_dir,
-        compare_dir,
-        overlay_dir,
-        review_dir,
-        analysis_dir,
-        tree_dir,
-        page_manifest_dir(base),
-    ):
+    directories = [svg_dir, rhwp_png_dir, pdf_png_dir, tree_dir, analysis_dir]
+    if not silhouette_only:
+        directories.extend([compare_dir, overlay_dir, review_dir, page_manifest_dir(base)])
+    for directory in directories:
         directory.mkdir(parents=True, exist_ok=True)
 
     environment_args = []
@@ -1590,6 +1584,28 @@ def render_target(
         for page in requested_pdf_pages:
             if page not in existing_pdf_pages:
                 run(pdf_raster_commands(pdf, dpi, pdf_prefix, [page])[0], cwd=root)
+    if silhouette_only:
+        all_pdf_pngs = sorted(pdf_png_dir.glob("*.png"), key=page_num)
+        sources = select_source_page_paths(
+            all_svg_paths, all_tree_paths, all_pdf_pngs, selected_pages
+        )
+        pairs = []
+        for page, svg_path, _, pdf_path in sources:
+            png = rhwp_png_dir / f"rhwp_{page:03d}.png"
+            run(
+                svg_raster_command(root, svg_path, png, dpi / 96.0, svg_rasterizer),
+                cwd=root, verbose=False,
+            )
+            pairs.append((page, png, pdf_path))
+        manifest = write_silhouette_tsv(pairs, base, target.key)
+        manifest["provenance"] = provenance
+        manifest["exported_svg_pages"] = len(all_svg_paths)
+        manifest["exported_render_tree_pages"] = len(all_tree_paths)
+        manifest["exported_pdf_pages"] = len(all_pdf_pngs)
+        write_json_atomic(base / "silhouette_manifest.json", manifest)
+        update_root_summary(out_root, manifest)
+        return manifest
+
     # PDF text layer is a candidate-only input for question-marker drift. Some
     # legacy HWP PDFs contain PUA strings that make Poppler's pdftotext abort,
     # while their raster pages remain valid visual oracles. Keep the raster
@@ -1767,11 +1783,16 @@ def subpixel_tolerant_content_match_percent(
     if radius_px < 0:
         raise ValueError("radius_px must be non-negative")
     rhwp, pdf = padded_pair(rhwp.convert("RGB"), pdf.convert("RGB"))
-    width, height = rhwp.size
-    rhwp_mask = Image.new("L", (width, height), 0)
-    pdf_mask = Image.new("L", (width, height), 0)
-    rhwp_mask.putdata([255 if is_content_pixel(pixel) else 0 for pixel in rhwp.getdata()])
-    pdf_mask.putdata([255 if is_content_pixel(pixel) else 0 for pixel in pdf.getdata()])
+    # 8비트 RGB에서 채널차>24이면 최소 채널은230 이하이므로,
+    # 기존 is_content_pixel 판정은 최소 채널<232와 정확히 같다.
+    # PIL 연산으로 같은 마스크를 만들며 임계값이나 비교 영역은 바꾸지 않는다.
+    def content_mask(image: Image.Image) -> Image.Image:
+        r, g, b = image.split()
+        minimum = ImageChops.darker(ImageChops.darker(r, g), b)
+        return minimum.point([255 if value < 232 else 0 for value in range(256)])
+
+    rhwp_mask = content_mask(rhwp)
+    pdf_mask = content_mask(pdf)
     if radius_px:
         kernel = radius_px * 2 + 1
         rhwp_near = rhwp_mask.filter(ImageFilter.MaxFilter(kernel))
@@ -1780,19 +1801,11 @@ def subpixel_tolerant_content_match_percent(
         rhwp_near = rhwp_mask
         pdf_near = pdf_mask
 
-    content_union = 0
-    mismatched = 0
-    for rhwp_content, pdf_content, rhwp_neighbor, pdf_neighbor in zip(
-        rhwp_mask.getdata(),
-        pdf_mask.getdata(),
-        rhwp_near.getdata(),
-        pdf_near.getdata(),
-    ):
-        if not (rhwp_content or pdf_content):
-            continue
-        content_union += 1
-        if (rhwp_content and not pdf_neighbor) or (pdf_content and not rhwp_neighbor):
-            mismatched += 1
+    content_union = ImageChops.lighter(rhwp_mask, pdf_mask).histogram()[255]
+    mismatched = ImageChops.lighter(
+        ImageChops.subtract(rhwp_mask, pdf_near),
+        ImageChops.subtract(pdf_mask, rhwp_near),
+    ).histogram()[255]
     if not content_union:
         # 양쪽에 내용 픽셀이 없는 빈 쪽은 같은 실루엣이다. 한쪽만 비면
         # union이 양수이므로 아래 식에서 0%이며, 누락된 캡처와 구분한다.
@@ -5274,6 +5287,67 @@ def make_contact_sheet(compare_pages: list[Path], out_path: Path) -> Path:
     return out_path
 
 
+def write_silhouette_tsv(
+    pairs: list[tuple[int, Path, Path]], out_dir: Path, key: str
+) -> dict[str, object]:
+    """이미지 증적을 새로 만들지 않고 같은 2px 보조 지표와 입력 해시만 저장한다."""
+    if not pairs:
+        raise SystemExit("실루엣 비교 입력이 없습니다.")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    tsv = out_dir / "silhouette.tsv"
+    metrics = []
+    inputs = []
+    with tsv.open("w", encoding="utf-8") as stream:
+        stream.write("page\ttolerant_content_match_percent\tbelow_90\n")
+        for page, rhwp_path, pdf_path in pairs:
+            with Image.open(rhwp_path) as rhwp, Image.open(pdf_path) as pdf:
+                value = subpixel_tolerant_content_match_percent(rhwp, pdf)
+            metrics.append({"page": page, "tolerant_content_match_percent": value})
+            stream.write(f"{page}\t{value:.5f}\t{int(value < PR_REVIEW_MIN_TOLERANT_CONTENT_MATCH_PERCENT)}\n")
+            inputs.append({
+                "page": page,
+                "rhwp_png": str(rhwp_path),
+                "rhwp_sha256": hashlib.sha256(rhwp_path.read_bytes()).hexdigest(),
+                "pdf_png": str(pdf_path),
+                "pdf_sha256": hashlib.sha256(pdf_path.read_bytes()).hexdigest(),
+            })
+    gate = pr_review_gate(metrics, font_mismatch_evidence=None)
+    if gate["status"] == "passed":
+        gate = {"status": "not_evaluated", "reason": "실루엣 보조값만 산출; 직접 시각·각주·본문 소유 검토 필요"}
+    manifest = {
+        "key": key, "mode": "silhouette_only", "run_state": "complete",
+        "requested_pages": [page for page, _, _ in pairs],
+        "completed_pages": [page for page, _, _ in pairs],
+        "missing_pages": [], "tsv": str(tsv), "radius_px": 2,
+        "inputs": inputs, "pr_review_gate": gate,
+    }
+    write_json_atomic(out_dir / "silhouette_manifest.json", manifest)
+    print(f"실루엣 보조값 {len(pairs)}쪽: {tsv}", flush=True)
+    return manifest
+
+
+def silhouette_png_pairs(
+    rhwp_dir: Path, pdf_dir: Path, selected_pages: list[int] | None
+) -> list[tuple[int, Path, Path]]:
+    """기존 raster를 읽을 때 번호 누락·중복을 묵인하거나 작은 쪽수에 맞춰 자르지 않는다."""
+    def indexed(directory: Path) -> dict[int, Path]:
+        result = {}
+        for path in sorted(directory.glob("*.png")):
+            page = page_num(path)
+            if page in result:
+                raise SystemExit(f"중복 raster 쪽 번호: {directory} p{page}")
+            result[page] = path
+        return result
+
+    rhwp = indexed(rhwp_dir)
+    pdf = indexed(pdf_dir)
+    requested = selected_pages or sorted(set(rhwp) | set(pdf))
+    missing = [page for page in requested if page not in rhwp or page not in pdf]
+    if missing:
+        raise SystemExit(f"실루엣 입력 쪽 누락: {missing}; rhwp={len(rhwp)}, pdf={len(pdf)}")
+    return [(page, rhwp[page], pdf[page]) for page in requested]
+
+
 def custom_targets_from_args(args: argparse.Namespace) -> list[Target]:
     targets: list[Target] = []
     if args.hwp or args.pdf:
@@ -5310,6 +5384,14 @@ def main() -> None:
             "검증할 preset target입니다. 여러 번 지정할 수 있습니다. "
             "target과 일반 파일 입력을 모두 생략하면 전체 preset을 실행합니다."
         ),
+    )
+    parser.add_argument(
+        "--silhouette-only", action="store_true",
+        help="overlay·compare·review PNG 및 상세 분석을 생략하고 같은2px 실루엣 보조값만 TSV로 저장합니다.",
+    )
+    parser.add_argument(
+        "--png-pair", nargs=2, type=Path, metavar=("RHWP_PNG_DIR", "PDF_PNG_DIR"),
+        help="--silhouette-only에서 기존 raster 두 디렉터리를 비교합니다. 원문 재출력 없이 입력 해시를 기록합니다.",
     )
     parser.add_argument("--out", default="output/task1274")
     parser.add_argument(
@@ -5388,6 +5470,19 @@ def main() -> None:
         raise SystemExit("--pixel-diff-threshold는 0 이상 255 이하로 지정해야 합니다.")
     selected_pages = parse_page_selection(args.page, args.pages)
 
+    if args.silhouette_only and args.resume:
+        parser.error("실루엣 전용 모드는 일반 PNG checkpoint의 --resume을 사용하지 않습니다.")
+    if args.png_pair:
+        if not args.silhouette_only:
+            parser.error("--png-pair는 --silhouette-only와 함께 사용합니다.")
+        if args.target or args.hwp or args.pdf or args.file_target or args.wasm_pkg:
+            parser.error("--png-pair와 원문 export 입력은 함께 사용하지 않습니다.")
+        pairs = silhouette_png_pairs(*args.png_pair, selected_pages)
+        manifest = write_silhouette_tsv(pairs, Path(args.out), args.key or "png-pair")
+        if manifest["pr_review_gate"]["status"] == "re_review_required":
+            raise SystemExit("실루엣 보조값 90% 미만: TSV를 확인하고 직접 검토하세요.")
+        return
+
     root = Path.cwd()
     if args.wasm_pkg is not None:
         args.wasm_pkg = resolve_input_path(root, args.wasm_pkg)
@@ -5424,6 +5519,7 @@ def main() -> None:
             embed_fonts=args.embed_fonts,
             font_paths=args.font_path,
             font_mismatch_evidence=args.font_mismatch_evidence,
+            silhouette_only=args.silhouette_only,
         )
         gate = manifest.get("pr_review_gate")
         if isinstance(gate, dict) and gate.get("status") == "re_review_required":

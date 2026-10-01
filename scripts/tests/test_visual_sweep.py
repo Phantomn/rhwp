@@ -161,6 +161,14 @@ class OverlayLabelFitTests(unittest.TestCase):
             summary = result["summary"]
             self.assertIsInstance(summary["average_tolerant_content_match_percent"], float)
             self.assertIsInstance(summary["worst_tolerant_content_match_percent"], float)
+            fast_dir = temp_dir / "fast"
+            manifest = SWEEP.write_silhouette_tsv([(14, rhwp_path, pdf_path)], fast_dir, "summary")
+            row = (fast_dir / "silhouette.tsv").read_text().splitlines()[1].split("\t")
+            self.assertEqual(float(row[1]), summary["worst_tolerant_content_match_percent"])
+            self.assertFalse(list(fast_dir.rglob("*.png")))
+            self.assertNotEqual(manifest["pr_review_gate"]["status"], "passed")
+            with self.assertRaises(SystemExit):
+                SWEEP.silhouette_png_pairs(temp_dir, temp_dir, [15])
 
     def test_long_key_label_ink_stays_inside_canvas(self) -> None:
         with tempfile.TemporaryDirectory() as raw_dir:
