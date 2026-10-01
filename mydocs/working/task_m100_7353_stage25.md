@@ -1,9 +1,14 @@
 ---
 kind: report
-status: active
+status: historical
 ---
 
 # #7353 — Legacy 표 구현 의존 제거
+
+> **2026-10-01: 이번 접근 백지화로 기존 실행계획을 폐기했다.** 아래 구현·검증은
+> 당시 범위의 기록이며 다음 제거 작업의 지시가 아니다.
+> [실패 경위와 폐기 결정](../troubleshootings/issue7353_v2_refactoring_approach_withdrawal.md)을 따른다.
+> 코드와 증적은 보존했고, Legacy 제거 완료나 결함 해결을 선언하지 않는다.
 
 ## 범위와 기준
 

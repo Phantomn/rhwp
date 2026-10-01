@@ -132,9 +132,11 @@ SOLID는 책임별 변경 위치·좁은 입력·가시성 경계에, CQRS는 �
 
 ### #7353 V2 제품 경로의 책임 지도 (refactor/0.9.0, 2026-10-01)
 
-위 #7280 지도는 Legacy 책임 경계다. 현재 리팩토링 브랜치의 WASM/Studio 기본 경로는 V2이며,
-Legacy 표 구현을 실제 제거하는 작업을 진행 중이다. 지원 범위·검증 상태·후속 작업의 정본은
-[#7353 구현계획](../plans/task_m100_7353_impl.md)의 5.7이다. 아래 연결은 현재 브랜치 기준이며
+위 #7280 지도는 Legacy 책임 경계다. **2026-10-01 작업지시자가 #7353의 이번 접근을
+백지화하여 기존 구현계획과 그에 따른 Legacy 제거 작업은 중단했다.**
+[실패 경위와 폐기 결정](../troubleshootings/issue7353_v2_refactoring_approach_withdrawal.md)을 우선한다.
+아래 연결은 `refactor/0.9.0`의 `43eeb3380` 코드 상태 기록이지 채택된 후속 설계가 아니다.
+WASM/Studio 기본 V2 선택은 코드 변경 없이 남아 있으며 실제 원본 로드 실패가 있다.
 devel 반영, 모든 문서 지원 또는 Legacy 파일 삭제 완료를 뜻하지 않는다.
 
 - **내용 생산**: `table_v2/{ir,source_units,text_ir,stored_text,tac*}`가 공통 Document IR을 줄과

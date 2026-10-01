@@ -17,6 +17,7 @@ last_verified: 2026-07-17
 
 ## 최근 항목
 
+- [#7353 V2 리팩토링 접근 실패와 백지화](issue7353_v2_refactoring_approach_withdrawal.md) (2026-10-01 — 정상 컨트롤 결합 거부, 검증 경로 불일치, 기존 실행계획 폐기)
 - [HWP3 내장 OLE 참조명을 외부 파일로 오분류 — 테스트가 오분류를 제도화](hwp3_ole_reference_name_misclassification.md) (2026-07-26, #3363 — 프로세스 실패 해부 포함)
 
 ## 최근 분류된 레이아웃·왕복 충실도 항목
