@@ -1749,7 +1749,24 @@ impl DocumentCore {
         font_embed_mode: crate::renderer::svg::FontEmbedMode,
         font_paths: &[std::path::PathBuf],
     ) -> Result<String, HwpError> {
-        let tree = self.build_page_layer_tree_with_profile(page_num, RenderProfile::Screen)?;
+        self.render_page_svg_with_fonts_and_profile(
+            page_num,
+            font_embed_mode,
+            font_paths,
+            RenderProfile::Screen,
+        )
+    }
+
+    /// 글꼴을 공급하면서 출력 프로필에 따른 편집 전용 표시를 판정한다.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn render_page_svg_with_fonts_and_profile(
+        &self,
+        page_num: u32,
+        font_embed_mode: crate::renderer::svg::FontEmbedMode,
+        font_paths: &[std::path::PathBuf],
+        profile: RenderProfile,
+    ) -> Result<String, HwpError> {
+        let tree = self.build_page_layer_tree_with_profile(page_num, profile)?;
         let mut renderer = SvgLayerRenderer::new();
         renderer.inner_mut().font_embed_mode = font_embed_mode;
         renderer.inner_mut().font_paths = font_paths.to_vec();
@@ -2309,7 +2326,7 @@ impl DocumentCore {
             .data
             .load_limited_shared(crate::model::bin_data::MAX_BIN_DATA_BYTES)?;
         let (mime, bytes) =
-            crate::renderer::image_resolver::emitted_image_bytes(&data, variant.bakes_watermark());
+            crate::renderer::image_resolver::emitted_source_image_bytes(&data, variant);
         Some((mime, bytes.into_owned()))
     }
 
@@ -2500,19 +2517,21 @@ impl DocumentCore {
                 if let Some((width, height)) = image.original_size_hu {
                     let _ = write!(buf, ",\"originalSizeHu\":[{},{}]", width, height);
                 }
+                let (effect, brightness, contrast) =
+                    crate::renderer::image_resolver::resolved_image_effects(image, resolved);
                 // 효과는 값으로 넘긴다 — CSS filter 조립은 studio 의 `composeImageFilter` 가
                 // `web_canvas.rs::compose_image_filter` 와 맞춰 두었으므로 여기서 되풀이하지 않는다.
                 let _ = write!(
                     buf,
                     ",\"effect\":\"{}\",\"brightness\":{},\"contrast\":{}",
-                    match image.effect {
+                    match effect {
                         crate::model::image::ImageEffect::RealPic => "realPic",
                         crate::model::image::ImageEffect::GrayScale => "grayScale",
                         crate::model::image::ImageEffect::BlackWhite => "blackWhite",
                         crate::model::image::ImageEffect::Pattern8x8 => "pattern8x8",
                     },
-                    image.brightness,
-                    image.contrast
+                    brightness,
+                    contrast
                 );
                 if matches!(
                     resolved.map(|payload| payload.kind),
@@ -4605,6 +4624,7 @@ impl DocumentCore {
             .with_hwp3_variant(profile.hwp3_layout())
             .with_legacy_hwp3_stored_geometry(profile.legacy_hwp3_stored_geometry())
             .with_native_hwp5(profile.native_hwp5_layout())
+            .with_hwpx_stored_layout(profile.hwpx_stored_layout())
             .with_session_edited(profile.session_edited())
             .with_hwp3_origin_flow_spacing_before(hwp3_origin_flow_spacing_before);
         let column_def = Self::find_initial_column_def(paragraphs);
@@ -4741,6 +4761,7 @@ impl DocumentCore {
                 .step_resumable_table_pagination(
                     &mut pending.renderer_job,
                     paragraph,
+                    &section.paragraphs,
                     table,
                     measured_table,
                     &self.styles,
@@ -4944,6 +4965,7 @@ impl DocumentCore {
             .with_hwp3_variant(profile.hwp3_layout())
             .with_legacy_hwp3_stored_geometry(profile.legacy_hwp3_stored_geometry())
             .with_native_hwp5(profile.native_hwp5_layout())
+            .with_hwpx_stored_layout(profile.hwpx_stored_layout())
             .with_session_edited(profile.session_edited())
             .with_hwp3_origin_flow_spacing_before(hwp3_origin_flow_spacing_before)
             .with_render_normalization(std::sync::Arc::clone(&self.render_normalization.overlay));

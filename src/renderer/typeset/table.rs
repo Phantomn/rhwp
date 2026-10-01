@@ -132,10 +132,13 @@ pub(super) fn format(
                     let fn_height = estimate_footnote_note_height(fn_ctrl, dpi);
                     table_footnote_height += fn_height;
                     table_footnote_count += 1;
-                    let fragment_split = profile()
-                        .hwp5_stored_pagination_layout()
-                        .then(|| native_hwp5_footnote_reset_fragments(fn_ctrl, dpi))
-                        .flatten();
+                    // 두 저장 컨테이너 모두 같은 명시적 각주 줄 재시작을 보존한다.
+                    // 조회는 저장 줄과 구성 줄의 일대일 대응을 확인하며,
+                    // 편집·합성 메타데이터를 분할 신호로 쓰지 않는다.
+                    let fragment_split = (profile().hwp5_stored_pagination_layout()
+                        || (profile().hwpx_stored_layout() && !profile().session_edited()))
+                    .then(|| native_hwp5_footnote_reset_fragments(fn_ctrl, dpi))
+                    .flatten();
                     table_footnotes.push(TableCellFootnote {
                         number: fn_ctrl.number,
                         cell_index: cell_idx,
