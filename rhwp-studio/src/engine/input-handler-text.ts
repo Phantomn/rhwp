@@ -14,10 +14,7 @@ import {
   InsertTextInFootnoteCommand,
   insertTextWithMutationEffects,
   deleteTextWithMutationEffects,
-  replaceBodyTextWithMutationEffects,
-  canUseDeferredCellTextReplace,
-  replaceCellTextWithMutationEffects,
-  canUseLocalBodyTextReplace,
+  replaceTextWithMutationEffects,
   cellParaIndexOf,
   IMMEDIATE_TEXT_MUTATION_EFFECTS,
   NO_TEXT_MUTATION_EFFECTS,
@@ -46,6 +43,47 @@ import {
  */
 function charCount(s: string): number {
   return [...s].length;
+}
+
+/**
+ * [#7489] 수정(덮어쓰기) 모드에서 `text`가 덮어쓸 캐럿 뒤 글자를 돌려준다. 삽입 모드면 ''.
+ *
+ * 한컴처럼 입력한 글자 수만큼 같은 문단의 일반 글자만 덮어쓴다. 문단 끝, 탭·강제 줄바꿈 같은
+ * 제어 문자, 본문의 글자처럼 취급한 개체, 누름틀 경계를 만나면 멈추고 나머지는 삽입한다.
+ * 머리말/꼬리말·각주는 글자를 읽는 API가 없어 삽입을 유지한다. 조회가 실패해도 삽입한다.
+ */
+export function overwrittenTextAt(this: any, pos: DocumentPosition, text: string): string {
+  if (this.insertMode !== false || !text) return '';
+  if (this.cursor.isInHeaderFooter() || this.cursor.isInFootnote()) return '';
+  try {
+    let limit = charCount(text);
+    const fi = this.wasm.getFieldInfoAt(pos);
+    if (fi.inField && fi.fieldType === 'clickhere') {
+      // 누름틀 시작 밖에서는 필드 글자를, 필드 안에서는 끝 너머 글자를 지우지 않는다.
+      if (this.isAtExitedFieldStart?.(pos, fi)) return '';
+      if (!this.isAtExitedFieldEnd?.(pos, fi)) limit = Math.min(limit, (fi.endCharIdx ?? 0) - pos.charOffset);
+    }
+    if (limit <= 0) return '';
+    const next = [...this.getTextAt(pos, limit)];
+    const inBody = pos.parentParaIndex === undefined;
+    const logicalAt = (offset: number): number =>
+      this.wasm.textToLogicalOffset(pos.sectionIndex, pos.paragraphIndex, offset);
+    let logical = inBody ? logicalAt(pos.charOffset) : 0;
+    let count = 0;
+    for (const ch of next) {
+      if (ch < ' ') break;
+      if (inBody) {
+        // 개체는 텍스트에 없고 논리 오프셋만 한 칸 차지한다 — 두 칸 이상 뛰면 개체가 끼어 있다.
+        const after = logicalAt(pos.charOffset + count + 1);
+        if (after - logical > 1) break;
+        logical = after;
+      }
+      count++;
+    }
+    return next.slice(0, count).join('');
+  } catch {
+    return '';
+  }
 }
 
 const FOOTNOTE_DELETE_TITLE = '각주 삭제';
@@ -392,6 +430,8 @@ export function onCompositionStart(this: any): void {
 
   this.resetRawTextMutationEffects();
   this.headerFooterSelectionComposition = false;
+  // [#7489] null = 첫 조합 글자가 들어올 때 덮어쓸 글자를 정한다. 선택을 지웠으면 덮어쓰지 않는다.
+  this._compositionCovered = this.cursor.hasSelection() ? '' : null;
   // 선택 영역이 있으면 삭제 후 조합 시작
   if (
     this.cursor.isInHeaderFooter()
@@ -446,6 +486,8 @@ export function onCompositionEnd(this: any): void {
   const anchor = this.compositionAnchor;
   const finalLength = this.compositionLength;
   const headerFooterSelectionComposition = this.headerFooterSelectionComposition === true;
+  const covered: string = this._compositionCovered || '';
+  this._compositionCovered = '';
 
   this.isComposing = false;
   this.compositionAnchor = null;
@@ -454,6 +496,13 @@ export function onCompositionEnd(this: any): void {
   this.caret.hideComposition();
   this.updateCaret();
   this.resetRawTextMutationEffects();
+
+  // [#7489] 조합이 글자 없이 끝나면(취소) 덮었던 글자를 제자리에 되살린다. 기록할 편집은 없다.
+  if (anchor && finalLength === 0 && covered) {
+    this.insertTextAtRaw(anchor, covered);
+    this.consumeRawTextMutationBeforeCursor();
+    this.afterEdit();
+  }
 
   // 더블 자음 분리 방지: compositionEnd 시점에 조합 완료된 텍스트 기억
   // 직후 유령 input 이벤트에서 동일 텍스트가 오면 무시
@@ -489,8 +538,12 @@ export function onCompositionEnd(this: any): void {
     } else {
       const insertedText = this.getTextAt(anchor, finalLength);
       if (insertedText) {
-        // execute() 없이 히스토리에만 기록 (텍스트는 이미 문서에 있음)
-        this.executeOperation({ kind: 'record', command: new InsertTextCommand(anchor, insertedText) });
+        // execute() 없이 히스토리에만 기록 (텍스트는 이미 문서에 있음). 덮어쓴 글자도 함께
+        // 기록해 한 번의 되돌리기로 되살린다.
+        this.executeOperation({
+          kind: 'record',
+          command: new InsertTextCommand(anchor, insertedText, undefined, undefined, covered),
+        });
       }
     }
   }
@@ -545,6 +598,13 @@ export function onInput(this: any, e?: InputEvent): void {
     }
     this.resetRawTextMutationEffects();
 
+    // [#7489] 수정 모드: 음절마다 첫 조합 글자가 캐럿 뒤 글자 하나를 덮는다. 그 글자를 조합
+    // 길이에 더해 두면 아래 replace 한 번으로 함께 지워진다.
+    const covering = this._compositionCovered === null && text;
+    if (covering) {
+      this._compositionCovered = overwrittenTextAt.call(this, anchor, text);
+      this.compositionLength += charCount(this._compositionCovered);
+    }
     try {
       this.replaceTextAtRaw(anchor, this.compositionLength, text);
     } catch (err) {
@@ -564,6 +624,8 @@ export function onInput(this: any, e?: InputEvent): void {
           : { ...this.cursor.getPosition() };
       this.compositionAnchor = anchor;
       this.compositionLength = 0;
+      // 거부된 replace는 이번에 덮으려던 글자도 지우지 않았다.
+      if (covering) this._compositionCovered = '';
       try {
         this.replaceTextAtRaw(anchor, 0, text);
       } catch (err2) {
@@ -724,7 +786,9 @@ export function onInput(this: any, e?: InputEvent): void {
   // 선택 영역이 있으면 먼저 삭제
   let insertPos = this.prepareClickHereInputPosition?.() ?? this.cursor.getPosition();
   let refreshClickHereGuide = this.isClickHereGuidePosition?.(insertPos) === true;
-  if (this.cursor.hasSelection()) {
+  // 선택 영역은 삽입 모드와 똑같이 입력으로 바뀌고, 뒤 글자를 더 덮어쓰지 않는다.
+  const hadSelection = this.cursor.hasSelection();
+  if (hadSelection) {
     if (!this.canDeleteSelectionInFormMode?.()) {
       this.textarea.value = '';
       return;
@@ -738,7 +802,11 @@ export function onInput(this: any, e?: InputEvent): void {
     return;
   }
   // [#4162] 선택 없이 지정한 서식은 예약(pending)돼 있다 — 있으면 삽입 커맨드에 실어 보낸다.
-  this.executeOperation({ kind: 'command', command: new InsertTextCommand(insertPos, text, undefined, this.getPendingCharShape?.()) });
+  const replaced = hadSelection ? '' : overwrittenTextAt.call(this, insertPos, text);
+  this.executeOperation({
+    kind: 'command',
+    command: new InsertTextCommand(insertPos, text, undefined, this.getPendingCharShape?.(), replaced),
+  });
   if (refreshClickHereGuide) {
     this.refreshClickHereAfterFirstInput?.();
   }
@@ -776,19 +844,8 @@ export function replaceTextAtRaw(
   if (deleteCount > 0 && !this.canDeleteTextInFormMode?.(pos, deleteCount)) {
     return NO_TEXT_MUTATION_EFFECTS;
   }
-  if (
-    !this.cursor.isInHeaderFooter() &&
-    !this.cursor.isInFootnote() &&
-    canUseDeferredCellTextReplace(pos, deleteCount, text)
-  ) {
-    return replaceCellTextWithMutationEffects(this.wasm, pos, deleteCount, text);
-  }
-  if (
-    !this.cursor.isInHeaderFooter() &&
-    !this.cursor.isInFootnote() &&
-    canUseLocalBodyTextReplace(pos, deleteCount, text)
-  ) {
-    return replaceBodyTextWithMutationEffects(this.wasm, pos, deleteCount, text);
+  if (!this.cursor.isInHeaderFooter() && !this.cursor.isInFootnote()) {
+    return replaceTextWithMutationEffects(this.wasm, pos, deleteCount, text);
   }
 
   const effects = new TextMutationEffectAccumulator();

@@ -540,6 +540,28 @@ export function replaceCellTextWithMutationEffects(
   };
 }
 
+/**
+ * 본문·셀에서 `deleteCount`자를 지우고 `text`를 넣는다. IME 조합과 수정(덮어쓰기) 입력이
+ * 같이 쓴다. 조건이 맞으면 한 번의 local replace fast path로 처리한다.
+ */
+export function replaceTextWithMutationEffects(
+  wasm: WasmBridge,
+  pos: DocumentPosition,
+  deleteCount: number,
+  text: string,
+): TextMutationEffects {
+  if (canUseDeferredCellTextReplace(pos, deleteCount, text)) {
+    return replaceCellTextWithMutationEffects(wasm, pos, deleteCount, text);
+  }
+  if (canUseLocalBodyTextReplace(pos, deleteCount, text)) {
+    return replaceBodyTextWithMutationEffects(wasm, pos, deleteCount, text);
+  }
+  const effects = new TextMutationEffectAccumulator();
+  if (deleteCount > 0) effects.add(deleteTextWithMutationEffects(wasm, pos, deleteCount));
+  if (text.length > 0) effects.add(insertTextWithMutationEffects(wasm, pos, text));
+  return effects.consume();
+}
+
 /** undo/구조 명령의 full-refresh 복원은 flat cell에서도 immediate pagination을 사용한다. */
 function doInsertTextImmediate(wasm: WasmBridge, pos: DocumentPosition, text: string): void {
   if (isNestedCell(pos)) {
@@ -639,6 +661,8 @@ export class InsertTextCommand implements EditCommand {
     timestamp?: number,
     /** [#4162] 선택 없이 지정한 예약 글자 모양 — 삽입된 텍스트에 그대로 건다. */
     private charFormat?: Partial<CharProperties>,
+    /** [#7489] 수정(덮어쓰기) 모드에서 입력 글자가 덮어쓴 캐럿 뒤 글자. undo 때 되살린다. */
+    private replacedText = '',
   ) {
     this.timestamp = timestamp ?? Date.now();
   }
@@ -649,7 +673,9 @@ export class InsertTextCommand implements EditCommand {
 
   execute(wasm: WasmBridge): DocumentPosition {
     this.lastMutationEffects = NO_TEXT_MUTATION_EFFECTS;
-    this.lastMutationEffects = insertTextWithMutationEffects(wasm, this.position, this.text);
+    this.lastMutationEffects = this.replacedText
+      ? replaceTextWithMutationEffects(wasm, this.position, charCount(this.replacedText), this.text)
+      : insertTextWithMutationEffects(wasm, this.position, this.text);
     const after = { ...this.position, charOffset: this.position.charOffset + this.text.length };
     if (this.charFormat) {
       applyCharShapeModsToRange(wasm, this.position, this.position.charOffset, after.charOffset, this.charFormat);
@@ -672,6 +698,7 @@ export class InsertTextCommand implements EditCommand {
     // [#2337-review] 삭제 count 는 char(Unicode scalar) 단위다. UTF-16 length 를 넘기면
     // astral 문자에서 실제보다 많이 지워 인접 문자를 잃는다 → HF/FN 과 동일하게 charCount.
     doDeleteTextImmediate(wasm, this.position, charCount(this.text));
+    if (this.replacedText) doInsertTextImmediate(wasm, this.position, this.replacedText);
     return { ...this.position };
   }
 
@@ -697,7 +724,11 @@ export class InsertTextCommand implements EditCommand {
     // [#4162] 예약 글자 모양이 다르면 하나의 undo 단위로 묶지 않는다
     if (!sameCharFormat(this.charFormat, other.charFormat)) return null;
 
-    return new InsertTextCommand(this.position, this.text + other.text, this.timestamp, this.charFormat);
+    // 덮어쓴 글자는 입력 순서대로 캐럿 뒤에 이어져 있었으므로 이어 붙이면 원문이 된다.
+    return new InsertTextCommand(
+      this.position, this.text + other.text, this.timestamp, this.charFormat,
+      this.replacedText + other.replacedText,
+    );
   }
 }
 
