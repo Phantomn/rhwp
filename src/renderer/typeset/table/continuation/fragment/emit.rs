@@ -575,10 +575,9 @@ impl TypesetEngine {
             is_continuation,
             start_cut: continuation.start_cut.clone(),
             end_cut: split_end_cut.clone(),
-            // 기존 블록 조각 게이트는 시작/끝 블록을 포함한다. 이를 끝 컷 전용으로
-            // 바꾸면 block→row 조각의 예약/배치 계약도 함께 바꿔야 한다.
-            // 시작 컷 해석에는 이 게이트 대신 start_cut_is_block을 사용한다.
-            is_block_split: split_block_start.is_some() || start_cut_is_block,
+            // 시작·끝 컷의 인덱스 공간은 독립이다. 시작 블록의 소유는
+            // start_cut_is_block에, 이번 끝 블록의 소유만 이 필드에 싣는다.
+            is_block_split: split_block_start.is_some(),
             start_cut_is_block,
             row_cursor_is_nested,
             end_row_height_override,
