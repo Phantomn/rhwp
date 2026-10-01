@@ -4125,3 +4125,9 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 기존 함수 안에서scale이있는경우숫자로Y배율을해석해1인지검사하고,생략된경우단위배율로처리할예정입니다. 단일인자scale도양축을바꾸므로검사합니다. 생산코드·배치·기준PDF와새검사함수는바꾸지않습니다. 수정전FAIL/수정후개별PASS와전수재실행을기록합니다.
 
 - 보정335 결과: 생략된배율을단위배율로수용하고,명시적scale의세로인자를해석해실제확대/축소를검출합니다. 기존함수의10/11쪽문단·12쪽내용/화살표검사를유지했고새함수·픽셀기대값·생산변경은없습니다. 수정전FAIL→수정후개별1/1 PASS,exit0이며원본PDF12쪽Native/fresh WASM각92.02527%·raster동일입니다. [원장](../assets/pr7382_20260926/stage335_equation_test_validation.json), [12쪽review](../assets/pr7382_20260926/stage335_nov2022_012_review.png), [overlay](../assets/pr7382_20260926/stage335_nov2022_012_overlay.png). 이것을21쪽전체시각완료라고보고하지않습니다. 두실패교정후전체회귀·lint를다시실행합니다.
+
+
+## 보정337 사전 분석 — 최종 Clippy 표현 교정
+
+- 보정336의전체nextest는10,229 PASS/0 FAIL/50 SKIP,650.795초,exit0입니다. 변경Markdown34개링크도0오류입니다. native Clippy는`obfuscated_if_else`와`manual_contains`2건으로exit101이므로아직PR준비완료가아닙니다.
+- `table_layout.rs`의lead수용조건·반환값은그대로두고bool→Option→0선택을if/else로표현합니다. `row_step.rs`의정수end_cut에1이있는지검사는contains(&1)로표현합니다. 수치·소유·컷·반환값을바꾸지않는표현교정이며allow로오류를숨기지않습니다. lint를먼저통과시키고관련경계·최종전체회귀를확인합니다. 기존전쪽시각증거는새head의출력과대조해재사용여부를구분하며최신캡처라고허위표시하지않습니다.
