@@ -4131,3 +4131,5 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - 보정336의전체nextest는10,229 PASS/0 FAIL/50 SKIP,650.795초,exit0입니다. 변경Markdown34개링크도0오류입니다. native Clippy는`obfuscated_if_else`와`manual_contains`2건으로exit101이므로아직PR준비완료가아닙니다.
 - `table_layout.rs`의lead수용조건·반환값은그대로두고bool→Option→0선택을if/else로표현합니다. `row_step.rs`의정수end_cut에1이있는지검사는contains(&1)로표현합니다. 수치·소유·컷·반환값을바꾸지않는표현교정이며allow로오류를숨기지않습니다. lint를먼저통과시키고관련경계·최종전체회귀를확인합니다. 기존전쪽시각증거는새head의출력과대조해재사용여부를구분하며최신캡처라고허위표시하지않습니다.
+
+- 보정337 표현교정결과: 동일lead수용조건에서참이면lead·거짓이면0을반환하도록if/else로표현하고,end_cut정수1존재검사는contains로표현했습니다. 수치·컷·소유·반환값은변경하지않았습니다. nativeClippy는47.07초·exit0입니다. fmt와다른필수lint/정책검사를이어실행중이며,전수통과나PR준비완료로승격하지않습니다. 새Rust회귀는추가하지않았습니다.

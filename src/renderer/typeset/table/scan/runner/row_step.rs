@@ -775,7 +775,7 @@ impl TypesetEngine {
                 && row_start_cut.is_empty()
                 && !self.render_normalization.table_text_reflowed(table)
                 && !res.fully_consumed
-                && res.end_cut.iter().any(|units| *units == 1)
+                && res.end_cut.contains(&1)
                 && res.end_cut.iter().all(|units| *units <= 1)
                 && {
                     // 짧은 셀의 저장 글줄은 완결되지만 이웃한 다줄 셀은 아직

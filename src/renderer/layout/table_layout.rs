@@ -8837,9 +8837,11 @@ impl LayoutEngine {
                         .get(para.para_shape_id as usize)
                         .map_or(0.0, |style| style.spacing_before)
                 });
-                (lead > 0.0 && total_content_height + lead <= inner_height + 0.5)
-                    .then_some(lead)
-                    .unwrap_or(0.0)
+                if lead > 0.0 && total_content_height + lead <= inner_height + 0.5 {
+                    lead
+                } else {
+                    0.0
+                }
             } else {
                 0.0
             };
