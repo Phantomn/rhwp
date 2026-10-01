@@ -2980,10 +2980,16 @@ fn layout_paragraph_in_frame_impl(
                     .flatten();
                 let mut row_terminated = false;
                 for interval in intervals {
+                    // 부분 재조판도 배치가 예약하는 글머리표 본문 내어쓰기를 제외한다.
+                    let marker_width = if start_char > 0 {
+                        super::bullet_marker_width(para, styles)
+                    } else {
+                        0.0
+                    };
                     let available_width_px = crate::renderer::hwpunit_to_px(
                         interval.end.saturating_sub(interval.start),
                         dpi,
-                    );
+                    ) - marker_width;
                     let terminal = terminal_tokens.as_ref().and_then(|terminal_tokens| {
                         let mut replay = FillCursor::replay_from_boundary(
                             terminal_tokens,

@@ -69,7 +69,13 @@ fn render_box(
                 set_font(ctx, fi, italic, bold);
             }
             ctx.set_fill_style_str(color);
-            let _ = ctx.fill_text(text, x, y + lb.baseline);
+            if has_cjk && (lb.width - estimate_text_width(text, fi, false)).abs() > 0.01 {
+                for (ch, offset) in super::positioned_cjk_text(text, fi, lb.width) {
+                    let _ = ctx.fill_text(&ch.to_string(), x + offset, y + lb.baseline);
+                }
+            } else {
+                let _ = ctx.fill_text(text, x, y + lb.baseline);
+            }
         }
         LayoutKind::Number(text) => {
             // [Issue #900] svg_render.rs Number arm 과 동기화 — fs 사용.

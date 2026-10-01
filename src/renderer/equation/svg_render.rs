@@ -66,6 +66,15 @@ fn render_box(
                 ""
             };
             let weight_attr = if bold { " font-weight=\"bold\"" } else { "" };
+            if has_cjk && (lb.width - estimate_text_width(text, fi, false)).abs() > 0.01 {
+                for (ch, offset) in super::positioned_cjk_text(text, fi, lb.width) {
+                    svg.push_str(&format!(
+                        "<text x=\"{:.2}\" y=\"{:.2}\" font-size=\"{:.2}\" fill=\"{}\"{} font-family=\"'Haansoft Batang', '한컴바탕', 'Batang', '바탕', serif\">{}</text>\n",
+                        text_x + offset, text_y, fi, color, weight_attr, escape_xml(&ch.to_string()),
+                    ));
+                }
+                return;
+            }
             svg.push_str(&format!(
                 "<text x=\"{:.2}\" y=\"{:.2}\" font-size=\"{:.2}\" fill=\"{}\"{}{}{}>{}</text>\n",
                 text_x,

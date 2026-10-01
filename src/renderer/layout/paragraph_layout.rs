@@ -4051,7 +4051,8 @@ impl LayoutEngine {
                     let ast = crate::renderer::equation::parser::EqParser::new(tokens).parse();
                     let font_size_px = hwpunit_to_px(eq.font_size as i32, self.dpi);
                     let layout_box =
-                        crate::renderer::equation::layout::EqLayout::new(font_size_px).layout(&ast);
+                        crate::renderer::equation::layout::EqLayout::for_equation(eq, self.dpi)
+                            .layout(&ast);
                     let color_str =
                         crate::renderer::equation::svg_render::eq_color_to_svg(eq.color);
                     let svg_content = crate::renderer::equation::svg_render::render_equation_svg(
@@ -4476,7 +4477,16 @@ impl LayoutEngine {
             .map_or(true, |slice| slice.iter().all(|l| l.runs.is_empty()));
 
         // 마커 자체는 첫 조각에서만 그리지만 본문 내어쓰기는 이어받는 줄에도 남는다.
-        let numbering_width = if let Some(ref num_text) = composed.numbering_text {
+        let numbering_width = if para.is_some_and(|p| {
+            styles
+                .para_styles
+                .get(p.para_shape_id as usize)
+                .is_some_and(|s| s.head_type == HeadType::Bullet)
+        }) {
+            para.map_or(0.0, |p| {
+                super::super::composer::bullet_marker_width(p, styles)
+            })
+        } else if let Some(ref num_text) = composed.numbering_text {
             let num_style = numbering_marker_text_style(
                 styles,
                 para,
@@ -8010,8 +8020,10 @@ impl LayoutEngine {
                                 crate::renderer::equation::parser::EqParser::new(tokens).parse();
                             let font_size_px = hwpunit_to_px(eq.font_size as i32, self.dpi);
                             let layout_box =
-                                crate::renderer::equation::layout::EqLayout::new(font_size_px)
-                                    .layout(&ast);
+                                crate::renderer::equation::layout::EqLayout::for_equation(
+                                    eq, self.dpi,
+                                )
+                                .layout(&ast);
                             let color_str =
                                 crate::renderer::equation::svg_render::eq_color_to_svg(eq.color);
                             let svg_content =
@@ -9687,27 +9699,7 @@ impl LayoutEngine {
                     text
                 }
             }
-            HeadType::Bullet => {
-                // Bullet: numbering_id(1-based)로 Bullet 참조
-                let bullet_id = para_style.numbering_id;
-                if bullet_id == 0 {
-                    return None;
-                }
-                let bullet = styles.bullets.get((bullet_id - 1) as usize)?;
-                // U+FFFF는 이미지 글머리표 표시자 — 문자 렌더링 불가, 건너뜀
-                if bullet.bullet_char == '\u{FFFF}' {
-                    return None;
-                }
-                // PUA 문자(0xF000~0xF0FF)를 표준 Unicode로 매핑
-                // HWP는 Symbol 폰트 문자를 PUA(0xF000+code)로 저장
-                let bullet_ch = map_pua_bullet_char(bullet.bullet_char);
-                // 글머리 기호 + 본문과의 거리(text_distance)에 따른 간격
-                if bullet.text_distance > 0 {
-                    format!("{} ", bullet_ch)
-                } else {
-                    format!("{}", bullet_ch)
-                }
-            }
+            HeadType::Bullet => super::super::composer::bullet_marker_text(para, styles)?,
         };
 
         // 번호 텍스트를 별도 필드에 저장 (첫 run에 prepend하지 않음)

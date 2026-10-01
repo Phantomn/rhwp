@@ -71,6 +71,36 @@ fn render_box(
             }
         }
         LayoutKind::Text(text) => {
+            if crate::renderer::equation::text_has_cjk(text)
+                && (lb.width
+                    - crate::renderer::equation::layout::estimate_text_width(
+                        text,
+                        font_size_from_box(lb, fs),
+                        false,
+                    ))
+                .abs()
+                    > 0.01
+            {
+                let font_size = font_size_from_box(lb, fs);
+                for (ch, offset) in
+                    crate::renderer::equation::positioned_cjk_text(text, font_size, lb.width)
+                {
+                    draw_text(
+                        canvas,
+                        font_mgr,
+                        system_families,
+                        &ch.to_string(),
+                        x + offset,
+                        y + lb.baseline,
+                        font_size,
+                        false,
+                        bold,
+                        color,
+                        false,
+                    );
+                }
+                return;
+            }
             draw_text(
                 canvas,
                 font_mgr,

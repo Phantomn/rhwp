@@ -62,10 +62,8 @@ pub(crate) fn flow_metrics_hwp(equation: &crate::model::control::Equation) -> (u
             .chars()
             .any(|ch| matches!(ch, '\u{AC00}'..='\u{D7A3}'))
     {
-        let font_size_px =
-            super::hwpunit_to_px(equation.font_size.max(1) as i32, super::DEFAULT_DPI);
         let ast = parser::EqParser::new(tokenizer::tokenize(&equation.script)).parse();
-        let layout = layout::EqLayout::new(font_size_px).layout(&ast);
+        let layout = layout::EqLayout::for_equation(equation, super::DEFAULT_DPI).layout(&ast);
         (
             super::px_to_hwpunit(layout.width, super::DEFAULT_DPI).max(1) as u32,
             super::px_to_hwpunit(layout.height, super::DEFAULT_DPI).max(1) as u32,
@@ -88,4 +86,35 @@ pub(crate) fn flow_width_hwp(equation: &crate::model::control::Equation) -> u32 
 
 pub(crate) fn flow_height_hwp(equation: &crate::model::control::Equation) -> u32 {
     flow_metrics_hwp(equation).1
+}
+
+/// 측정한 한글 전진폭을 그대로 글자 원점에 적용한다. 글리프 자체 크기는 바꾸지 않는다.
+/// CJK가 아닌 문자는 기존 추정 폭을 보존한다.
+pub(crate) fn positioned_cjk_text(text: &str, font_size: f64, width: f64) -> Vec<(char, f64)> {
+    let count = text
+        .chars()
+        .filter(|ch| text_has_cjk(&ch.to_string()))
+        .count();
+    let other_width: f64 = text
+        .chars()
+        .filter(|ch| !text_has_cjk(&ch.to_string()))
+        .map(|ch| layout::estimate_text_width(&ch.to_string(), font_size, false))
+        .sum();
+    let advance = if count > 0 {
+        (width - other_width) / count as f64
+    } else {
+        0.0
+    };
+    let mut x = 0.0;
+    text.chars()
+        .map(|ch| {
+            let origin = x;
+            x += if text_has_cjk(&ch.to_string()) {
+                advance
+            } else {
+                layout::estimate_text_width(&ch.to_string(), font_size, false)
+            };
+            (ch, origin)
+        })
+        .collect()
 }
