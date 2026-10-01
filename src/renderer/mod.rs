@@ -1871,6 +1871,11 @@ pub(crate) fn solo_zone_pad_px(entering_solo: bool, prior_multicol: bool, dpi: f
     )
 }
 
+/// 명시 단나누기가 다단에서 다음 다단 밴드를 시작할 때 저장 한 줄 간격.
+pub(crate) fn multicol_band_break_pad_px(dpi: f64) -> f64 {
+    hwpunit_to_px(1500, dpi)
+}
+
 /// 저장 줄을 먼저 소비한 헤더 띠 뒤의 잔여 높이.
 /// 표 본체와 아래 여백은 남고, 선행 줄의 마지막 줄간격 절반은 이미 소비됐다.
 pub(crate) fn partial_tac_header_tail_px(

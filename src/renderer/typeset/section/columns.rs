@@ -142,8 +142,14 @@ impl TypesetEngine {
         // 다시 더하므로, 이 경우에는 진입·이탈 pad 를 모두 제외한다.
         let leaving_is_header_band = leaving_solo_zero && tac_band_extra > 0.5;
         let column_break_new_band = paragraphs[para_idx].column_type == ColumnBreakType::Column;
+        let new_band_is_multicol = paragraphs[para_idx]
+            .controls
+            .iter()
+            .any(|c| matches!(c, Control::ColumnDef(cd) if cd.column_count.max(1) > 1));
         let solo_zone_pad = if leaving_is_header_band {
             0.0
+        } else if column_break_new_band && st.col_count > 1 && new_band_is_multicol {
+            crate::renderer::multicol_band_break_pad_px(self.dpi)
         } else if entering_solo_zero || leaving_solo_zero || column_break_new_band {
             crate::renderer::solo_zone_pad_px(entering_solo_zero, st.col_count > 1, self.dpi)
         } else {

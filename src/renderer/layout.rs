@@ -6624,8 +6624,11 @@ impl LayoutEngine {
                     .and_then(|pi| paragraphs.get(pi))
                     .map(|p| p.column_type == crate::model::paragraph::ColumnBreakType::Column)
                     .unwrap_or(false);
+                let new_band_is_multicol = zone_layout.column_areas.len() > 1;
                 let solo_zone_pad = if prev_zone_was_header_band {
                     0.0
+                } else if column_break_new_band && prev_zone_was_multi && new_band_is_multicol {
+                    super::multicol_band_break_pad_px(self.dpi)
                 } else if new_zone_is_solo_zero || prev_zone_is_solo_zero || column_break_new_band {
                     super::solo_zone_pad_px(new_zone_is_solo_zero, prev_zone_was_multi, self.dpi)
                 } else {
