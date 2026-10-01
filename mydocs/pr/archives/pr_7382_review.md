@@ -3807,3 +3807,13 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - `cargo fmt --all -- --check`, `git diff --check` 통과. fresh WASM 빌드는 `stage294-fresh-wasm-build.log`에서 시작했고 이후 기존 집중 회귀·분할15·전체 검증을 실행한다. 새 회귀는 추가하지 않았다.
 
 ![단축키 1쪽 첫 헤더 앞뒤 예약과 정상 본문 원점](../assets/pr7382_20260926/stage293_shortcut_native_review_001.png)
+
+## 보정294 — fresh WASM 전쪽 통과와 기존 겹침 검사 의미 교정 계획
+
+- 코드 `32bf342cc`의 fresh WASM을 저장소 루트 `CARGO_TARGET_DIR=target/pr-review scripts/wasm-pack-locked.sh --target web --out-dir pkg --no-opt`로 빌드했다(exit 0, 로컬 대체 빌드). 실제 WASM 문서의 인쇄 프로필 SVG/render tree로 7쪽을 비교한 일치율은 Native와 동일한 **99.97829/99.76583/97.53365/96.12686/99.95349/99.90031/99.95321%**, 최저 **96.12686%**, gate `passed`다. WASM manifest의 전체 쪽수와 PDF는 **7**이다. 1·4쪽 review를 직접 열어 첫 헤더·소제목·본문과 바탕쪽 쪽번호를 확인했다. `stage294-shortcut-wasm/`에 전쪽 review·overlay·WASM provenance가 있다.
+- 입력 SHA-256은 HWP **71c23f5e9201d62af1dca41adaebd42c871c7dff91dfb933a082ea0e1f6f7e1d**, PDF **9c877ad7aafe78d4734536f0a7b0e985a431534cc9d01d0737a90c106e2f2eb5**다. 첫 비교는 문서 커밋 시각에 따른 기본 debug binary 검사에서 시작 전에 중단됐다. source/script가 code head와 동일함을 `git diff --exit-code 32bf342cc HEAD -- src crates scripts Cargo.toml Cargo.lock`로 확인하고 이미 빌드한 바이너리의 절대 경로를 명시해 재실행했다. 실패한 첫 실행을 시각 실패나 완료 증거로 사용하지 않는다.
+- 기존 `text_overlap_baseline`의 차단은 이 입력의 장식 쪽번호다. #2318 기존 검사는 이 바탕쪽 개체가 본문 뒤 replay plane에 있어야 함을 고정하며, 독립 PDF도 같은 번호를 본문 뒤에 둔다. #6318의 실제 바탕쪽 사이드바 충돌은 계속 잡아야 하므로 모든 바탕쪽을 전역 제외하거나 83건을 원장 허용치에 추가하지 않는다. 이 **검증된 입력 한 건**의 기존 corpus 검사에서 바탕쪽의 유일한 가시 런이 해당 쪽 번호이며, 모델 자리표시 공백을 치환한 런이고 뒤쪽 레이어임을 확인한 후 그 번호와의 경계 상자 교차만 구분하는 후보를 준비한다. 쪽수·번호 소유는 독립 PDF의 7쪽과 1~7을 검사하고, 본문끼리의 겹침·다른 바탕쪽 텍스트는 기존 래칫 판정을 유지한다. 특정 픽셀 좌표·83이라는 사건 수로 회귀를 고정하지 않는다. 새 test 함수는 추가하지 않는다.
+
+![단축키 1쪽 fresh WASM 전체 인쇄 비교](../assets/pr7382_20260926/stage294_shortcut_wasm_review_001.png)
+
+![단축키 4쪽 fresh WASM 소제목 경계 비교](../assets/pr7382_20260926/stage294_shortcut_wasm_review_004.png)
