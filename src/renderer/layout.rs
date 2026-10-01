@@ -10816,8 +10816,14 @@ impl LayoutEngine {
                             }
                         }
                     }
-                    // 첫 부분에서만 번호 카운터 전진 + 번호 텍스트 적용
-                    let comp = if *start_line == 0 {
+                    // 번호 카운터는 첫 조각에서만 전진한다. 글머리는 카운터가 없으므로
+                    // 이어지는 조각에도 같은 마커 폭을 전달해 본문 내어쓰기를 유지한다.
+                    // 마커를 실제로 그리는지는 start_line을 받은 배치 경로가 결정한다.
+                    let continuation_bullet = styles
+                        .para_styles
+                        .get(para.para_shape_id as usize)
+                        .is_some_and(|style| style.head_type == HeadType::Bullet);
+                    let comp = if *start_line == 0 || continuation_bullet {
                         let numbered = self.apply_paragraph_numbering(
                             composed.get(*para_index),
                             para,
