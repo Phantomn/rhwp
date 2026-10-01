@@ -1,4 +1,5 @@
 import init, { HwpDocument, version } from '@wasm/rhwp.js';
+import { resolveTypesetMode } from './table-v2-session';
 import { CanvasMetricSession, withPortableMetrics } from './canvas-metric-session';
 import type { CanvasMetricDocument } from './canvas-metric-session';
 import { requireCharShapeRunsDocument, parseCharShapeRuns, validateCharShapeRuns } from './char-shape-runs';
@@ -298,6 +299,9 @@ function installCanvasFontSubstitution(): void {
 
 export class WasmBridge {
   private doc: HwpDocument | null = null;
+  private readonly typesetter = resolveTypesetMode(
+    typeof location === 'undefined' ? '' : location.search, '',
+  );
   private canvasMetrics = new CanvasMetricSession();
   private canvasFontGeneration = 0;
 
@@ -473,7 +477,8 @@ export class WasmBridge {
   }
 
   loadDocument(data: Uint8Array, fileName?: string): DocumentInfo {
-    this.loadDocumentAtomically(data, fileName, false, () => new HwpDocument(data));
+    this.loadDocumentAtomically(data, fileName, false, () => this.typesetter === 'legacy'
+      ? HwpDocument.openWithTypesetter(data, 'legacy') : new HwpDocument(data));
     return this.getDocumentInfo();
   }
 
@@ -482,7 +487,9 @@ export class WasmBridge {
       data,
       fileName,
       true,
-      () => HwpDocument.openWithPassword(data, password),
+      () => this.typesetter === 'legacy'
+        ? HwpDocument.openWithPasswordAndTypesetter(data, password, 'legacy')
+        : HwpDocument.openWithPassword(data, password),
     );
   }
 
@@ -537,7 +544,8 @@ export class WasmBridge {
   createNewDocument(): DocumentInfo {
     if (!this.doc) {
       // 아직 WASM 객체가 없으면 더미로 생성 (createEmpty → 즉시 교체)
-      this.doc = HwpDocument.createEmpty();
+      this.doc = this.typesetter === 'legacy'
+        ? HwpDocument.createEmptyWithTypesetter('legacy') : HwpDocument.createEmpty();
     }
     const info: DocumentInfo = JSON.parse(this.doc.createBlankDocument());
     this.ensureParagraphStableIds();
@@ -1525,7 +1533,10 @@ export class WasmBridge {
     };
     let raw: string;
     let paginationDeferred = false;
-    if (typeof d.insertTextInCellDeferredPagination === 'function') {
+    // V2 publishes a complete document generation, not Legacy's focused-page
+    // patch. Never let the UI consume the intentionally invalidated 0-page
+    // interval of a deferred V2 mutation.
+    if (this.doc.getTypesetter?.() !== 'v2' && typeof d.insertTextInCellDeferredPagination === 'function') {
       raw = d.insertTextInCellDeferredPagination(sec, parentPara, controlIdx, cellIdx, cellParaIdx, charOffset, text);
       paginationDeferred = true;
     } else {
@@ -1586,7 +1597,7 @@ export class WasmBridge {
 
     let raw: string;
     let paginationDeferred = false;
-    if (typeof d.replaceTextInCellDeferredPagination === 'function') {
+    if (this.doc.getTypesetter?.() !== 'v2' && typeof d.replaceTextInCellDeferredPagination === 'function') {
       raw = d.replaceTextInCellDeferredPagination(
         sec,
         parentPara,
@@ -1672,7 +1683,7 @@ export class WasmBridge {
     };
     let raw: string;
     let paginationDeferred = false;
-    if (typeof d.deleteTextInCellDeferredPagination === 'function') {
+    if (this.doc.getTypesetter?.() !== 'v2' && typeof d.deleteTextInCellDeferredPagination === 'function') {
       raw = d.deleteTextInCellDeferredPagination(sec, parentPara, controlIdx, cellIdx, cellParaIdx, charOffset, count);
       paginationDeferred = true;
     } else {

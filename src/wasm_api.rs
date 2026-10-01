@@ -584,25 +584,40 @@ fn format_hml_export_error(error: &crate::serializer::hml::HmlExportError) -> St
     message
 }
 
+fn product_typesetter() -> crate::document_core::TypesettingEngine {
+    // Only the WASM product default changes. Native/CLI callers retain Legacy.
+    if cfg!(target_arch = "wasm32") {
+        crate::document_core::TypesettingEngine::V2
+    } else {
+        crate::document_core::TypesettingEngine::Legacy
+    }
+}
+
+fn parse_product_typesetter(
+    engine: &str,
+) -> Result<crate::document_core::TypesettingEngine, JsValue> {
+    match engine {
+        "v2" => Ok(crate::document_core::TypesettingEngine::V2),
+        "legacy" => Ok(crate::document_core::TypesettingEngine::Legacy),
+        _ => Err(JsValue::from_str("typesetter must be 'v2' or 'legacy'")),
+    }
+}
+
 #[wasm_bindgen]
 impl HwpDocument {
     /// HWP 파일 바이트를 로드하여 문서 객체를 생성한다.
     #[wasm_bindgen(constructor)]
     pub fn new(data: &[u8]) -> Result<HwpDocument, JsValue> {
-        DocumentCore::from_bytes(data)
+        DocumentCore::from_bytes_with_engine(data, product_typesetter())
             .map(|core| HwpDocument { core })
             .map_err(|e| e.into())
     }
 
     /// Explicit product V2 route (not the separate SVG preview session).
-    /// The default constructor remains Legacy until the editing gate completes.
+    /// Explicit Legacy selection remains available; no automatic fallback.
     #[wasm_bindgen(js_name = openWithTypesetter)]
     pub fn open_with_typesetter(data: &[u8], engine: &str) -> Result<HwpDocument, JsValue> {
-        let engine = match engine {
-            "v2" => crate::document_core::TypesettingEngine::V2,
-            "legacy" => crate::document_core::TypesettingEngine::Legacy,
-            _ => return Err(JsValue::from_str("typesetter must be 'v2' or 'legacy'")),
-        };
+        let engine = parse_product_typesetter(engine)?;
         DocumentCore::from_bytes_with_engine(data, engine)
             .map(|core| HwpDocument { core })
             .map_err(Into::into)
@@ -626,7 +641,28 @@ impl HwpDocument {
     /// 암호화되지 않은 일반 문서에 비밀번호를 전달해도 정상 로드된다.
     #[wasm_bindgen(js_name = openWithPassword)]
     pub fn open_with_password(data: &[u8], password: &str) -> Result<HwpDocument, JsValue> {
-        Self::from_bytes_with_password(data, password.as_bytes()).map_err(|e| e.into())
+        DocumentCore::from_bytes_with_password_and_engine(
+            data,
+            password.as_bytes(),
+            product_typesetter(),
+        )
+        .map(|core| HwpDocument { core })
+        .map_err(Into::into)
+    }
+
+    #[wasm_bindgen(js_name = openWithPasswordAndTypesetter)]
+    pub fn open_with_password_and_typesetter(
+        data: &[u8],
+        password: &str,
+        engine: &str,
+    ) -> Result<HwpDocument, JsValue> {
+        DocumentCore::from_bytes_with_password_and_engine(
+            data,
+            password.as_bytes(),
+            parse_product_typesetter(engine)?,
+        )
+        .map(|core| HwpDocument { core })
+        .map_err(Into::into)
     }
 
     /// 빈 문서 생성 (테스트/미리보기용)
@@ -635,13 +671,34 @@ impl HwpDocument {
     /// 편집/조회 API가 "구역 인덱스 0 범위 초과"로 실패해 사용 불가하므로
     /// 생성 직후 바로 편집 가능한 최소 구조를 보장한다 (#1386).
     ///
-    /// 여기서 만든 문단은 **구역 정의·단 정의를 안 진다** — 실제 HWP 문서는 예외 없이 그
+    /// V2 제품은 내장 빈 문서 템플릿으로 즉시 편집 가능한 문서를 만든다.
+    /// Legacy 호환 경로에서 만든 문단은 **구역 정의·단 정의를 안 진다** — 실제 HWP 문서는 예외 없이 그
     /// 둘을 첫 문단에 지므로 이 문서는 그 점에서 실물과 다르다. 한글 호환이 필요한 자리
     /// (`Clear`)는 번들 템플릿을 쓰는 [`create_blank_document`](Self::create_blank_document)
     /// 를 쓴다. 여기에 그 둘을 넣으면 `char_shapes` 자리가 16칸씩 밀려 기존 호출부가 깨진다.
     #[wasm_bindgen(js_name = createEmpty)]
     pub fn create_empty() -> HwpDocument {
+        Self::create_empty_for_engine(product_typesetter())
+    }
+
+    #[wasm_bindgen(js_name = createEmptyWithTypesetter)]
+    pub fn create_empty_with_typesetter(engine: &str) -> Result<HwpDocument, JsValue> {
+        let doc = Self::create_empty_for_engine(parse_product_typesetter(engine)?);
+        doc.ensure_typesetting_ready().map_err(JsValue::from)?;
+        Ok(doc)
+    }
+
+    fn create_empty_for_engine(engine: crate::document_core::TypesettingEngine) -> HwpDocument {
         let mut core = DocumentCore::new_empty();
+        core.typesetting_engine = engine;
+        if engine == crate::document_core::TypesettingEngine::V2 {
+            // Unlike the Legacy test stub, the product entry must carry valid
+            // default styles/section controls. This compile-time fixture is
+            // covered by the product blank/password round-trip contract.
+            core.create_blank_document_native()
+                .expect("bundled blank document must be supported by V2");
+            return HwpDocument { core };
+        }
         let mut section = Section::default();
         // set_document가 styles/composed 재구성 + paginate까지 수행한다.
         section.section_def.page_def = crate::model::page::PageDef::a4_default();

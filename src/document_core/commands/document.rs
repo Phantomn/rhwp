@@ -1610,6 +1610,7 @@ impl DocumentCore {
         self.rebuild_embedded_exact_font_sources();
         self.recompose_all_with_horizontal_shaping();
         self.paginate();
+        self.ensure_typesetting_ready()?;
 
         Ok(self.get_document_info())
     }

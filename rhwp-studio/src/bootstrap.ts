@@ -1,8 +1,8 @@
-import { resolveTypesetMode } from './core/table-v2-session.ts';
+import { isTableV2Preview } from './core/table-v2-session.ts';
 
-// Pick the runtime before importing main.ts: it installs editing, recovery and
-// Legacy document handlers at module scope. V2 never starts those handlers.
-if (resolveTypesetMode(location.search, import.meta.env.MODE) === 'v2') {
+// The default and ?typeset=v2 use the full product editor. Only the explicit
+// diagnostic preview skips editing/recovery handlers.
+if (isTableV2Preview(location.search, import.meta.env.MODE)) {
   const { startTableV2Studio } = await import('./table-v2-studio.ts');
   await startTableV2Studio();
 } else {

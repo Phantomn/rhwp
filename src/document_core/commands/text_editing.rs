@@ -1270,7 +1270,11 @@ impl DocumentCore {
         let flow_after = body_paragraph_flow_signature(
             &self.document.sections[section_idx].paragraphs[para_idx],
         );
-        let flow_changed = flow_before != flow_after;
+        // Legacy's unchanged-flow optimization patches its composed cache.
+        // V2 owns no such cache: even an equal-height edit must publish a new
+        // hosted document before Studio asks for paint/caret geometry.
+        let v2 = self.typesetting_engine == crate::document_core::TypesettingEngine::V2;
+        let flow_changed = v2 || flow_before != flow_after;
         if flow_changed {
             self.paginate();
             for _ in 0..2 {
@@ -1337,6 +1341,9 @@ impl DocumentCore {
             });
         }
 
+        if v2 {
+            self.ensure_typesetting_ready()?;
+        }
         Ok(super::super::helpers::json_ok_with(&format!(
             "\"charOffset\":{},\"documentPaginationPending\":{},\"flowChanged\":{}",
             new_offset, !flow_changed, flow_changed

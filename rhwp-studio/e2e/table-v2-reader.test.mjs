@@ -8,7 +8,7 @@ import { launchBrowser, createPage, closeBrowser } from './helpers.mjs';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const output = path.join(root, 'output/7353/closeout/wasm-v2/studio');
 const url = new URL(process.env.VITE_URL || 'http://localhost:7700');
-url.searchParams.set('typeset', 'v2');
+url.searchParams.set('typeset', 'preview');
 await mkdir(output, { recursive: true });
 const browser = await launchBrowser();
 try {

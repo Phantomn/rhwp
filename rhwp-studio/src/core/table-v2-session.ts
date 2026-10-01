@@ -16,7 +16,13 @@ export function splitSvgFontFamilies(value: string): string[] {
 export function resolveTypesetMode(search: string, mode: string): 'legacy' | 'v2' {
   const selected = new URLSearchParams(search).get('typeset');
   if (selected === 'v2' || selected === 'legacy') return selected;
-  return mode === 'table-v2' ? 'v2' : 'legacy';
+  return 'v2';
+}
+
+/** The diagnostic SVG preview is separate from the normal V2 editor. */
+export function isTableV2Preview(search: string, mode: string): boolean {
+  const selected = new URLSearchParams(search).get('typeset');
+  return selected === 'preview' || (!selected && mode === 'table-v2');
 }
 
 export class TableV2Session {

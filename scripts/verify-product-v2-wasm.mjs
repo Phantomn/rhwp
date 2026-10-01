@@ -37,7 +37,7 @@ try {
   browser = await require('puppeteer-core').launch({ executablePath: findChrome(process.env.VISUAL_SWEEP_CHROME), headless: true });
   const page = await browser.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}`);
-  const result = await page.evaluate(async () => {
+  const result = await page.evaluate(async defaultV2 => {
     const module = await import('/rhwp.js');
     await module.default({ module_or_path: '/rhwp_bg.wasm' });
     const input = new Uint8Array(await (await fetch('/input')).arrayBuffer());
@@ -46,6 +46,20 @@ try {
     const defaultDoc = new module.HwpDocument(input);
     const modes = [window.documentV2.getTypesetter(), legacy.getTypesetter(), defaultDoc.getTypesetter()];
     legacy.free(); defaultDoc.free();
+    if (defaultV2) {
+      const check = (ok, message) => { if (!ok) throw new Error(message); };
+      const empty = module.HwpDocument.createEmpty();
+      check(empty.getTypesetter() === 'v2' && empty.pageCount() === 1, 'default empty V2');
+      empty.insertText(0, 0, 0, 'NEW');
+      const encrypted = empty.exportHwpWithPassword('w3-test');
+      const reopened = module.HwpDocument.openWithPassword(encrypted, 'w3-test');
+      check(reopened.getTypesetter() === 'v2' && reopened.getTextRange(0, 0, 0, 3) === 'NEW', 'password open defaults to V2');
+      const legacyPassword = module.HwpDocument.openWithPasswordAndTypesetter(encrypted, 'w3-test', 'legacy');
+      check(legacyPassword.getTypesetter() === 'legacy', 'explicit password Legacy');
+      const legacyEmpty = module.HwpDocument.createEmptyWithTypesetter('legacy');
+      check(legacyEmpty.getTypesetter() === 'legacy', 'explicit empty Legacy');
+      for (const doc of [empty, reopened, legacyPassword, legacyEmpty]) doc.free();
+    }
     let rejectsUnknown = false;
     try { module.HwpDocument.openWithTypesetter(input, 'unknown'); } catch { rejectsUnknown = true; }
     const pages = [];
@@ -53,8 +67,8 @@ try {
       pages.push({ tree: JSON.parse(window.documentV2.getPageRenderTree(i)), svg: window.documentV2.renderPageSvg(i), layer: JSON.parse(window.documentV2.getPageLayerTree(i)) });
     }
     return { modes, rejectsUnknown, pages };
-  });
-  assert.deepEqual(result.modes, ['v2', 'legacy', 'legacy']);
+  }, process.argv.includes('--default-v2'));
+  assert.deepEqual(result.modes, ['v2', 'legacy', process.argv.includes('--default-v2') ? 'v2' : 'legacy']);
   assert.equal(result.rejectsUnknown, true);
   assert.equal(result.pages.length, native.length);
   const rules = parseWebfontRules(readFileSync(join(root, 'rhwp-studio/src/core/generated/font-rule-projections/webfont-supply.ts'), 'utf8'));
@@ -160,7 +174,10 @@ try {
     result: 'PASS', route: 'HwpDocument.openWithTypesetter(v2) -> product Canvas/SVG',
     browser: await browser.version(), input_sha256: sha(readFileSync(input)),
     wasm_sha256: sha(files.get('/rhwp_bg.wasm')[1]), js_sha256: sha(files.get('/rhwp.js')[1]), pages: result.pages.length,
-    scope: editing ? 'W2 product editing APIs; Studio default/history UI remain W3' : 'W1 reading/output only; editing and default switch are W2/W3', editing,
+    default_v2: process.argv.includes('--default-v2'),
+    scope: process.argv.includes('--default-v2')
+      ? 'W3 default constructor/empty/password APIs and product output; Studio UI evidence is separate'
+      : editing ? 'W2 product editing APIs; Studio default/history UI remain W3' : 'W1 reading/output only; editing and default switch are W2/W3', editing,
   }, null, 2));
   console.log(`PASS: ${result.pages.length} product pages; Native/WASM SVG parity; actual Canvas captures`);
 } finally {

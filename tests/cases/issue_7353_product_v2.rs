@@ -17,6 +17,56 @@ fn open(data: &[u8]) -> DocumentCore {
 }
 
 #[test]
+fn product_v2_blank_replacement_and_password_open_keep_engine() {
+    let mut core = open(SAVED);
+    core.create_blank_document_native().unwrap();
+    assert_eq!(core.typesetting_engine(), TypesettingEngine::V2);
+    assert_eq!(core.page_count(), 1);
+    core.insert_text_native(0, 0, 0, "NEW").unwrap();
+    assert!(text(&core.build_page_render_tree(0).unwrap().root).contains("NEW"));
+    let encrypted = core
+        .prepare_hwp_export_snapshot()
+        .serialize_with_password(b"w3-test")
+        .unwrap();
+    let reopened = DocumentCore::from_bytes_with_password_and_engine(
+        &encrypted,
+        b"w3-test",
+        TypesettingEngine::V2,
+    )
+    .unwrap();
+    assert_eq!(reopened.typesetting_engine(), TypesettingEngine::V2);
+    assert!(text(&reopened.build_page_render_tree(0).unwrap().root).contains("NEW"));
+    assert!(DocumentCore::from_bytes_with_password_and_engine(
+        &encrypted,
+        b"wrong",
+        TypesettingEngine::V2,
+    )
+    .is_err());
+    assert_eq!(
+        DocumentCore::from_bytes(SAVED)
+            .unwrap()
+            .typesetting_engine(),
+        TypesettingEngine::Legacy
+    );
+}
+
+#[test]
+fn product_v2_local_keyboard_edit_publishes_current_generation() {
+    let mut core = open(SAVED);
+    let before = core.render_page_svg_native(0).unwrap();
+    let result: serde_json::Value = serde_json::from_str(
+        &core
+            .replace_body_text_local_native(0, 0, 0, 0, "E")
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(result["documentPaginationPending"], false);
+    assert!(text(&core.build_page_render_tree(0).unwrap().root).contains("EBEFORE"));
+    core.replace_body_text_local_native(0, 0, 0, 1, "").unwrap();
+    assert_eq!(core.render_page_svg_native(0).unwrap(), before);
+}
+
+#[test]
 fn product_v2_edit_body_snapshot_and_save_keep_engine() {
     let mut core = open(SAVED);
     let before = core.render_page_svg_native(0).unwrap();

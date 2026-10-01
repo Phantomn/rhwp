@@ -1,17 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TableV2Session, resolveTypesetMode, splitSvgFontFamilies } from '../src/core/table-v2-session.ts';
+import { TableV2Session, resolveTypesetMode, isTableV2Preview, splitSvgFontFamilies } from '../src/core/table-v2-session.ts';
 
 test('SVG fallback lists supply separate font names to the existing font loader', () => {
   assert.deepEqual(splitSvgFontFamilies(`'HY신명조',"HCR Batang", serif`), ['HY신명조', 'HCR Batang', 'serif']);
   assert.deepEqual(splitSvgFontFamilies(`'A,B', Arial`), ['A,B', 'Arial']);
 });
 
-test('V2 runtime is explicit; a separate dev mode defaults to V2', () => {
-  assert.equal(resolveTypesetMode('', 'development'), 'legacy');
+test('normal editor defaults to V2; Legacy and read-only preview remain explicit', () => {
+  assert.equal(resolveTypesetMode('', 'development'), 'v2');
   assert.equal(resolveTypesetMode('?typeset=v2', 'development'), 'v2');
   assert.equal(resolveTypesetMode('', 'table-v2'), 'v2');
   assert.equal(resolveTypesetMode('?typeset=legacy', 'table-v2'), 'legacy');
+  assert.equal(isTableV2Preview('', 'development'), false);
+  assert.equal(isTableV2Preview('?typeset=v2', 'table-v2'), false);
+  assert.equal(isTableV2Preview('?typeset=legacy', 'table-v2'), false);
+  assert.equal(isTableV2Preview('?typeset=preview', 'development'), true);
+  assert.equal(isTableV2Preview('', 'table-v2'), true);
 });
 
 test('V2 owns page count, packet and handle lifetime without Legacy construction', () => {
