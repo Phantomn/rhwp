@@ -1876,6 +1876,60 @@ pub(crate) fn multicol_band_break_pad_px(dpi: f64) -> f64 {
     hwpunit_to_px(1500, dpi)
 }
 
+/// 같은 저장 줄을 끝으로 갖는 다단에서 빈 마지막 문단의 추가 줄간격 중 뒤쪽 절반.
+/// 글자가 있는 다른 단의 줄 상자는 유지하고, 빈 단의 뒤쪽 여백만 다음 구역에서 제외한다.
+pub(crate) fn parallel_blank_tail_spacing_excess_px(
+    columns: &[pagination::ColumnContent],
+    paragraphs: &[crate::model::paragraph::Paragraph],
+    dpi: f64,
+) -> f64 {
+    let Some(last_col) = columns.last() else {
+        return 0.0;
+    };
+    if last_col
+        .zone_layout
+        .as_ref()
+        .is_none_or(|layout| layout.column_areas.len() < 2)
+    {
+        return 0.0;
+    }
+    let mut visible = Vec::new();
+    let mut blank = Vec::new();
+    for col in columns
+        .iter()
+        .rev()
+        .take_while(|col| (col.zone_y_offset - last_col.zone_y_offset).abs() < 0.1)
+    {
+        let Some(pagination::PageItem::FullParagraph { para_index }) = col.items.last() else {
+            continue;
+        };
+        let Some(para) = paragraphs.get(*para_index) else {
+            continue;
+        };
+        let Some(line) = para.line_segs.last() else {
+            continue;
+        };
+        let key = (line.vertical_pos, line.line_height);
+        if para.text.trim().is_empty() && para.controls.is_empty() {
+            blank.push((key, line.line_spacing));
+        } else if !para.text.trim().is_empty() {
+            visible.push((key, line.line_spacing));
+        }
+    }
+    let excess_hu = blank
+        .iter()
+        .flat_map(|(blank_key, blank_spacing)| {
+            visible
+                .iter()
+                .filter(move |(visible_key, _)| visible_key == blank_key)
+                .map(move |(_, visible_spacing)| blank_spacing - visible_spacing)
+        })
+        .max()
+        .unwrap_or(0)
+        .max(0);
+    hwpunit_to_px(excess_hu, dpi) / 2.0
+}
+
 /// 저장 줄을 먼저 소비한 헤더 띠 뒤의 잔여 높이.
 /// 표 본체와 아래 여백은 남고, 선행 줄의 마지막 줄간격 절반은 이미 소비됐다.
 pub(crate) fn partial_tac_header_tail_px(

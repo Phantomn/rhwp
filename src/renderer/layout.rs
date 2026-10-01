@@ -6554,6 +6554,7 @@ impl LayoutEngine {
         // [Task #866 v3 Stage 1] 직전 zone 이 헤더 띠(TAC wrap=TopAndBottom 표만 보유) 였으면
         // solo_zone_pad 의 leaving 분기를 제외 (typeset.rs::leaving_is_header_band 와 동일).
         let mut prev_zone_was_header_band: bool = false;
+        let mut zone_start_col_idx = 0;
 
         // 다단 레이아웃: body_area 전체에 걸치는 TopAndBottom 개체의 예약 높이
         // (한 단에만 할당되더라도 모든 단에 적용)
@@ -6567,7 +6568,7 @@ impl LayoutEngine {
             Vec::new()
         };
 
-        for col_content in &page_content.column_contents {
+        for (col_content_idx, col_content) in page_content.column_contents.iter().enumerate() {
             let zone_layout = col_content.zone_layout.as_ref().unwrap_or(layout);
             let col_idx = col_content.column_index as usize;
             let col_area_base = if col_idx < zone_layout.column_areas.len() {
@@ -6578,6 +6579,12 @@ impl LayoutEngine {
 
             let is_new_zone = (col_content.zone_y_offset - last_zone_y_offset).abs() > 0.1;
             if is_new_zone {
+                prev_zone_y_end -= super::parallel_blank_tail_spacing_excess_px(
+                    &page_content.column_contents[zone_start_col_idx..col_content_idx],
+                    paragraphs,
+                    self.dpi,
+                );
+                zone_start_col_idx = col_content_idx;
                 // 직전 zone 의 단 구분선 emit (있다면).
                 if let Some(pz) = prev_zone_layout_for_sep.take() {
                     self.emit_zone_column_separators(

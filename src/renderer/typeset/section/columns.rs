@@ -155,8 +155,15 @@ impl TypesetEngine {
         } else {
             0.0
         };
+        let blank_tail_excess = st.pages.last().map_or(0.0, |page| {
+            crate::renderer::parallel_blank_tail_spacing_excess_px(
+                &page.column_contents,
+                paragraphs,
+                self.dpi,
+            )
+        });
         let candidate_offset = st.current_zone_y_offset
-            + vpos_zone_height
+            + (vpos_zone_height - blank_tail_excess).max(0.0)
             + tac_band_extra
             + st.current_zone_design_spacing_px / 2.0
             + new_ds / 2.0
