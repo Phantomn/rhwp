@@ -55,6 +55,8 @@ impl TypesetEngine {
             avail_for_rows,
             single_cell_fragment_shape,
             single_cell_box_height,
+            saved_first_fragment_source_frame,
+            source_first_fragment_row_end,
             ..
         } = *budget;
         let BlockTableRowScan {
@@ -174,6 +176,51 @@ impl TypesetEngine {
             {
                 end_row_height_override = Some(last_height);
                 partial_height = frame_height;
+            }
+        }
+        let mut source_frame_trailing_trim_applied = false;
+        // 저장 첫 프레임의 마지막 글줄 뒤 간격은 다음 물리 쪽에 속한다.
+        // 컷 유닛은 그대로 두고, 모든 셀의 가시 내용이 저장 상자에 들어갈 때만
+        // 마지막 행의 그리기 높이를 원본 프레임에 맞춘다.
+        if !is_continuation
+            && cursor_row == 0
+            && start_cut.is_empty()
+            && !split_end_cut.is_empty()
+            && end_row_height_override.is_none()
+            && table_footnotes.is_empty()
+            && !st.profile.session_edited()
+            && !self.render_normalization.table_text_reflowed(table)
+            && std::ptr::eq(table, row_geometry_table)
+            && source_first_fragment_row_end == Some(end_row)
+        {
+            if let (Some(block_start), Some((frame_height, _))) =
+                (split_block_start, saved_first_fragment_source_frame)
+            {
+                if frame_height < partial_height
+                    && frame_height <= avail_for_rows
+                    && layout_engine.saved_first_frame_block_cut_fits(
+                        table,
+                        block_start,
+                        end_row,
+                        &split_end_cut,
+                        cut_row_h,
+                        mt.cell_spacing,
+                        frame_height,
+                        styles,
+                    )
+                {
+                    let before_last = cut_row_h
+                        .iter()
+                        .take(end_row.saturating_sub(1))
+                        .sum::<f64>()
+                        + mt.cell_spacing * end_row.saturating_sub(2) as f64;
+                    let last_height = frame_height - before_last;
+                    if last_height > 0.0 {
+                        end_row_height_override = Some(last_height);
+                        partial_height = frame_height;
+                        source_frame_trailing_trim_applied = true;
+                    }
+                }
             }
         }
         let first_fragment_blank_band = !is_continuation
@@ -652,7 +699,7 @@ impl TypesetEngine {
             .or(complete_block_next_height)
             .or(saved_closing_frame.filter(|_| first_fragment_blank_band))
             .or_else(|| end_row_height_override
-            .filter(|_| !first_fragment_blank_band)
+            .filter(|_| !first_fragment_blank_band && !source_frame_trailing_trim_applied)
             .and_then(|limit| {
             let full = cut_row_h.get(end_row.saturating_sub(1)).copied()?;
             let tail = (full - limit).max(0.0);

@@ -16897,6 +16897,85 @@ impl LayoutEngine {
         max_h
     }
 
+    /// 저장 첫 조각 상자 안에 블록 컷의 가시 내용이 들어가는지 확인한다.
+    /// 저장 물리 상자를 닫는 마지막 줄 뒤 간격은 다음 물리 쪽의 공간이다.
+    pub(crate) fn saved_first_frame_block_cut_fits(
+        &self,
+        table: &crate::model::table::Table,
+        block_start: usize,
+        block_end: usize,
+        end_cut: &[usize],
+        row_heights: &[f64],
+        cell_spacing: f64,
+        frame_height: f64,
+        styles: &ResolvedStyleSet,
+    ) -> bool {
+        let mut cells = Self::row_block_cells(table, block_start, block_end);
+        cells.sort_by_key(|cell| (cell.row, cell.col));
+        if cells.len() != end_cut.len() {
+            return false;
+        }
+        let mut trimmed = false;
+        let mut frame_boundary_witness = false;
+        for (cell, &requested_end) in cells.iter().zip(end_cut) {
+            let units = self.cell_units(cell, table, styles);
+            let end = requested_end.min(units.len());
+            let mut demand = self.cell_cut_visible_height(cell, table, styles, 0, end);
+            if end > 0 && end < units.len() {
+                let closing = &units[end - 1];
+                let next = &units[end];
+                if closing.para_idx <= next.para_idx
+                    && closing.vis_start < closing.vis_end
+                    && next.vis_start < next.vis_end
+                {
+                    if let (Some(para), Some(next_para)) = (
+                        cell.paragraphs.get(closing.para_idx),
+                        cell.paragraphs.get(next.para_idx),
+                    ) {
+                        if para.controls.is_empty() && next_para.controls.is_empty() {
+                            if let (Some(before), Some(after)) = (
+                                para.line_segs.get(closing.vis_end - 1),
+                                next_para.line_segs.get(next.vis_start),
+                            ) {
+                                if before.tag
+                                    & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY
+                                    == 0
+                                    && after.tag
+                                        & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY
+                                        == 0
+                                    && (after.vertical_pos < before.vertical_pos
+                                        || after.vertical_pos
+                                            == before.vertical_pos
+                                                .saturating_add(before.line_height)
+                                                .saturating_add(before.line_spacing))
+                                    && before.line_spacing > 0
+                                {
+                                    let already_trimmed = self.native_saved_reset_cut_trailing_trim(
+                                        table, cell, &units, 0, end, styles,
+                                    );
+                                    let extra_trim = (hwpunit_to_px(before.line_spacing, self.dpi)
+                                        - already_trimmed)
+                                        .max(0.0);
+                                    demand = (demand - extra_trim).max(0.0);
+                                    trimmed |= extra_trim > 0.0;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            let row = cell.row as usize;
+            let before_cell = row_heights.iter().take(row).sum::<f64>() + cell_spacing * row as f64;
+            if trimmed && (demand - (frame_height - before_cell)).abs() <= 0.5 {
+                frame_boundary_witness = true;
+            }
+            if demand > frame_height - before_cell + 0.5 {
+                return false;
+            }
+        }
+        trimmed && frame_boundary_witness
+    }
+
     /// [#2287] start_cut 이후 블록 잔여 콘텐츠 높이 — `advance_row_block_cut` 의
     /// spacer 소비 의미론(컷 재개 지점의 선두/후미 empty-spacer run 은 무높이
     /// 소비)을 미러한 잔여 평가. `row_block_content_height` 는 spacer 꼬리를
