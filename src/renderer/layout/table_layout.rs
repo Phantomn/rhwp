@@ -13873,13 +13873,15 @@ impl LayoutEngine {
                             // reset은 다음 내용의 소유 경계이지 현재 물리 프레임의
                             // 마지막 간격을 항상 버리라는 뜻이 아니다. 선언 첫 프레임이
                             // 온전한 prefix와 padding을 담으면 그 간격도 첫 쪽에 남는다.
-                            let (_, _, top, bottom) = self.resolve_cell_padding(cell, table);
-                            let full_prefix =
-                                units[..end_cut].iter().map(|unit| unit.height).sum::<f64>()
-                                    + top
-                                    + bottom;
-                            let declared = hwpunit_to_px(table.common.height as i32, self.dpi);
-                            if declared > 0.0 && (declared - full_prefix).abs() <= 0.5 {
+                            if self
+                                .saved_single_cell_full_prefix_frame_height(
+                                    table,
+                                    &[],
+                                    &[end_cut],
+                                    styles,
+                                )
+                                .is_some()
+                            {
                                 return 0.0;
                             }
                             return hwpunit_to_px(before.line_spacing.max(0), self.dpi)
@@ -14686,6 +14688,68 @@ impl LayoutEngine {
             return None;
         }
         Some(hwpunit_to_px(table.common.height as i32, self.dpi))
+    }
+
+    /// 선언 첫 프레임이 마지막 줄간격까지 포함한 온전한 prefix를 소유하는지 확인한다.
+    /// 물리 간격 소비와 첫 조각의 정렬이 같은 원본 증거를 사용한다.
+    pub(crate) fn saved_single_cell_full_prefix_frame_height(
+        &self,
+        table: &crate::model::table::Table,
+        start_cut: &[usize],
+        end_cut: &[usize],
+        styles: &ResolvedStyleSet,
+    ) -> Option<f64> {
+        if !self.profile.get().hwpx_stored_layout()
+            || self.profile.get().session_edited()
+            || table.common.treat_as_char
+            || table.row_count != 1
+            || table.col_count != 1
+            || table.cells.len() != 1
+            || !start_cut.is_empty()
+            || end_cut.len() != 1
+            || !matches!(
+                table.page_break,
+                crate::model::table::TablePageBreak::RowBreak
+            )
+            || !self.row_cut_ends_at_plain_text_saved_reset(table, 0, start_cut, end_cut, styles)
+            || table.common.height == 0
+            || table.common.height > i32::MAX as u32
+        {
+            return None;
+        }
+        let cell = &table.cells[0];
+        let units = self.cell_units(cell, table, styles);
+        let end = end_cut[0];
+        let prefix = units.get(..end)?;
+        let closing = prefix.last()?;
+        let next = units.get(end)?;
+        let closing_para = cell.paragraphs.get(closing.para_idx)?;
+        let next_para = cell.paragraphs.get(next.para_idx)?;
+        if closing.para_idx + 1 != next.para_idx
+            || closing.vis_end != closing_para.line_segs.len()
+            || next.vis_start != 0
+            || closing_para.line_segs.last()?.vertical_pos <= 0
+            || next_para.line_segs.first()?.vertical_pos != 0
+            || next_para.stored_text_partition_is_dirty()
+        {
+            return None;
+        }
+        if prefix.iter().any(|unit| {
+            cell.paragraphs.get(unit.para_idx).is_none_or(|para| {
+                !para.controls.is_empty()
+                    || para.stored_text_partition_is_dirty()
+                    || para.line_segs.iter().any(|line| {
+                        line.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY
+                            != 0
+                    })
+            })
+        }) {
+            return None;
+        }
+        let (_, _, top, bottom) = self.resolve_cell_padding(cell, table);
+        let full_prefix = prefix.iter().map(|unit| unit.height).sum::<f64>() + top + bottom;
+        let declared = hwpunit_to_px(table.common.height as i32, self.dpi);
+        ((declared - full_prefix).abs() <= 0.5).then_some(declared)
     }
 
     /// 정확한 저장 컷에서 첫 프레임의 물리 높이를 반환한다.

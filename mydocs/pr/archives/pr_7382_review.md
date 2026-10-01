@@ -4070,3 +4070,5 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 -163·164쪽과17·24·107·169·207·208·211쪽 및 기존 부분 셀 정렬 회귀를 검증합니다. 신규 회귀 함수·fixture·픽셀 기대값은 추가하지 않습니다.
 
 - 보정328 1차 후보: 마지막 가시 줄 경계 수정만으로는163쪽90.44522%가 그대로였고 기존 회귀14개는PASS입니다. 단일 셀은 유한한 첫 프레임을 증명해도 `align_saved_opening_frame`의 다행 전용·override 조건에서 빠져 windowed composition/Top 강제로 갑니다. 보정326과 같은 온전한 prefix+padding 선언 프레임 증거를 공통 helper로 공유하여 이 첫 조각의 원래 정렬을 적용하고, 그 경로에서 가시 내용 높이를 계산합니다. 후행 호스트 간격이나 다른 단일 셀 프레임 판정은 변경하지 않습니다.
+
+- 보정328 결과: 공통 온전한 prefix 프레임 증거를 물리 간격 소비와 첫 조각 정렬에 함께 사용하고 마지막 가시 줄을 정렬 끝으로 삼아163쪽Native/fresh WASM **100.00000%**입니다. 대조9쪽PNG 동일·전체215쪽 유지, 기존 부분 셀 정렬/쪽 분할 등23개 회귀PASS, 최종 빌드exit0입니다. 최초 가시 끝 후보는Top 경로 때문에 무동작이었고 수정 후 직접 비교에서표42 본문·외곽이PDF와 맞습니다.164쪽 내용 소유와종전96.39290%는 유지되며 아래 괘선 차이는 잔존합니다. 잘못된 옛 test target을 current suite manifest로 바로잡은 최종23개만 성공 증거로 사용합니다. [검증 원장](../assets/pr7382_20260926/stage328_visible_alignment_validation.json), [163쪽 비교](../assets/pr7382_20260926/stage328_native_163_compare.png), [Native](../assets/pr7382_20260926/stage328_native_silhouette.tsv), [WASM](../assets/pr7382_20260926/stage328_wasm_silhouette.tsv). 새Rust 회귀는 추가하지 않았고88쪽과최종전체검증은 남았습니다.

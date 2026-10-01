@@ -1532,6 +1532,17 @@ impl LayoutEngine {
             // 셀 내 텍스트 높이 (분할 행이면 줄 범위 내만 계산)
             // spacing_before: 셀 첫 문단 제외, spacing_after: 셀 마지막 문단 제외
             let split_para_count = cell.paragraphs.len();
+            // 정렬할 내용의 끝은 원본 셀의 끝이 아니라 현재 조각의 마지막 가시 줄이다.
+            // 뒤 조각으로 넘어가는 줄간격은 물리 높이에는 남아도 가시 내용 높이가 아니다.
+            let last_visible_line = line_ranges.as_ref().and_then(|ranges| {
+                ranges
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find_map(|(pi, &(start, end))| {
+                        (start < end).then_some((pi, end.saturating_sub(1)))
+                    })
+            });
             // [#4149] windowed 프로브: 아래에서 effective_align 이 Top 으로 확정되므로
             // (cell_was_split=true 사전 증명) total_content_height 는 미사용 — 0 고정.
             let total_content_height = if windowed_composition {
@@ -1546,7 +1557,7 @@ impl LayoutEngine {
                     .enumerate()
                 {
                     let para_style = styles.para_styles.get(para.para_shape_id as usize);
-                    let is_last_para = pi + 1 == split_para_count;
+                    let is_last_para = last_visible_line.is_some_and(|(last_pi, _)| pi == last_pi);
                     if empty_paragraphs[pi] {
                         if owns_empty_paragraph(pi) {
                             total += self.calc_para_lines_height(
@@ -1572,7 +1583,7 @@ impl LayoutEngine {
                         if li < line_count {
                             let line = &comp.lines[li];
                             let h = hwpunit_to_px(line.line_height, self.dpi);
-                            let is_cell_last_line = is_last_para && li + 1 == line_count;
+                            let is_cell_last_line = last_visible_line == Some((pi, li));
                             if !is_cell_last_line {
                                 total += h + hwpunit_to_px(line.line_spacing, self.dpi);
                             } else {
@@ -1772,7 +1783,8 @@ impl LayoutEngine {
                         .enumerate()
                     {
                         let para_style = styles.para_styles.get(para.para_shape_id as usize);
-                        let is_last_para = pi + 1 == para_count;
+                        let is_last_para =
+                            last_visible_line.is_some_and(|(last_pi, _)| pi == last_pi);
                         if empty_paragraphs[pi] {
                             if owns_empty_paragraph(pi) {
                                 total += self.calc_para_lines_height(
@@ -1805,7 +1817,7 @@ impl LayoutEngine {
                                 })
                                 .fold(0.0f64, f64::max);
                             let line_height = raw_height.max(glyph_em);
-                            let is_cell_last_line = is_last_para && li + 1 == comp.lines.len();
+                            let is_cell_last_line = last_visible_line == Some((pi, li));
                             total += line_height;
                             if !is_cell_last_line {
                                 total += hwpunit_to_px(line.line_spacing, self.dpi);
@@ -5054,14 +5066,19 @@ impl LayoutEngine {
             }
         }
 
+        let saved_opening_alignment_height = self
+            .saved_single_cell_full_prefix_frame_height(table, start_cut, end_cut, styles)
+            .or_else(|| {
+                end_row_height_override.and_then(|_| {
+                    self.saved_multirow_opening_frame_height(
+                        table, start_row, end_row, start_cut, end_cut, styles,
+                    )
+                })
+            });
         let align_saved_opening_frame = !is_continuation
             && !is_block_split
             && enclosing_cell_ctx.is_none()
-            && end_row_height_override.is_some()
-            && self
-                .saved_multirow_opening_frame_height(
-                    table, start_row, end_row, start_cut, end_cut, styles,
-                )
+            && saved_opening_alignment_height
                 .is_some_and(|frame_height| (partial_table_height - frame_height).abs() <= 0.5);
 
         // ── 6. 셀 렌더링 (render_rows 범위 내 셀만) ──
