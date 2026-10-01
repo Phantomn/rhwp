@@ -619,6 +619,53 @@ impl HeightCursor {
             && curr_first_vpos.is_some_and(|v| {
                 v == prev_vpos_end.saturating_add((curr_sb * 7200.0 / self.dpi).round() as i32)
             });
+        // 가시 본문 뒤 빈 표 호스트의 좌표가 앞 줄 끝과 두 문단 간격의 합이면
+        // 그 좌표에는 표 높이가 들어 있지 않다. 표라는 이유로 앞 줄 끝을 쓰면
+        // 앞 문단 뒤 간격과 현재 앞 간격을 함께 버린다. 저장 줄이 편집되었거나
+        // 직전 개체가 높이를 소비하는 경우에는 이 등식을 배치 근거로 쓰지 않는다.
+        let table_host_only_paragraph_gap = self.suppress_hwpx_stale_forward
+            && !self.session_edited
+            && curr_has_topbottom_para_table
+            && !synthetic_prev_seg
+            && curr_sb > 0.0
+            && para_has_visible_text(prev_para)
+            && prev_para.controls.is_empty()
+            && !prev_para.stored_text_partition_dirty
+            && prev_para.line_segs.iter().all(|line| {
+                line.line_height > 0
+                    && line.line_spacing >= 0
+                    && line.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
+            })
+            && prev_para.line_segs.windows(2).all(|pair| {
+                pair[1].vertical_pos
+                    == pair[0].vertical_pos + pair[0].line_height + pair[0].line_spacing
+            })
+            && paragraphs.get(item_para).is_some_and(|para| {
+                !para_has_visible_text(para)
+                    && !para.stored_text_partition_dirty
+                    && para.line_segs.len() == 1
+                    && para.line_segs[0].tag
+                        & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY
+                        == 0
+                    && para.controls.len() == 1
+                    && matches!(&para.controls[0], Control::Table(table)
+                        if !table.common.treat_as_char
+                            && table.common.vertical_offset == 0
+                            && matches!(table.common.text_wrap, TextWrap::TopAndBottom)
+                            && matches!(table.common.vert_rel_to, VertRelTo::Para))
+            })
+            && styles
+                .para_styles
+                .get(prev_para.para_shape_id as usize)
+                .is_some_and(|style| {
+                    style.spacing_after > 0.0
+                        && curr_first_vpos.is_some_and(|v| {
+                            v == prev_vpos_end.saturating_add(
+                                ((style.spacing_after + curr_sb) * 7200.0 / self.dpi).round()
+                                    as i32,
+                            )
+                        })
+                });
         // [Task #412] 현재 paragraph first vpos 우선(spacing_after 인코딩), reset 시 fallback.
         //
         // 단, 현재 문단이 para-relative TopAndBottom 표의 host 이면 first_vpos 가 표
@@ -653,7 +700,9 @@ impl HeightCursor {
             }
             Some(v)
                 if v > seg.vertical_pos
-                    && (!curr_has_topbottom_para_table || table_host_only_before_gap) =>
+                    && (!curr_has_topbottom_para_table
+                        || table_host_only_before_gap
+                        || table_host_only_paragraph_gap) =>
             {
                 v
             }
