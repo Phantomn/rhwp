@@ -155,8 +155,24 @@ impl TypesetEngine {
                 self.dpi,
             )
         });
+        let header_entry_pad = para_idx.checked_sub(1).and_then(|previous| {
+            crate::renderer::solo_header_gap_half_px(
+                &paragraphs[previous],
+                &paragraphs[para_idx],
+                self.dpi,
+            )
+        });
+        let header_exit_pad = para_idx.checked_sub(2).and_then(|title| {
+            crate::renderer::solo_header_gap_half_px(
+                &paragraphs[title],
+                &paragraphs[title + 1],
+                self.dpi,
+            )
+        });
         let solo_zone_pad = if leaving_is_header_band {
             0.0
+        } else if let Some(pad) = header_entry_pad.or(header_exit_pad) {
+            pad
         } else if let Some(title_exit_pad) = title_exit_pad {
             title_exit_pad
         } else if column_break_new_band && st.col_count > 1 && new_band_is_multicol {
@@ -174,7 +190,8 @@ impl TypesetEngine {
             )
         });
         let candidate_offset = st.current_zone_y_offset
-            + (vpos_zone_height - blank_tail_excess).max(0.0)
+            + (vpos_zone_height - blank_tail_excess - header_entry_pad.unwrap_or(0.0) * 2.0)
+                .max(0.0)
             + tac_band_extra
             + st.current_zone_design_spacing_px / 2.0
             + new_ds / 2.0

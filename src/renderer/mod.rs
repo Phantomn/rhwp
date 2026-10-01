@@ -1876,6 +1876,34 @@ pub(crate) fn multicol_band_break_pad_px(dpi: f64) -> f64 {
     hwpunit_to_px(1500, dpi)
 }
 
+/// 큰 디자인 간격의 한 줄 표 헤더 앞뒤에 나누어 예약할 직전 제목의 줄간격.
+pub(crate) fn solo_header_gap_half_px(
+    title: &crate::model::paragraph::Paragraph,
+    header: &crate::model::paragraph::Paragraph,
+    dpi: f64,
+) -> Option<f64> {
+    use crate::model::control::Control;
+    if title.line_segs.len() != 1
+        || title.text.trim().is_empty()
+        || header.line_segs.len() != 1
+        || !title.controls.iter().any(|control| {
+            matches!(control, Control::ColumnDef(cd) if cd.column_count.max(1) <= 1 && cd.spacing <= 283)
+        })
+        || title.controls.iter().any(|control| matches!(control, Control::Table(_)))
+        || !header.controls.iter().any(|control| {
+            matches!(control, Control::ColumnDef(cd) if cd.column_count.max(1) <= 1 && cd.spacing > 283)
+        })
+        || !header.controls.iter().any(|control| {
+            matches!(control, Control::Table(table) if table.common.treat_as_char
+                && matches!(table.common.text_wrap, crate::model::shape::TextWrap::TopAndBottom))
+        })
+    {
+        return None;
+    }
+    let spacing = title.line_segs.first()?.line_spacing;
+    (spacing > 0).then(|| hwpunit_to_px(spacing, dpi) / 2.0)
+}
+
 /// 저장 한 줄 소제목에서 다단 본문으로 넘어갈 때 본문 두 줄 진행을 확보한다.
 /// 제목에서 이미 소비한 줄 상자와 별도로 더할 디자인 간격은 예약에서 제외한다.
 pub(crate) fn solo_title_exit_pad_px(

@@ -6648,8 +6648,34 @@ impl LayoutEngine {
                         self.dpi,
                     )
                 });
+                let previous_zone_para = |column_index: usize| {
+                    page_content.column_contents[column_index]
+                        .items
+                        .last()
+                        .and_then(|item| match item {
+                            PageItem::FullParagraph { para_index }
+                            | PageItem::Table { para_index, .. } => paragraphs.get(*para_index),
+                            _ => None,
+                        })
+                };
+                let header_entry_pad = col_content_idx.checked_sub(1).and_then(|previous| {
+                    super::solo_header_gap_half_px(
+                        previous_zone_para(previous)?,
+                        paragraphs.get(new_zone_first_para?)?,
+                        self.dpi,
+                    )
+                });
+                let header_exit_pad = col_content_idx.checked_sub(2).and_then(|title| {
+                    super::solo_header_gap_half_px(
+                        previous_zone_para(title)?,
+                        previous_zone_para(title + 1)?,
+                        self.dpi,
+                    )
+                });
                 let solo_zone_pad = if prev_zone_was_header_band {
                     0.0
+                } else if let Some(pad) = header_entry_pad.or(header_exit_pad) {
+                    pad
                 } else if let Some(title_exit_pad) = title_exit_pad {
                     title_exit_pad
                 } else if column_break_new_band && prev_zone_was_multi && new_band_is_multicol {
