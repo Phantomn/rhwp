@@ -1009,6 +1009,88 @@ pub(crate) fn stored_picture_successor_with_following_placement(
     })
 }
 
+/// 본문 끝 그림의 소유 줄과 뒤 문단의 저장 어울림 경계가 같은 프레임을 증명한다.
+/// 첫 줄 기준 추정 대신 컨트롤의 UTF-16 소유 줄을 배치와 예약에 함께 전달한다.
+pub(crate) fn stored_tail_square_picture_placement(
+    para: &Paragraph,
+    successor: &Paragraph,
+    control_index: usize,
+    actual_host_flow_y: f64,
+    dpi: f64,
+) -> Option<ParagraphFloatPlacement> {
+    use crate::model::paragraph::LineSeg;
+    let Control::Picture(picture) = para.controls.get(control_index)? else {
+        return None;
+    };
+    let common = &picture.common;
+    let valid = |para: &Paragraph| {
+        !para.stored_text_partition_is_dirty()
+            && !para.line_segs.is_empty()
+            && para.line_segs.iter().all(|line| {
+                line.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0 && line.line_height > 0
+            })
+            && para.line_segs.windows(2).all(|pair| {
+                pair[1].vertical_pos >= pair[0].vertical_pos
+                    && pair[1].text_start >= pair[0].text_start
+            })
+    };
+    if !valid(para)
+        || !valid(successor)
+        || para.text.trim().is_empty()
+        || common.treat_as_char
+        || common.text_wrap != TextWrap::Square
+        || common.vert_rel_to != VertRelTo::Para
+        || common.horz_rel_to != HorzRelTo::Column
+        || common.vert_align != VertAlign::Top
+        || common.horz_align != HorzAlign::Left
+        || !common.flow_with_text
+        || !actual_host_flow_y.is_finite()
+        || !dpi.is_finite()
+        || dpi <= 0.0
+    {
+        return None;
+    }
+    let owner = *stored_control_line_indices(para)?.get(control_index)?;
+    if owner == 0 || owner + 1 != para.line_segs.len() {
+        return None;
+    }
+    let first = para.line_segs.first()?;
+    let line = para.line_segs.get(owner)?;
+    let top = i64::from(line.vertical_pos) + i64::from(signed_hwpunit(common.vertical_offset));
+    let left = signed_hwpunit(common.horizontal_offset);
+    let (width, height) = picture_flow_frame_size_hu(picture);
+    let right = left.checked_add(width)?;
+    // 마지막 본문 줄은 그림 위에서 완결되고, 뒤 저장 줄의 양쪽 경계는
+    // 같은 그림의 좌우를 정확히 가리켜야 한다. 줄 위치만으로는 인정하지 않는다.
+    if width <= 0
+        || height <= 0
+        || line.vertical_pos <= first.vertical_pos
+        || top < i64::from(line.vertical_pos) + i64::from(line.line_height)
+        || !successor.line_segs.iter().any(|before| {
+            let end = i64::from(before.vertical_pos) + i64::from(before.line_height);
+            i64::from(before.vertical_pos) <= top
+                && top < end
+                && before.column_start + before.segment_width as i32 == left
+                && successor.line_segs.iter().any(|after| {
+                    after.vertical_pos == before.vertical_pos && after.column_start == right
+                })
+        })
+    {
+        return None;
+    }
+    let anchor_y = actual_host_flow_y + hwpunit_to_px(line.vertical_pos - first.vertical_pos, dpi);
+    let top = anchor_y + hwpunit_to_px(signed_hwpunit(common.vertical_offset), dpi);
+    Some(ParagraphFloatPlacement {
+        flow: ParagraphFloatFlow::Exclusion,
+        anchor_y,
+        stored_host_origin: Some(actual_host_flow_y),
+        stored_successor_line_origin: None,
+        table_left: None,
+        table_top: top,
+        occupied_bottom: top + hwpunit_to_px(height, dpi),
+    })
+}
+
 /// 그림 앞의 저장 줄 끝, 그림 프레임, 뒤쪽 호스트 줄과 후속 줄이 모두
 /// 같은 저장 축에서 닫힐 때만 그림이 호스트 텍스트 앞의 공간을 소유한다.
 /// 실제 앞 흐름도 그 경계에 있어야 하므로 편집되거나 누락된 공간을 되감지 않는다.

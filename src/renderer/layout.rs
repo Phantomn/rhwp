@@ -15044,7 +15044,9 @@ impl LayoutEngine {
                             let stored_picture = ctx.paragraph_float_placements
                                 .get(&(para_index, control_index))
                                 .filter(|placement| matches!(placement.flow,
-                                    super::float_placement::ParagraphFloatFlow::StoredPicture { .. }));
+                                    super::float_placement::ParagraphFloatFlow::StoredPicture { .. })
+                                    || (placement.flow == super::float_placement::ParagraphFloatFlow::Exclusion
+                                        && placement.stored_host_origin.is_some()));
                             let (vpos_accounts_for_height, pic_y) = stored_picture
                                 .map(|placement| (false, col_area.y + placement.anchor_y))
                                 .unwrap_or((vpos_accounts_for_height, pic_y));

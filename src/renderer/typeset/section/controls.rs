@@ -214,6 +214,26 @@ impl TypesetEngine {
                                 == (picture_host_origin.0, picture_host_origin.1))
                             .then_some(picture_host_origin.2);
                         st.register_side_wrap_picture(para_idx, ctrl_idx, para, host_top, styles);
+                        // 뒤 저장 어울림 줄이 소유 줄의 그림 프레임을 증명한 경우,
+                        // 예약과 실제 출력이 같은 앵커 계획을 소비한다.
+                        if !self.profile.get().session_edited()
+                            && (self.profile.get().hwp5_stored_pagination_layout()
+                                || self.profile.get().hwpx_stored_layout())
+                            && (st.pages.len(), st.current_column)
+                                == (picture_host_origin.0, picture_host_origin.1)
+                            && st.current_items.iter().any(|item| {
+                                matches!(item, PageItem::FullParagraph { para_index } if *para_index == para_idx)
+                            })
+                        {
+                            if let Some(placement) = paragraphs.get(para_idx + 1).and_then(|next| {
+                                crate::renderer::float_placement::stored_tail_square_picture_placement(
+                                    para, next, ctrl_idx, picture_host_origin.2, self.dpi,
+                                )
+                            }) {
+                                st.record_paragraph_float_placement((para_idx, ctrl_idx), placement);
+                                st.register_side_wrap_picture(para_idx, ctrl_idx, para, Some(placement.anchor_y), styles);
+                            }
+                        }
                         // 저장된 그림 앞 공간과 뒤 호스트 줄을 하나의 프레임으로 예약한다.
                         // 저장 줄이 있는 원본의 현재 단에서만 확정하고 편집 흐름에는 적용하지 않는다.
                         if (self.profile.get().hwp5_stored_pagination_layout()
