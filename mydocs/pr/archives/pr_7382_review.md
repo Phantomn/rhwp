@@ -3512,8 +3512,8 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 ## 보정253 — 5쪽 #6756 본문 넘침의 현재 증거 재확인
 
-- `body_overflow_baseline` 분할15의 신규 행 중 `samples/issue6756/17253153-traffic-safety-designated-routes.hwp`는 **5쪽** 원본입니다. 현재 head `67f4b639a`의 `layout-anomaly -p 1 --json`은 첫 쪽 분할 표 `Page/Body/Column0/Table0` 상자가 본문 하한보다 **32.89333px** 내려간 한 건을 보고합니다. 진단 JSON은 `output/pr-review/planet6897-7382-20260926/stage253-issue6756-p1-anomaly.json`입니다.
-- 같은 head의 독립 한컴 2020 PDF와 Native **5/5쪽** Visual Sweep 점수는 **89.21882/83.49429/78.68970/87.45207/71.85641%**, gate `re_review_required`입니다. 보정191·201 이후에도 그대로이며, 4·5쪽 내용의 쪽 소유는 바로잡혔지만 1쪽 표의 본문 하한과 내부 글줄·괘선 차이가 남았습니다. 1·5쪽 review를 직접 확인했습니다. 원본·PDF·기존 검사는 보존하고 이 5쪽 문서를 #7445로 이관하거나 baseline을 올리지 않습니다. 소스 변경 없이 실패 원인 분석을 다음 단계로 넘깁니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage253-issue6756/`입니다.
+- `body_overflow_baseline` 분할15의 신규 행 중 `samples/issue6756/17253153-traffic-safety-designated-routes.hwp`는 **5쪽** 원본입니다. 현재 head `67f4b639a`의 `layout-anomaly -p 1 --json`은 **0부터 세는 page=1, 즉 인쇄 2쪽** 분할 표 `Page/Body/Column0/Table0` 상자가 본문 하한보다 **32.89333px** 내려간 한 건을 보고합니다. 종전 기록의 “첫 쪽”은 쪽 번호 해석 오류였으며 보정260에서 바로잡았습니다. 진단 JSON은 기존 이름 그대로 `output/pr-review/planet6897-7382-20260926/stage253-issue6756-p1-anomaly.json`입니다.
+- 같은 head의 독립 한컴 2020 PDF와 Native **5/5쪽** Visual Sweep 점수는 **89.21882/83.49429/78.68970/87.45207/71.85641%**, gate `re_review_required`입니다. 보정191·201 이후에도 그대로이며, 4·5쪽 내용의 쪽 소유는 바로잡혔지만 **2쪽** 분할 표의 본문 하한과 내부 글줄·괘선 차이가 남았습니다. 1·5쪽 review는 전쪽 점수의 참고 그림이고, 이 넘침은 2쪽 review에서 따로 확인해야 합니다. 원본·PDF·기존 검사는 보존하고 이 5쪽 문서를 #7445로 이관하거나 baseline을 올리지 않습니다. 소스 변경 없이 실패 원인 분석을 다음 단계로 넘깁니다. 출력은 `output/pr-review/planet6897-7382-20260926/stage253-issue6756/`입니다.
 
 ![5쪽 교통 문서 1쪽 Native와 한컴 PDF 비교](../assets/pr7382_20260926/stage253_issue6756_native_review_001.png)
 
@@ -3565,3 +3565,10 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 
 - 보정257 직전 head `7d734dfe4`를 임시 작업트리에 체크아웃해 **동일 원본 HWP·한컴 PDF·96dpi**에서 인쇄 24쪽을 다시 비교했다. 직전과 보정 후 `3ed8cc2ae` 모두 점수 **67.95576%**, rhwp 24쪽 PNG SHA-256 `4698626ff1cab5cf21d84efdf118b8e21329a812ac9505dbbaadafef94ac`로 바이트까지 같다. 따라서 보정257의 5쪽 프레임 수정이 24쪽의 실제 차이를 만들지 않았다. 이전 head 증거는 `output/pr-review/planet6897-7382-20260926/stage259-pre257-p24/`이고 임시 작업트리는 제거했다.
 - [#7445 보충 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5922243997)에 원본·PDF 해시, 전쪽 최저 점수, 24쪽 차이, 두 head의 PNG 동일성과 복원 조건을 기록하고 API readback에서 한글을 확인했다. #1105 k-water 검사는 통과 중이므로 제거하지 않는다. 24쪽 피델리티는 이번 5쪽 넘침 보정의 완료 주장에 포함하지 않는다. 이슈 기록은 PR 전체의 시각 gate 통과를 의미하지 않는다.
+
+## 보정260 — #6756 넘침의 실제 인쇄 쪽과 측정·배치 차이
+
+- 기존 보정253의 `layout-anomaly -p 1`은 **인쇄 2쪽**이었다. 앞의 기록에서 이를 1쪽이라고 잘못 설명한 부분을 바로잡았다. 현재 head `af65a6f90`에서도 실제 2쪽 `PartialTable pi=0 ci=2, rows=6..15, startCut=[1,4,4,0,0], endCut=[2,3]`이 같은 신호를 낸다. 해당 쪽 `dump-pages`의 사용 높이는 **987.4px / 본문 1009.1px**인데 렌더 트리의 표는 y=75.57~1117.61px로 **본문 하한 1084.72px을 32.89px** 넘는다. 이는 컷의 논리 예약과 실제 표 프레임이 갈리는 값이다. 진단은 `output/pr-review/planet6897-7382-20260926/stage260-issue6756-*`에 있다.
+- 실제 글자는 마지막 줄도 **y=1039.4~1055.4px**여서 본문 안에 있다. 넘어간 부분은 조각의 셀·괘선 상자다. 독립 한컴 PDF 2쪽에서도 마지막 셀의 세로 괘선이 본문 아래까지 이어지고 끝 가로선은 보이지 않는다. 현재 rhwp는 y≈1117px에 분할 조각의 끝 가로선을 그린다. 따라서 단순히 표 bbox를 본문 하한으로 자르면 원본의 물리 프레임을 훼손한다. 다음 단계에서 분할 컷의 마지막 괘선 소유와 물리 끝점, 본문 넘침 원장 검사의 의미를 함께 대조한다. 2쪽 점수는 **83.49429%**로, 이 단계에서 검사나 baseline을 완화하지 않는다.
+
+![#6756 인쇄 2쪽의 분할 표와 한컴 PDF 비교](../assets/pr7382_20260926/stage260_issue6756_native_review_002.png)
