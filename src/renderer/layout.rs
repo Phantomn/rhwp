@@ -6550,6 +6550,7 @@ impl LayoutEngine {
         };
         let mut prev_zone_design_px: f64 = 0.0;
         let mut prev_zone_was_solo: bool = false;
+        let mut prev_zone_was_multi: bool = false;
         // [Task #866 v3 Stage 1] 직전 zone 이 헤더 띠(TAC wrap=TopAndBottom 표만 보유) 였으면
         // solo_zone_pad 의 leaving 분기를 제외 (typeset.rs::leaving_is_header_band 와 동일).
         let mut prev_zone_was_header_band: bool = false;
@@ -6627,7 +6628,7 @@ impl LayoutEngine {
                     || (prev_zone_is_solo_zero && !prev_zone_was_header_band)
                     || column_break_new_band
                 {
-                    hwpunit_to_px(1200, self.dpi)
+                    super::solo_zone_pad_px(new_zone_is_solo_zero, prev_zone_was_multi, self.dpi)
                 } else {
                     0.0
                 };
@@ -6651,6 +6652,7 @@ impl LayoutEngine {
                                 })
                             })
                             .unwrap_or(false));
+                prev_zone_was_multi = zone_layout.column_areas.len() >= 2;
                 last_zone_y_offset = col_content.zone_y_offset;
                 // 본 zone 이 다단 + 구분선 보유 시 종료 시점에 emit 하기 위해 기록.
                 // [Task #1333] zone emit(emit_zone_column_separators)이 단 구분선의 단일

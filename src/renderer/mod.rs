@@ -1858,6 +1858,19 @@ pub fn hwpunit_to_px(hwpunit: i32, dpi: f64) -> f64 {
     hwpunit as f64 * dpi / HWPUNIT_PER_INCH
 }
 
+/// 다단 뒤의 단일 단 제목은 저장 한 줄 여백을 온전히 보존한다.
+/// 다른 단 전환은 기존 1200HU 간격을 따른다.
+pub(crate) fn solo_zone_pad_px(entering_solo: bool, prior_multicol: bool, dpi: f64) -> f64 {
+    hwpunit_to_px(
+        if entering_solo && prior_multicol {
+            1500
+        } else {
+            1200
+        },
+        dpi,
+    )
+}
+
 /// 픽셀을 HWPUNIT으로 변환
 #[inline]
 pub fn px_to_hwpunit(px: f64, dpi: f64) -> i32 {

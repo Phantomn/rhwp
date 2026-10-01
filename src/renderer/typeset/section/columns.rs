@@ -121,7 +121,7 @@ impl TypesetEngine {
         //     분할에서>`). Stage 1 의 Distribute 마지막 컬럼 라우팅과 정합.
         let entering_solo_zero = paragraphs[para_idx].controls.iter().any(|c| {
             matches!(c,
-            Control::ColumnDef(cd) if cd.column_count.max(1) <= 1 && cd.spacing == 0)
+            Control::ColumnDef(cd) if cd.column_count.max(1) <= 1 && cd.spacing <= 283)
         });
         let leaving_solo_zero = st.col_count <= 1 && st.current_zone_design_spacing_px < 0.5;
         // [Task #866 v3 Stage 1] 헤더 띠 zone (TAC wrap=TopAndBottom 표) 의 leaving 은
@@ -134,7 +134,7 @@ impl TypesetEngine {
             || (leaving_solo_zero && !leaving_is_header_band)
             || column_break_new_band
         {
-            hwpunit_to_px(1200, self.dpi)
+            crate::renderer::solo_zone_pad_px(entering_solo_zero, st.col_count > 1, self.dpi)
         } else {
             0.0
         };
