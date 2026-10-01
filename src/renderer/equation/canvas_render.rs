@@ -57,12 +57,17 @@ fn render_box(
             let fi = fs;
             // CJK 문자는 italic 미적용. FontStyle::Roman(`rm`)으로 italic=false 가
             // 전달된 경우에도 italic 미적용 (svg_render.rs Text arm 과 동일 정책).
-            let has_cjk = text.chars().any(|c| {
-                matches!(c,
-                    '\u{3000}'..='\u{9FFF}' | '\u{F900}'..='\u{FAFF}' | '\u{AC00}'..='\u{D7AF}'
-                )
-            });
-            set_font(ctx, fi, !has_cjk && italic, bold);
+            let has_cjk = super::text_has_cjk(text);
+            if has_cjk {
+                ctx.set_font(&format!(
+                    "{}{:.1}px {}",
+                    if bold { "bold " } else { "" },
+                    fi,
+                    super::CJK_EQUATION_FONT_FAMILY
+                ));
+            } else {
+                set_font(ctx, fi, italic, bold);
+            }
             ctx.set_fill_style_str(color);
             let _ = ctx.fill_text(text, x, y + lb.baseline);
         }

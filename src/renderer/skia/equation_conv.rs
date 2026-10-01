@@ -690,13 +690,20 @@ fn draw_text(
     if text.is_empty() {
         return;
     }
-    let font_style = match (bold, italic) {
+    // 수식의 한글은 SVG/Canvas와 같은 명조 대체 글꼴과 정체 스타일을 쓴다.
+    let has_cjk = crate::renderer::equation::text_has_cjk(text);
+    let family = if has_cjk {
+        crate::renderer::equation::CJK_EQUATION_FONT_FAMILY
+    } else {
+        EQ_FONT_FAMILY
+    };
+    let font_style = match (bold, italic && !has_cjk) {
         (true, true) => FontStyle::bold_italic(),
         (true, false) => FontStyle::bold(),
         (false, true) => FontStyle::italic(),
         (false, false) => FontStyle::normal(),
     };
-    let typeface = EQ_FONT_FAMILY
+    let typeface = family
         .split(',')
         .map(str::trim)
         .filter(|family| !family.is_empty())

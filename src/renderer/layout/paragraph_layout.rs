@@ -4059,7 +4059,10 @@ impl LayoutEngine {
                         &color_str,
                         font_size_px,
                     );
-                    let hwp_eq_h = hwpunit_to_px(eq.common.height as i32, self.dpi);
+                    let hwp_eq_h = hwpunit_to_px(
+                        crate::renderer::equation::flow_height_hwp(eq) as i32,
+                        self.dpi,
+                    );
                     let eq_h = if hwp_eq_h > 0.0 {
                         hwp_eq_h
                     } else {
@@ -8018,7 +8021,10 @@ impl LayoutEngine {
                                     font_size_px,
                                 );
                             // HWP 저장 높이를 우선 사용 (한컴 조판 결과 기준)
-                            let hwp_eq_h = hwpunit_to_px(eq.common.height as i32, self.dpi);
+                            let hwp_eq_h = hwpunit_to_px(
+                                crate::renderer::equation::flow_height_hwp(eq) as i32,
+                                self.dpi,
+                            );
                             let eq_h = if hwp_eq_h > 0.0 {
                                 hwp_eq_h
                             } else {

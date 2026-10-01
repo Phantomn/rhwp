@@ -2343,7 +2343,9 @@ fn inline_control_line_height_hwp(para: &Paragraph) -> Option<i32> {
             Control::Picture(pic) if pic.common.treat_as_char => Some(pic.common.height as i32),
             Control::Shape(shape) if shape.common().treat_as_char => Some(shape.flow_height_hu()),
             Control::Table(table) if table.common.treat_as_char => Some(table.common.height as i32),
-            Control::Equation(eq) if eq.common.treat_as_char => Some(eq.common.height as i32),
+            Control::Equation(eq) if eq.common.treat_as_char => {
+                Some(crate::renderer::equation::flow_height_hwp(eq) as i32)
+            }
             Control::Form(form) if form.common.treat_as_char => Some(form.height as i32),
             _ => None,
         })
@@ -2365,9 +2367,10 @@ fn inline_control_size_hwp(ctrl: &Control) -> Option<(i32, i32)> {
             let width = table.flow_width_hu() as i32;
             (width, table.common.height as i32)
         }
-        Control::Equation(eq) if eq.common.treat_as_char => {
-            (eq.common.width as i32, eq.common.height as i32)
-        }
+        Control::Equation(eq) if eq.common.treat_as_char => (
+            crate::renderer::equation::flow_width_hwp(eq) as i32,
+            crate::renderer::equation::flow_height_hwp(eq) as i32,
+        ),
         Control::Form(form) if form.common.treat_as_char => (form.width as i32, form.height as i32),
         _ => return None,
     };
@@ -2424,11 +2427,9 @@ fn flow_inline_controls(para: &Paragraph) -> Vec<FlowInlineControl> {
             }
             let (width_hwp, height_hwp) = inline_control_size_hwp(control)?;
             let baseline_distance_hwp = match control {
-                Control::Equation(equation) if equation.baseline > 0 => Some(
-                    height_hwp
-                        .saturating_mul(i32::from(equation.baseline))
-                        .saturating_div(100),
-                ),
+                Control::Equation(equation) if equation.baseline > 0 => {
+                    Some(crate::renderer::equation::flow_metrics_hwp(equation).2)
+                }
                 _ => None,
             };
             (char_position < text_len).then_some(FlowInlineControl {
@@ -2524,10 +2525,48 @@ fn control_is_line_width_neutral_float_table(control: &Control) -> bool {
             && matches!(t.common.text_wrap, crate::model::shape::TextWrap::TopAndBottom))
 }
 
+/// 대체 메트릭으로 폭이 바뀐 수식의 첫 소유 줄만 저장 캐시 경계로 삼는다.
+/// 앞쪽의 정상 줄과 각주 앵커까지 함께 재조판하면 무관한 문단 배치가 바뀐다.
+pub(super) fn remeasured_equation_start_row(para: &Paragraph) -> Option<usize> {
+    let positions = super::find_render_inline_control_positions(para);
+    para.controls
+        .iter()
+        .enumerate()
+        .filter_map(|(index, control)| {
+            let Control::Equation(equation) = control else {
+                return None;
+            };
+            if !equation.common.treat_as_char
+                || crate::renderer::equation::flow_width_hwp(equation) == equation.common.width
+            {
+                return None;
+            }
+            let position = *positions.get(index)?;
+            let chars = para.text.chars().count();
+            para.line_segs
+                .iter()
+                .enumerate()
+                .rev()
+                .find_map(|(row, _)| {
+                    let (start, _) = super::utf16_range_to_text_range(
+                        &para.char_offsets,
+                        para.line_seg_text_start(row),
+                        u32::MAX,
+                        chars,
+                    );
+                    (start <= position).then_some(row)
+                })
+        })
+        .min()
+}
+
 pub(super) fn supports_cached_body_frame_controls(para: &Paragraph) -> bool {
+    let remeasured = remeasured_equation_start_row(para).is_some();
     para.controls.iter().all(|control| {
         control_is_width_neutral_marker(control)
             || control_is_line_width_neutral_float_table(control)
+            || (remeasured && matches!(control, Control::Equation(eq) if eq.common.treat_as_char))
+            || (remeasured && matches!(control, Control::Footnote(_)))
     })
 }
 
@@ -2738,7 +2777,7 @@ pub(crate) fn layout_paragraph_in_frame(
     styles: &ResolvedStyleSet,
     dpi: f64,
 ) -> Option<Vec<LineSeg>> {
-    layout_paragraph_in_frame_impl(para, frame, styles, dpi, true)
+    layout_paragraph_in_frame_impl(para, frame, styles, dpi, true, 0)
 }
 
 fn layout_paragraph_in_frame_impl(
@@ -2747,6 +2786,7 @@ fn layout_paragraph_in_frame_impl(
     styles: &ResolvedStyleSet,
     dpi: f64,
     allow_kerning: bool,
+    start_char: usize,
 ) -> Option<Vec<LineSeg>> {
     // [#6102] 폭-중립 자리차지 표 host 도 fill 대상 — 표는 줄 폭을 소비하지
     // 않으므로(자기 레이아웃 소유자가 따로 배치) 텍스트만 재래핑하면 된다.
@@ -2876,14 +2916,11 @@ fn layout_paragraph_in_frame_impl(
                 .filter_map(|control| match control {
                     Control::Equation(equation)
                         if equation.common.treat_as_char
-                            && equation.common.height as i32 == height_hwp
+                            && crate::renderer::equation::flow_height_hwp(equation) as i32
+                                == height_hwp
                             && equation.baseline > 0 =>
                     {
-                        Some(
-                            height_hwp
-                                .saturating_mul(i32::from(equation.baseline))
-                                .saturating_div(100),
-                        )
+                        Some(crate::renderer::equation::flow_metrics_hwp(equation).2)
                     }
                     _ => None,
                 })
@@ -2901,7 +2938,7 @@ fn layout_paragraph_in_frame_impl(
         .unwrap_or(LineSeg::TAG_IMPLEMENTATION_PROPERTY);
     let first_row = frame.row_count();
     let frame_checkpoint = frame.clone();
-    let mut cursor = FillCursor::new(0, true);
+    let mut cursor = FillCursor::replay_from_boundary(&tokens, start_char, start_char == 0);
 
     let result = (|| {
         while !cursor.finished {
@@ -3009,11 +3046,13 @@ fn layout_paragraph_in_frame_impl(
                             _ => Some((control.height_hwp, control.baseline_distance_hwp)),
                         };
                     }
-                    let text_start = if frame.row_count() == first_row && segments.is_empty() {
-                        0
-                    } else {
-                        char_index_to_utf16_offset(para, line.start_idx)
-                    };
+                    let text_start =
+                        if start_char == 0 && frame.row_count() == first_row && segments.is_empty()
+                        {
+                            0
+                        } else {
+                            char_index_to_utf16_offset(para, line.start_idx)
+                        };
                     let text_end = char_index_to_utf16_offset(para, line.end_idx).max(text_start);
                     segments.push(RowSegment::new(text_start..text_end, interval, source_tag));
 
@@ -3082,7 +3121,7 @@ fn layout_paragraph_in_frame_impl(
     if kerning_failed {
         // 한 boundary라도 예산/범위 검증에 실패하면 일부 K1 row를 게시하지
         // 않고 문단 전체를 원래 scalar transaction으로 다시 실행한다.
-        return layout_paragraph_in_frame_impl(para, frame, styles, dpi, false);
+        return layout_paragraph_in_frame_impl(para, frame, styles, dpi, false, start_char);
     }
     result
 }
@@ -3256,6 +3295,37 @@ pub(crate) fn resolve_stored_line_segs_in_frame(
             known_square_band,
         )
     {
+        return None;
+    }
+
+    // 수식 대체 폭이 달라진 곳부터만 채운다. 앞행은 같은 프레임의 수용 검사와
+    // 저장 줄 출처를 통과해야 하며, 실패하면 이 부분 경로는 결과를 남기지 않는다.
+    if let Some(start_row) = remeasured_equation_start_row(para) {
+        let checkpoint = frame.clone();
+        if !para.stored_text_partition_is_dirty()
+            && !stored_rows_require_external_geometry(
+                para,
+                frame,
+                float_carve_evidence,
+                known_square_band,
+            )
+            && (start_row == 0
+                || frame.try_admit_stored_rows(&para.line_segs[..start_row], |row| {
+                    stored_row_metrics(para, styles, dpi, row)
+                }))
+        {
+            let (start_char, _) = super::utf16_range_to_text_range(
+                &para.char_offsets,
+                para.line_seg_text_start(start_row),
+                u32::MAX,
+                para.text.chars().count(),
+            );
+            if layout_paragraph_in_frame_impl(para, frame, styles, dpi, true, start_char).is_some()
+            {
+                return Some(StoredRowResolution::Reflowed);
+            }
+        }
+        frame.restore_checkpoint(checkpoint);
         return None;
     }
 

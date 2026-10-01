@@ -670,8 +670,14 @@ impl LayoutEngine {
             }
 
             // 인라인 좌표 없으면 기존 방식 (정렬 기반 단독 배치)
-            let eq_w = hwpunit_to_px(eq.common.width as i32, self.dpi);
-            let eq_h = hwpunit_to_px(eq.common.height as i32, self.dpi);
+            let eq_w = hwpunit_to_px(
+                crate::renderer::equation::flow_width_hwp(eq) as i32,
+                self.dpi,
+            );
+            let eq_h = hwpunit_to_px(
+                crate::renderer::equation::flow_height_hwp(eq) as i32,
+                self.dpi,
+            );
             let eq_x = match alignment {
                 Alignment::Center | Alignment::Distribute => {
                     col_area.x + (col_area.width - eq_w).max(0.0) / 2.0
@@ -3273,7 +3279,7 @@ impl LayoutEngine {
                                         Some(shape.as_ref().common().height as i32)
                                     }
                                     Control::Equation(eq) if eq.common.treat_as_char => {
-                                        Some(eq.common.height as i32)
+                                        Some(crate::renderer::equation::flow_height_hwp(eq) as i32)
                                     }
                                     _ => None,
                                 })
@@ -3446,9 +3452,14 @@ impl LayoutEngine {
                         }
                     }
                     Control::Equation(eq) => {
-                        total_inline_width += hwpunit_to_px(eq.common.width as i32, self.dpi);
-                        max_inline_height =
-                            max_inline_height.max(hwpunit_to_px(eq.common.height as i32, self.dpi));
+                        total_inline_width += hwpunit_to_px(
+                            crate::renderer::equation::flow_width_hwp(eq) as i32,
+                            self.dpi,
+                        );
+                        max_inline_height = max_inline_height.max(hwpunit_to_px(
+                            crate::renderer::equation::flow_height_hwp(eq) as i32,
+                            self.dpi,
+                        ));
                     }
                     Control::Table(table) if table.common.treat_as_char => {
                         total_inline_width += hwpunit_to_px(table.flow_width_hu() as i32, self.dpi)
@@ -3717,8 +3728,14 @@ impl LayoutEngine {
                     }
                     Control::Equation(eq) => {
                         // 글상자 내 수식: 항상 글자처럼 인라인 배치
-                        let eq_w = hwpunit_to_px(eq.common.width as i32, self.dpi);
-                        let eq_h = hwpunit_to_px(eq.common.height as i32, self.dpi);
+                        let eq_w = hwpunit_to_px(
+                            crate::renderer::equation::flow_width_hwp(eq) as i32,
+                            self.dpi,
+                        );
+                        let eq_h = hwpunit_to_px(
+                            crate::renderer::equation::flow_height_hwp(eq) as i32,
+                            self.dpi,
+                        );
                         // [Task #962] 글상자 내부 paragraph 의 inline equation 은
                         // paragraph_layout 가 layout_composed_paragraph 경로에서 정확한
                         // gap 위치 (text 사이) 에 emit 한다. 본 두번째 loop 는

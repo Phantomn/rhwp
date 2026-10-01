@@ -931,16 +931,19 @@ impl SvgRenderer {
                 self.output.push_str("</g>\n");
                 // 폰트 임베딩: 수식에서 사용된 글자 수집
                 if self.font_embed_mode != FontEmbedMode::None {
-                    let codepoints = self
-                        .font_codepoints
-                        .entry("Latin Modern Math".to_string())
-                        .or_default();
-                    // SVG <text> 요소 내부의 텍스트에서 문자 추출
+                    // SVG <text> 요소마다 실제 사용하는 글꼴의 글자를 수집한다.
                     for segment in eq.svg_content.split("</text>") {
                         if let Some(start) = segment.rfind('>') {
-                            for ch in segment[start + 1..].chars() {
-                                codepoints.insert(ch);
-                            }
+                            let text = &segment[start + 1..];
+                            let family = if super::equation::text_has_cjk(text) {
+                                "Haansoft Batang"
+                            } else {
+                                "Latin Modern Math"
+                            };
+                            self.font_codepoints
+                                .entry(family.to_string())
+                                .or_default()
+                                .extend(text.chars());
                         }
                     }
                 }

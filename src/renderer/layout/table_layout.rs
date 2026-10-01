@@ -6014,9 +6014,13 @@ impl LayoutEngine {
                         Control::Shape(shape) if shape.common().treat_as_char => {
                             (true, hwpunit_to_px(shape.common().width as i32, self.dpi))
                         }
-                        Control::Equation(eq) => {
-                            (true, hwpunit_to_px(eq.common.width as i32, self.dpi))
-                        }
+                        Control::Equation(eq) => (
+                            true,
+                            hwpunit_to_px(
+                                crate::renderer::equation::flow_width_hwp(eq) as i32,
+                                self.dpi,
+                            ),
+                        ),
                         Control::Table(t) if t.common.treat_as_char => {
                             // [Issue #3396] 한글은 TAC 표의 문자 폭에 outMargin
                             // 좌/우를 포함한다 (정렬·전진 폭 공히).
@@ -7320,7 +7324,10 @@ impl LayoutEngine {
                     }
                     Control::Equation(eq) => {
                         // 수식 컨트롤: 글자처럼 인라인 배치
-                        let eq_w = hwpunit_to_px(eq.common.width as i32, self.dpi);
+                        let eq_w = hwpunit_to_px(
+                            crate::renderer::equation::flow_width_hwp(eq) as i32,
+                            self.dpi,
+                        );
 
                         // 수식이 텍스트 run 사이에 인라인으로 배치되는 경우
                         // layout_composed_paragraph에서 이미 렌더링됨 → 건너뛰기
@@ -7341,7 +7348,10 @@ impl LayoutEngine {
                             inline_x += eq_w;
                         } else {
                             // 수식만 있는 문단: 여기서 직접 렌더링
-                            let eq_h = hwpunit_to_px(eq.common.height as i32, self.dpi);
+                            let eq_h = hwpunit_to_px(
+                                crate::renderer::equation::flow_height_hwp(eq) as i32,
+                                self.dpi,
+                            );
                             let eq_x = {
                                 let x = inline_x;
                                 inline_x += eq_w;
@@ -8485,7 +8495,10 @@ impl LayoutEngine {
                                 }
                             }
                             Control::Equation(eq) => {
-                                let eq_h = hwpunit_to_px(eq.common.height as i32, self.dpi);
+                                let eq_h = hwpunit_to_px(
+                                    crate::renderer::equation::flow_height_hwp(eq) as i32,
+                                    self.dpi,
+                                );
                                 if eq.common.treat_as_char {
                                     if eq_h > max_inline_height {
                                         max_inline_height = eq_h;

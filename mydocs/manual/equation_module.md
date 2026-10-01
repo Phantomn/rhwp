@@ -2,7 +2,7 @@
 kind: guide
 status: active
 canonical: mydocs/manual/equation_module.md
-last_verified: 2026-08-18
+last_verified: 2026-10-01
 ---
 
 # 수식 모듈 매뉴얼
@@ -32,6 +32,24 @@ script
 ```
 
 문서 컨트롤에서 크기가 필요할 때는 `equation::intrinsic_size_hwp(script, font_size)`.
+
+### 한글 수식의 대체 메트릭과 저장 줄
+
+`HYhwpEQ`의 한글 cmap은 비어 있습니다. 한글 수식은 SVG·Canvas·Native Skia에서
+명조 대체 글꼴(`Haansoft Batang` 우선)을 사용합니다. SVG 임베딩도 한글을 실제 대체
+face에 수집하여 수학 글꼴의 누락 글리프로 처리하지 않습니다.
+
+보호되지 않은 한글 `HYhwpEQ` 수식은 `flow_metrics_hwp`의 공통 폭·높이·기준선을
+사용합니다. 일반 영문 수식과 크기가 보호된 수식은 저장 상자를 유지합니다. 저장 줄이
+있는 본문에서는 메트릭이 달라진 최초 수식의 소유 행부터 프레임 채움을 다시 수행하고,
+그 앞의 줄은 프레임 수용을 확인한 뒤 원래 줄·문자 축을 유지합니다. 부분 채움의 첫
+행을 문자0으로 초기화하지 않으며, 새 행만 재조판 축을 사용합니다. 측정·그림자 배치로
+폭만 넓히거나 전체 문단을 다시 조판하여 정상 앞행을 바꾸면 안 됩니다.
+
+이 경로의 한컴 비교 근거는 [#7382 보정330 글꼴 증거](../pr/assets/pr7382_20260926/stage330_equation_font_evidence.json)입니다.
+AST의 추정 글자 폭은 실제 한컴 글꼴 조형을 완전히 복원하지 않으므로, 수치 통과와 별개로
+수식·뒤 본문·각주와 앞뒤 쪽의 review PNG를 확인합니다. 이 증거는 모든 수식/출력 backend의
+전체 시각 검증을 대체하지 않습니다.
 
 ## 명령 디스패치
 

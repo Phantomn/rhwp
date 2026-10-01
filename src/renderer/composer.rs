@@ -376,7 +376,7 @@ fn compose_paragraph_scoped(
                 }
                 Control::Equation(eq) if eq.common.treat_as_char => {
                     // HWP 저장값을 사용 — 한컴 편집기가 실제 폰트로 계산한 정확한 너비
-                    Some((pos, eq.common.width as i32, i))
+                    Some((pos, crate::renderer::equation::flow_width_hwp(eq) as i32, i))
                 }
                 Control::Form(f) if f.common.treat_as_char => Some((pos, f.width as i32, i)),
                 Control::Table(t)
@@ -2758,8 +2758,9 @@ pub(crate) fn recompose_stored_lines_in_frame_with_known_square_band(
             line_breaking::layout_paragraph_in_frame(&input, &mut probe, styles, dpi)
                 .is_some_and(|rows| rows.len() < para.line_segs.len())
         };
-    let stale =
-        rejoinable_word_tail || stored_rows_are_stale(composed, para, inner_width_px, styles);
+    let stale = rejoinable_word_tail
+        || stored_rows_are_stale(composed, para, inner_width_px, styles)
+        || line_breaking::remeasured_equation_start_row(para).is_some();
     match line_breaking::resolve_stored_line_segs_in_frame(
         para,
         &mut frame,
@@ -2788,6 +2789,13 @@ pub(crate) fn recompose_stored_lines_in_frame_with_known_square_band(
             reflowed_para.hwpx_axis_shift = 0;
             let mut reflowed = compose_paragraph_in_context(&reflowed_para, styles);
             preserve_context_resolved_runs(composed, &mut reflowed);
+            // 부분 재조판 앞행은 원래 저장 축과 이미 해석한 줄 소유를 보존한다.
+            // HWPX의 저장 축 보정을 새 HWP5 축의 뒤쪽에 다시 적용하지 않는다.
+            if let Some(prefix_len) = line_breaking::remeasured_equation_start_row(para) {
+                if prefix_len <= composed.lines.len() && prefix_len <= reflowed.lines.len() {
+                    reflowed.lines[..prefix_len].clone_from_slice(&composed.lines[..prefix_len]);
+                }
+            }
             let mut reconciled = composed.clone();
             reconciled.lines = reflowed.lines;
             // Q2-D5-N1: source NO_LS has no usable width during the initial
