@@ -2,7 +2,7 @@
 
 ## 수용 판단
 
-현재 원격 head는 **머지 보류**다. 원 기여자의 마지막 빈 쪽 보존 변경 위에, 앞단의 빈 문단 흡수가 새 문단 owner를 지우지 않도록 로컬 보정했다. [상세 리뷰](pr_7487_review.md)에 원인·정식 회귀·전체 검증·스크린샷·남은 차이를 연결했다.
+현재 검토 source `f2f96733b838c860253a357721f713e931b469ae`는 **머지 보류**다. 원 기여자의 마지막 빈 쪽 보존 변경 위에 앞단의 빈 문단 흡수 보정을 push했고, candidate `38c0af21...`의 Full CI가 통과했고, 기여자의 devel 병합 후 head `f2f96733...`에서는 문서 경로 충돌 해소 bridge를 검증한 재사용 게이트가 통과했다. 동일 합성 입력의 한컴 기준 출력, 새 기준선의 직접 시각 재검증과 작업지시자의 시각·범위 판정은 남았다. [상세 리뷰](pr_7487_review.md)에 원인·정식 회귀·전체 검증·스크린샷·남은 차이를 연결했다.
 
 | 계보 | SHA·역할 |
 | --- | --- |
@@ -26,13 +26,14 @@
 | 새 합성 Enter 문서의 한컴 기준 출력 | 미검증, p122 control로 대체하지 않음 |
 | Studio caret/scroll refresh | 별도 후속 수정 범위, 이번 코드에 포함하지 않음 |
 | 표 뒤 Enter | 미해결 범위 유지, 이번 보정의 해결 주장에 포함하지 않음 |
-| 원격 push·review·merge | 모두 미수행 |
+| 원격 push·새 head CI | 두 commit 정상 push 완료; required Build & Test·CodeQL·Render Diff·CI Impact Policy 통과 |
+| review·merge·PR 본문 갱신 | 미수행; 문서 보완 push·본문 갱신·COMMENT 게시 승인받음, 정확한 새 head 확인 후 진행 |
 
 ## 게시·병합 준비 순서
 
-1. 사용자에게 두 commit의 실제 diff·검증·리뷰 문서를 제시하고 source push만 승인받는다.
-2. PR head·contributor ref·maintainerCanModify를 재확인하고 승인 범위만 정상 push한다.
-3. 보정이 포함된 새 head의 Full CI·CodeQL·필요한 Render Diff와 branch protection을 확인한다. 과거 source CI 또는 review-only fast-pass를 새 코드에 적용하지 않는다.
+1. 두 commit의 실제 diff·검증·리뷰 문서를 제시하고 source push 승인받음(완료).
+2. PR head·contributor ref·maintainerCanModify를 재확인하고 승인 범위 정상 push(완료).
+3. 보정이 포함된 head `38c0af21...`의 Full CI·CodeQL·Render Diff·CI Impact Policy 및 MERGEABLE/CLEAN 확인(완료). 실제 최신-base merge checkout에서 회귀 10,087 PASS / 50 skipped; 원 source CI 재사용 없음. 기여자가 devel을 병합한 head `f2f96733...`로 미게시 문서 보완 commit만 정렬했다. 최신 base `4a7cf61c...`의 충돌·링크·기존 기록 보존을 재검증하고 승인된 push를 수행한다.
 4. 작업지시자의 시각 판정과 한컴 대조 미검증의 처리 범위를 확인하고 최종 판정을 갱신한다. PR 본문 asset은 head SHA 고정 raw URL로 표시한다.
 5. 확정된 review 문안을 제시해 별도 게시 승인을 받는다.
 6. merge는 별도 승인 뒤 진행하고 최종 merge SHA·실제 시각·CI 증적을 후속 comment에 남긴다.
@@ -41,10 +42,14 @@
 
 ## Contributor review 문안 초안
 
-아래는 게시 전 초안이며 review event는 아직 선택·제출하지 않았다. 보정 push와 새 CI 후 exact head·URL을 넣고 작업지시자에게 다시 확인받는다.
+아래는 COMMENT 리뷰 게시 전 초안이다. 필수 증거의 미검증이 남아 Approve를 제출하지 않는다. exact head의 CI 결과와 제한을 포함해 작업지시자에게 별도 게시 확인을 받는다.
 
-> Enter로 넘친 빈 문단의 끝 쪽을 보존하는 변경을 확인했습니다. 추가 경계 검증에서 줄간격 200%의 33번째 Enter와 300%의 22번째 Enter는 앞단의 빈 문단 흡수에서 쪽 소유를 잃는 것을 확인하여, 승인된 범위에서 같은 저장 줄 overflow 판별을 앞단에도 공유하는 보정 commit을 준비했습니다.
+> Enter로 넘친 빈 문단의 끝 쪽을 보존하는 변경을 확인했습니다. 추가 경계 검증에서 줄간격 200%의 33번째 Enter와 300%의 22번째 Enter는 앞단의 빈 문단 흡수에서 쪽 소유를 잃는 것을 확인하여, 승인된 범위에서 같은 저장 줄 overflow 판별을 앞단에도 공유하는 보정 commit `45863eb2`를 별도로 추가하고 기록과 함께 head `38c0af21`로 정상 push했습니다.
 >
-> 보정 후 두 경계에서 새 쪽과 문단 소유가 즉시 생기고, 본문 시작 좌표 및 HWPX 저장·재열기 검사가 통과했습니다. 전체 Native 회귀 10,273개, 필수 Clippy 세 경로, Native Skia 및 fresh WASM도 통과했습니다. 실제 Chrome 입력에서 새 쪽 생성은 확인했으며, 별도로 캐럿·스크롤 갱신이 늦는 기존 Studio 문제가 남아 있는 것도 확인했습니다.
+> 보정 후 두 경계에서 새 쪽과 문단 소유가 즉시 생기고, 본문 시작 좌표 및 HWPX 저장·재열기 검사가 통과했습니다. 전체 Native 회귀 10,273개, 필수 Clippy 세 경로, Native Skia 및 fresh WASM도 통과했습니다. 이후 새 head의 CI 회귀 10,087개와 필수 lint·Native Skia·CodeQL·Render Diff·CI Impact Policy가 통과했습니다. 실제 Chrome 입력에서 새 쪽 생성은 확인했으며, 별도로 캐럿·스크롤 갱신이 늦는 기존 Studio 문제가 남아 있는 것도 확인했습니다.
 >
 > 이번 범위는 빈 문단의 엔진 쪽 소유 보존입니다. Studio 갱신과 표 뒤 Enter까지 해결된 것으로 보고하지 않으며 #7486은 계속 열어 두겠습니다. 원 기여와 추가 보정, 같은 source SHA의 검증 및 남은 한컴 대조 미검증을 리뷰 기록에 구분했습니다.
+
+> 동일 합성 Enter 입력의 한컴 기준 출력은 아직 미검증입니다. CI 통과와 기존 p122 대조군만으로 이 범위를 충족으로 바꾸지 않으며, 현재는 머지 보류로 기록합니다.
+
+> 기여자님의 devel 병합 head `f2f96733`의 CI 게이트도 확인했습니다. 해당 CI는 앞서 녹색인 candidate `38c0af21`과 문서 경로의 병합 충돌 해소를 검증하여 재사용한 결과입니다. 스크린샷은 보정 당시 source의 기록으로 구분했고, 갱신한 기준선의 직접 시각 재검증은 아직 수행하지 않았습니다.

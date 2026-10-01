@@ -2,9 +2,9 @@
 
 ## 최종 판정
 
-**머지 보류.** 원격 원 head `b28130e1bcea509d9969088c7e75a0e23e4974b2`에는 200%의 33번째 Enter와 300%의 22번째 Enter에서 새 문단의 쪽 소유가 사라지는 결함이 남아 있다. 사용자 승인 범위의 로컬 보정 `45863eb2b238929c22ecc606af801b6273dc8482`에서는 두 경계의 엔진 계약과 필수 로컬 검증이 통과했다. 보정과 기록은 아직 원격에 반영하지 않았다.
+**머지 보류.** 원 contributor head `b28130e1bcea509d9969088c7e75a0e23e4974b2`의 200% Enter33 / 300% Enter22 쪽 소유 결함은 보정 `45863eb2b238929c22ecc606af801b6273dc8482`로 해결했다. 보정과 최초 기록을 사용자 승인 뒤 정상 push했으며, head `38c0af21a4370876da2fa34178f25d0ce0a782e0`의 Full CI·CodeQL·Render Diff가 통과했다. 이후 기여자가 devel을 병합한 현재 검토 source는 `f2f96733b838c860253a357721f713e931b469ae`이며, 해당 head의 required check도 성공했다. 남은 보류 사유는 동일 합성 입력의 한컴 기준 출력 미검증, 갱신한 기준선의 직접 시각 검증과 작업지시자의 시각·제한 범위 판정이다.
 
-보류 해제는 보정이 포함된 정확한 새 PR head의 Full CI·required check와 mergeability 확인, 작업지시자의 시각 증적 판독 및 제한한 해결 범위 확인 뒤 다시 판정한다. 새 Enter 합성 문서의 동일 원문 한컴 기준 출력은 미검증이다. 아래 저장 문서 대조군의 Visual Sweep을 이 미검증의 대체 증거로 사용하지 않는다. 리뷰 게시·push·merge는 각각 별도 승인 단계다.
+보류 해제는 작업지시자의 시각 증적 판독 및 제한한 해결 범위 확인과 필수 증거의 충족 여부를 검토한 뒤 다시 판정한다. CI 녹색만으로 미검증을 충족으로 바꾸지 않는다. 새 Enter 합성 문서의 동일 원문 한컴 기준 출력은 미검증이다. 아래 저장 문서 대조군의 Visual Sweep을 이 미검증의 대체 증거로 사용하지 않는다. 리뷰 게시·push·merge는 각각 별도 승인 단계다.
 
 ## 접수 정보
 
@@ -15,11 +15,16 @@
 | 원격 source | `semanticist21/rhwp`, `fix/issue-7486-enter-overflow-page` |
 | 원 head | `b28130e1bcea509d9969088c7e75a0e23e4974b2` |
 | 원 parent | `0e8fd49fb868da0d47ac1294dcbbda81f0211233` |
-| 보정 후보 | `45863eb2b238929c22ecc606af801b6273dc8482`, 원 head 위 single-parent 추가 commit |
-| 현재 정책·호환 base | `02530b9ed567a44663edb26c65fb565c4a79f00d` |
+| 보정 commit | `45863eb2b238929c22ecc606af801b6273dc8482`, 원 head 위 single-parent 추가 commit |
+| 로컬 정책·실제 CI merge base | `02530b9ed567a44663edb26c65fb565c4a79f00d` |
+| GitHub PR API·impact policy base | `0e8fd49fb868da0d47ac1294dcbbda81f0211233`; 실제 checkout merge 부모와 구분 |
+| CI 검토 head / merge commit | `38c0af21a4370876da2fa34178f25d0ce0a782e0` / `5836f2b03f7c31d1d91d9b2c11c35a94dd9c4582` |
 | 관련 이슈 | [#7486](https://github.com/edwardkim/rhwp/issues/7486), 부분 해결이므로 참조만 하고 종료하지 않음 |
 | reviewer | @postmelee; bug/layout, v1.0.0, assignee @semanticist21 |
-| 최신 확인 | 2026-10-01 16:46 UTC / 2026-10-02 01:46 KST; OPEN, non-draft, maintainerCanModify=true, MERGEABLE/CLEAN |
+| 현재 검토 source | `f2f96733b838c860253a357721f713e931b469ae`; contributor의 devel merge commit |
+| 현재 병합 시뮬레이션 base | `4a7cf61c8652586ffe86158344771029714f3681` |
+| 최초 Full CI 확인 | 2026-10-01 17:34 UTC / 2026-10-02 02:34 KST |
+| 현재 metadata | 작성 시점 OPEN, non-draft, maintainerCanModify=true, MERGEABLE/CLEAN; 게시 직전 재확인 |
 
 base route: `collaborator_external_pr.md` 9.3.1의 contributor source 직접 보정.
 modifiers: `intake_and_review.md`, `local_validation.md`, `visual_fixture_evidence.md`.
@@ -68,7 +73,7 @@ loaded documents: `pr_review_workflow.md`, `pr_review/README.md`, 위 기본·�
 
 네 입력의 SHA-256·크기와 산출물 해시는 [provenance.json](../assets/pr_7487/provenance.json)에 고정했다.
 
-검증 source SHA는 모두 보정 `45863eb2b238929c22ecc606af801b6273dc8482`다. 아래 결과는 실제 실행 기록이며, 원 head의 과거 CI를 새 보정의 검증으로 재사용하지 않았다.
+아래 로컬 검증 source SHA는 보정 `45863eb2b238929c22ecc606af801b6273dc8482`다. 원 head의 과거 CI를 새 보정의 검증으로 재사용하지 않았다. 그 뒤 최초 문서 commit `38c0af21...`을 push하고 새 원격 CI도 실제 실행했다.
 
 | 검증 | 실행 결과 |
 | --- | --- |
@@ -88,6 +93,34 @@ loaded documents: `pr_review_workflow.md`, `pr_review/README.md`, 위 기본·�
 Native Skia 첫 시도는 sandbox DNS 제한으로 의존성 다운로드 전에 실패했다. 허용된 네트워크로 재실행해 위 결과를 얻었다. Docker daemon 미실행으로 host wrapper의 `--no-opt` WASM을 사용했다. 최적화된 배포 패키지의 직접 브라우저 확인은 미검증이며 이번 host 검증과 구분한다.
 
 Chrome 첫 예비 시도에서는 새 문서 로딩 중 입력해 횟수를 신뢰할 수 없었고, 이전 문단 번호에 서식을 적용하는 경고가 발생했다. 그 시도는 폐기하고 로딩 완료 후 새 문서에서 다시 센 위 기록만 수용했다. 결함의 전후 증거에 예비 시도를 섞지 않았다.
+
+## push 뒤 원격 CI 확인
+
+정상 push로 원 contributor commit을 유지한 채 code `45863eb2...`와 최초 docs `38c0af21...` 두 commit을 추가했다. 원격 branch ref·PR head·27개 변경 파일·3개 commit 계보가 local 후보와 일치했다. force-push하지 않았다.
+
+fork 실행 승인 대기(`action_required`)는 사용자에게 6개 workflow 목록을 제시한 뒤 명시 승인을 받아 해제했다. PR Approve 리뷰와 다른 작업이다. `fast_pass=false`, Rust/render/Native Skia 필요로 분류되어 새 코드의 회귀를 실행했다.
+
+실제 checkout `5836f2b03f7c31d1d91d9b2c11c35a94dd9c4582`의 부모는 최신 devel `02530b9e...`와 head `38c0af21...`다. PR API·trusted classifier에 남은 base `0e8fd49f...`와 이 checkout을 구분한다.
+
+| 검증 | 실제 결과·URL |
+| --- | --- |
+| CI / required Build & Test | [run 36896647961](https://github.com/edwardkim/rhwp/actions/runs/36896647961) 성공; Archive A 3,873 / B 1,884 / C 2,235 / D 2,095 PASS, 합계 10,087 PASS / 50 skipped. 위 로컬 실행과 다른 CI 구성의 실제 수치다. |
+| 추가한 경계 회귀 | Archive C 로그에서 기본 Enter, 200% Enter33, 300% Enter22, 6개 줄간격 반복 Enter 4건 모두 실제 PASS 확인 |
+| 필수 lint / Native Skia | 동일 CI run에서 fmt·native/WASM32/workspace Clippy와 Native Skia 성공 |
+| CodeQL | [run 36896647907](https://github.com/edwardkim/rhwp/actions/runs/36896647907) 성공; Rust 분석·결과 업로드 완료. Code scanning 요약 check는 NEUTRAL. |
+| Render Diff | [run 36896647641](https://github.com/edwardkim/rhwp/actions/runs/36896647641) 성공; Canvas 3 PASS, Direct PDF compatibility 3 PASS. PDF report-only 경고 4건은 원 head run 36633643139의 요약 보고서와 byte 단위로 동일. 경고가 없다는 뜻이 아니다. |
+| Adapter / Proptest | [Adapter](https://github.com/edwardkim/rhwp/actions/runs/36896647983), [Proptest](https://github.com/edwardkim/rhwp/actions/runs/36896647872) 성공 |
+| 최종 gate | CI Impact Policy SUCCESS, pending/failure 없음, OPEN/non-draft, MERGEABLE/CLEAN. review·merge·이슈 종료는 미수행. |
+
+[실제 head·check·회귀 수치·경계 PASS 원문](../assets/pr_7487/ci-validation.json). Frontend unit/package는 변경 범위 `none`으로 skip, CI의 release용 WASM Build도 skip이다. 로컬 fresh WASM과 Render Diff의 실제 WASM 빌드는 별도 실행 증거이며 release용 package 검증으로 확대하지 않는다.
+
+### 기여자의 기준선 갱신과 기록 정렬
+
+문서 보완 push 직전 contributor가 `38c0af21...` 위에 devel `e5098bc91be44a49367a7f2895a14fcd4f4c2c7f`를 병합한 `f2f96733...`을 확인했다. 원 contributor merge와 오늘할일의 다른 PR 기록을 보존하고, 미게시 collaborator 문서 commit 하나만 `multi_pr_update_branch.md` 2.6.1에 따라 같은 visibility branch에서 새 source 위로 replay했다. 추가 source/test 수정이나 force-push는 하지 않는다.
+
+현재 source의 [CI 36953426308](https://github.com/edwardkim/rhwp/actions/runs/36953426308) preflight는 candidate `38c0af21...`에 대해 `current-base-merge-resolution-mydocs-only`를 검증하여 재사용했다. heavy worker skip과 최종 Build & Test 성공을 구분했다. [CodeQL 36953426304](https://github.com/edwardkim/rhwp/actions/runs/36953426304)·[Render Diff 36953426029](https://github.com/edwardkim/rhwp/actions/runs/36953426029) 등도 완료 성공했다. 아래 Full CI 수치는 이전 candidate의 실제 실행이며 `f2f96733...`에서 새로 실행한 수치로 바꾸지 않는다.
+
+저장 문서 p122 PNG와 Chrome 캡처는 보정 source `45863eb2...`의 검증 당시 증적이다. 새 기준선의 Native/fresh WASM 재출력·직접 시각 비교는 미실행이다. 최신 지침의 신규 조판 회귀 추가 선행 조건(동일 입력의 독립 한컴 PDF·Native/fresh WASM 전체 영향 쪽 최저 90% 이상)을 이 Enter 합성 입력은 입증하지 못했다. 이미 추가된 검사를 자동 삭제하거나 p122 대조군으로 대신하지 않으며, 증거 미충족을 머지 보류 사유로 남긴다.
 
 ## 시각 증적과 남은 차이
 
@@ -141,8 +174,8 @@ OVR는 보존한 보정 전 WASM `d10a64a...`와 보정 후 Native render tree�
 ## 원격·후속 처리 조건
 
 - 보정 code/test commit과 archive review/report·asset·오늘할일 commit을 분리한다.
-- 사용자 승인 뒤에만 정확한 source ref로 정상 push한다. force-push는 사용하지 않는다.
-- code/test가 포함되므로 review-only fast-pass를 적용하지 않고 새 head Full CI를 확인한다.
+- 최초 두 commit은 사용자 승인 뒤 정확한 source ref로 정상 push 완료. 이 CI 보완 기록은 로컬 trailing 문서 변경이며 추가 push·CI 확인·PR 본문·COMMENT 리뷰 게시는 작업지시자의 진행 승인을 받았으며, 정확한 source와 게이트를 확인한 뒤 수행한다. force-push는 사용하지 않는다.
+- code/test를 포함한 head `38c0af21...`은 새 Full CI 확인 완료. 이후 문서만 바꾸면 이 정확한 녹색 code tree의 review-only 재사용 조건을 다시 확인한다.
 - PR 본문 갱신을 승인받으면 대표 review/overlay PNG를 source repository와 새 head SHA 고정 raw URL로 실제 임베드한다. 아직 존재하지 않는 URL을 검증 완료로 보고하지 않는다.
 - 판정 갱신과 게시할 review 본문을 제시해 별도 확인받는다. 지금 Approve·Request changes·comment는 게시하지 않았다.
 - merge는 별도 승인 뒤 수행한다. 그 뒤 contributor comment에 merge SHA 고정 동일 asset·CI URL·남은 차이를 한국어 존댓말로 남긴다.
