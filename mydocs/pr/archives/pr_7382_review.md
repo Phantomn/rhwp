@@ -4103,3 +4103,12 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 보정332 결과: 수식 부분 재조판 뒤 연속 저장 경계에서는 실제 순차 높이로 저장 사다리를 재앵커합니다. typeset/paint의 공유HeightCursor가 같은 규칙을 소비하며 옛 수식 높이에 되돌리지 않습니다.88쪽 마지막 문단은981.03→975.84px로 이동하고 PDF와의5.19px 과대 간격을 해소했습니다. Native/fresh WASM88쪽 **98.62448%**(보정33095.34594%, 보정33196.43691%),87쪽99.83337%,89쪽98.72103%;3쪽 PNG hash 동일,215/215쪽입니다.
   - 직접 compare에서 수식 분자·분모, 뒤 본문의“안전”→“기준 지침” 줄 경계, 마지막 문단과각주139를 확인했습니다.87/89쪽 raster는 보정330과동일하고87/88/89 문단별 정규화본문도 같습니다. 수식 기호·글꼴 raster의 미세 잔차는 있으나 수식 뒤 줄바꿈과5.19px 후속 문단 이동은 해결했습니다. 완전 픽셀 동일을 주장하지 않습니다.
   - Native Skia feature를 포함한 기존 커서·번호 lib 및6개 suite의 관련 검사 **124/124 PASS**, Native/fresh WASM 빌드·비교exit0, fmt/diff check통과, 변경 매뉴얼 metadata오류0건입니다. 새Rust 회귀 함수와픽셀 기대값은추가하지 않았습니다. [최신88쪽 review](../assets/pr7382_20260926/stage332_native_088_review.png), [overlay](../assets/pr7382_20260926/stage332_native_088_overlay.png), [검증 원장](../assets/pr7382_20260926/stage332_validation.json), [Native TSV](../assets/pr7382_20260926/stage332_native_silhouette.tsv), [WASM TSV](../assets/pr7382_20260926/stage332_wasm_silhouette.tsv). 최신 head 전체215쪽 시각 검증·전체 회귀/lint·PR 제출 게이트는 별도 남아 있습니다.
+
+
+## 보정333 최종 검증 시작 / 보정334 사전 분석 — 휴먼명조 TrueType 기대값
+
+- 검증 후보는 `98f2e879c3a0002b119bdcc1ffca29524f827afd`, 최신 base는 `02530b9ed567a44663edb26c65fb565c4a79f00d`입니다. fetch 뒤 뒤처짐0·앞섬454이며 원 PR head `81a402179dc556cce781d844d4b9252be36ba8af`는 같습니다. collaborator_external_pr 통합 경로와 intake/local_validation/visual_fixture_evidence/multi_pr_update_branch/post_merge 절차를 적용합니다.
+- 전체 nextest는 threads8·no-fail-fast로 실행 중입니다. 보안 검사에는 base 대비 변경된4개 실제 sample 문서를 전달했습니다. Native/fresh WASM은 같은 입력·기준215쪽·인쇄 프로필·보정325 명시적 TrueType 환경으로 전쪽 TSV를 생성합니다. 전체 완료 전 승인으로 바꾸지 않습니다.
+- 첫 실패는 기존 `test_b7_advance_follows_the_font_table_only_when_trusted`입니다. 보정325는 확인된 휴먼명조 TrueType 선택에 U+00B7 전각 전진을 적용했지만 이 검사는 신뢰true에도 옛HFT 호환0.3em을 요구합니다. 실제512/512 글꼴 hmtx와 독립 PDF208쪽·보정325 증거는1.0em입니다. 비신뢰false는 여전히0.3em이고 HY신명조/한양신명조 대조도 유지해야 합니다.
+- 생산 코드와 PDF를 바꾸지 않고 기존 함수의 TrueType 기대와 설명만 교정할 예정입니다. 이 검사는 합성 글꼴 계약이며 전체 문서의 위치·색상 검사를 대체하지 않습니다. 전체 원본215쪽 검증과208쪽 증거를 연결하고, 수정 전FAIL/수정 후 개별PASS·전수 재실행을 기록합니다. 새 Rust 검사 함수는 추가하지 않습니다.
+- 다른 실패인 #1189는 수식 그룹의 문자열에 명시적 `scale(...,1.0000)`이 있어야 한다고 요구합니다. 현재 출력은 `translate`만 있어 세로 확대가 없습니다. 해당10–12쪽을 독립 PDF와 Native/fresh WASM으로 직접 비교해 실제 세로 변형 여부를 먼저 판정하고 별도 단계로 처리합니다.
