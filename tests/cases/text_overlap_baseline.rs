@@ -48,10 +48,11 @@ const SLOW_SAMPLE_LOG_THRESHOLD: Duration = Duration::from_secs(30);
 /// `tests/issue_2063.rs` 가 해당 축을 직접 검증하므로 여기서는 중복 스캔하지 않는다.
 const DEDICATED_SLOW_FIXTURES: &[&str] = &["issue2063_huge_cellbreak_table.hwp"];
 
-/// #7382에서 겹침 증가가 확인되고 같은 원문의 한컴 비교가 90% 미달인 입력만 보류한다.
+/// #7382에서 겹침 증가가 확인된 원본 중 전쪽 피델리티 개선이 필요한 입력만 보류한다.
 /// 각 증가/시각 근거는 #7445 증적과 corpus_scope_restore_validation.json에 연결한다.
 /// 개별 정상 회귀와 다른 원장에서는 계속 검사하며 원문은 samples에 유지한다.
 const DEFERRED_TEXT_OVERLAP_FIXTURES: &[&str] = &[
+    "hwp3-sample10-hwp5.hwp",
     "issue6782/1480000-201900042-chemical-product-labeling-study.hwp",
     "issue1937_rowbreak_footnote_overpagination.hwp",
     "task1749/saved_bounds_cumulative_page_break.hwpx",

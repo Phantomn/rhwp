@@ -3672,3 +3672,12 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 763쪽의 서로 떨어진 7개 인쇄 쪽에서 8개의 실제 본문·꼬리말 교차를 고치려면 페이지 하한 예산과 본문 줄 이월의 문서 전반 영향을 검증해야 한다. 이 문제를 래칫 기준 187→194로 완화하거나 쪽번호를 공식 PDF보다 낮춰 숨기지 않는다. 다음 단계에서 #7382를 막는 이 원본의 text-overlap 전수 검사만 #7445의 전체 피델리티 과제로 분리하고, 원본 HWP·공식 PDF·다른 회귀는 유지한다.
 
 ![HWP3 인쇄 125쪽 본문과 쪽번호의 경계](../assets/pr7382_20260926/stage274_hwp3_native_review_125.png)
+
+## 보정275 — 763쪽 HWP의 차단 원장 한 항목만 후속 피델리티로 분리
+
+- #7382의 `text_overlap_baseline` 분할13을 막는 표본은 `samples/hwp3-sample10-hwp5.hwp` 한 건이다. 기준 **187→현재 194건**의 순증가 7건은 0부터 시작하는 진단 인덱스 124·242·338·396·553·587·743쪽의 본문·쪽번호 겹침 8건과 232쪽의 기존 겹침 감소 1건으로 분해했다. 공식 PDF의 쪽번호는 현재 rhwp 위치와 맞고, 125쪽·554쪽에는 본문 이월 차이가 보인다. 독립 PDF와 원본은 모두 **763쪽**이라 문서 전반의 본문 하한·이월을 별도 과제로 검증해야 한다.
+- 원본 HWP(SHA-256 `a660a0d41898c8316479392c9687d81a15555431a581bdda988bf3598f6f0d51`)와 공식 PDF 분할본 3개는 `samples/`·`pdf/pr7268/`에 보존했다. 비교용 결합 PDF는 이 세 분할본을 순서대로 `pdfunite`해 `output/`에만 만들었다. Native 96dpi의 실제 겹침 인쇄 **125·554쪽** 점수는 **95.91425/94.91791%**다. 둘 다 90% 이상이지만 실제 겹침은 review에서 확인되므로 점수로 결함을 면제하지 않는다. 전체 763쪽 최저 점수나 fresh WASM 통과는 주장하지 않는다.
+- `tests/cases/text_overlap_baseline.rs`의 보류 목록에 이 **한 표본**만 추가했다. 기존 baseline **187**과 HWP/PDF를 수정하거나 제거하지 않았고, 같은 partition의 다른 표본, 다른 원장, HWP3 개별 회귀는 그대로 남긴다. 763쪽의 여러 위치에서 본문 하한을 고쳐야 하는 이 과제는 #7445에 원본·공식 PDF·재진입 기준을 등록한다. 전체 본문·꼬리말 피델리티가 확인되면 이 보류 한 줄을 제거하고 동일 원장에 복귀시킨다.
+- 파생 suite `--prepare`와 `cargo fmt --all -- --check`는 통과했다. `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(text_overlaps_do_not_grow_partition_13)' --no-fail-fast`는 **1/1 PASS**, 나머지 10264개는 선택하지 않았다(`stage275-partition13-nextest.log`). 이 집중 검사는 전체 회귀·Clippy·fresh WASM과 남은 분할11 실패를 대신하지 않는다.
+
+![HWP3 인쇄 554쪽 본문과 쪽번호 겹침](../assets/pr7382_20260926/stage275_hwp3_native_review_554.png)
