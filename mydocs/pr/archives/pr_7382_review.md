@@ -2,20 +2,25 @@
 kind: snapshot
 status: active
 canonical: mydocs/manual/pr_review_workflow.md
-last_verified: 2026-10-01
+last_verified: 2026-10-02
 ---
 
 # PR #7382 리뷰 — 분할 표와 저장 각주 경계
 
 ## 최종 판정
 
-**PR 준비 미완료·머지 보류.** 현재 검토 브랜치는 `review/planet6897-7382-20260926`입니다. 최신 `upstream/devel` (`02530b9ed567a44663edb26c65fb565c4a79f00d`)을 합친 코드 후보는 `1c1d088cb6997ebcbd330c1119d923460aa59bfc`입니다. 통합 PR은 아직 생성하지 않았습니다.
+**메인터너 보정 후 수용 가능.** 검토 브랜치는 `review/planet6897-7382-20260926`이며, 생산 코드 검증 후보는 `cd85bdf434f5c2522f2a24c3a59f3413f644a5a4`, base는 `02530b9ed567a44663edb26c65fb565c4a79f00d`입니다. 원 PR head `81a402179dc556cce781d844d4b9252be36ba8af` 자체의 승인이 아니라 체리픽·메인터너 보정 통합 후보의 판정입니다. 통합 PR의 정확한 최종 head CI와 mergeability를 확인한 뒤 병합합니다.
 
-- 마지막 작은 문서 차단인 `basic/shortcut.hwp` **7쪽**을 현재 브랜치에서 개선했습니다. 최신 base를 반영한 Native와 fresh WASM 전체 7쪽이 독립 PDF와 같은 쪽수이며, 최저 일치율은 양쪽 모두 **96.12686%**입니다. 기존 회귀는 쪽·단·문단 소유를 검사하도록 교정했고 새 테스트 함수는 추가하지 않았습니다.
-- 보정296 집중 검증은 **27/27 PASS**입니다. 최신 base 반영 후 Visual Sweep 도구 검사 **77 PASS**, 글꼴 규칙 Node 검사 **22 PASS**입니다. 이것을 전체 Rust 회귀 통과로 보고하지 않습니다.
-- 보정301 전체 `cargo nextest`는 #7442 기대 교정 후보 `afcb5dcea`에서 `release-test`, `target/pr-review`, **threads=8**, `--no-fail-fast`로 완료했습니다. 결과는 **10,229 PASS / 0 FAIL / 50 SKIP**, exit **0**입니다. 보정298의 단일 실패를 개별 분석·수정하고 전수 재실행으로 해소를 확인했습니다. 로그: `output/pr-review/planet6897-7382-20260926/stage301-full-nextest.log`.
-- Native Skia 3개 경로는 보정302에서 모두 통과했습니다. 남은 게이트는 필수 lint·정책 검사·빌드와 원 PR 문서 전체 Native/fresh WASM의 최종 후보 검증입니다. 이전 단계의 통과나 전수 tree 동일성을 최신 전체 래스터 통과로 승격하지 않습니다.
-- #7445 이관은 #7382를 실제로 차단하는 대형·복합 입력의 해당 검사에 한정합니다. 정상 검사·원본 HWP/HWPX·독립 PDF는 보존합니다. 작은 문서의 간단한 결함은 현재 브랜치에서 해결합니다.
+- 최종 코드 전체 nextest: **10,229 PASS / 0 FAIL / 50 SKIP**, threads=8, release-test, locked, no-fail-fast, exit0. Native Skia lib·그림·직접 PDF 내보내기 3개 경로, doc tests, Native/WASM Clippy, workspace build/all-target Clippy, fmt와 suite/unit 정책 검사도 통과했습니다. generated harness를 재생성한 뒤 정책 검사를 재실행했으며 파생 파일은 커밋하지 않습니다.
+- 원본 HWPX와 독립 한컴2024 PDF는 모두 **215쪽**입니다. Native/fresh WASM 전수215쪽 TSV의 최저는 **22쪽90.01587%**, **90% 미만0쪽**, 88쪽은 **98.62448%**입니다. 휴먼명조 TrueType을 확인한 [명시적 글꼴 환경](../assets/pr7382_20260926/stage325_font_environment.json), print·96dpi·전체 글꼴 임베드를 사용했습니다.
+- 전수 래스터는 보정333에서 캡처했습니다. 이후 테스트 의미 교정과 동일 의미 Clippy 표현 교정 후 최종 코드로 Native SVG215개·render tree215개·fresh WASM SVG215개를 실제 재출력해 모두 byte 동일함을 확인했습니다. 최종 코드로22/66/67/88/163/164쪽은 Native/fresh WASM을 새로 캡처했고 양쪽 PNG도 같습니다. 이를 최종 head의215쪽 전체 재래스터라고 표현하지 않습니다.
+- 전수 TSV는 보조값이며 단독 승인 근거가 아닙니다. 22/66/67/78/80/84/85/88/131/164/176/183/215쪽을 직접 판독했고 표 행·각주 수량·이어지는 본문과 쪽 소유를 확인했습니다. 84쪽 각주131–133,85쪽134–136,215쪽269–274가 PDF와 같습니다. 원 이슈의 다섯 추가 쪽 경계를 확인했습니다.
+- 잔차:22쪽 작은 차트 격자/글리프 래스터 차이,164쪽 표 하단 테두리가 약13.3px 아래인 차이는 남습니다. 본문 누락·중복·쪽 소유 차이는 관찰하지 않았습니다. 완전 픽셀 동일이나 모든 입력의 피델리티 완성을 주장하지 않습니다.
+- #7445에는 #7382를 실제 차단하던 대형·복합 입력의 해당 검사만 보류했고 원본·독립 PDF·정상 검사는 보존했습니다. 최종2건 실패는 기존 휴먼명조 TrueType 기대와 SVG 생략 배율의 의미를 독립 근거로 교정했습니다. 이 단계에서 새 Rust 검사 함수는 추가하지 않았습니다.
+- [최종 검증](../assets/pr7382_20260926/stage338_final_validation.json), [lint·정책](../assets/pr7382_20260926/stage338_lint_validation.json), [출력 출처·한계](../assets/pr7382_20260926/stage338_final_provenance.json), [Native 전쪽 TSV](../assets/pr7382_20260926/stage338_native_whole_silhouette.tsv), [WASM 전쪽 TSV](../assets/pr7382_20260926/stage338_wasm_whole_silhouette.tsv).
+
+![최종 코드88쪽 review](../assets/pr7382_20260926/stage338_native_088_review.png)
+![최종 코드88쪽 standalone overlay](../assets/pr7382_20260926/stage338_native_088_overlay.png)
 
 ### 이전 단계의 판정 기록
 
@@ -4133,3 +4138,17 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - `table_layout.rs`의lead수용조건·반환값은그대로두고bool→Option→0선택을if/else로표현합니다. `row_step.rs`의정수end_cut에1이있는지검사는contains(&1)로표현합니다. 수치·소유·컷·반환값을바꾸지않는표현교정이며allow로오류를숨기지않습니다. lint를먼저통과시키고관련경계·최종전체회귀를확인합니다. 기존전쪽시각증거는새head의출력과대조해재사용여부를구분하며최신캡처라고허위표시하지않습니다.
 
 - 보정337 표현교정결과: 동일lead수용조건에서참이면lead·거짓이면0을반환하도록if/else로표현하고,end_cut정수1존재검사는contains로표현했습니다. 수치·컷·소유·반환값은변경하지않았습니다. nativeClippy는47.07초·exit0입니다. fmt와다른필수lint/정책검사를이어실행중이며,전수통과나PR준비완료로승격하지않습니다. 새Rust회귀는추가하지않았습니다.
+
+
+## 보정338 최종 결과와 통합 PR 후속 계획
+
+최종 생산 코드 `cd85bdf43`의 전체 회귀·Native Skia3·문서 테스트·필수 lint/빌드와 정책 검사 exit0을 확인했습니다. 보정333 전수 raster/TSV와 보정338 전수 SVG/tree 동일성 및6쪽 최신 raster를 연결한 근거는 상단 최종 판정을 따릅니다. Visual Sweep 도구81개와 글꼴 규칙 Node22개도 통과했습니다. 모든 로그는 ignored output에 보존하고 증적 JSON·TSV·review/overlay PNG만 커밋합니다.
+
+통합 PR에는 원 기능8e0f0249·원 증적fcba72b1과 각 메인터너 보정을 구분합니다. 원 upstream merge81a40217은 중복 체리픽하지 않았습니다. 최신 검토 그래프의 체리픽은 기능530f2754f·증적e67b964dc이며 접수 당시 SHA와 리베이스 후 SHA를 혼동하지 않습니다.
+
+### 병합 후 실행할 작업
+
+1. 통합 PR 정확한 head의 필수 CI·mergeability·base 포함을 확인해 병합하고 merge SHA와 duration 갱신 결과를 기록합니다.
+2. 원 PR #7382에는 원 기여의 진단·표/각주 예약 개선을 인정하고, 추가 쪽 경계·글꼴·수식·기존 검사 교정이 필요한 이유와 통합 증거를 한국어 존댓말로 설명한 뒤 통합 PR 링크와 함께 close합니다. 기여자 fork branch는 보존합니다.
+3. #7379의 실제 종료 상태를 확인하고215쪽·다섯 경계 증거를 연결합니다. #7445와 다른 미해결 피델리티 이슈는 종료하지 않습니다.
+4. devel 동기화와 이번 작업의 소유 브랜치·output 정리를 수행합니다. 원본 문서·커밋한 증적·공유 target/pr-review는 보존합니다. 병합 전에는 후속 완료로 기록하지 않습니다.
