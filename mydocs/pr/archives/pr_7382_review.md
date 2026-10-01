@@ -3681,3 +3681,11 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 파생 suite `--prepare`와 `cargo fmt --all -- --check`는 통과했다. `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(text_overlaps_do_not_grow_partition_13)' --no-fail-fast`는 **1/1 PASS**, 나머지 10264개는 선택하지 않았다(`stage275-partition13-nextest.log`). 이 집중 검사는 전체 회귀·Clippy·fresh WASM과 남은 분할11 실패를 대신하지 않는다.
 
 ![HWP3 인쇄 554쪽 본문과 쪽번호 겹침](../assets/pr7382_20260926/stage275_hwp3_native_review_554.png)
+
+## 보정276 — 7쪽 단축키 문서의 현 차단 위치와 누적 세로 오차
+
+- #7445에 HWP3 763쪽 표본 한 건을 분리한 뒤, 파일 크기 균형 방식의 `text_overlap_baseline`에서 `samples/basic/shortcut.hwp`가 **분할11→15**로 이동했다. 현 head `62fd3ce04`의 분할11은 **1/1 PASS**지만, 실제 단축키가 들어간 분할15는 **1/1 FAIL**이고 이 문서의 신규 겹침은 **77건**이다. 분할 번호 통과를 문서 해결로 오인하지 않는다. 로그는 `stage276-partition11-nextest.log`, `stage276-partition15-nextest.log`에 남겼다.
+- 단축키 3쪽에서 같은 원문·독립 PDF의 글자 상단을 대조했다. 첫 `조판 부호 보이기/감추기`는 rhwp **128.9px** 대 PDF 약 **137.1px**로 8.2px 위, `입력` 제목은 **325.5px** 대 **340.5px**로 15.0px 위, `<그림 넣기에서>`는 **574.5px** 대 **598.6px**로 24.1px 위다. 같은 다단 묶음 내부의 저장 줄 간격은 거의 맞지만, 띠·단 구역을 지날 때 차이가 누적된다. 3쪽 Native 일치율 **58.98622%**이고 전체 7쪽 최저도 이 값이다. 바탕 숫자 글꼴과 페이지 수는 이미 맞췄으나 본문 구역 간격을 더 추적해야 한다. 원본과 PDF는 모두 7쪽이므로 #7445로 분리하지 않는다.
+- 현재 조판은 `typeset/section/columns.rs::process_multicolumn_break`에서 저장 vpos의 높이·TAC 띠 예약·디자인 간격·`solo_zone_pad_px`로 다음 zone을 정하고, 실제 출력은 `layout.rs::build_columns`가 이전 zone의 최종 끝과 같은 계열의 간격을 다시 소비한다. 이 두 경로의 입력과 다음 zone 원점을 3쪽의 위 세 지점에서 짝지어 확인한 뒤 수정한다. 이전에 전역 1500HU가 **7→8쪽**으로 늘린 반례가 있으므로 일괄 여백 증가는 채택하지 않는다. 이번 단계는 분석만 기록하고 소스와 원장은 변경하지 않았다.
+
+![단축키 3쪽 띠·다단 전환마다 누적되는 위치 차이](../assets/pr7382_20260926/stage276_shortcut_native_review_003.png)
