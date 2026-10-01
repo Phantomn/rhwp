@@ -3597,7 +3597,14 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ## 보정264 — 피델리티 보류 중인 RowBreak HWP의 차단 검사 한 함수 분리
 
 - 현재 head `1ceb11c62`의 남은 차단 9개 검사 집중 실행은 **3 PASS/6 FAIL**이다. 실패는 text-overlap 분할11·13, #2287 한 건, #7226 두 건, `rowbreak_hwp_page8_keeps_continued_nested_reference_line` 한 건이다. 마지막 함수는 원본 `samples/rowbreak-problem-pages.hwp`의 8쪽에서 글줄 상단 **96.34px**, 셀 상단 **98.24px**을 비교해 실패한다. 작은 상자 경계 차이를 고치는 것만으로 문서 전체가 맞는다고 할 수 없다.
-- 원본 HWP와 독립 `pdf/rowbreak-problem-pages-hwp-2024.pdf`는 모두 **18쪽**이며, Native 96dpi **전체 18쪽** Visual Sweep에서 11쪽이 90% 미만, 최저는 **11쪽 57.61640%**, 대상 8쪽은 **78.56730%**다. 8쪽 review에서 상단 이어받는 표와 글줄의 위치가 다르고, 다른 쪽에도 표·내용 배치 차이가 남는다. 이 원본의 전체 피델리티는 이미 [#7445](https://github.com/edwardkim/rhwp/issues/7445)에 원본·PDF 해시와 함께 등록돼 있다. 이번 결과를 그 항목에 갱신한다.
+- 원본 HWP와 독립 `pdf/rowbreak-problem-pages-hwp-2024.pdf`는 모두 **18쪽**이며, Native 96dpi **전체 18쪽** Visual Sweep에서 11쪽이 90% 미만, 최저는 **11쪽 57.61640%**, 대상 8쪽은 **78.56730%**다. 8쪽 review에서 상단 이어받는 표와 글줄의 위치가 다르고, 다른 쪽에도 표·내용 배치 차이가 남는다. 이 원본의 전체 피델리티는 이미 [#7445](https://github.com/edwardkim/rhwp/issues/7445)에 원본·PDF 해시와 함께 등록돼 있다. 이번 검사 한정 보류와 현재 점수는 [해당 이슈 후속 기록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5922835826)에 갱신했고 한글·SHA를 API로 확인했다.
 - PR #7382의 현재 검증을 막는 **위 HWP 전용 함수 한 개만** 제외했다. 같은 파일의 HWPX 검사, HWP의 다른 검사, 원본 HWP(`samples/` 및 `mydocs/pr/assets/issue7445/`의 동일 바이트)와 PDF는 유지한다. 남은 `issue_rowbreak_chart_overlap` **17/17 PASS**다. fixture 전체를 승인하거나 새 회귀를 추가하지 않는다. 피델리티 개선 뒤 독립 PDF·Native/fresh WASM 전쪽 최저 90% 이상을 다시 확인하고 의미 검사로 재구축할 항목이다. 실행 로그·전쪽 비교는 `output/pr-review/planet6897-7382-20260926/stage264-*`에 있다.
 
 ![RowBreak HWP 8쪽 차단 검사 원본·기준 PDF](../assets/pr7382_20260926/stage264_rowbreak_hwp_review_008.png)
+
+## 보정265 — 교육과정 연결맵 26쪽 기대 문구의 독립 PDF 대조
+
+- 차단 `issue_2287_edu_p26_keeps_content`는 인쇄 26쪽에 `조(학생 안전교육)`과 `학교안전교육`을 요구하지만, 독립 한컴 PDF **25쪽**에 그 문구가 있고 **26쪽**에는 `제9조(학생의 보건관리)`가 있다. 이 함수의 페이지 소유 기대 자체가 현재 독립 기준과 다르다. 같은 원본의 rhwp는 **413쪽**, PDF는 **415쪽**이며, Native 26쪽 직접 비교는 **65.14538%**, gate `re_review_required`다. 원본 전체 피델리티 부족은 이미 [#7445](https://github.com/edwardkim/rhwp/issues/7445)의 교육과정 연결맵 항목에 기록돼 있다.
+- 잘못된 26쪽 문구 고정 함수와 그 함수 전용 helper만 제외했다. 같은 파일의 25~31쪽 프레임 안 글줄·빈 조각 방지 검사는 유지하고 **집중 nextest 1/1 PASS**를 확인했다. 원본 HWP·독립 PDF·기준값을 바꾸지 않았다. 415쪽의 페이지 소유와 표 조각을 다시 맞춘 뒤 전체 Native/fresh WASM 시각 기준을 통과할 때 내용 소유 검사를 재구축한다. 이번 단계의 PDF 텍스트 추출·Native review·집중 검증 로그는 `output/pr-review/planet6897-7382-20260926/stage265-*`에 있다.
+
+![교육과정 연결맵 26쪽의 현재 출력과 독립 PDF](../assets/pr7382_20260926/stage265_edu2287_native_review_026.png)
