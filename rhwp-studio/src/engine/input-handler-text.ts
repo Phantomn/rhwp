@@ -46,12 +46,21 @@ function charCount(s: string): number {
   return [...s].length;
 }
 
+// Intl.Segmenter 가 없는 브라우저(Firefox 124 이하)에서는 모듈을 깨지 않고 code point 로 센다.
+const GRAPHEMES = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null;
+
+/** 문자소(grapheme) 단위로 나눈다 — 이모지·결합 문자열도 한 글자다. */
+function graphemes(s: string): string[] {
+  return GRAPHEMES ? Array.from(GRAPHEMES.segment(s), (g) => g.segment) : [...s];
+}
+
 /**
  * [#7489] 수정(덮어쓰기) 모드에서 `text`가 덮어쓸 캐럿 뒤 글자를 돌려준다. 삽입 모드면 ''.
  *
- * 한컴처럼 입력한 글자 수만큼 같은 문단의 일반 글자만 덮어쓴다. 문단 끝, 탭·강제 줄바꿈 같은
- * 제어 문자, 본문의 글자처럼 취급한 개체를 만나면 멈추고 나머지는 삽입한다. 누름틀 안에서는
- * 그 끝을 넘지 않고, 빠져나온 누름틀 시작에서는 덮어쓰지 않는다. 양식 모드에서 지울 수 없는
+ * 한컴처럼 입력한 글자 수만큼 같은 문단의 일반 글자만 덮어쓴다. 글자는 입력과 문서 모두 문자소로
+ * 센다. 문단 끝, 탭·강제 줄바꿈 같은 제어 문자, 본문의 글자처럼 취급한 개체를 만나면 멈추고
+ * 나머지는 삽입한다. 누름틀 안에서는 그 끝을 넘지 않고, 누름틀 밖(빠져나온 끝 포함)에서는 누름틀
+ * 글자 앞에서 멈춘다. 빠져나온 누름틀 시작에서는 덮어쓰지 않는다. 양식 모드에서 지울 수 없는
  * 글자도 덮어쓰지 않는다. 머리말/꼬리말·각주는 글자를 읽는 API가 없어 삽입을 유지한다.
  * 조회가 실패해도 삽입한다.
  */
@@ -59,32 +68,49 @@ function overwrittenTextAt(this: any, pos: DocumentPosition, text: string): stri
   if (this.insertMode !== false || !text) return '';
   if (this.cursor.isInHeaderFooter() || this.cursor.isInFootnote()) return '';
   try {
-    let limit = charCount(text);
+    const limit = graphemes(text).length;
     const fi = this.wasm.getFieldInfoAt(pos);
+    let fieldEnd = Infinity; // 누름틀 안이면 그 끝
     if (fi.inField && fi.fieldType === 'clickhere') {
-      // 누름틀 시작 밖에서는 필드 글자를, 필드 안에서는 끝 너머 글자를 지우지 않는다.
       if (this.isAtExitedFieldStart?.(pos, fi)) return '';
-      if (!this.isAtExitedFieldEnd?.(pos, fi)) limit = Math.min(limit, (fi.endCharIdx ?? 0) - pos.charOffset);
+      if (!this.isAtExitedFieldEnd?.(pos, fi)) fieldEnd = fi.endCharIdx ?? 0;
     }
-    if (limit <= 0) return '';
-    const next = [...this.getTextAt(pos, limit)];
+    // 마지막 글자가 잘리지 않게, 한 글자 더 보이거나 문단이 끝날 때까지 넓혀 읽는다.
+    let next: string[];
+    for (let n = limit + 1; ; n *= 2) {
+      const read = this.getTextAt(pos, n);
+      next = graphemes(read);
+      if (next.length > limit || charCount(read) < n) break;
+    }
     const inBody = pos.parentParaIndex === undefined;
     const logicalAt = (offset: number): number =>
       this.wasm.textToLogicalOffset(pos.sectionIndex, pos.paragraphIndex, offset);
-    let logical = inBody ? logicalAt(pos.charOffset) : 0;
-    let count = 0;
-    for (const ch of next) {
+    let offset = pos.charOffset;
+    let logical = inBody ? logicalAt(offset) : 0;
+    let before = fi; // offset 자리의 누름틀 조회
+    let covered = '';
+    for (const ch of next.slice(0, limit)) {
       if (ch < ' ') break;
+      const end = offset + charCount(ch);
+      if (end > fieldEnd) break;
+      if (fieldEnd === Infinity) {
+        // 누름틀 조회는 시작·끝 자리를 모두 안으로 치고 앞선 누름틀을 먼저 돌려준다.
+        // 글자 양쪽 자리를 조회해 이 글자에 걸친 누름틀이 있으면 멈춘다.
+        const after = this.wasm.getFieldInfoAt({ ...pos, charOffset: end });
+        if ([before, after].some((f) => f.inField && f.startCharIdx < end && f.endCharIdx > offset)) break;
+        before = after;
+      }
       if (inBody) {
-        // 개체는 텍스트에 없고 논리 오프셋만 한 칸 차지한다 — 두 칸 이상 뛰면 개체가 끼어 있다.
-        const after = logicalAt(pos.charOffset + count + 1);
-        if (after - logical > 1) break;
+        // 개체는 텍스트에 없고 논리 오프셋만 한 칸 차지한다 — 글자 길이보다 더 뛰면 개체가 끼어 있다.
+        const after = logicalAt(end);
+        if (after - logical > end - offset) break;
         logical = after;
       }
-      count++;
+      covered += ch;
+      offset = end;
     }
-    if (count === 0 || !this.canDeleteTextInFormMode?.(pos, count)) return '';
-    return next.slice(0, count).join('');
+    if (!covered || !this.canDeleteTextInFormMode?.(pos, offset - pos.charOffset)) return '';
+    return covered;
   } catch {
     return '';
   }

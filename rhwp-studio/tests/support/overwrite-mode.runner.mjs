@@ -226,10 +226,12 @@ function makeHandler(wasm, start, { insertMode = false, editMode = 'normal', exi
     undo() { position = history.undo(wasm); syncActiveField(); },
     redo() { position = history.redo(wasm); syncActiveField(); },
     type(s) {
-      for (const ch of s) {
-        this.textarea.value = ch;
-        text.onInput.call(this);
-      }
+      for (const ch of s) this.input(ch);
+    },
+    /** 입력 이벤트 하나로 `s` 전체를 넣는다(이모지 선택기·CDP insertText 처럼). */
+    input(s) {
+      this.textarea.value = s;
+      text.onInput.call(this);
     },
     /** 한 음절 조합: 갱신 문자열들을 차례로 넣고 끝낸다. */
     compose(...updates) {
@@ -506,6 +508,41 @@ scenario('22. 양식 같은 "홍 길동": 이름 누름틀 끝에서 공백을 �
     '이가 길동 누름틀 안으로 들어가면 안 된다');
   assert.deepEqual(exitedEndRun((h) => { h.compose('ㅇ', '이'); h.undo(); }, form),
     { text: '홍 길동', ranges: 'field 0-1, field 2-4' });
+});
+
+scenario('23. 빠져나온 누름틀 끝 바로 뒤가 다음 누름틀이면 덮지 않고 삽입 모드와 같다', () => {
+  // abcd 의 ab(0..2)·cd(2..4)가 누름틀 A·B. 캐럿은 → 로 A 끝을 나온 2 — B 의 c 를 덮으면 안 된다.
+  const adjacent = { body: 'abcd', ranges: [['field', 0, 2], ['field', 2, 4]] };
+  const cases = [
+    ['X', (h) => h.type('X')],
+    ['IME 하', (h) => h.compose('ㅎ', '하')],
+    ['표 셀 X', (h) => h.type('X'), { cell: true, body: adjacent.body, ranges: adjacent.ranges }],
+  ];
+  for (const [name, act, opts = adjacent] of cases) {
+    const overwrite = exitedEndRun(act, opts);
+    assert.deepEqual(overwrite, exitedEndRun(act, { ...opts, insertMode: true }), `${name}: 삽입 모드와 같아야 한다`);
+    assert.match(overwrite.text, /cd$/, `${name}: B 의 c 가 남아야 한다`);
+  }
+  assert.deepEqual(exitedEndRun((h) => h.type('X'), adjacent), { text: 'abXcd', ranges: 'field 0-2, field 3-5' });
+});
+
+scenario('24. 입력 하나는 문자소 단위로 덮고, 밖에서는 누름틀 글자 앞에서 멈춘다', () => {
+  // abcde 의 cd(2..4)가 누름틀, 캐럿 1. 이모지 선택기처럼 입력 하나에 여러 글자가 온다.
+  const run = (body, at, s, ranges = [['field', 2, 4]]) => {
+    const wasm = makeWasm({ body, ranges });
+    const h = makeHandler(wasm, bodyPos(at));
+    h.input(s);
+    const typed = { text: wasm.doc.body, ranges: rangesOf(wasm) };
+    h.undo();
+    assert.deepEqual({ text: wasm.doc.body, ranges: rangesOf(wasm) }, { text: body, ranges: rangesOf(makeWasm({ body, ranges })) },
+      `${s}: 되돌리면 원래대로여야 한다`);
+    return typed;
+  };
+  assert.deepEqual(run('abcde', 1, 'XYZ'), { text: 'aXYZcde', ranges: 'field 4-6' }, 'b 만 덮고 누름틀 cd 는 남아야 한다');
+  assert.deepEqual(run('abcde', 1, '❤️'), { text: 'a❤️cde', ranges: 'field 3-5' }, '❤️ 는 b 하나만 덮어야 한다');
+  assert.equal(run('abcd', 0, '👍🏽', []).text, '👍🏽bcd', '👍🏽 는 a 하나만 덮어야 한다');
+  assert.equal(run('abcd', 0, 'é', []).text, 'ébcd', '결합 문자열도 한 글자만 덮어야 한다');
+  assert.equal(run('👍🏽b', 0, 'X', []).text, 'Xb', '덮는 글자도 문자소 하나 전체여야 한다');
 });
 
 if (failures.length > 0) {
