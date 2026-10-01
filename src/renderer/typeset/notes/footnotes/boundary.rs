@@ -385,7 +385,7 @@ pub(in crate::renderer::typeset) fn native_hwp5_final_marker_footnote_uses_next_
     footnote: &Footnote,
     footnote_height: f64,
 ) -> bool {
-    if !st.profile.hwp5_stored_pagination_layout()
+    if !stored_body_note_pagination(st)
         || st.col_count != 1
         || para.controls.len() != 1
         || !matches!(para.controls.get(ctrl_idx), Some(Control::Footnote(_)))
