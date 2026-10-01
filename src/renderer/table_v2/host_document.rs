@@ -23,6 +23,7 @@ impl HostedDocumentLayout {
         let mut sections = Vec::with_capacity(source.sections.len());
         let mut page_offset = 0u32;
         let mut next_number = 1u32;
+        let mut stories = super::host_stories::StoryContext::default();
         for (si, section) in source.sections.iter().enumerate() {
             // These stories can inherit across section boundaries. A section
             // preview's empty carry is not a document-level implementation.
@@ -51,6 +52,7 @@ impl HostedDocumentLayout {
                 page_offset,
                 first_number,
                 Some(styles),
+                &mut stories,
             )
             .map_err(|e| failure(si, e))?;
             let count = u32::try_from(layout.pagination().pages.len())
@@ -93,6 +95,28 @@ impl HostedDocumentLayout {
         }
         Err(HwpError::PageOutOfRange(index))
     }
+
+    pub(crate) fn render_story_preview(
+        &self,
+        source: &Document,
+        index: u32,
+        reference: &crate::renderer::pagination::HeaderFooterRef,
+        header: bool,
+    ) -> Result<PageRenderTree, HwpError> {
+        for (si, section) in self.sections.iter().enumerate() {
+            if let Some(local) = section
+                .pagination()
+                .pages
+                .iter()
+                .position(|p| p.page_index == index)
+            {
+                return section
+                    .render_story_preview(source, local, reference, header)
+                    .map_err(|e| failure(si, e));
+            }
+        }
+        Err(HwpError::PageOutOfRange(index))
+    }
 }
 
 fn failure(section: usize, reason: impl std::fmt::Display) -> HwpError {
@@ -101,12 +125,7 @@ fn failure(section: usize, reason: impl std::fmt::Display) -> HwpError {
 
 fn has_cross_section_story(para: &Paragraph) -> bool {
     para.controls.iter().any(|c| match c {
-        Control::Header(_)
-        | Control::Footer(_)
-        | Control::Footnote(_)
-        | Control::Endnote(_)
-        | Control::PageNumberPos(_)
-        | Control::NewNumber(_) => true,
+        Control::Footnote(_) | Control::Endnote(_) | Control::NewNumber(_) => true,
         Control::Table(table) => table
             .cells
             .iter()

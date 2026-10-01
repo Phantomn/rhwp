@@ -37,6 +37,7 @@ pub(crate) mod host_border;
 mod host_document;
 mod host_master;
 mod host_section;
+mod host_stories;
 mod ownership;
 pub(crate) use host_document::HostedDocumentLayout;
 mod host_text;

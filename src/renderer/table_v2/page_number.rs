@@ -248,6 +248,18 @@ impl PageNumberStory {
             .checked_add(page_index)
             .filter(|n| *n <= u32::from(u16::MAX))
             .ok_or(GeometryError::Unsupported("page-number range"))?;
+        self.render_number(number)
+    }
+
+    /// The product document host already resolved the section start/continuation.
+    /// Do not add the source section's first number a second time.
+    pub(super) fn render_number(&self, number: u32) -> Result<Option<RenderNode>, GeometryError> {
+        if self.declaration.position == 0 {
+            return Ok(None);
+        }
+        if number == 0 || number > u32::from(u16::MAX) {
+            return Err(GeometryError::Unsupported("page-number range"));
+        }
         let p = &self.declaration;
         let text = format_page_number(number, p.format, p.prefix_char, p.suffix_char, p.dash_char);
         // 10pt is the observed automatic page-number size, not the host's style.

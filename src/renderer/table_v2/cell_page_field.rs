@@ -15,17 +15,28 @@ use crate::{
 use std::{cell::RefCell, sync::Arc};
 
 pub(super) fn qualify(p: &Paragraph) -> Result<bool, GeometryError> {
-    qualify_with_rows(p, false)
+    qualify_with_rows(p, false, false)
 }
 
 /// Master textboxes may have no saved rows even after a normal Hancom save.
 /// The shared composer then derives one row from paragraph/character styles.
 /// Table-cell admission still requires its stored reservation above.
 pub(super) fn qualify_textbox(p: &Paragraph) -> Result<bool, GeometryError> {
-    qualify_with_rows(p, true)
+    qualify_with_rows(p, true, false)
 }
 
-fn qualify_with_rows(p: &Paragraph, allow_missing_rows: bool) -> Result<bool, GeometryError> {
+/// Page stories compose their final number before paint and do not reserve a
+/// cell fragment box. Their invalidated rows can therefore be recomposed from
+/// current styles; table/master admission above remains unchanged.
+pub(super) fn qualify_story(p: &Paragraph) -> Result<bool, GeometryError> {
+    qualify_with_rows(p, true, true)
+}
+
+fn qualify_with_rows(
+    p: &Paragraph,
+    allow_missing_rows: bool,
+    allow_fresh: bool,
+) -> Result<bool, GeometryError> {
     if !p
         .controls
         .iter()
@@ -47,7 +58,7 @@ fn qualify_with_rows(p: &Paragraph, allow_missing_rows: bool) -> Result<bool, Ge
             .any(|c| *c != '\0')
         || p.text != " "
         || !(p.line_segs.len() == 1 || (allow_missing_rows && p.line_segs.is_empty()))
-        || p.stored_text_partition_is_dirty()
+        || (p.stored_text_partition_is_dirty() && !(allow_fresh && p.line_segs.is_empty()))
         || p.char_shapes.first().is_none_or(|s| s.start_pos != 0)
         || p.char_shapes.iter().skip(1).any(|s| {
             // HWP may store a separate paragraph-terminator style. It does

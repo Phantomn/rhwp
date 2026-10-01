@@ -18,7 +18,20 @@ function option(name) {
 const pkg = option('--pkg'), input = option('--input'), out = option('--out');
 // Browser evaluate uses JSON transport, which canonicalizes -0 to 0. Apply
 // that same transport to Native evidence; do not round nonzero geometry.
-const native = JSON.parse(JSON.stringify(JSON.parse(readFileSync(join(out, 'native.json'), 'utf8'))));
+let nativeJson = readFileSync(join(out, 'native.json'), 'utf8');
+if (process.argv.includes('--hf-addresses')) {
+  // HF cursor addresses use usize::MAX - paragraph on both targets. Translate
+  // ONLY that reserved address namespace, before JSON.parse loses u64 precision.
+  // Geometry, glyphs, source paragraph offsets and all ordinary IDs stay exact.
+  const max = (1n << 64n) - 1n;
+  nativeJson = nativeJson.replace(/("pi":\s*|\/para:)(\d+)/g, (match, prefix, raw) => {
+    const value = BigInt(raw);
+    return value >= max - 1000n && value <= max
+      ? prefix + ((1n << 32n) - 1n - (max - value)).toString()
+      : match;
+  });
+}
+const native = JSON.parse(JSON.stringify(JSON.parse(nativeJson)));
 const require = createRequire(join(root, 'rhwp-studio/package.json'));
 const files = new Map([
   ['/', ['text/html', Buffer.from('<!doctype html><html><head></head><body style="margin:0"></body></html>')]],

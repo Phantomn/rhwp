@@ -36,7 +36,7 @@ pub(crate) struct HostedSectionLayout {
     dpi: f64,
     styles: ResolvedStyleSet,
     pagination: PaginationResult,
-    page_stories: Vec<Option<RenderNode>>,
+    page_stories: Vec<Vec<RenderNode>>,
     // Page-owned absolute objects do not add their margin position to the
     // column's text pen. Ownership and final geometry are bound before export.
     page_tables: Vec<Vec<RenderNode>>,
@@ -49,15 +49,28 @@ impl HostedSectionSession {
         dpi: f64,
         policy: CellEndPolicy,
     ) -> Result<Self, HostedTableError> {
-        let layout = HostedSectionLayout::prepare(source, section, dpi, policy, 0, 1, None)
-            .map_err(|mut error| {
-                // Preserve the established preview API's typed rejection contract.
-                // Product preparation retains the new paragraph/section address.
-                while let HostedTableError::Paragraph { cause, .. } = error {
-                    error = *cause;
-                }
-                error
-            })?;
+        let first = source
+            .sections
+            .get(section)
+            .map_or(1, |s| u32::from(s.section_def.page_num).max(1));
+        let layout = HostedSectionLayout::prepare(
+            source,
+            section,
+            dpi,
+            policy,
+            0,
+            first,
+            None,
+            &mut super::host_stories::StoryContext::default(),
+        )
+        .map_err(|mut error| {
+            // Preserve the established preview API's typed rejection contract.
+            // Product preparation retains the new paragraph/section address.
+            while let HostedTableError::Paragraph { cause, .. } = error {
+                error = *cause;
+            }
+            error
+        })?;
         Ok(Self {
             source: Arc::new(source.clone()),
             layout,
@@ -86,6 +99,7 @@ impl HostedSectionSession {
 }
 
 impl HostedSectionLayout {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare(
         source: &Document,
         section: usize,
@@ -94,6 +108,7 @@ impl HostedSectionLayout {
         page_offset: u32,
         first_number: u32,
         product_styles: Option<&ResolvedStyleSet>,
+        story_context: &mut super::host_stories::StoryContext,
     ) -> Result<Self, HostedTableError> {
         let fail = HostedTableError::UnsupportedHost;
         let sec = source
@@ -105,11 +120,11 @@ impl HostedSectionLayout {
             || dpi <= 0.0
             // First-page master suppression and the serialized master-kind
             // bits do not change body flow. Other section rules stay gated.
-            || def.flags & !(0xe000_0000 | 0x0004 | 0x0008_0000) != 0
+            || def.flags & !(0xe000_0000 | 0x0007 | 0x0008_0000) != 0
             || def.line_grid != 0
             || def.char_grid != 0
             || def.text_direction != 0
-            || def.hide_header || def.hide_footer || def.hide_border || def.hide_fill
+            || def.hide_border || def.hide_fill
             || def.first_page_border || def.first_page_fill
             || std::iter::once(&def.page_border_fill)
                 .chain(&def.extra_page_border_fills)
@@ -125,7 +140,7 @@ impl HostedSectionLayout {
             return Err(fail("section decoration/grid requires host admission"));
         }
         super::host_master::validate(&def.master_pages)?;
-        if def.page_num > 1 || def.page_num_type != 0 {
+        if def.page_num_type != 0 {
             return Err(fail(
                 "section page-number origin requires host numbering context",
             ));
@@ -160,7 +175,8 @@ impl HostedSectionLayout {
         let mut excluded_paragraphs = std::collections::BTreeSet::new();
         let mut positioned_paragraphs = BTreeMap::new();
         let mut absolute = BTreeMap::new();
-        let mut stories = BTreeMap::new();
+        let mut stories = Vec::new();
+        let mut hf_entries = Vec::new();
         let styles = match product_styles {
             Some(styles) => super::source_units::qualify(source, dpi, styles.clone())?,
             None => super::source_units::resolve(source, dpi)?,
@@ -203,12 +219,41 @@ impl HostedSectionLayout {
                             shape_paragraphs.insert(pi);
                         }
                         Control::SectionDef(_) if pi == 0 => {}
+                        Control::Header(_) | Control::Footer(_) => {
+                            let (is_header, apply) = match control {
+                                Control::Header(h) => (true, h.apply_to),
+                                Control::Footer(f) => (false, f.apply_to),
+                                _ => unreachable!(),
+                            };
+                            let line = super::host_stories::owner_line(para, ci)?;
+                            let reference = crate::renderer::pagination::HeaderFooterRef {
+                                para_index: pi,
+                                control_index: ci,
+                                source_section_index: section,
+                                table_path: Vec::new(),
+                            };
+                            let layout = PageLayoutInfo::from_page_def(p, &columns, dpi);
+                            super::host_stories::render(
+                                source,
+                                &reference,
+                                is_header,
+                                if is_header {
+                                    layout.header_area
+                                } else {
+                                    layout.footer_area
+                                },
+                                first_number,
+                                &styles,
+                                dpi,
+                            )?;
+                            hf_entries.push((line, (pi, reference, is_header, apply)));
+                        }
                         Control::ColumnDef(c) if pi == 0 && !seen_columns => {
                             columns = c.clone();
                             seen_columns = true;
                         }
                         Control::PageNumberPos(value) => {
-                            super::page_number::validate_body_entry(para, ci)?;
+                            let line = super::host_stories::owner_line(para, ci)?;
                             if para.controls.iter().any(|c| {
                                 matches!(c, Control::Table(t)
                             if t.common.treat_as_char || t.common.text_wrap != TextWrap::Square)
@@ -218,10 +263,8 @@ impl HostedSectionLayout {
                                 ));
                             }
                             let layout = PageLayoutInfo::from_page_def(p, &columns, dpi);
-                            stories.insert(
-                                pi,
-                                super::page_number::PageNumberStory::new(value, def, &layout)?,
-                            );
+                            super::page_number::PageNumberStory::new(value, def, &layout)?;
+                            stories.push((pi, line, value.clone()));
                         }
                         Control::Table(t) if inline && t.common.treat_as_char => {
                             if has_page_number_story(t) {
@@ -430,7 +473,11 @@ impl HostedSectionLayout {
                 local.controls.retain(|c| {
                     !matches!(
                         c,
-                        Control::ColumnDef(_) | Control::SectionDef(_) | Control::PageNumberPos(_)
+                        Control::ColumnDef(_)
+                            | Control::SectionDef(_)
+                            | Control::PageNumberPos(_)
+                            | Control::Header(_)
+                            | Control::Footer(_)
                     ) && !(absolute.contains_key(&pi) && matches!(c, Control::Table(_)))
                 });
                 local.column_type = ColumnBreakType::None;
@@ -640,32 +687,69 @@ impl HostedSectionLayout {
         // instead activates declarations from committed owner lines, including
         // invisible blank lines, never from an attempted fit or a spacing-only
         // packet. Final page order and physical numbers remain host-owned.
-        let mut active = None;
+        let mut consumed_stories = std::collections::BTreeSet::new();
+        let mut consumed_hf = std::collections::BTreeSet::new();
         let mut page_stories = Vec::with_capacity(pagination.pages.len());
         for (index, page) in pagination.pages.iter_mut().enumerate() {
-            let accepted = page
-                .column_contents
-                .iter()
-                .flat_map(|c| &c.items)
-                .filter_map(|item| match item {
-                    crate::renderer::pagination::PageItem::HostedParagraph {
-                        para_index,
-                        fragment,
-                    } if fragment.has_body_line() && stories.contains_key(para_index) => {
-                        Some(*para_index)
-                    }
-                    _ => None,
-                })
-                .max();
-            active = active.max(accepted);
+            for (entry_index, (pi, line, value)) in stories.iter().enumerate() {
+                if !consumed_stories.contains(&entry_index)
+                    && page.column_contents.iter().flat_map(|c| &c.items).any(|item| {
+                        matches!(item, crate::renderer::pagination::PageItem::HostedParagraph { para_index, fragment }
+                            if para_index == pi && fragment.contains_line(*line))
+                    })
+                {
+                    story_context.page_number = Some(value.clone());
+                    consumed_stories.insert(entry_index);
+                }
+            }
             page.page_number_pos = None;
-            page_stories.push(match active {
-                Some(pi) => stories[&pi].render(
-                    first_number - 1
-                        + u32::try_from(index).map_err(|_| fail("page-number range"))?,
-                )?,
-                None => None,
-            });
+            let mut nodes = Vec::new();
+            if let Some(declaration) = &story_context.page_number {
+                if let Some(node) =
+                    super::page_number::PageNumberStory::new(declaration, def, &page.layout)?
+                        .render_number(page.page_number)?
+                {
+                    nodes.push(node);
+                }
+            }
+            for (entry_index, (line, entry)) in hf_entries.iter().enumerate() {
+                if consumed_hf.contains(&entry_index) {
+                    continue;
+                }
+                let accepted = page.column_contents.iter().flat_map(|c| &c.items).any(|item| {
+                    matches!(item, crate::renderer::pagination::PageItem::HostedParagraph { para_index, fragment }
+                        if *para_index == entry.0 && fragment.contains_line(*line))
+                });
+                if accepted {
+                    story_context
+                        .header_footer
+                        .accumulate(std::slice::from_ref(entry), entry.0);
+                    consumed_hf.insert(entry_index);
+                }
+            }
+            let (header, footer) = story_context.header_footer.active(page.page_number);
+            page.active_header = header.filter(|_| !(index == 0 && def.hide_header));
+            page.active_footer = footer.filter(|_| !(index == 0 && def.hide_footer));
+            for (reference, is_header, area) in [
+                (&page.active_header, true, page.layout.header_area),
+                (&page.active_footer, false, page.layout.footer_area),
+            ] {
+                if let Some(reference) = reference {
+                    nodes.push(super::host_stories::render(
+                        source,
+                        reference,
+                        is_header,
+                        area,
+                        page.page_number,
+                        &styles,
+                        dpi,
+                    )?);
+                }
+            }
+            page_stories.push(nodes);
+        }
+        if consumed_stories.len() != stories.len() || consumed_hf.len() != hf_entries.len() {
+            return Err(fail("unconsumed page-story declaration owner"));
         }
         crate::renderer::master_page::assign_master_pages_for_section(
             &mut pagination,
@@ -688,6 +772,41 @@ impl HostedSectionLayout {
         &self.pagination
     }
 
+    pub(crate) fn render_story_preview(
+        &self,
+        document: &Document,
+        index: usize,
+        reference: &crate::renderer::pagination::HeaderFooterRef,
+        header: bool,
+    ) -> Result<PageRenderTree, HostedTableError> {
+        let mut tree = self.render_page(document, index)?;
+        let page = &self.pagination.pages[index];
+        let area = if header {
+            page.layout.header_area
+        } else {
+            page.layout.footer_area
+        };
+        let mut story = super::host_stories::render(
+            document,
+            reference,
+            header,
+            area,
+            page.page_number,
+            &self.styles,
+            self.dpi,
+        )?;
+        tree.root.children.retain(|node| {
+            !matches!(
+                (&node.node_type, header),
+                (crate::renderer::render_tree::RenderNodeType::Header, true)
+                    | (crate::renderer::render_tree::RenderNodeType::Footer, false)
+            )
+        });
+        super::text::assign_ids(&mut story, tree.frame_mut());
+        tree.root.children.push(story);
+        Ok(tree)
+    }
+
     pub(crate) fn render_page(
         &self,
         document: &Document,
@@ -707,8 +826,12 @@ impl HostedSectionLayout {
                 .get(reference.master_page_index)
         });
         let outlines = master.map(super::host_master::outlines);
+        // Publish HF references for product queries, but do not run Legacy HF paint.
+        let mut paint_page = page.clone();
+        paint_page.active_header = None;
+        paint_page.active_footer = None;
         let mut tree = LayoutEngine::new(self.dpi).build_render_tree(
-            page,
+            &paint_page,
             &document.sections[self.section].paragraphs,
             &[],
             &[],
@@ -751,7 +874,14 @@ impl HostedSectionLayout {
             super::text::assign_ids(&mut table, tree.frame_mut());
             tree.root.children.push(table);
         }
-        if let Some(mut story) = self.page_stories[index].clone() {
+        tree.root.children.retain(|n| {
+            !matches!(
+                n.node_type,
+                crate::renderer::render_tree::RenderNodeType::Header
+                    | crate::renderer::render_tree::RenderNodeType::Footer
+            )
+        });
+        for mut story in self.page_stories[index].clone() {
             super::text::assign_ids(&mut story, tree.frame_mut());
             tree.root.children.push(story);
         }

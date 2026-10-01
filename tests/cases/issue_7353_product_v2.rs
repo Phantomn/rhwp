@@ -3,7 +3,7 @@
 //! two-section variant below is a synthetic ownership/numbering contract.
 use rhwp::{
     document_core::{DocumentCore, TypesettingEngine},
-    model::control::{Control, PageNumberPos},
+    model::control::Control,
     renderer::{
         render_tree::{RenderNode, RenderNodeType},
         table_v2::{CellEndPolicy, HostedSectionSession},
@@ -466,12 +466,14 @@ fn product_v2_rejects_unsupported_without_fallback_or_stale_cache() {
 }
 
 #[test]
-fn product_v2_rejects_unbound_cross_section_story_with_source_address() {
+fn product_v2_rejects_unbound_cross_section_number_restart_with_source_address() {
     let mut core = open(SAVED);
     let mut second = core.document().sections[0].clone();
     second.paragraphs[0]
         .controls
-        .push(Control::PageNumberPos(PageNumberPos::default()));
+        // Section start/continue and PageNumberPos are now supported by U1.
+        // An in-body NewNumber remains a distinct, unbound timeline control.
+        .push(Control::NewNumber(Default::default()));
     core.document_mut().sections.push(second);
     core.repaginate_if_needed();
     let reason = core.ensure_typesetting_ready().unwrap_err().to_string();

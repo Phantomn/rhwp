@@ -7383,8 +7383,22 @@ impl DocumentCore {
         header_footer_override: Option<(usize, bool, u8)>,
     ) -> Result<PageRenderTree, HwpError> {
         if self.typesetting_engine == super::super::TypesettingEngine::V2 {
+            self.ensure_typesetting_ready()?;
+            if let Some(Ok(layout)) = &self.v2_layout {
+                if let Some((section, header, apply)) = header_footer_override {
+                    let reference =
+                        self.header_footer_ref_for_edit_target(section, header, apply)?;
+                    return layout.render_story_preview(
+                        &self.document,
+                        page_num,
+                        &reference,
+                        header,
+                    );
+                }
+                return layout.render_page(&self.document, page_num);
+            }
             return Err(HwpError::RenderError(
-                "V2: header/footer edit preview is not supported".into(),
+                "V2: page layout is unavailable".into(),
             ));
         }
         use crate::model::style::HeadType;

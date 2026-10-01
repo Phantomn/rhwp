@@ -1097,6 +1097,17 @@ impl DocumentCore {
         apply_to: u8,
         hf_para_idx: usize,
     ) {
+        if self.typesetting_engine == crate::document_core::TypesettingEngine::V2 {
+            // The V2 story composer owns both line measurement and paint.
+            // Legacy reflow marks its implementation-tagged cache as clean;
+            // it must not replace the invalidated source partition in V2.
+            if let Ok(para) =
+                self.get_hf_paragraph_mut(section_idx, is_header, apply_to, hf_para_idx)
+            {
+                para.invalidate_layout_inputs();
+            }
+            return;
+        }
         use crate::renderer::hwpunit_to_px;
 
         // 머리말/꼬리말 영역 폭 = 페이지 텍스트 영역 폭
