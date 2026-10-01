@@ -1283,6 +1283,13 @@ fn measure_char_width_embedded_decision_for_font<'a>(
                 character_match: "miss",
             };
         };
+        // HMKMM TrueType의 가운뎃점은512/512 전각이며 독립 PDF도 같은 전진폭이다.
+        // 같은 face 이름의 HFT 출력은 좁은 호환 폭을 쓰므로 명시적 프로그램
+        // 선택이 확인된 세션만 바꾼다. 따옴표는 TrueType 글리프가 전각이어도
+        // 한컴 문단 조판에서 반각 처리되므로 기존 기호 규칙을 유지한다.
+        let human_true_type_punct = font_metric_trusted
+            && matches!(primary_name, "휴먼명조" | "HumanMyeongJo")
+            && c == '\u{00B7}';
         // [#7051] HWP3 변환본의 HFT 한글 전용 face 는 ASCII 를 반각(`em/2`)으로 전진시킨다.
         //
         // HWP3 시절 HFT 글꼴(`명조`·`신명 세명조`·`한양신명조` 등)은 한글 전용이고 ASCII
@@ -1344,7 +1351,9 @@ fn measure_char_width_embedded_decision_for_font<'a>(
             && glyph_w >= mm.metric.em_size
             && !is_monospace_metric(mm.metric)
             && (!font_metric_trusted || latin1_table_is_uninformative(mm.metric));
-        if hft_hangul_halfwidth_ascii {
+        if human_true_type_punct {
+            (mm.metric.em_size, "metricTrueTypeGlyph")
+        } else if hft_hangul_halfwidth_ascii {
             (mm.metric.em_size / 2, "metricHftHangulHalfwidthAscii")
         } else if (is_narrow_unicode_punct && glyph_w >= mm.metric.em_size) || is_b7_notdef_artifact
         {

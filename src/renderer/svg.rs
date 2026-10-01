@@ -4469,7 +4469,9 @@ fn known_font_filenames(font_name: &str) -> Vec<&'static str> {
         "바탕체" | "BatangChe" => vec!["batang.ttc", "hamchob-r.ttf"],
         // 정상 Windows 한컴 출력의 원 face는 휴먼명조다. EBDT 혼합 배포본도
         // 임베드 사본에서 outline을 보존하므로 원 face를 대체 face보다 먼저 찾는다.
-        "휴먼명조" => vec!["HMKMM.TTF", "HANBatang.ttf", "HBATANG.TTF", "hamchob-r.ttf"],
+        "휴먼명조" | "HumanMyeongJo" => {
+            vec!["HMKMM.TTF", "HANBatang.ttf", "HBATANG.TTF", "hamchob-r.ttf"]
+        }
         "새바탕" | "새돋움" | "새굴림" | "새궁서" => {
             vec!["hamchob-r.ttf", "hamchod-r.ttf"]
         }

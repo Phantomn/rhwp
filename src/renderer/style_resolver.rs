@@ -29,7 +29,8 @@ pub struct ResolvedCharStyle {
     /// (`font_families` 와 같은 순서).
     ///
     /// 참은 [`metric_widths_verified_face`] 가 인정한 face 가 TTF 로 선언되고 대체 규칙이
-    /// 이름을 바꾸지 않았을 때뿐이다. HFT 는 한/글이 자기 글리프로 그리고, 대체된 이름은
+    /// 이름을 바꾸지 않았거나 확인된 TrueType 프로그램을 명시적 환경으로 선택한 때다.
+    /// HFT 는 한/글이 자기 글리프로 그리고, 대체된 이름은
     /// 다른 글꼴의 표를 빌려 오므로 표에 적힌 폭이 그 글꼴의 폭이라는 보장이 없다.
     pub font_families_metric_trusted: Vec<bool>,
     /// [#7051] 언어 슬롯별로 선언 글꼴이 **HFT 한글 전용 face** 여서 치환됐는지.
@@ -526,8 +527,18 @@ pub(crate) fn resolve_styles_with_environment(
                 );
                 if decision.environment_profile_id.is_some() {
                     style.font_families[lang] = decision.css_family_chain.join(",");
-                    // A caller declaration is not independent metric verification.
-                    style.font_families_metric_trusted[lang] = false;
+                    // 명시적 프로그램 선택과 독립적으로 검증한 글리프 표가 모두 있어야
+                    // TrueType 폭을 사용한다. 선언만으로 임의 face의 표를 신뢰하지 않는다.
+                    let target = primary_font_name(&style.font_families[lang]);
+                    let explicit_true_type =
+                        environment.is_some_and(|env| env.selects_true_type(target));
+                    style.font_families_metric_trusted[lang] = explicit_true_type
+                        && (metric_widths_verified_face(target)
+                            || matches!(target, "휴먼명조" | "HumanMyeongJo"));
+                    if explicit_true_type {
+                        style.font_families_hft_hangul[lang] = false;
+                        style.font_families_metric_face[lang] = None;
+                    }
                 }
             }
             style.font_family = style.font_families[0].clone();
@@ -958,6 +969,16 @@ pub(crate) fn lookup_font_name_in_environment(
             decision.substitution_rule_id = None;
             decision.environment_profile_id = Some(environment.id().to_string());
         }
+    }
+    if decision.embedded != Some(true)
+        && environment.is_some_and(|env| {
+            decision
+                .normalized_face
+                .as_deref()
+                .is_some_and(|face| env.selects_true_type(face))
+        })
+    {
+        decision.environment_profile_id = environment.map(|env| env.id().to_string());
     }
     decision
 }
