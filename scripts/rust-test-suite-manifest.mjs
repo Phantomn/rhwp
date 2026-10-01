@@ -376,6 +376,13 @@ export function sourceMetrics(source, manifest, root = ROOT, durationPolicy = nu
     weight:
       bytes + Math.max(1, staticTests) * manifest.sharding.testAttributeWeight,
     blockers,
+    // Approved path_attr overrides may still load the same Rust module in
+    // different test sources. Such sources cannot share one crate (duplicate_mod).
+    // This tracks literal path attributes, not a general Rust module resolver.
+    modulePaths: [...new Set([...text.matchAll(/#\s*\[\s*path\s*=\s*"([^"\n]+)"\s*\]/g)]
+      .map((match) => path.posix.normalize(path.posix.join(
+        path.posix.dirname(source), match[1].replaceAll('\\', '/'),
+      ))))],
   };
   if (durationPolicy !== null) {
     const measured = durationPolicy.cases.get(metric.caseName);
@@ -467,11 +474,17 @@ function emptySuiteRecords(manifest) {
     name: suiteName(manifest, index),
     sources: [],
     weight: 0,
+    modulePaths: new Set(),
   }));
 }
 
-function lightestSuite(records) {
-  return [...records].sort(
+function lightestSuite(records, metric) {
+  const compatible = records.filter(record =>
+    !metric.modulePaths.some(modulePath => record.modulePaths.has(modulePath)));
+  if (compatible.length === 0) {
+    throw new Error(`공유 path 모듈을 분리할 suite가 없습니다: ${metric.source}`);
+  }
+  return compatible.sort(
     (left, right) =>
       left.weight - right.weight ||
       left.sources.length - right.sources.length ||
@@ -507,9 +520,10 @@ export function rebalanceManifest(
         right.weight - left.weight || left.source.localeCompare(right.source),
     )
     .forEach((metric) => {
-      const suite = lightestSuite(suites);
+      const suite = lightestSuite(suites, metric);
       suite.sources.push(metric.source);
       suite.weight += metric.weight;
+      metric.modulePaths.forEach(modulePath => suite.modulePaths.add(modulePath));
     });
 
   manifest.exceptions = exceptions;
@@ -532,14 +546,15 @@ function declaredSourcePaths(manifest) {
 }
 
 function suiteRecordsWithWeights(manifest, root = ROOT) {
-  return Object.entries(manifest.suites).map(([name, sources]) => ({
-    name,
-    sources,
-    weight: sources.reduce(
-      (total, source) => total + sourceMetrics(source, manifest, root).weight,
-      0,
-    ),
-  }));
+  return Object.entries(manifest.suites).map(([name, sources]) => {
+    const metrics = sources.map(source => sourceMetrics(source, manifest, root));
+    return {
+      name,
+      sources,
+      weight: metrics.reduce((total, metric) => total + metric.weight, 0),
+      modulePaths: new Set(metrics.flatMap(metric => metric.modulePaths)),
+    };
+  });
 }
 
 export function assignSources(
@@ -583,11 +598,12 @@ export function assignSources(
         );
       }
     } else {
-      const suite = lightestSuite(suites);
+      const suite = lightestSuite(suites, metric);
       // suite.sources는 manifest.suites[suite.name]과 같은 배열이다. 한 번만
       // 추가해야 신규 source가 harness에 중복 선언되지 않는다.
       suite.sources.push(metric.source);
       suite.weight += metric.weight;
+      metric.modulePaths.forEach(modulePath => suite.modulePaths.add(modulePath));
       assignedTarget = suite.name;
       if (report) {
         process.stdout.write(

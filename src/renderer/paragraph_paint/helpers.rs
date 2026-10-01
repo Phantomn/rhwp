@@ -2181,6 +2181,12 @@ pub(crate) fn make_picture_image_node(
     )
 }
 
+/// [#6111] 누름틀 안내문을 가용 폭에 맞춰 조각낸다.
+///
+/// 안내문은 흐름에 영향이 없는 편집 전용 표시라 조판 줄바꿈 경로를 타지 않는다.
+/// 그래서 한 줄로 그리면 본문·용지 밖까지 나간다 — 한글 편집기가 누름틀 줄 상자
+/// 안에서 접는 것과 같도록 여기서 폭 기준으로만 자른다. `limit` 이 0 이하면(폭을
+/// 알 수 없는 셀 등) 자르지 않는다.
 pub(crate) fn split_guide_text_to_width<'a>(
     guide: &'a str,
     style: &TextStyle,
@@ -2225,6 +2231,7 @@ pub(crate) fn split_guide_text_to_width<'a>(
     chunks
 }
 
+/// HWP COLORREF (0x00BBGGRR) → CSS 색상 문자열 변환
 pub(crate) fn form_color_to_css(color: u32) -> String {
     let b = (color >> 16) & 0xFF;
     let g = (color >> 8) & 0xFF;
@@ -2264,6 +2271,21 @@ pub(crate) fn calc_sibling_topandbottom_reserved_hu(
         .sum()
 }
 
+/// HWP PUA 문자를 표준 Unicode 로 매핑.
+///
+/// 두 영역 분기 — Task #509 정답지 매핑 표 정합:
+///
+/// **Basic PUA (0xF020~0xF0FF)** — Wingdings 폰트 PUA 영역.
+///   기준: Wingdings 폰트 → Unicode 매핑 (alanwood.net/demos/wingdings.html).
+///   HWP 글머리표는 Wingdings 폰트 문자를 PUA(0xF000+code)로 저장.
+///
+/// **Supplementary PUA-A (0xF02B0~0xF02FF)** — 한컴 자체 PUA 영역.
+///   원문자 (①~⑳, U+2460~U+2473) 와 · (U+00B7) 등을 본 영역에 저장.
+///   Task #509 의 한컴 PDF 정답지 시각 검증으로 매핑 확정.
+///
+/// **Supplementary PUA-A 저영역 (0xF0000~0xF00CF)** — 한컴 자체 PUA 저영역.
+///   요약형 문항 화살표 등 시각 마커. Task #588 의 한컴 PDF 임베디드 폰트
+///   글리프 외곽 분석 + 정답지 시각 검증으로 매핑 확정.
 pub fn map_pua_bullet_char(ch: char) -> char {
     let code = ch as u32;
 

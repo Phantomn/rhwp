@@ -22,6 +22,7 @@ import {
   assignSources,
   deriveManifest,
   loadManifest,
+  rebalanceManifest,
   renderCargoTestBlock,
   renderHarness,
   validateAddedSourcePlacement,
@@ -262,6 +263,71 @@ test('신규 source는 선택된 suite에 정확히 한 번만 배정한다', (t
   const assigned = Object.values(manifest.suites).flat();
   assert.equal(assigned.filter((source) => source === 'tests/first.rs').length, 1);
   assert.equal(assigned.filter((source) => source === 'tests/second.rs').length, 1);
+});
+
+function sharedModuleFixture(t) {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'rhwp-suite-module-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(path.join(root, 'tests', 'suites'), { recursive: true });
+  const sources = ['tests/first.rs', 'tests/second.rs', 'tests/heavy.rs'];
+  writeFileSync(path.join(root, sources[0]),
+    '#[path = "../src/catalog.rs"]\nmod catalog;\n#[test] fn first() {}\n');
+  writeFileSync(path.join(root, sources[1]),
+    '#[path = "../src/./catalog.rs"]\nmod other_name;\n#[test] fn second() {}\n');
+  writeFileSync(path.join(root, sources[2]),
+    `// ${'large unrelated source '.repeat(100)}\n#[test] fn heavy() {}\n`);
+  const manifest = {
+    version: 2,
+    minimumNextestCases: 1,
+    sharding: {
+      suitePrefix: 'regression_suite_', suiteCount: 2,
+      testAttributeWeight: 4096, maximumIntegrationTargets: 2,
+    },
+    nextestPriorities: [],
+    sourceRoots: [{ path: 'tests', recursive: false }],
+    moduleIntegrationOverrides: sources.slice(0, 2).map(source => ({
+      path: source, allowBlockers: ['path_attr', 'root_mod'],
+    })),
+    exceptions: [],
+    suites: { regression_suite_001: [sources[2]], regression_suite_002: [sources[0]] },
+  };
+  return { root, manifest, sources };
+}
+
+test('공유 path 모듈은 더 가벼운 suite에 이미 있으면 다른 suite로 배정한다', (t) => {
+  const { root, manifest, sources } = sharedModuleFixture(t);
+  assignSources(manifest, [sources[1]], root, { persist: false, report: false });
+  assert.ok(manifest.suites.regression_suite_001.includes(sources[1]));
+  assert.deepEqual(manifest.suites.regression_suite_002, [sources[0]]);
+  assert.equal(Object.values(manifest.suites).flat().length, 3);
+});
+
+test('전체 재배정도 공유 path 모듈을 별도 suite로 분리하고 결정적이다', (t) => {
+  const { root, manifest, sources } = sharedModuleFixture(t);
+  const result = rebalanceManifest(structuredClone(manifest), root);
+  const owner = source => Object.entries(result.suites).find(([, items]) => items.includes(source))[0];
+  assert.notEqual(owner(sources[0]), owner(sources[1]));
+  assert.deepEqual(rebalanceManifest(structuredClone(manifest), root).suites, result.suites);
+  assert.equal(Object.values(result.suites).flat().length, 3);
+});
+
+test('공유 path 모듈을 분리할 suite가 없으면 누락하거나 경고를 숨기지 않고 거부한다', (t) => {
+  const { root, manifest, sources } = sharedModuleFixture(t);
+  delete manifest.suites.regression_suite_001;
+  manifest.sharding.suiteCount = 1;
+  assert.throws(
+    () => assignSources(manifest, [sources[1]], root, { persist: false, report: false }),
+    /공유 path 모듈.*suite/,
+  );
+  assert.deepEqual(manifest.suites.regression_suite_002, [sources[0]]);
+});
+
+test('파일 이름이 같아도 다른 경로의 모듈은 같은 suite에 배정할 수 있다', (t) => {
+  const { root, manifest, sources } = sharedModuleFixture(t);
+  writeFileSync(path.join(root, sources[1]),
+    '#[path = "../other/catalog.rs"]\nmod catalog;\n#[test] fn second() {}\n');
+  assignSources(manifest, [sources[1]], root, { persist: false, report: false });
+  assert.ok(manifest.suites.regression_suite_002.includes(sources[1]));
 });
 
 test('개별 testcase에서 합산한 source 시간으로 suite를 재배정한다', async (t) => {

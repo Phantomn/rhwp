@@ -128,3 +128,13 @@ status: active
 - **push 차단**: `cargo clippy --locked --workspace --all-targets --target-dir /home/edward/mygithub/rhwp/target/pr-review -- -D warnings`가 `regression_suite_018`의 `clippy::duplicate_mod`로 실패했다. `tests/cases/cli_catalog_contract.rs:11`과 `tests/cli_json_contract.rs:12`의 `#[path]`가 같은 `src/cli/catalog.rs`를 같은 suite 안에서 각각 로드한다. 로그 `output/7353/edit-owner/push-clippy-all-targets.log`.
 - 원인 경계: 두 source는 정책의 `moduleIntegrationOverrides`에서 `path_attr/root_mod` 통합을 허용하고 있다. 배정기의 `sourceMetrics → lightestSuite → assignSources`는 크기/테스트 수로 suite를 선택하지만 공통 path 모듈 충돌은 검사하지 않는다. 이번 prepare 결과 두 계약이 같은 suite에 배정되었다. 렌더링 실행 실패로 분류하지 않으며, 임의 suite 번호 지정·generated 파일 직접 수정·Clippy 경고 억제로 우회하지 않았다.
 - 선행 실패 때문에 뒤의 manifest/unit-tier 정책 재검사는 실행되지 않았다. 앞서 통과한 정책 검사와 이번 전체 lint 실패를 구분한다. 검증 자료를 포함한 현재 변경은 로컬 커밋으로 보존하되 **원격 push 및 그 이후의 Legacy 제거 작업은 진행하지 않는다**. 테스트 배정기 수정은 렌더러 의존 분리와 다른 변경 범위이므로 작업지시자의 방향을 확인한다. 개인 `.agents/skills/`, `.codex/`와 파생 테스트 파일은 커밋 대상에서 제외한다.
+
+### 승인된 게시 차단 수정
+
+- 앞 구현은 `dff21c670`으로 로컬 보존했다. 사용자가 suite 배정기 수정을 승인했다.
+- `sourceMetrics`가 문자열 리터럴 `#[path = "..."]`의 경로를 source 위치 기준으로 정규화하고, 신규 배정과 전체 재배정 모두 같은 모듈 경로를 이미 가진 suite를 후보에서 제외한다. 기존 크기·테스트 수 가중치는 호환 후보 사이에서 유지한다. suite를 임의로 늘리거나 특정 테스트 이름/번호를 고정하지 않는다. 분리할 후보가 없으면 명시적으로 실패하며 테스트를 누락하지 않는다. 일반 Rust AST/매크로/전이적 모듈 해석기 구현은 이번 범위가 아니다.
+- 회귀 입력: 가벼운 suite에 동일 모듈을 사용하는 기존 source, 무거운 정상 대조 suite, `../src/catalog.rs`와 `../src/./catalog.rs`라는 동치 경로를 가진 신규 source. 배정·재배정·후보 고갈 3건은 수정 전 FAIL, 수정 후 PASS. 같은 파일명이지만 다른 경로인 정상 대조군은 전후 PASS. 배정기 전체 **27 PASS / 0 FAIL**. 로그 `output/7353/edit-owner/suite-before.log`, `suite-after.log`.
+- 실제 `--prepare` 결과 `cli_catalog_contract`는 suite 017, `cli_json_contract`는 suite 018로 분리됐다. **1472 sources / 6765 static test attrs / 28 suites + 20 exceptions**는 유지된다. 파생 파일·정책 허용치·Clippy 경고 설정을 직접 변경하지 않았다.
+- 후속 all-target 검사에서 발견한 `paragraph_layout.rs`의 고아 문서 주석은 이전에 이동한 `paragraph_paint/helpers.rs`의 실제 함수 3곳으로 옮겼다. 함수 본문·테스트 assertion·조판 조건 변경은 없다. 따라서 기존 fresh WASM/시각 검증을 재실행한 것으로 보고하지 않으며, 이번 Rust 변경은 주석 이동으로 한정한다.
+- 최종 검증: 배정/격리/실행 잠금 Node 계약 **31 PASS / 0 FAIL** (`suite-related-final.log`). fmt 검사, Native root Clippy, WASM lib Clippy, workspace build, workspace all-target Clippy **모두 PASS** (`push-clippy-{native,wasm,all-targets}-final.log`, `push-workspace-build-final.log`). 고정 base `02530b9ed567a44663edb26c65fb565c4a79f00d` 대비 manifest 검사와 source unit-tier 검사도 **PASS (4205 tests / 298 modules)** (`push-manifest-final.log`, `push-unit-tier-final.log`). 로그는 모두 `output/7353/edit-owner/` 아래에 있다. 전체 회귀 재실행이나 원격 CI 성공을 의미하지 않는다.
+- 게시 차단은 해소됐다. 이 보정과 앞서 보존한 로컬 커밋을 승인된 `upstream/refactor/0.9.0`으로 일반 fast-forward push한다. devel 병합·PR 생성·테스트 제외·생성 파일 커밋은 하지 않는다.
