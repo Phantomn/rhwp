@@ -14,7 +14,7 @@ last_verified: 2026-10-01
 - 마지막 작은 문서 차단인 `basic/shortcut.hwp` **7쪽**을 현재 브랜치에서 개선했습니다. 최신 base를 반영한 Native와 fresh WASM 전체 7쪽이 독립 PDF와 같은 쪽수이며, 최저 일치율은 양쪽 모두 **96.12686%**입니다. 기존 회귀는 쪽·단·문단 소유를 검사하도록 교정했고 새 테스트 함수는 추가하지 않았습니다.
 - 보정296 집중 검증은 **27/27 PASS**입니다. 최신 base 반영 후 Visual Sweep 도구 검사 **77 PASS**, 글꼴 규칙 Node 검사 **22 PASS**입니다. 이것을 전체 Rust 회귀 통과로 보고하지 않습니다.
 - 보정301 전체 `cargo nextest`는 #7442 기대 교정 후보 `afcb5dcea`에서 `release-test`, `target/pr-review`, **threads=8**, `--no-fail-fast`로 완료했습니다. 결과는 **10,229 PASS / 0 FAIL / 50 SKIP**, exit **0**입니다. 보정298의 단일 실패를 개별 분석·수정하고 전수 재실행으로 해소를 확인했습니다. 로그: `output/pr-review/planet6897-7382-20260926/stage301-full-nextest.log`.
-- 남은 게이트는 Native Skia 3개 경로, 필수 lint·정책 검사·빌드와 원 PR 문서 전체 Native/fresh WASM의 최종 후보 검증입니다. 이전 단계의 통과나 전수 tree 동일성을 최신 전체 래스터 통과로 승격하지 않습니다.
+- Native Skia 3개 경로는 보정302에서 모두 통과했습니다. 남은 게이트는 필수 lint·정책 검사·빌드와 원 PR 문서 전체 Native/fresh WASM의 최종 후보 검증입니다. 이전 단계의 통과나 전수 tree 동일성을 최신 전체 래스터 통과로 승격하지 않습니다.
 - #7445 이관은 #7382를 실제로 차단하는 대형·복합 입력의 해당 검사에 한정합니다. 정상 검사·원본 HWP/HWPX·독립 PDF는 보존합니다. 작은 문서의 간단한 결함은 현재 브랜치에서 해결합니다.
 
 ### 이전 단계의 판정 기록
@@ -3869,3 +3869,11 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - 후보 `afcb5dcea`의 전체 nextest는 **10,229개 실행 / 10,229 PASS / 0 FAIL / 50 SKIP**, 523.871초, exit **0**입니다. 로그의 최종 summary와 실제 프로세스 exit를 모두 확인했습니다. [고정 후보·명령·로그 해시](../assets/pr7382_20260926/stage301_full_nextest_validation.json).
 - #7442 기대 교정 뒤 기존 전체 corpus와 유지 회귀를 다시 실행했습니다. 이번 단계에서 새 회귀를 추가하거나 추가 함수를 skip·#7445 이관하지 않았습니다. 50 SKIP은 유지된 기존 보류 상태이며 해소로 보고하지 않습니다.
 - 전체 통과 결과를 별도 커밋하고 Native Skia lib 전체와 공식 통합 두 경로, 필수 lint/빌드 및 최종 시각 증거를 이어서 확인합니다. 원 PR 문서·4쪽 주보의 남은 시각 차이와 PR 생성/merge는 아직 완료가 아닙니다.
+
+
+## 보정302 — Native Skia 3종 통과와 원격 base 재확인
+
+- 사용자 지정 nextest로 `--features native-skia --lib` 전체를 실행했습니다. 이름 filter 없이 **4,109 PASS / 0 FAIL / 13 SKIP**, exit 0입니다. 공식 통합 경로 `issue_2225_missing_picture_placeholder`는 **2 PASS**, `render_p37_direct_pdf_export`는 **4 PASS**, 각각 exit 0입니다. [명령 범위·로그 해시·검증 한계](../assets/pr7382_20260926/stage302_native_skia_validation.json).
+- 첫 placeholder 실행은 기존 생성 파일과 변경된 함수 본문으로 다시 계산한 suite 배치가 달라 **0개 실행 / exit 4**였습니다. 이를 통과로 쓰지 않았습니다. 공식 `--prepare`로 생성 파일을 갱신하고 다시 실행해 위 결과를 확인했습니다. 재배치 전후 동일한 모듈 입력 **1,401개**, 중복 0개입니다. 검사 내용·함수 수·전체 검사 입력을 변경하지 않았으며 generated 파일은 커밋하지 않습니다. 앞선 전체 nextest는 같은 커밋 source의 모든 기존 검사 실행 결과입니다.
+- 사용자 지적에 따라 원격 `devel`을 다시 fetch하고 `ls-remote`로 확인했습니다. 최신 SHA는 **02530b9ed**이고 검토 브랜치에는 **1c1d088cb**에서 이미 합쳤습니다. `HEAD..upstream/devel` 미반영 커밋은 **0개**, ancestor 확인도 성공했습니다. 현재 base 추가 갱신을 위한 리베이스는 필요하지 않습니다. 이 조회 시점 이후 새 병합이 있으면 제출 전에 다시 확인합니다.
+- source 변경 없이 이 단계를 별도 커밋하고 필수 lint·빌드·정책·최종 시각 증거를 이어갑니다. 통합 PR 준비/전체 시각 승인/병합은 아직 완료가 아닙니다.
