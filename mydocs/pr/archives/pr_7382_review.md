@@ -3819,3 +3819,11 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 ![단축키 4쪽 fresh WASM 소제목 경계 비교](../assets/pr7382_20260926/stage294_shortcut_wasm_review_004.png)
 
 - 기존 #702의 두 검사도 같은 독립 출력에 맞게 교정한다. 현재 첫 검사는 페이지 수를 `≤8`로 느슨하게 검사하고 두 번째는 SVG의 좌표로 글자를 합쳐 `파일/편집`만 확인한다. 이미 검증한 PDF 7쪽에 따라 페이지 수 **7**, 첫 쪽 지우기 항목의 **왼쪽 3개/오른쪽 3개 단 소유**, 둘째 쪽의 **파일/미리보기/편집** 소속을 render tree의 실제 문단 문자열로 판정한다. 기존 test 함수 두 개를 유지하며 새 함수를 test로 등록하지 않고 절대 픽셀 기대도 추가하지 않는다.
+
+## 보정295~296 — 기존 단축키 회귀 의미 교정과 27건 통과
+
+- 보정293 코드의 교정 전 집중 nextest는 **23 PASS/1 FAIL**이고 실패는 `text_overlaps_do_not_grow_partition_15`의 단축키 신규 **83건**뿐이다(`stage295-focused-before-ledger-nextest.log`, exit 100). #702의 기존 두 함수는 같은 이름·수로 유지하면서 독립 PDF의 7쪽 구역 소유와 첫 쪽 지우기 항목의 좌우 단 소유를 검사하게 바꿨다. 둘째 쪽은 파일/미리 보기/편집 세 구역을 render tree 텍스트로 검사한다. SVG 좌표 클러스터링과 `≤8` 기대를 없앴다.
+- 기존 corpus 검사에서 `basic/shortcut.hwp`에 한해 바탕쪽의 유일한 가시 런이 자동번호의 모델 공백을 치환한 **각 쪽 1~7**인지, 뒤쪽 바탕쪽 레이어에 속하는지 검사한다. 그 런과 진단 endpoint의 동일성으로 장식 번호와의 교차만 구분한다. 같은 출력에서 노드를 대응시키는 bbox 동일성은 비교에 쓰지만 절대 픽셀 위치나 겹침 건수는 기대값으로 고정하지 않는다. 원본·PDF·기존 원장 수치·검사 대상 목록·전역 진단기는 바꾸지 않았다. 새 test 함수도 추가하지 않았다.
+- `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 -E 'test(issue_702) | test(issue_6030) | test(issue_2299) | test(issue_2318) | test(issue_6318) | test(text_overlaps_do_not_grow_partition_15)' --no-fail-fast`는 **27/27 PASS**, 10238개 미선택, exit 0다(`stage296-focused-nextest.log`). 분할15 전체 코퍼스와 #6318 실제 바탕쪽 사이드바 충돌, #2318 뒤쪽 replay, 다른 TAC/편집 대조군도 통과했다. 파생 suite 준비·fmt·diff check 통과. CLI의 원시 진단 83건은 그대로이며 원장 통과를 렌더 변경으로 오해하지 않는다.
+- Native와 WASM의 각 쪽 `rhwp_png/rhwp_001..007.png`는 **7/7 바이트 동일**하다. 전체 비교 점수와 실제 렌더도 일치하며, 두 backend의 역할 문자열·표 구역 보존 근거를 공유한다. PR 전체의 최종 검증은 아직 남는다.
+- 최신 대상 `upstream/devel=02530b9ed567a44663edb26c65fb565c4a79f00d`를 fetch했고 검토 branch와 **46/400개**로 갈린다. `git merge-tree --write-tree upstream/devel HEAD`는 `mydocs/orders/20260930.md` add/add 한 곳만 보고하며 코드 텍스트 충돌은 없다. 최종 검증 전에 같은 브랜치에서 최신 대상 변경을 반영하고 양쪽 오늘할일을 보존한다.
