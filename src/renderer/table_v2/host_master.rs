@@ -7,60 +7,141 @@ use crate::model::{
     shape::{ShapeObject, SizeCriterion, VertRelTo},
 };
 
-/// Keep the established Paper/Page origin resolver, but do not send textbox
-/// content through its independent Legacy paragraph-height calculation.
-pub(super) fn outlines(page: &MasterPage) -> MasterPage {
-    let mut page = page.clone();
-    for p in &mut page.paragraphs {
-        for c in &mut p.controls {
-            if let Control::Shape(shape) = c {
-                if let ShapeObject::Rectangle(r) = shape.as_mut() {
-                    r.drawing.text_box = None;
-                }
-            }
-        }
-    }
-    page
-}
-
-/// Consume the resolved outline origin exactly once. V2's same composed
-/// textbox extent determines vertical alignment and final text placement.
-pub(super) fn complete(
-    master: &mut crate::renderer::render_tree::RenderNode,
+/// Page decorations use the common, stateless anchor resolver and V2 shape/text
+/// paint. No LayoutEngine or table-layout dispatcher participates here.
+pub(super) fn render(
     source: &MasterPage,
+    layout: &crate::renderer::page_layout::PageLayoutInfo,
     styles: &crate::renderer::style_resolver::ResolvedStyleSet,
-    dpi: f64,
     resources: &[crate::model::bin_data::BinDataContent],
     page_number: u32,
-) -> Result<(), HostedTableError> {
-    use crate::renderer::render_tree::RenderNodeType;
-    for node in &mut master.children {
-        if let RenderNodeType::Rectangle(r) = &node.node_type {
-            let source_shape = r
-                .para_index
-                .zip(r.control_index)
-                .and_then(|(p, c)| source.paragraphs.get(p as usize)?.controls.get(c as usize))
-                .and_then(|c| {
-                    if let Control::Shape(s) = c {
-                        Some(s.as_ref())
+    section_index: usize,
+) -> Result<crate::renderer::render_tree::RenderNode, HostedTableError> {
+    use crate::model::{
+        shape::{HorzAlign, HorzRelTo, TextWrap},
+        style::Alignment,
+    };
+    use crate::renderer::{
+        float_placement::ObjectPlacementFrame,
+        page_layout::LayoutRect,
+        render_tree::{BoundingBox, RenderLayerInfo, RenderNode, RenderNodeType},
+    };
+    let paper = LayoutRect {
+        x: 0.,
+        y: 0.,
+        width: layout.page_width,
+        height: layout.page_height,
+    };
+    let column = LayoutRect {
+        x: layout.body_area.x,
+        width: layout.body_area.width,
+        ..paper
+    };
+    let mut master = RenderNode::new(
+        0,
+        RenderNodeType::MasterPage,
+        BoundingBox::new(0., 0., paper.width, paper.height),
+    );
+    master.layer = Some(RenderLayerInfo::new(None, 0, 0).for_master_page());
+    for (pi, paragraph) in source.paragraphs.iter().enumerate() {
+        let style = styles.para_styles.get(paragraph.para_shape_id as usize);
+        let left = style.map_or(0., |s| s.margin_left);
+        let right = style.map_or(0., |s| s.margin_right);
+        let container = LayoutRect {
+            x: column.x + left,
+            width: column.width - left - right,
+            ..column
+        };
+        for (ci, control) in paragraph.controls.iter().enumerate() {
+            let Control::Shape(shape) = control else {
+                return Err(HostedTableError::UnsupportedHost(
+                    "master-page control not prepared",
+                ));
+            };
+            let common = shape.common();
+            let width = f64::from(common.width) * layout.dpi / 7200.;
+            let height = f64::from(common.height) * layout.dpi / 7200.;
+            let (mut x, y) = ObjectPlacementFrame {
+                container: &container,
+                column: &column,
+                body: &layout.body_area,
+                paper: &paper,
+                paragraph_y: 0.,
+                alignment: Alignment::Left,
+                dpi: layout.dpi,
+            }
+            .position(common, width, height);
+            if common.text_wrap == TextWrap::Square
+                && matches!(common.horz_align, HorzAlign::Left | HorzAlign::Inside)
+            {
+                x += f64::from(common.margin.left) * layout.dpi / 7200.;
+            }
+            let bounds = BoundingBox::new(x, y, width, height);
+            let mut node = if let ShapeObject::Line(line) = shape.as_ref() {
+                let attr = &line.drawing.shape_attr;
+                let transform = crate::renderer::render_tree::ShapeTransform {
+                    rotation: f64::from(attr.rotation_angle),
+                    horz_flip: attr.horz_flip,
+                    vert_flip: attr.vert_flip,
+                };
+                let current_width = f64::from(attr.current_width) * layout.dpi / 7200.;
+                let current_height = f64::from(attr.current_height) * layout.dpi / 7200.;
+                let bounds =
+                    if transform.has_transform() && current_width > 0. && current_height > 0. {
+                        BoundingBox::new(
+                            x + (width - current_width) / 2.,
+                            y + (height - current_height) / 2.,
+                            current_width,
+                            current_height,
+                        )
                     } else {
-                        None
-                    }
-                })
-                .ok_or(super::GeometryError::InconsistentAtomicPlan)?;
-            let mut composed = super::shapes::node_with_page_number(
-                source_shape,
-                node.bbox,
-                styles,
-                dpi,
-                resources,
-                Some(page_number),
-            )?;
-            composed.layer = node.layer.clone();
-            *node = composed;
+                        bounds
+                    };
+                crate::renderer::shape_paint::line(line, bounds, layout.dpi, transform)
+            } else {
+                super::shapes::node_with_page_number(
+                    shape,
+                    bounds,
+                    styles,
+                    layout.dpi,
+                    resources,
+                    Some(page_number),
+                )?
+            };
+            match &mut node.node_type {
+                RenderNodeType::Line(line) => {
+                    line.section_index = Some(section_index);
+                    line.para_index = Some(pi);
+                    line.control_index = Some(ci);
+                }
+                RenderNodeType::Path(path) => {
+                    path.section_index = Some(section_index);
+                    path.para_index = Some(pi);
+                    path.control_index = Some(ci);
+                }
+                _ => {}
+            }
+            let stable =
+                ((pi.min(u16::MAX as usize) as u32) << 16) | ci.min(u16::MAX as usize) as u32;
+            let mut layer = RenderLayerInfo::new(Some(common.text_wrap), common.z_order, stable)
+                .for_master_page();
+            // Preserve the common paper-background paint classification. This
+            // does not change the source anchor or the body's occupied height.
+            if common.text_wrap == TextWrap::InFrontOfText
+                && common.horz_rel_to == HorzRelTo::Paper
+                && common.vert_rel_to == VertRelTo::Paper
+                && x.abs() <= 1.
+                && y.abs() <= 1.
+                && width >= paper.width * 0.95
+                && height >= paper.height * 0.95
+            {
+                layer.text_wrap = Some(TextWrap::BehindText);
+            }
+            node.layer = Some(layer);
+            master.children.push(node);
         }
     }
-    Ok(())
+    Ok(master)
 }
 
 pub(super) fn validate(pages: &[MasterPage]) -> Result<(), HostedTableError> {

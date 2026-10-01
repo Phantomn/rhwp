@@ -36,6 +36,7 @@ mod host_anchor;
 pub(crate) mod host_border;
 mod host_document;
 mod host_master;
+mod host_page;
 mod host_section;
 mod host_stories;
 mod ownership;

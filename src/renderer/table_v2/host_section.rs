@@ -14,7 +14,6 @@ use crate::{
         shape::{HorzAlign, HorzRelTo, TextWrap, VertAlign, VertRelTo},
     },
     renderer::{
-        layout::LayoutEngine,
         page_layout::PageLayoutInfo,
         pagination::PaginationResult,
         render_tree::{PageRenderTree, RenderNode},
@@ -825,50 +824,24 @@ impl HostedSectionLayout {
                 .master_pages
                 .get(reference.master_page_index)
         });
-        let outlines = master.map(super::host_master::outlines);
-        // Publish HF references for product queries, but do not run Legacy HF paint.
-        let mut paint_page = page.clone();
-        paint_page.active_header = None;
-        paint_page.active_footer = None;
-        let mut tree = LayoutEngine::new(self.dpi).build_render_tree(
-            &paint_page,
+        let mut tree = super::host_page::build(
+            page,
             &document.sections[self.section].paragraphs,
-            &[],
-            &[],
-            &[],
             &self.styles,
-            &Default::default(),
-            &document.bin_data_content,
-            outlines.as_ref(),
-            &[],
-            None,
-            0,
-            &[],
-        );
-        // PageRenderTree::new has no section argument. Bind the document host
-        // identity as well as the per-line identities already carried by packets.
-        if let crate::renderer::render_tree::RenderNodeType::Page(root) = &mut tree.root.node_type {
-            root.section_index = page.section_index;
-        }
-        if let Some(source) = master {
-            if let Some(i) = tree.root.children.iter().position(|n| {
-                matches!(
-                    n.node_type,
-                    crate::renderer::render_tree::RenderNodeType::MasterPage
-                )
-            }) {
-                let mut node = tree.root.children.remove(i);
-                super::host_master::complete(
-                    &mut node,
-                    source,
-                    &self.styles,
-                    self.dpi,
-                    &document.bin_data_content,
-                    page.page_number,
-                )?;
-                super::text::assign_ids(&mut node, tree.frame_mut());
-                tree.root.children.insert(i, node);
-            }
+        )?;
+        if let Some(source) =
+            master.filter(|_| !page.page_hide.as_ref().is_some_and(|h| h.hide_master_page))
+        {
+            let mut node = super::host_master::render(
+                source,
+                &page.layout,
+                &self.styles,
+                &document.bin_data_content,
+                page.page_number,
+                page.section_index,
+            )?;
+            super::text::assign_ids(&mut node, tree.frame_mut());
+            tree.root.children.insert(1, node);
         }
         for mut table in self.page_tables[index].iter().cloned() {
             super::text::assign_ids(&mut table, tree.frame_mut());

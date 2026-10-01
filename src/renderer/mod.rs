@@ -45,6 +45,7 @@ pub(crate) mod layout_frame;
 pub(crate) mod master_page;
 pub mod page_layout;
 pub mod page_number;
+pub(crate) mod page_paint;
 pub mod pagination;
 #[cfg(any(target_arch = "wasm32", test))]
 pub(crate) mod partial_replay;
@@ -56,6 +57,7 @@ pub mod pua_oldhangul;
 pub mod render_normalization;
 pub mod render_tree;
 pub mod scheduler;
+pub(crate) mod shape_paint;
 pub(crate) mod shaping;
 pub(crate) mod shaping_composition;
 pub(crate) mod shaping_context;

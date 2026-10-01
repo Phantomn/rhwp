@@ -1,0 +1,46 @@
+---
+kind: report
+status: active
+---
+
+# #7353 — Legacy 표 구현 의존 제거
+
+## 범위와 기준
+
+- 승인된 구현계획 §5.7. 최종 종료 조건은 `table_layout.rs`를 실제 삭제한 상태의 Native/WASM 빌드와 Studio 편집·저장 검증이다.
+- U1 승인 작업은 로컬 `d977557b7`로 보존했다. 원격 push는 하지 않았다. 이전 전체 회귀의 오래된 거부 계약 2건은 이 단계의 선행 작업으로 삼지 않는다.
+- 2026-10-01 추가 지시: 제거한 Legacy 내부 구현 전용 테스트도 삭제한다. 사용자가 보는 기능 계약은 V2 정식 회귀로 보호하며 실패 은폐 목적으로 삭제하지 않는다.
+
+## 현재 구현 묶음
+
+1. V2 확정 조각 → `host_page::build` → 해당 조각의 `render_nodes/render_node` → 최종 본문 노드. Legacy `build_render_tree/build_columns/build_single_column`의 앵커 재선택·vpos 보정 경로를 사용하지 않는다.
+2. 바탕쪽은 공통 `ObjectPlacementFrame` → V2 도형/글상자 paint로 연결한다. 사각형 외곽은 확정 bounds와 공통 스타일을 소비하며 Legacy 도형/표 dispatcher를 호출하지 않는다.
+3. 본문 clip·셀 내부 paint 순서·단 구분선은 확정 노드만 읽는 `page_paint`로 분리하여 두 경로가 공유한다. 표의 계측/컷/이어받기 알고리즘은 옮기지 않는다.
+4. 선/연결선 paint는 `shape_paint`로 분리한다. V2 바탕쪽의 폭/높이 중 한 축이 0인 선과 점선을 셀 내부 제한 조건으로 거부하지 않는다. 입력 선 끝점과 최종 노드의 끝점·source ownership을 정식 회귀에서 검사한다.
+
+## 검증 계획 및 남은 범위
+
+- 변경 전 증거: `output/7353/legacy-removal/before/{master,stories,wrap}`. 정상 한컴 저장 fixture와 기존 독립 PDF를 그대로 사용한다.
+- 실제 줄·셀·외곽·뒤 문단 위치, 바탕쪽 선택/번호와 편집 계약을 정식 V2 테스트로 확인한다. 추출한 공통 paint는 Legacy 대조군도 검증한다.
+- 다음 제거 차단점: V2 텍스트 paint의 LayoutEngine 결합, TypesetEngine과 Legacy 표 scan/continuation 타입 결합, DocumentCore의 명시적 Legacy API/캐시.
+- 아직 `table_layout.rs` 삭제 및 전체 기능 대체 완료가 아니다. 새 코드의 fresh WASM·Studio·시각 검증은 실행 결과를 아래에 기록한다.
+
+## 현재 묶음 검증
+
+- 소스: `d977557b7` 이후 미커밋 변경. production 파일 10개의 SHA256 목록을 순서대로 해시한 값은 `621b263f5082d8ca099c46986fcf3c12f0ddad034bae8693d6cc1d5b5bf31529`. 대상은 `page_paint.rs`, `shape_paint.rs`, `table_v2/{host_page,host_master,host_section,shapes}.rs`, `layout.rs`, `layout/shape_layout.rs`, `renderer/mod.rs`, `table_v2/mod.rs` 순서다.
+- Native Clippy, WASM lib Clippy, 변경 integration target(`regression_suite_007`, `regression_suite_023`) Clippy: 모두 `--locked ... -- -D warnings` 통과. 로그: `output/7353/legacy-removal/clippy-{wasm,tests}.log`. 전체 workspace lint/전체 회귀 완료를 의미하지 않는다.
+- `cargo nextest run --locked --cargo-profile release-test --target-dir /home/edward/mygithub/rhwp/target/pr-review --test regression_suite_004 --test regression_suite_007 --test regression_suite_012 --test regression_suite_017 --test regression_suite_018 --test regression_suite_023 --test regression_suite_024 -E 'test(issue_7353) and not test(unsupported_first_page_flags_remain_explicit) and not test(unsupported_format_or_mid_paragraph_declaration_remains_explicit)' --test-threads 4 --no-fail-fast`: **203 PASS, 0 FAIL**, 필터 제외 1439. 기존 U1 거부 계약 2건은 명시적으로 제외했고 삭제/ignore/기준값 변경은 하지 않았다. 로그: `output/7353/legacy-removal/focused.log`.
+- 정상 저장 master/stories/wrap 3종, 총 10페이지의 변경 전후 compact render tree는 완전 일치. Canvas layer는 `sourceNodeId` 재할당 외 모든 값이 일치한다. 이는 이번 경로 분리의 무변화 증거이며 한컴과의 완전 일치 주장과 구분한다.
+- Native 대표 review(master 2쪽, stories 5쪽, wrap 1쪽)를 직접 확인했다. 본문 줄·단·바탕쪽 사각형·어울림 영역·쪽번호 배치가 유지된다. 한컴 PDF와 글꼴/획 차이는 남는다. 산출: `output/7353/legacy-removal/after/{master,stories,wrap}/visual/native/{compare,overlay,review}`.
+- 최종 production 소스의 Docker 표준 WASM 빌드: **PASS (7분 57초)**. `docker compose --env-file .env.docker -f docker-compose.yml -f output/7353/wasm-product/final/compose-network.yml run --rm --no-deps wasm`. 로그 `output/7353/legacy-removal/wasm-final.log`. WASM SHA256 `e319a5fce14e0e76e19fe9cd8e2d9b7406e8b1f9dcfacbb1937c5b7d59ca19d1`; Studio `:7700`이 제공하는 파일도 같은 해시다.
+- `node scripts/verify-product-v2-wasm.mjs --pkg pkg --input <fixture> --out output/7353/legacy-removal/after/<case> --default-v2 --hf-addresses`: master/stories/wrap/body/table **5종 15페이지 PASS**. Native/WASM tree/layer/SVG 일치와 실제 Canvas 캡처 확인. body에는 `--edit`, table에는 `--edit-cell`을 추가해 편집 후 출력·저장 계약을 검사했다. 입력/JS/WASM 해시와 세부 결과는 각 `browser-manifest.json`, 실행 로그는 `wasm-verification.log`.
+- fresh WASM/Canvas의 compare·standalone overlay·review도 생성했다. Canvas master 2쪽·stories 5쪽 review, wrap 1쪽 overlay와 Studio 셀 편집 캡처를 직접 판독했다. 이번 의존 분리로 인한 배치 변경은 확인되지 않았다. 글꼴/획 차이를 새롭게 해결했다고 주장하지 않는다.
+- Windows Chrome CDP의 실제 Studio: `CHROME_CDP=http://localhost:19222 VITE_URL=http://localhost:7700 RHWP_V2_E2E_OUT=../output/7353/legacy-removal/studio node e2e/product-v2.test.mjs --mode=host` **PASS**. 일반 파일 입력의 V2 선택, 본문/셀 실제 키보드 입력, undo/redo, 선택 표시, 저장/재열기, 새 문서 편집과 명시적 Legacy 대조군을 확인했다. 브라우저 미처리 오류 0. 결과·저장 HWP·캡처는 `output/7353/legacy-removal/studio`, 로그는 `studio.log`.
+- 위 결과는 페이지·바탕쪽·도형 의존 분리 묶음에 대한 증거다. 아직 Legacy 표 파일 제거, 미지원 조합 전부 구현, 전체 회귀/전체 workspace lint 완료가 아니다. 테스트 삭제도 해당 구현 제거 시점에 수행한다. 현재 묶음은 미커밋이며 원격 push하지 않았다.
+
+## 테스트 제거 경계
+
+- `table_layout.rs` 내부 unit test 39개: 해당 구현 삭제와 함께 제거. 현재 구현이 여전히 사용되므로 먼저 삭제하지 않는다.
+- 별도 테스트 중 Legacy private helper/타입만 검증하는 항목: V2 이전 여부를 확인하고 구현과 함께 제거한다.
+- `#7140` 등의 실제 문서 넘침·최종 배치 검사: Legacy 함수명이 주석에 있다는 이유로 삭제하지 않는다. 사용자 기능 계약을 V2 최종 배치 검사로 유지한다.
+- 신규 architecture guard는 페이지/바탕쪽/도형 소비 경로의 Legacy 호출 재유입을 검사한다. 실제 배치·편집 회귀를 대체하지 않는다.

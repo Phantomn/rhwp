@@ -49,6 +49,69 @@ fn close(a: f64, b: f64) {
 }
 
 #[test]
+fn v2_master_preserves_horizontal_vertical_lines_without_legacy_dispatch() {
+    use rhwp::model::shape::{LineShape, ShapeObject};
+    // Synthetic variants of the saved master: a horizontal/vertical line has
+    // zero extent on one axis, but still owns a visible stroked segment.
+    for vertical in [false, true] {
+        let mut d = source();
+        let c = &mut d.sections[0].section_def.master_pages[0].paragraphs[0].controls[0];
+        let Control::Shape(shape) = c else { panic!() };
+        let ShapeObject::Rectangle(rect) = shape.as_ref() else {
+            panic!()
+        };
+        let mut line = LineShape {
+            common: rect.common.clone(),
+            drawing: rect.drawing.clone(),
+            ..Default::default()
+        };
+        line.drawing.text_box = None;
+        let a = &mut line.drawing.shape_attr;
+        line.common.width = if vertical { 0 } else { 14000 };
+        line.common.height = if vertical { 3000 } else { 0 };
+        a.original_width = line.common.width;
+        a.original_height = line.common.height;
+        a.current_width = line.common.width;
+        a.current_height = line.common.height;
+        line.end.x = line.common.width as i32;
+        line.end.y = line.common.height as i32;
+        line.drawing.border_line.attr = 2; // dashed, not the inline solid-only gate
+        line.drawing.border_line.width = 75;
+        **shape = ShapeObject::Line(line);
+        let s = session(&d, 96.).unwrap();
+        let tree = s.render_page(1).unwrap();
+        let master = tree
+            .root
+            .children
+            .iter()
+            .find(|n| matches!(n.node_type, RenderNodeType::MasterPage))
+            .unwrap();
+        let n = master
+            .children
+            .iter()
+            .find(|n| matches!(n.node_type, RenderNodeType::Line(_)))
+            .unwrap();
+        let RenderNodeType::Line(line) = &n.node_type else {
+            panic!()
+        };
+        close(line.x1, 2400. * 96. / 7200.);
+        close(line.y1, 27000. * 96. / 7200.);
+        close(
+            line.x2 - line.x1,
+            if vertical { 0. } else { 14000. * 96. / 7200. },
+        );
+        close(
+            line.y2 - line.y1,
+            if vertical { 3000. * 96. / 7200. } else { 0. },
+        );
+        assert!(line.style.width > 0.);
+        assert_eq!(line.section_index, Some(0));
+        assert_eq!(line.para_index, Some(0));
+        assert_eq!(line.control_index, Some(0));
+    }
+}
+
+#[test]
 fn saved_master_selection_and_body_flow_are_one_host_result() {
     let d = source();
     let snapshot = format!("{d:?}");

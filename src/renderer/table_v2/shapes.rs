@@ -10,7 +10,6 @@ use crate::{
         style::FillType,
     },
     renderer::{
-        layout::LayoutEngine,
         render_tree::{BoundingBox, GroupNode, PageLayoutContext, RenderNode, RenderNodeType},
         style_resolver::ResolvedStyleSet,
     },
@@ -204,46 +203,23 @@ pub(super) fn node_with_page_number(
     // Geometry was resolved by the owning line/anchor. Ungrouped component
     // offsets are not another paragraph translation. Reapplying source scaling
     // to current common.width/height would scale the rectangle twice.
-    let mut outline = rect.clone();
-    outline.drawing.text_box = None;
-    let mut context = PageLayoutContext::new(0, bounds.width, bounds.height);
-    let mut parent = RenderNode::new(0, RenderNodeType::Column(0), bounds);
-    LayoutEngine::new(dpi).layout_shape_object(
-        &mut context,
-        &mut parent,
-        &ShapeObject::Rectangle(outline),
-        bounds.x,
-        bounds.y,
-        bounds.width,
-        bounds.height,
+    let (mut style, gradient) = crate::renderer::layout::drawing_to_shape_style(&rect.drawing);
+    // The source pen is in HU, and the accepted owner already resolved bounds.
+    style.stroke_width = if rect.drawing.border_line.attr & 0x3f == 1 {
+        f64::from(rect.drawing.border_line.width) * dpi / 7200.0
+    } else {
+        0.0
+    };
+    let mut node = RenderNode::new(
         0,
-        0,
-        0,
-        styles,
-        resources,
-        &Default::default(),
-        &[],
-        None,
-        false,
+        RenderNodeType::Rectangle(crate::renderer::render_tree::RectangleNode::new(
+            f64::from(rect.round_rate) / 100.0 * bounds.width.min(bounds.height),
+            style,
+            gradient,
+        )),
+        bounds,
     );
-    let mut node = parent.children.pop().ok_or_else(unsupported)?;
     node.set_rectangle_control_kind(rect.control_kind());
-    if let RenderNodeType::Rectangle(n) = &mut node.node_type {
-        n.section_index = None;
-        n.para_index = None;
-        n.control_index = None;
-        // HWP5 table94 defines50% as a semicircle: the percentage is of
-        // the shorter SIDE, not of its half. SVG/WebCanvas each bound the
-        // resulting radius to half a side when drawing a rounded rectangle.
-        n.corner_radius = f64::from(rect.round_rate) / 100.0 * bounds.width.min(bounds.height);
-        // This adapter admits explicit solid/absent pens. Use their source HU
-        // at the session DPI, not the Legacy painter's 96dpi visibility clamp.
-        n.style.stroke_width = if rect.drawing.border_line.attr & 0x3f == 1 {
-            f64::from(rect.drawing.border_line.width) * dpi / 7200.0
-        } else {
-            0.0
-        };
-    }
     if let Some(t) = &rect.drawing.text_box {
         // This bounded path does not delegate textbox measurement to Legacy.
         // The very same composed payload supplies physical extent and paint.

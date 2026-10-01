@@ -12,6 +12,22 @@ use rhwp::{
 
 const SAVED: &[u8] = include_bytes!("../fixtures/issue7353_body_frame_review/portrait-saved.hwp");
 
+#[test]
+fn product_v2_page_and_shape_paint_do_not_dispatch_to_legacy_engine() {
+    // Architectural guard accompanies the geometry/edit/continuation contracts
+    // below; it does not substitute for their actual output assertions.
+    for source in [
+        include_str!("../../src/renderer/table_v2/host_page.rs"),
+        include_str!("../../src/renderer/table_v2/host_section.rs"),
+        include_str!("../../src/renderer/table_v2/host_master.rs"),
+        include_str!("../../src/renderer/table_v2/shapes.rs"),
+    ] {
+        assert!(!source.contains("LayoutEngine::"));
+        assert!(!source.contains("layout::table_layout"));
+        assert!(!source.contains(".layout_table("));
+    }
+}
+
 fn open(data: &[u8]) -> DocumentCore {
     DocumentCore::from_bytes_with_engine(data, TypesettingEngine::V2).unwrap()
 }
