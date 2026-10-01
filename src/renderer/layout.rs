@@ -6714,7 +6714,8 @@ impl LayoutEngine {
             //   leaving 에는 미적용 (페이지 4 "개체 모양 복사" → `<스타일에서>` 전환의
             //   본문 paragraph 줄간격이 좁아지는 사용자 피드백).
             // - last paragraph 가 TAC 헤더 띠/ `<...>` solo 가 아닐 것 — pi=81/pi=127
-            //   형식의 ls=480/600 HU 는 한컴 의도 간격이므로 보존.
+            //   형식의 ls=480/600 HU 는 한컴 의도 간격이므로 보존. solo 판단은
+            //   진입·이탈과 같은 1mm 이하를 사용한다(pi=148의 1mm 포함).
             let last_para_idx = col_content.items.last().and_then(|it| match it {
                 PageItem::FullParagraph { para_index }
                 | PageItem::PartialParagraph { para_index, .. }
@@ -6731,7 +6732,7 @@ impl LayoutEngine {
                 .map(|p| {
                     p.controls.iter().any(|c| {
                         matches!(c,
-                    Control::ColumnDef(cd) if cd.column_count.max(1) <= 1 && cd.spacing == 0)
+                    Control::ColumnDef(cd) if cd.column_count.max(1) <= 1 && cd.spacing <= 283)
                     }) && p.text.trim_start().starts_with('<')
                 })
                 .unwrap_or(false);
