@@ -2999,10 +2999,10 @@ mod tests {
     ///   표를 믿는다.
     /// - **신명 신신명조(HFT → HY신명조로 대체)** — 점선 리더 26점이 150.6px 칸에 들어간다
     ///   (`samples/issues/2809/jubo_20260104.hwp`). 전각이면 381px 라 불가능하다 → 좁힌다.
-    /// - **휴먼명조** — 이 글꼴의 `·` 슬롯은 오버레이가 307(0.3em)로 갈라 두었고, 정본이
-    ///   TrueType 1.000 ↔ Type3 0.384 로 갈려 이 변경에서는 움직이지 않는다. 표 값이
-    ///   em 미만이라 신뢰 여부와 무관하게 적힌 폭 그대로다(`font_metrics_overlays.rs` 주석).
-    ///   같은 face 의 작은따옴표는 갈리지 않아 아래 따옴표 시험이 따로 잠근다.
+    /// - **휴먼명조** — 보정325의 독립 한컴 PDF208쪽과 HMKMM.TTF의 hmtx는
+    ///   TrueType 가운뎃점이512/512 전각임을 확인한다. 명시적 TrueType 선택이
+    ///   확인된 신뢰 경로는1.0em, 비신뢰 HFT 호환 경로는 종전0.3em을 유지한다.
+    ///   작은따옴표의 별도 조판 규칙은 변경하지 않는다.
     ///
     /// 대체 안 된 HFT 가 전각이라는 정본은 아직 없어 그 경우는 종전대로 좁힌다.
     #[test]
@@ -3017,13 +3017,13 @@ mod tests {
                 ..Default::default()
             };
             let positions = m.compute_char_positions("가\u{00B7}나", &style);
-            assert!(positions.len() >= 3, "positions should have ≥ 3 entries");
+            assert!(positions.len() >= 3, "세 글자의 원점이 모두 있어야 한다");
             (positions[2] - positions[1]) / style.font_size
         };
         for (family, trusted, expected_em) in [
             ("HY신명조", true, 1.0),
             ("HY신명조", false, 0.3),
-            ("휴먼명조", true, 0.3),
+            ("휴먼명조", true, 1.0),
             ("휴먼명조", false, 0.3),
             ("한양신명조", true, 0.384),
         ] {
