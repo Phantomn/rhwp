@@ -47,6 +47,13 @@ pub(crate) struct TableCharBorder {
     after: f64,
 }
 
+/// A Legacy cache token, not paragraph geometry or V2 edit state. Constructed
+/// only through an existing Legacy engine and consumed after the IR edit.
+pub(crate) struct CellTextEditSnapshot {
+    nested_text_contribution: bool,
+    units_fingerprint: u64,
+}
+
 /// [#2424 프로파일] 분할 표 컷 프리미티브 실측 카운터 — `RHWP_2424_PROFILE` 전용, 동작 불변.
 /// 프로세스 누적이며 `RHWP_2424_STEP_PROFILE` 출력(typeset.rs)이 스냅샷을 읽는다.
 pub(crate) static ISSUE2424_ADVANCE_ROW_CUT_CALLS: std::sync::atomic::AtomicU64 =
@@ -10047,6 +10054,29 @@ impl LayoutEngine {
         para.text.is_empty().hash(&mut h);
         para.text.trim().is_empty().hash(&mut h);
         h.finish()
+    }
+
+    pub(crate) fn prepare_cell_text_edit(&self, para: &Paragraph) -> CellTextEditSnapshot {
+        CellTextEditSnapshot {
+            nested_text_contribution: Self::paragraph_contributes_to_table_nested_text_flag(para),
+            units_fingerprint: Self::cell_paragraph_units_fingerprint(para),
+        }
+    }
+
+    pub(crate) fn finish_cell_text_edit(
+        &self,
+        edited_cell: &crate::model::table::Cell,
+        owner_table: &crate::model::table::Table,
+        para: &Paragraph,
+        before: CellTextEditSnapshot,
+    ) {
+        self.invalidate_cell_units_after_text_edit(
+            edited_cell,
+            owner_table,
+            before.nested_text_contribution,
+            Self::paragraph_contributes_to_table_nested_text_flag(para),
+            before.units_fingerprint == Self::cell_paragraph_units_fingerprint(para),
+        );
     }
 
     /// [Issue #2214/#2424] 텍스트 편집 뒤 edited cell의 memoized units를 국소 무효화한다.

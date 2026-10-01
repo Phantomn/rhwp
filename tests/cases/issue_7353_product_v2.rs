@@ -44,6 +44,96 @@ fn open(data: &[u8]) -> DocumentCore {
 }
 
 #[test]
+fn product_cell_edits_do_not_compute_legacy_cache_inputs_without_an_owner() {
+    let source = include_str!("../../src/document_core/commands/text_editing.rs");
+    assert!(!source.contains("LayoutEngine::"));
+    assert!(!source.contains("cell_paragraph_units_fingerprint"));
+    assert!(!source.contains("paragraph_contributes_to_table_nested_text_flag"));
+    // The closures are lazy: a V2 session has no Legacy owner and computes no
+    // Legacy token. The output/edit assertions below protect the actual product.
+    assert_eq!(
+        source
+            .matches("let legacy_cache_before = self.layout_engine.as_ref().and_then")
+            .count(),
+        2
+    );
+    let query = include_str!("../../src/document_core/queries/rendering.rs");
+    assert!(!query.contains("LayoutEngine::paper_node_sort_key"));
+}
+
+#[test]
+fn product_cell_insert_and_delete_publish_same_geometry_with_or_without_deferral() {
+    const TABLE: &[u8] = include_bytes!("../fixtures/issue7353_host_owner_review/split-saved.hwp");
+    for engine in [TypesettingEngine::V2, TypesettingEngine::Legacy] {
+        let mut immediate = DocumentCore::from_bytes_with_engine(TABLE, engine).unwrap();
+        let mut deferred = DocumentCore::from_bytes_with_engine(TABLE, engine).unwrap();
+        let (pi, ci) = immediate.document().sections[0]
+            .paragraphs
+            .iter()
+            .enumerate()
+            .find_map(|(pi, p)| {
+                p.controls
+                    .iter()
+                    .position(|c| matches!(c, Control::Table(_)))
+                    .map(|ci| (pi, ci))
+            })
+            .unwrap();
+        let output = |core: &DocumentCore| -> Vec<_> {
+            (0..core.page_count())
+                .map(|p| {
+                    (
+                        core.render_page_svg_native(p).unwrap(),
+                        core.get_page_control_layout_native(p).unwrap(),
+                    )
+                })
+                .collect()
+        };
+        // Warm both page and Legacy cell caches. Deferral may not alter the
+        // final output or source-owned hit-test geometry of the same IR edit.
+        assert_eq!(output(&immediate), output(&deferred));
+        immediate
+            .insert_text_in_cell_native(0, pi, ci, 0, 0, 0, "EDIT ")
+            .unwrap();
+        deferred
+            .insert_text_in_cell_native_deferred_pagination(0, pi, ci, 0, 0, 0, "EDIT ")
+            .unwrap();
+        if engine == TypesettingEngine::V2 {
+            assert!(deferred.render_page_svg_native(1).is_err());
+        }
+        deferred.repaginate_if_needed();
+        assert_eq!(
+            output(&immediate),
+            output(&deferred),
+            "{engine:?}: replacement"
+        );
+        assert!((0..deferred.page_count())
+            .any(|p| text(&deferred.build_page_render_tree(p).unwrap().root).contains("EDIT ROW")));
+
+        immediate
+            .delete_text_in_cell_native(0, pi, ci, 0, 0, 0, 5)
+            .unwrap();
+        deferred
+            .delete_text_in_cell_native_deferred_pagination(0, pi, ci, 0, 0, 0, 5)
+            .unwrap();
+        if engine == TypesettingEngine::V2 {
+            assert!(deferred.render_page_svg_native(1).is_err());
+        }
+        deferred.repaginate_if_needed();
+        assert_eq!(
+            output(&immediate),
+            output(&deferred),
+            "{engine:?}: deletion"
+        );
+        let page_text = (0..deferred.page_count())
+            .map(|p| text(&deferred.build_page_render_tree(p).unwrap().root))
+            .collect::<String>();
+        assert!(!page_text.contains("EDIT "));
+        assert!(page_text.contains("ROW"));
+        assert!(page_text.contains("AFTER"));
+    }
+}
+
+#[test]
 fn product_font_registry_is_not_owned_by_the_legacy_renderer() {
     // Structural ownership assertion, separate from the output contract below.
     let core = include_str!("../../src/document_core/mod.rs");

@@ -3555,14 +3555,13 @@ impl DocumentCore {
             doc: &crate::model::document::Document,
         ) {
             // [Task #1280 v2] 컨트롤별 plane/zOrder/stableIndex 노출 — 렌더 정렬키
-            // `paper_node_sort_key`(layout.rs)를 그대로 재사용해 프런트 히트테스트가
+            // `paper_node_sort_key`(page_paint.rs)를 그대로 재사용해 프런트 히트테스트가
             // 겹침 시 "최상단 개체"를 선택할 수 있게 한다.
             // [#4334] stableIndex 는 더 이상 스칼라가 아니다 — next_id() 카운터/패킹된
             // u32 대신 문서 경로(정수 배열, `DocPath`)를 그대로 JSON 배열로 내보낸다.
             // TS `controlTopKey`/`isAboveControl`(input-handler-picture.ts)가 사전식
             // 배열 비교로 이미 갱신되어 있다.
-            let (plane, z_order, doc_path) =
-                crate::renderer::layout::LayoutEngine::paper_node_sort_key(node);
+            let (plane, z_order, doc_path) = crate::renderer::page_paint::paper_node_sort_key(node);
             let stable_index = format!(
                 "[{}]",
                 doc_path

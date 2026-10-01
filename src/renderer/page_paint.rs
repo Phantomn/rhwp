@@ -5,6 +5,20 @@ use super::render_tree::{BoundingBox, LineNode, PageLayoutContext, RenderNode, R
 use super::{LineStyle, StrokeDash};
 use crate::model::shape::TextWrap;
 
+/// Shared paint/hit-test order: text-wrap plane, z-order, then the source
+/// document path. Node allocation IDs and packed stable_index are not source
+/// ownership; positionless decorations retain stable insertion order.
+pub(crate) fn paper_node_sort_key(node: &RenderNode) -> (u8, i32, super::render_tree::DocPath) {
+    let plane = match node.layer.and_then(|layer| layer.text_wrap) {
+        Some(TextWrap::BehindText) => 1,
+        Some(TextWrap::InFrontOfText) => 3,
+        _ => 2,
+    };
+    let z_order = node.layer.map(|layer| layer.z_order).unwrap_or(0);
+    let doc_path = super::render_tree::doc_path_for_node(node).unwrap_or_default();
+    (plane, z_order, doc_path)
+}
+
 pub(crate) fn append_column_separators(
     tree: &mut PageLayoutContext,
     body_node: &mut RenderNode,

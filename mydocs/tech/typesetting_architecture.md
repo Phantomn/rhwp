@@ -151,6 +151,11 @@ devel 반영, 모든 문서 지원 또는 Legacy 파일 삭제 완료를 뜻하�
 - **문서·글꼴 상태**: `DocumentCore`가 엔진 선택을 소유하며 V2 문서에는 지속 Legacy 엔진이
   없다. `FontLayoutState`가 exact font 등록·측정 snapshot을 소유한다. 편집·초기화는 같은
   등록 세대의 측정 context와 실제 출력을 갱신해야 한다.
+  셀 편집의 Legacy 캐시 지문은 기존 Legacy 소유자에서만 생성·소비한다. 공통 편집 경로가
+  Legacy cell-units 규칙을 V2의 reflow/무효화 조건으로 사용하지 않는다.
+- **개체 조회 순서**: `page_paint::paper_node_sort_key`가 최종 노드의 wrap plane·z-order·
+  source DocPath를 소비한다. paint 정렬과 Studio 개체 조회는 같은 함수를 사용하며,
+  V2 조회를 위해 Legacy 엔진을 호출하거나 node allocation id를 소유 순서로 해석하지 않는다.
 - **진입점 구분**: `TablePreviewExportSession`은 선택 표, `DocumentV2Session`은 독립 본문,
   `HostedSectionSession`은 기존 쪽/단 호스트 연결이다. WASM의 `TableV2Preview`, `DocumentV2`,
   `HostedSectionV2`가 각각 대응한다. 제품 `HwpDocument`/Studio의 기본 V2 경로와 별도 preview

@@ -2289,6 +2289,7 @@ fn task296_inline_tab_type_decimal() {
 /// 쓴다 — `RenderLayerInfo.stable_index` 는 더 이상 세 번째 정렬키가 아니다.
 #[test]
 fn issue_4334_paper_node_sort_key_no_longer_depends_on_node_id() {
+    use crate::renderer::page_paint::paper_node_sort_key;
     use crate::renderer::render_tree::ImageNode;
 
     fn image_at(id: u32, para: usize, control: usize) -> RenderNode {
@@ -2306,8 +2307,8 @@ fn issue_4334_paper_node_sort_key_no_longer_depends_on_node_id() {
     // 같은 문서 위치(para=3, control=1), 다른 node.id(5 vs 999) → 같은 정렬키.
     // 카운터 기반이었다면 달랐을 것 — #4334 목표(node.id 로부터 독립)의 직접 증거.
     assert_eq!(
-        LayoutEngine::paper_node_sort_key(&image_at(5, 3, 1)),
-        LayoutEngine::paper_node_sort_key(&image_at(999, 3, 1)),
+        paper_node_sort_key(&image_at(5, 3, 1)),
+        paper_node_sort_key(&image_at(999, 3, 1)),
         "node.id 가 달라도 문서 위치(para,control)가 같으면 정렬키가 같아야 한다"
     );
 
@@ -2317,8 +2318,7 @@ fn issue_4334_paper_node_sort_key_no_longer_depends_on_node_id() {
     let later_para_low_id = image_at(1, 5, 0);
     let earlier_para_high_id = image_at(9000, 1, 0);
     assert!(
-        LayoutEngine::paper_node_sort_key(&later_para_low_id)
-            > LayoutEngine::paper_node_sort_key(&earlier_para_high_id),
+        paper_node_sort_key(&later_para_low_id) > paper_node_sort_key(&earlier_para_high_id),
         "정렬은 node.id 가 아니라 문서 위치(para)를 따라야 한다"
     );
 
@@ -2329,8 +2329,7 @@ fn issue_4334_paper_node_sort_key_no_longer_depends_on_node_id() {
     layered_para1.set_layer(RenderLayerInfo::new(None, 0, 999_999));
     let inline_para300 = image_at(1, 300, 0);
     assert!(
-        LayoutEngine::paper_node_sort_key(&inline_para300)
-            > LayoutEngine::paper_node_sort_key(&layered_para1),
+        paper_node_sort_key(&inline_para300) > paper_node_sort_key(&layered_para1),
         "para_index=300 인라인이 para_index=1 layered 보다 위여야 한다 — 예전엔 \
          layered 의 패킹된 stable_index 가 자릿수만으로 항상 이겼다(#4334 결함)"
     );
@@ -2346,13 +2345,13 @@ fn issue_4334_paper_node_sort_key_no_longer_depends_on_node_id() {
         )
     }
     assert_eq!(
-        LayoutEngine::paper_node_sort_key(&positionless(5)).2,
+        paper_node_sort_key(&positionless(5)).2,
         Vec::<u32>::new(),
         "문서 위치를 못 만드는 노드는 빈 DocPath 로 폴백한다(node.id 아님)"
     );
     assert_eq!(
-        LayoutEngine::paper_node_sort_key(&positionless(5)),
-        LayoutEngine::paper_node_sort_key(&positionless(999)),
+        paper_node_sort_key(&positionless(5)),
+        paper_node_sort_key(&positionless(999)),
         "빈 경로 폴백은 node.id 값과 무관하게 항상 동일해야 한다"
     );
 }

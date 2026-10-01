@@ -3492,40 +3492,8 @@ impl LayoutEngine {
         }
     }
 
-    fn render_layer_plane(layer: Option<RenderLayerInfo>) -> u8 {
-        match layer.and_then(|layer| layer.text_wrap) {
-            Some(TextWrap::BehindText) => 1,
-            Some(TextWrap::InFrontOfText) => 3,
-            _ => 2,
-        }
-    }
-
-    /// 종이 기준 렌더 노드의 정렬키 `(plane, z_order, doc_path)`.
-    /// 레이아웃 쿼리(`get_page_control_layout_native`)가 컨트롤별 plane/zOrder/stableIndex 를
-    /// 프런트 히트테스트에 노출할 때 재사용한다(렌더 정렬과 단일 진실 원천 유지). [Task #1280 v2]
-    ///
-    /// [#4334] 세 번째 원소는 더 이상 `RenderLayerInfo.stable_index`(패킹된 u32,
-    /// layer 없으면 `node.id` 폴백) 가 아니라 [`crate::renderer::render_tree::doc_path_for_node`]
-    /// 가 노드 자신의 필드(para/control/cell 경로)에서 직접 유도하는 [`DocPath`]다 —
-    /// `next_id()` 카운터를 전혀 참조하지 않는다. layer 있는 노드와 없는 노드가 예전엔
-    /// 서로 다른 수 공간(패킹된 u32 vs 카운터)을 썼지만 이제 하나의 좌표계를 공유한다.
-    /// 문서 위치를 유도할 수 없는 노드는 빈 경로로 폴백한다 — 빈 배열은 사전식
-    /// 비교에서 항상 최솟값이라 결정적이지만, 그런 노드끼리의 상대 순서는 여전히
-    /// `paper_images`/`mp_node.children` 삽입 순서(Rust 안정 정렬)를 따른다. #4334
-    /// stage3 실측(`issue_4334_stage3_document_position_coverage_precheck`)으로 이
-    /// 잔여는 표/바탕쪽 picture 는 아니고(플러밍 결손 3곳을 고쳤다) 표 셀 배경/무늬
-    /// 이미지 채우기(`render_cell_background`, 문서 Control 이 아니라 셀 스타일에서
-    /// 파생된 순수 장식이라 애초에 독립된 문서 위치가 없음) 로 수렴한다.
-    pub(crate) fn paper_node_sort_key(node: &RenderNode) -> (u8, i32, DocPath) {
-        let layer = node.layer;
-        let z_order = layer.map(|layer| layer.z_order).unwrap_or(0);
-        let doc_path = crate::renderer::render_tree::doc_path_for_node(node).unwrap_or_default();
-
-        (Self::render_layer_plane(layer), z_order, doc_path)
-    }
-
     fn sort_paper_render_nodes(paper_images: &mut [RenderNode]) {
-        paper_images.sort_by_key(Self::paper_node_sort_key);
+        paper_images.sort_by_key(super::page_paint::paper_node_sort_key);
     }
 
     /// [#6121] 셀 안 anchored(비 TAC) 개체를 셀 본문 텍스트 위로 올린다.

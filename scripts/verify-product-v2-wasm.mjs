@@ -149,8 +149,34 @@ try {
       const reopened = HwpDocument.openWithTypesetter(doc.exportHwp(), doc.getTypesetter());
       check(reopened.getTypesetter() === 'v2' && svgText(reopened.renderPageSvg(target)).includes('EDIT'), 'save/reopen must retain edited V2 content');
       reopened.free();
-      let growth, paragraphSplit;
+      let growth, paragraphSplit, deferredEdits;
       if (table) {
+        const output = () => Array.from({ length: doc.pageCount() }, (_, i) => ({
+          svg: doc.renderPageSvg(i), controls: doc.getPageControlLayout(i),
+        }));
+        const rejectsOldGeneration = () => {
+          let rejected = false;
+          try { doc.renderPageSvg(target); } catch { rejected = true; }
+          check(rejected, 'deferred cell edit must hide the old V2 generation');
+        };
+        doc.deleteTextInCell(0, 1, 0, 0, 0, 0, 5);
+        const deleted = output();
+        doc.restoreSnapshot(redo);
+        doc.deleteTextInCellDeferredPagination(0, 1, 0, 0, 0, 0, 5);
+        rejectsOldGeneration();
+        const deleteFlush = JSON.parse(doc.flushDeferredPagination());
+        check(JSON.stringify(output()) === JSON.stringify(deleted), 'deferred deletion must preserve immediate SVG and hit-test geometry');
+        doc.restoreSnapshot(redo);
+        doc.replaceTextInCellDeferredPagination(0, 1, 0, 0, 0, 0, 4, 'TEST');
+        rejectsOldGeneration();
+        const replaceFlush = JSON.parse(doc.flushDeferredPagination());
+        check(svgText(doc.renderPageSvg(target)).includes('TEST'), 'deferred replacement must publish the current text');
+        const replaceCursor = JSON.parse(doc.getCursorRectInCell(0, 1, 0, 0, 0, 0));
+        check(replaceCursor.pageIndex === target && replaceCursor.x === cursor.x && replaceCursor.y === cursor.y,
+          'replacement keeps the same cell and line origin');
+        deferredEdits = { result: 'PASS', deleteFlush, replaceFlush, replaceCursor };
+        doc.restoreSnapshot(redo);
+        check(doc.renderPageSvg(target) === edited, 'deferred edit undo must restore the full output');
         const pagesBefore = doc.pageCount();
         const offset = doc.getCellParagraphLength(0, 1, 0, 0, 0);
         const added = Array.from({ length: 30 }, (_, i) => `\nADDED${String(i).padStart(2, '0')}`).join('');
@@ -179,7 +205,7 @@ try {
         doc.restoreSnapshot(redo);
         check(doc.renderPageSvg(target) === edited, 'Enter undo must restore the original cell paragraph');
       }
-      return { result: 'PASS', scope: 'product APIs, not Studio history UI', table, target, cursor, hit, selection, growth, paragraphSplit };
+      return { result: 'PASS', scope: 'product APIs, not Studio history UI', table, target, cursor, hit, selection, growth, paragraphSplit, deferredEdits };
     }, process.argv.includes('--edit-cell'));
     await page.screenshot({ path: join(out, 'browser', 'edited-canvas.png') });
     writeFileSync(join(out, 'editing.json'), JSON.stringify(editing, null, 2));

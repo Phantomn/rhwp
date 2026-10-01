@@ -1855,6 +1855,19 @@ impl DocumentCore {
             None
         };
 
+        // V2 owns no Legacy cache. Capture cache input only for an existing
+        // Legacy owner; it is not part of the authoritative IR edit/reflow.
+        let legacy_cache_before = self.layout_engine.as_ref().and_then(|engine| {
+            self.get_cell_paragraph_ref(
+                section_idx,
+                parent_para_idx,
+                control_idx,
+                cell_idx,
+                cell_para_idx,
+            )
+            .map(|para| engine.prepare_cell_text_edit(para))
+        });
+
         // 셀 문단 접근 검증 및 텍스트 교체
         let active_field = self.active_field.clone();
         let cell_path = [(control_idx, cell_idx, cell_para_idx)];
@@ -1867,12 +1880,6 @@ impl DocumentCore {
         )?;
         let old_text_len = cell_para.text.chars().count();
         let flow_advance_before = relative_paragraph_flow_advance(cell_para);
-        let local_contribution_before =
-            crate::renderer::layout::LayoutEngine::paragraph_contributes_to_table_nested_text_flag(
-                cell_para,
-            );
-        let units_fp_before =
-            crate::renderer::layout::LayoutEngine::cell_paragraph_units_fingerprint(cell_para);
         let deleted_count = if delete_count > 0 {
             cell_para.delete_text_at(char_offset, delete_count)
         } else {
@@ -1933,7 +1940,7 @@ impl DocumentCore {
             self.mark_table_text_reflowed_after_edit(section_idx, parent_para_idx, control_idx)?;
         }
 
-        let (flow_advance_after, local_contribution_after) = {
+        let flow_advance_after = {
             let cell_para_after = self
                 .get_cell_paragraph_ref(
                     section_idx,
@@ -1945,25 +1952,8 @@ impl DocumentCore {
                 .ok_or_else(|| {
                     HwpError::RenderError("편집 뒤 셀 문단을 다시 찾을 수 없습니다".to_string())
                 })?;
-            (
-                relative_paragraph_flow_advance(cell_para_after),
-                crate::renderer::layout::LayoutEngine::paragraph_contributes_to_table_nested_text_flag(
-                    cell_para_after,
-                ),
-            )
+            relative_paragraph_flow_advance(cell_para_after)
         };
-        let units_fp_unchanged = self
-            .get_cell_paragraph_ref(
-                section_idx,
-                parent_para_idx,
-                control_idx,
-                cell_idx,
-                cell_para_idx,
-            )
-            .is_some_and(|p| {
-                crate::renderer::layout::LayoutEngine::cell_paragraph_units_fingerprint(p)
-                    == units_fp_before
-            });
         let cell_flow_changed = flow_advance_before != flow_advance_after;
         let new_offset = char_offset + new_chars_count;
         let focused_after = if focused_target_is_table_cell {
@@ -1989,14 +1979,12 @@ impl DocumentCore {
                 [control_idx];
             if let Control::Table(table) = control {
                 if let Some(edited_cell) = table.cells.get(cell_idx) {
-                    if let Some(engine) = &self.layout_engine {
-                        engine.invalidate_cell_units_after_text_edit(
-                            edited_cell,
-                            table,
-                            local_contribution_before,
-                            local_contribution_after,
-                            units_fp_unchanged,
-                        );
+                    if let (Some(engine), Some(before), Some(para)) = (
+                        &self.layout_engine,
+                        legacy_cache_before,
+                        edited_cell.paragraphs.get(cell_para_idx),
+                    ) {
+                        engine.finish_cell_text_edit(edited_cell, table, para, before);
                     }
                 }
             }
@@ -2223,6 +2211,19 @@ impl DocumentCore {
             None
         };
 
+        // V2 owns no Legacy cache. Capture cache input only for an existing
+        // Legacy owner; it is not part of the authoritative IR edit/reflow.
+        let legacy_cache_before = self.layout_engine.as_ref().and_then(|engine| {
+            self.get_cell_paragraph_ref(
+                section_idx,
+                parent_para_idx,
+                control_idx,
+                cell_idx,
+                cell_para_idx,
+            )
+            .map(|para| engine.prepare_cell_text_edit(para))
+        });
+
         // 셀 문단 접근 검증 및 텍스트 삭제
         let cell_para = self.get_cell_paragraph_mut(
             section_idx,
@@ -2233,12 +2234,6 @@ impl DocumentCore {
         )?;
         let old_text_len = cell_para.text.chars().count();
         let flow_advance_before = relative_paragraph_flow_advance(cell_para);
-        let local_contribution_before =
-            crate::renderer::layout::LayoutEngine::paragraph_contributes_to_table_nested_text_flag(
-                cell_para,
-            );
-        let units_fp_before =
-            crate::renderer::layout::LayoutEngine::cell_paragraph_units_fingerprint(cell_para);
         let deleted_count = cell_para.delete_text_at(char_offset, count);
 
         // 부모 컨트롤 dirty 마킹 (표 또는 글상자)
@@ -2272,7 +2267,7 @@ impl DocumentCore {
             self.mark_table_text_reflowed_after_edit(section_idx, parent_para_idx, control_idx)?;
         }
 
-        let (flow_advance_after, local_contribution_after) = {
+        let flow_advance_after = {
             let cell_para_after = self
                 .get_cell_paragraph_ref(
                     section_idx,
@@ -2284,25 +2279,8 @@ impl DocumentCore {
                 .ok_or_else(|| {
                     HwpError::RenderError("삭제 뒤 셀 문단을 다시 찾을 수 없습니다".to_string())
                 })?;
-            (
-                relative_paragraph_flow_advance(cell_para_after),
-                crate::renderer::layout::LayoutEngine::paragraph_contributes_to_table_nested_text_flag(
-                    cell_para_after,
-                ),
-            )
+            relative_paragraph_flow_advance(cell_para_after)
         };
-        let units_fp_unchanged = self
-            .get_cell_paragraph_ref(
-                section_idx,
-                parent_para_idx,
-                control_idx,
-                cell_idx,
-                cell_para_idx,
-            )
-            .is_some_and(|p| {
-                crate::renderer::layout::LayoutEngine::cell_paragraph_units_fingerprint(p)
-                    == units_fp_before
-            });
         let cell_flow_changed = flow_advance_before != flow_advance_after;
         let focused_after = if focused_target_is_table_cell {
             self.get_cell_paragraph_ref(
@@ -2328,14 +2306,12 @@ impl DocumentCore {
                 [control_idx];
             if let Control::Table(table) = control {
                 if let Some(edited_cell) = table.cells.get(cell_idx) {
-                    if let Some(engine) = &self.layout_engine {
-                        engine.invalidate_cell_units_after_text_edit(
-                            edited_cell,
-                            table,
-                            local_contribution_before,
-                            local_contribution_after,
-                            units_fp_unchanged,
-                        );
+                    if let (Some(engine), Some(before), Some(para)) = (
+                        &self.layout_engine,
+                        legacy_cache_before,
+                        edited_cell.paragraphs.get(cell_para_idx),
+                    ) {
+                        engine.finish_cell_text_edit(edited_cell, table, para, before);
                     }
                 }
             }
