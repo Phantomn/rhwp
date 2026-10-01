@@ -264,18 +264,126 @@ fn unused_enabled_style_does_not_reject_selected_table() {
 }
 
 #[test]
-fn unsupported_hwp_export_does_not_silently_drop_enabled_property() {
+fn hwp_export_preserves_enabled_property_in_plain_report_and_encrypted_paths() {
     let d = rhwp::parse_document(&input(table(), Some("1"))).unwrap();
     for result in [
         rhwp::serializer::serialize_document(&d),
         rhwp::serializer::serialize_document_with_report(&d).map(|r| r.into_bytes()),
-        rhwp::serializer::serialize_hwp_with_password(&d, b"example"),
     ] {
-        assert!(
-            matches!(result, Err(rhwp::serializer::SerializeError::UnsupportedInput(ref s))
-            if s.contains("breakCellSeparateLine")),
-            "expected unsupported export, got {:?}",
-            result.err()
+        let bytes = result.expect("supported HWP5 property");
+        let reopened = rhwp::parse_document(&bytes).unwrap();
+        assert!(reopened.doc_info.border_fills[0].break_cell_separate_line);
+    }
+    let bytes = rhwp::serializer::serialize_hwp_with_password(&d, b"example").unwrap();
+    let reopened = rhwp::parser::parse_document_with_password(&bytes, b"example").unwrap();
+    assert!(reopened.doc_info.border_fills[0].break_cell_separate_line);
+}
+
+#[test]
+fn hancom_border_fill_record_separates_split_line_from_center_line() {
+    // Hancom 11.0.0.9136 saved #3528's enabled BorderFill 15. The OFF
+    // counterpart is byte-identical except attr=0 (deduplicated to id 8).
+    // Source/artifact hashes and jobs: task_m100_7353_stage19.md, 2026-10-01.
+    let hex = "00040101000000000101000000000101000000000101000000000001000000000000000000000000";
+    let payload: Vec<u8> = (0..hex.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
+        .collect();
+    for (attr, enabled, center) in [
+        (0x0000_u16, false, rhwp::model::style::CenterLine::None),
+        (0x0400, true, rhwp::model::style::CenterLine::None),
+        // Hancom stores the direction in bits 8..9, not in bit 10.
+        // Sample 대각선샘플3.hwp / Hancom PDF: 0x2300 draws BOTH center lines.
+        (0x2100, false, rhwp::model::style::CenterLine::Vertical),
+        (0x2500, true, rhwp::model::style::CenterLine::Vertical),
+        (0x2200, false, rhwp::model::style::CenterLine::Horizontal),
+        (0x2600, true, rhwp::model::style::CenterLine::Horizontal),
+        (0x2300, false, rhwp::model::style::CenterLine::Cross),
+        (0x2700, true, rhwp::model::style::CenterLine::Cross),
+    ] {
+        let mut bytes = payload.clone();
+        bytes[..2].copy_from_slice(&attr.to_le_bytes());
+        let record = rhwp::serializer::record_writer::write_record(20, 1, &bytes);
+        let (info, _) = rhwp::parser::doc_info::parse_doc_info(&record).unwrap();
+        let bf = &info.border_fills[0];
+        assert_eq!(bf.break_cell_separate_line, enabled, "{attr:#06x}");
+        assert_eq!(bf.center_line, center, "{attr:#06x}");
+        let mut updated = bf.clone();
+        updated.break_cell_separate_line = !enabled;
+        let out = rhwp::serializer::doc_info::serialize_border_fill(&updated);
+        assert_eq!(u16::from_le_bytes([out[0], out[1]]), attr ^ 0x0400);
+        assert_eq!(&out[2..], &bytes[2..]);
+    }
+}
+
+#[test]
+fn center_directions_survive_both_formats_independently_of_split_line() {
+    use rhwp::model::style::CenterLine;
+
+    for (direction, crooked) in [
+        (CenterLine::Vertical, 1),
+        (CenterLine::Horizontal, 2),
+        (CenterLine::Cross, 3),
+    ] {
+        for separate in [false, true] {
+            let mut d = document(table());
+            d.doc_info.border_fills[0].center_line = direction;
+            d.doc_info.border_fills[0].break_cell_separate_line = separate;
+            let bytes = rhwp::serializer::serialize_document(&d).unwrap();
+            let parsed = rhwp::parse_document(&bytes).unwrap();
+            let bf = &parsed.doc_info.border_fills[0];
+            assert_eq!(bf.center_line, direction);
+            assert_eq!(bf.break_cell_separate_line, separate);
+            assert_eq!((bf.attr >> 8) & 3, crooked);
+            assert_eq!(bf.attr & (1 << 10), 0);
+
+            let hwpx = rhwp::serializer::serialize_hwpx(&parsed).unwrap();
+            let xml = header(&hwpx);
+            assert!(xml.contains("centerLine=\"VERTICAL\""));
+            assert!(xml.contains(&format!("<hh:slash type=\"NONE\" Crooked=\"{crooked}\"")));
+            assert!(xml.contains("<hh:backSlash type=\"NONE\" Crooked=\"0\""));
+            let reparsed = rhwp::parse_document(&hwpx).unwrap();
+            assert_eq!(reparsed.doc_info.border_fills[0].center_line, direction);
+            assert_eq!(
+                reparsed.doc_info.border_fills[0].break_cell_separate_line,
+                separate
+            );
+        }
+    }
+}
+
+#[test]
+fn hancom_original_cross_is_not_misread_as_horizontal() {
+    // Independent Hancom PDF of this original HWP shows the two crossing
+    // center strokes inside the first cell. HWPX is the matching saved sample.
+    for path in ["samples/대각선샘플3.hwp", "samples/대각선샘플3.hwpx"] {
+        let d = rhwp::parse_document(&std::fs::read(path).unwrap()).unwrap();
+        let bf = &d.doc_info.border_fills[4];
+        assert_eq!(
+            bf.center_line,
+            rhwp::model::style::CenterLine::Cross,
+            "{path}"
+        );
+        assert!(!bf.break_cell_separate_line, "{path}");
+    }
+}
+
+#[test]
+fn hwp_property_edits_invalidate_raw_reuse_and_do_not_leak_into_hwpx_diagonals() {
+    let doc = rhwp::parse_document(&input(table(), Some("1"))).unwrap();
+    let bytes = rhwp::serializer::serialize_document(&doc).unwrap();
+    let mut parsed = rhwp::parse_document(&bytes).unwrap();
+    assert!(parsed.doc_info.raw_stream.is_some());
+    let hwpx = rhwp::serializer::serialize_hwpx(&parsed).unwrap();
+    assert!(header(&hwpx).contains("breakCellSeparateLine=\"1\""));
+    assert!(header(&hwpx).contains("<hh:backSlash type=\"NONE\" Crooked=\"0\""));
+    for enabled in [false, true] {
+        parsed.doc_info.border_fills[0].break_cell_separate_line = enabled;
+        let bytes = rhwp::serializer::serialize_document(&parsed).unwrap();
+        parsed = rhwp::parse_document(&bytes).unwrap();
+        assert_eq!(
+            parsed.doc_info.border_fills[0].break_cell_separate_line,
+            enabled
         );
     }
 }

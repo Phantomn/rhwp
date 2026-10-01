@@ -510,10 +510,12 @@ fn test_serialize_border_fill_cross_centerline_uses_hwp5_center_bits() {
     let data = serialize_border_fill(&bf);
     let mut r = crate::parser::byte_reader::ByteReader::new(&data);
 
+    // 한컴 원본 대각선샘플3.hwp의 CROSS 속성은 0x2300이다.
+    // bit10은 중심선이 아니라 독립적인 별도 경계선 속성이다.
     assert_eq!(
         r.read_u16().unwrap(),
-        (1 << 13) | (0x03 << 8) | (1 << 10),
-        "HWP5 바이너리 CROSS 중심선은 한컴 중심선 보조 비트를 함께 저장해야 함"
+        (1 << 13) | (0x03 << 8),
+        "HWP5 CROSS 중심선은 별도 경계선이 꺼져 있으면 bit10을 설정하지 않아야 함"
     );
 }
 

@@ -12531,3 +12531,228 @@ Native 7+2+6+8=23 PASS. SVG 갱신 후 UPDATE_GOLDEN 없이 다시 통과했다.
 
 후속은 생성 HWPX의 한컴 열기·캡션/내부 표·쪽번호 확인 및 HWP5 미지원 속성의 저장 계약
 해결이다. 시각 승인 6건과 저장 문제의 미해결 상태를 분리해 유지한다.
+
+#### 2026-10-01 — HWP5 별도 경계선 저장 구현과 중심선 충돌
+
+계약 변경은 `14da50030`에 커밋했다. 이후 사용자 승인 범위인 HWP5
+`breakCellSeparateLine` 지원을 구현했으며 아래 중심선 2건 때문에 이 구현은 미커밋 WIP로
+유지한다. 전체 회귀 통과·PR 준비 완료를 선언하지 않는다.
+
+**독립 근거:** 한컴 MCP `engine=2020`, 실제 버전 `11.0.0.9136`, preprocess=none.
+원본 HWPX와 header의 enabled 속성 하나만 0으로 바꾼 대조본을 한컴에서 HWP로 저장했다.
+원본 BorderFill 15(ON)는 OFF 저장본의 BorderFill 8로 중복 제거되므로 같은 ID가 아니라
+동일 payload를 비교했다. 속성 2바이트만 `00 04` / `00 00`으로 다르고 나머지는 동일하다.
+공개 revision1.3 표24의 bit10 설명과 달리 실제 한컴 저장/재열기에서 `0x0400`은
+`breakCellSeparateLine`이다. 이 근거 없이 공개 표의 꺾은선 의미를 그대로 공유하면 안 된다.
+
+| 증적 | job ID | 산출 SHA-256 |
+| --- | --- | --- |
+| ON HWP | d9f931b6-3531-47ba-b9df-da6488a24c7e | d1d5447194ccddb9ac889a9ff7ef5c694ad9debd95bd3cc05036caad2ec61cb7 |
+| OFF HWP | 6a8333f4-808a-4478-84c7-32d673176b10 | 6288e3dd805d077f1fa4dfa9dc0f1f9e2352f8f13495600e2a37901ea959ca9a |
+| ON HWP → 한컴 HWPX | e2d4bb26-ba16-4865-9d81-09b0fc3f2477 | 11e52863f4d7c29fcd99cd4dd875ae14cb21ea8704ede062bf3b03d4a8c40f24 |
+| 중심선/별도 경계선 대조 HWP | ac2c361b-3abe-439c-9e2b-97ce6554a43e | 364f1b3d0bec3df420c290a1bfb2cac37e65c85c5f0db7804dc73046973984d6 |
+| 위 대조 HWP → 한컴 HWPX | 49dab0f1-c647-4021-88e9-68bff62eff91 | 9232930a0cc71d5f906d9cd2df613e733583a6c31e46bc770a10eaf4eaa3ab66 |
+
+파일/생성 스크립트는 `output/7353/closeout/maintainer-visual/`의 `hancom-*`,
+`split-line-probe.py`, `center-bit-probe.py`, `binary-bit-probe.py`에 보존했다.
+중심선 대조는 수동 변경 입력을 한컴에서 재저장한 실험이며 원본 문서의 시각 일치 증거가 아니다.
+`0x2300`과 `0x2700` 모두 한컴 재열기에서 centerLine=VERTICAL, slash Crooked=3,
+backSlash Crooked=0이고 별도 경계선만 0/1이었다. 다른 방향의 중심선 완전 지원은 입증하지 않았다.
+
+**구현 경로:** HWP5 DocInfo parser에서 binary bit10을 bool로 분리하고 IR attr에서는 제거한다.
+DocInfo writer는 중심선 packing 이후 bool 값으로 bit10을 설정/해제한다. `cfb_writer`의
+무조건 미지원 거부를 제거했다. raw stream/record 재사용의 기존 provenance 봉인을 유지하며
+bool 직접 변경이 봉인을 무효화하여 재기록되는지 검사했다. HWPX writer에서 이 값이
+backSlash Crooked=1로 잘못 방출되지 않는 것도 검사한다. V2 별도 경계선 paint와 HML의
+미지원 차단은 유지했으며, 이 변경은 표 페이지네이션 구현이 아니다.
+
+**실행 검증:** 공유 target의 `regression_suite_016 issue_7353_table_v2_split_line_property`:
+추가/변경한 3계약은 제품 수정 전 의도한 파싱/저장 거부로 FAIL, 수정 후 10 PASS.
+평문/report/암호 저장, bool true→false→true 및 raw reuse 무효화, 독립 한컴 레코드의
+켜짐/꺼짐·VERTICAL 중심선 공존을 포함한다. suite002의 #3528 1 PASS.
+이후 suite011/006/020/025에서 승인된 6문서 관련 23건을 다시 실행해 모두 PASS.
+로그는 `hwp-property-before.log`, `hwp-property-after.log`, `issue3528-after.log`,
+`final-*.log`. fmt/diff check도 통과했다. 최종 Native CLI SHA-256은
+`abdb2cded1b4ac5997026e587f6d43cc1adb2f58ef78ae6cd0106db85bb2b5f5`다.
+이 HWP5 소스 변경 후 fresh WASM/전체 release-test/전체 lint는 아직 실행하지 않았다.
+
+**미해결 대조군 — 승인된 6건 외 계약은 변경하지 않음:** suite027
+`issue_1623_cellzone_diagonal`은 17 PASS / 2 FAIL (`hwp-center-control.log`).
+`issue_1633_centerline_excludes_diagonal_on_hwp_export`는 bit10=1024를 CROSS 보조 비트로
+요구하고, `issue_1633_cellzone_origin_centerline_renders_after_each_cell_apply`는 HWP
+재파싱 후 Cross를 요구하나 현재 결과는 Vertical이다. 단순 상수 실패만이 아니라 기존
+IR의 Cross 저장/복원 계약도 영향을 받았다. 이 둘을 허용치/ignore로 덮지 않는다.
+후속은 중심선의 실제 HWP 저장 표현과 IR 대응을 확정하여 이 충돌을 처리하는 것으로 한정한다.
+
+**메인테이너 확인 파일:**
+[issue3528-rhwp-supported.hwp](../../output/7353/closeout/maintainer-visual/issue3528-rhwp-supported.hwp).
+`rhwp convert samples/issue1891_external_bindata_link.hwpx <출력> --verify`가 exit0,
+IR 차이 없음으로 완료했다. 파일 SHA-256은
+`ed49a807c2a934d6616911c83e1d08c6b11d9d60d93be96608e5fb2e4c1a403d`.
+기존 #4396 ClickHere/Formula 파라미터 손실 경고는 남아 있어 무손실 저장 전체를 주장하지 않는다.
+한컴 MCP에서 이 HWP를 열어 HWPX로 저장하는 데 성공(job
+`4dc5fd3b-b0a8-46ad-900d-b5caef9238a8`)했고 별도 경계선=1도 유지했다(재저장 후 id13).
+이 성공은 한컴 열기·속성 보존 증거이며 캡션/내부 표의 메인테이너 시각 판정을 대신하지 않는다.
+
+#### 2026-10-01 — CROSS 중심선과 별도 경계선 비트 충돌 해결
+
+메인테이너가 위 `issue3528-rhwp-supported.hwp`를 한컴편집기에서 정상적으로 열었음을
+확인했다. 이를 **정상 열기 통과**로 기록하며, 별도 경계선 paint나 모든 저장 속성의
+무손실 지원으로 확대 해석하지 않는다.
+
+**원인과 독립 기준:** 기존 중심선 해석은 bit8과 bit10을 두 방향으로 취급했다.
+그러나 bit10은 앞 절의 한컴 ON/OFF 실험에서 확인된 별도 경계선이다. 중심선은 bit13의
+활성 표시와 bits8..9의 방향 enum(가로1/세로2/교차3)으로 분리된다.
+독립 구현 [hwplib BorderFillProperty](https://github.com/neolord0/hwplib/blob/main/src/main/java/kr/dogfoot/hwplib/object/docinfo/borderfill/BorderFillProperty.java)의
+`getCenterLineSort` 및 `CenterLineSort`도 bits8..9를 사용한다. 이 라이브러리의 다른 오래된
+bit10 설명을 별도 경계선의 근거로 사용하지 않는다.
+
+원본 `samples/대각선샘플3.hwp`(SHA256
+`18aca9a2b7bacc69af02dd5d46303c2aa8eb05b81b0252060c63ba0b60ee8315`)를 한컴2024
+13.0.0.3901, preprocess=none으로 PDF 변환했다. job
+`848c40c4-8058-4b05-871f-467bc851d5ef`, PDF SHA256
+`a8f9fdeb68afb3997b3779d5545f89d748e07a713d1f4b7290a33ac366b6333a`.
+**1쪽 첫 셀의 가로·세로 중심선이 둘 다 보인다.** 같은 원본 BF5의 attr=0x2300이며,
+대응 HWPX는 centerLine=VERTICAL / slash Crooked=3이다. 따라서 앞 절에서 XML의
+VERTICAL 문자열만으로 IR의 가로선 하나를 기대했던 신규 계약을 Cross로 정정했다.
+XML 활성 표시와 실제 방향을 혼동한 판단이었다.
+
+**생산 → 소비:** `CenterLine::{from_hwp_attr,hwp_attr_bits}`에서 방향을 분리하고,
+HWP5 parser/writer는 bit10을 별도 bool로 보존한다. HWPX parser는 한컴의
+centerLine=VERTICAL과 slash Crooked를 함께 해석하며 writer는 같은 표현으로 기록한다.
+기존 편집 API의 VERTICAL/HORIZONTAL 명칭은 유지한다. `style_resolver`가 이 IR 방향을
+`border_rendering::render_cell_diagonal`로 전달하여 같은 셀 상자의 중심에 두 선을 그린다.
+줄 높이·표 원점·페이지네이션 및 V2 미지원 속성 거부는 바꾸지 않았다.
+
+**계약 변경 범위:** 기존 19건의 Cross 저장/복원·대각선 배제·셀 적용 의미는 유지한다.
+잘못된 bit10=1024 assertion만 bit10=0 및 별도 경계선=false로 교체했다. source-side
+HWPX 중심선 테스트 2건의 표현 기대값도 독립 근거에 맞췄다. `tests/cases/`에는
+원본 HWP/HWPX의 Cross 해석 및 세 방향×별도 경계선 ON/OFF 양 포맷 왕복을 추가했다.
+이 합성 왕복은 저장 계약 증거이며 각 조합의 한컴 시각 일치를 뜻하지 않는다.
+
+**집중 실행 결과:** 현재 `14da50030 + WIP`에서 중심선 suite027 19 PASS(직전 17 PASS/2 FAIL),
+별도 경계선 suite016 12 PASS, #3528 suite002 1 PASS, 관련 lib 테스트 5 PASS,
+승인된 6문서 suite011/006/020/025 23 PASS. 총 60 PASS / 0 FAIL.
+로그: `output/7353/closeout/maintainer-visual/center-*-after.log`.
+fmt/diff check 및 unit-test-tier 정책 검사 통과(base `02530b9ed567a44663edb26c65fb565c4a79f00d`).
+전체 nextest/3종 Clippy 통과를 이 집중 결과로 대신하지 않는다.
+
+Native 1쪽 review/compare/overlay는 `center-native/center-reference/`에 보존했다.
+첫 셀의 교차 중심선을 직접 확인했으나 표 전체의 수직 위치·선 굵기 차이가 남아 있다.
+자동 잉크 일치율은 4.57133%이며 이를 전체 문서 시각 통과로 보고하지 않는다.
+직전 WASM(`d32d8087a093b0db199134279bf93e85bc9a5f76f825069a0e9d9fca3d69526c`)의
+동일 원본 캡처도 `center-wasm-before/`에 보존했다. fresh WASM 대조 결과는 아래에 이어 기록한다.
+
+rhwp CLI가 `samples/대각선샘플3.hwpx`에서 생성한
+`output/7353/closeout/maintainer-visual/center-cross-rhwp.hwp`도 `--verify` 통과했다.
+HWP SHA256 `30acb77dd6d38f0f28ac032230667c577e2815b50a1c1235103d91567c02fb80`.
+이를 한컴2024에서 직접 열어 PDF로 출력(job `4721f6de-cf2a-4dc3-8d40-12989768312c`),
+첫 셀의 교차 중심선과 기존 전체 대각선이 보존됨을 직접 판독했다.
+`center-reference/center-rhwp-reopened.pdf` SHA256
+`7ef9288470e0338224a93a1516443077f7cb379f322772b3e3741c06eaa7bb12`.
+
+**fresh WASM 최종 확인:** 표준 Docker 빌드 8m00s / exit0 (`center-wasm-build.log`).
+`pkg/rhwp_bg.wasm` SHA256
+`0c834b33959311859ef7bfd65d7f701d3f762fd3a53a0293aba34533f3d9a0cb`.
+현재 source 6파일의 해시는 `center-source-sha256.txt`에 고정했고 빌드 뒤에도 일치한다.
+Chrome152의 `center-browser-save.mjs`에서 CROSS와 #3528 각각 `exportHwp()` → 새
+`HwpDocument` 재열기 성공, CROSS 속성 유지. 이는 저장 API smoke이며 71쪽 문서 전체
+시각 검증은 아니다. 산출 `wasm-cross.hwp`, `wasm-separator.hwp`, 로그
+`center-browser-save.log`를 같은 디렉터리에 보존했다.
+
+Native/fresh WASM 모두 원본 1쪽을 한컴 PDF와 직접 대조했다.
+
+| 경로 | compare | overlay | review | 자동 잉크 일치율 |
+| --- | --- | --- | --- | --- |
+| Native | [compare](../../output/7353/closeout/maintainer-visual/center-native/center-reference/compare/compare_001.png) | [overlay](../../output/7353/closeout/maintainer-visual/center-native/center-reference/overlay/overlay_001.png) | [review](../../output/7353/closeout/maintainer-visual/center-native/center-reference/review/review_001.png) | 4.57133% |
+| fresh WASM | [compare](../../output/7353/closeout/maintainer-visual/center-wasm-after/center-reference/compare/compare_001.png) | [overlay](../../output/7353/closeout/maintainer-visual/center-wasm-after/center-reference/overlay/overlay_001.png) | [review](../../output/7353/closeout/maintainer-visual/center-wasm-after/center-reference/review/review_001.png) | 4.57133% |
+
+수정 전후의 직접 비교는 WASM끼리 수행했다. 기존 25개 선의 모든 좌표를 유지하고,
+첫 셀 중심의 세로선 `(145.126667,132.266667)→(145.126667,149.36)` 1개만 추가했다.
+최종 Native와 fresh WASM의 26개 선 좌표도 일치한다. 표 전체 원점과 선 굵기의 기존 차이를
+중심선 수정으로 해소했다고 주장하지 않는다. 다음 단계는 최종 전체 회귀·lint 게이트이며,
+이번 턴에는 커밋·push·PR 생성·devel 병합을 하지 않았다.
+
+#### 2026-10-01 — 메인테이너 CROSS 승인과 최종 통합 검증
+
+메인테이너가 CROSS 시각 판정을 **통과**로 확정했다. 한컴 PDF의 사선 계단 현상이
+rhwp보다 두드러진다는 관측을 함께 받았으며, 그 현상을 재현하려는 출력 보정은 하지 않는다.
+이어 전체 회귀·Clippy 등 남은 검증 실행을 승인받았다. 앞 절의 동일 source에 대한 fresh WASM과
+시각 증거는 재사용하며 같은 빌드·캡처를 반복하지 않는다.
+
+`upstream/devel` fetch 후 정책 base를 `02530b9ed567a44663edb26c65fb565c4a79f00d`로
+고정했다. 작업 head는 `14da5003002b2d7861e1ea139976fbb315a778a2 + WIP`이며 merge/rebase는
+하지 않았다. Linux 16 logical CPU / 가용 메모리 약21GiB / 여유 디스크270GiB를 확인하고
+공유 target의 Cargo 실행이 없음을 확인했다. 컴파일2 jobs, 회귀4 threads로 순차 실행한다.
+명령·종료값·로그는 `output/7353/closeout/final-20261001/`에 보존한다.
+
+**최종 실행 결과:** 10:01:12~10:46:28 KST, 총45분16초. 제품 source·test는 실행 중
+변경하지 않았다. 모든 명령은 같은 디렉터리의 `*.command`, 종료값·소요시간은
+`status.tsv`, 전체 순서는 `run.sh`에 기록했다.
+
+| 검사 | 결과 | 로그 |
+| --- | --- | --- |
+| suite 준비 / fmt | PASS | `prepare.log`, `fmt.log` |
+| Native / WASM / workspace all-target Clippy | 모두 PASS | `clippy-native.log`, `clippy-wasm.log`, `clippy-workspace.log` |
+| workspace build | PASS | `workspace-build.log` |
+| manifest / source unit tier 정책 (위 고정 base) | 모두 PASS | `policy.log`, `unit-policy.log` |
+| 전체 nextest | **10,862 PASS / 1 FAIL / 50 SKIP**; 실행664.561초, 빌드 포함1579초 | `regression.log` |
+| Native Skia lib | **3,929 PASS / 1 FAIL / 13 ignored** | `skia-lib.log` |
+| Native Skia 누락 그림 표시 | 2 PASS (필터 비대상228 skipped) | `skia-placeholder.log` |
+| Native Skia PDF 직접 출력 | 4 PASS (필터 비대상218 skipped) | `skia-pdf.log` |
+| diff check | PASS | `diff-check.log` |
+
+최초 실패했던 8건(#4961, SVG snapshot 4건, #3528, #6699 2건)은 이번 전체 실행에서
+각각 PASS를 확인했다. #7353 이름의 계약720건도 모두 PASS다. 새 ignore 추가는 없다.
+
+**남은 실패는 단위 계약 1건:**
+`serializer::doc_info::tests::test_serialize_border_fill_cross_centerline_uses_hwp5_center_bits`,
+위치 `src/serializer/doc_info/tests.rs:513`. `break_cell_separate_line=false` 입력에 대해
+기존 기대값은 `(1<<13)|(3<<8)|(1<<10)`=0x2700이고 actual은 0x2300이다.
+앞 절의 한컴 원본 BF5=0x2300/CROSS, 별도 경계선 ON/OFF 독립 실험, 정식
+`issue_7353_table_v2_split_line_property`의 raw 속성·왕복 계약과 대조하면 bit10은
+CROSS 보조 비트가 아니라 별도 경계선이다. 따라서 **집중 검사에서 빠진 옛 단위 기대값의
+정정 누락**으로 분류한다. 일반 nextest와 Skia lib에서 같은 assertion이 실패한 것이며
+독립적인 두 조판 결함으로 세지 않는다. 실행 로그 원문은 보존하며 이번 검증 중 제품 코드나
+기대값을 바꾸지 않았다. 다음 작업은 해당 assertion·설명의 근거 기반 정정과 영향 재검증이다.
+H2 및 전체 마감은 아직 통과로 표시하지 않는다.
+
+검증 종료 후 `center-source-sha256.txt`의 source6개 모두 일치, WASM SHA256도
+`0c834b33959311859ef7bfd65d7f701d3f762fd3a53a0293aba34533f3d9a0cb`로 동일했다.
+앞 절의 fresh WASM·메인테이너 시각 PASS를 재사용하며 다시 빌드·캡처하지 않았다.
+nextest0.9.137의 권장 버전0.9.140 및 미인식 JUnit 옵션 경고는 있으나 위 assertion 실패와
+구분한다. 커밋·push·PR 생성·devel 병합은 수행하지 않았다.
+
+#### 2026-10-01 — CROSS 단위 기대값 정정 및 영향 재검증 완료
+
+작업지시자의 정정·재검증 승인에 따라 `src/serializer/doc_info/tests.rs`의 기존 단위 테스트만
+수정했다. 한컴 원본 BF5=0x2300과 앞 절의 별도 경계선 ON/OFF 근거에 맞춰 기대식에서
+`(1<<10)`을 제거하고 잘못된 "중심선 보조 비트" 설명을 정정했다. 입력은 CROSS이고
+`break_cell_separate_line=false`인 그대로이며, 기대값을 제품 helper 호출로 대체하거나
+제품 코드·baseline·ignore를 변경하지 않았다. 별도 경계선=true일 때 bit10을 유지하는 반대
+경계는 기존 정식 `issue_7353_table_v2_split_line_property` 계약을 그대로 실행했다.
+
+검증 head/base는 앞 절과 동일하며 WIP 차이는 위 단위 테스트다. `#[cfg(test)] mod tests`에서만
+소비되므로 제품 렌더링·저장 구현과 WASM은 불변이다. 테스트 전용 변경의 lint 묶음은 모두 다시
+실행했고, 직전 전체 실행의 영향 없는 검사·Skia 출력 6건·fresh WASM·메인테이너 시각 증거는
+재사용했다. 이번에 전체 nextest나 전체 Skia lib를 다시 실행한 것으로 집계하지 않는다.
+
+증적: `output/7353/closeout/cross-contract-recheck-20261001/`의 `run.sh`, `*.command`,
+`*.log`, `status.tsv`, `test-change.patch`. 실행10:53:36~11:08:19 KST, 총14분43초.
+
+| 재검증 | 결과 | 로그 |
+| --- | --- | --- |
+| 일반 lib `serializer::doc_info::tests::` | 24 PASS; CROSS 실패 해소 | `native-doc-info.log` |
+| Native Skia lib 동일 필터 | 24 PASS; 같은 CROSS 실패 해소 | `skia-doc-info.log` |
+| 정식 별도 경계선/중심선 속성 계약 | 12 PASS; raw 비트·양 포맷 왕복·ON/OFF 포함 | `split-line-contract.log` |
+| suite 준비 / fmt | PASS | `prepare.log`, `fmt.log` |
+| 3종 Clippy / workspace build | 모두 PASS | `clippy-*.log`, `workspace-build.log` |
+| manifest / source unit tier 정책 | 모두 PASS, base `02530b9ed567a44663edb26c65fb565c4a79f00d` | `policy.log`, `unit-policy.log` |
+| 제품 source6개 해시 / diff check | 모두 PASS | `source-hash.log`, `diff-check.log` |
+
+**판정:** 직전 전체 실행의 유일한 실패와 Skia의 동일 실패가 각각 FAIL→PASS로 해소됐다.
+이번 재검증60건은 모두 PASS이며, 두 feature에서 같은24건을 검사한 것이므로 서로 다른60개
+계약이라고 해석하지 않는다. 직전 전체 결과(10,862 PASS/1 FAIL/50 SKIP) 원문은 그대로
+보존한다. 해당 결과와 test-only 정정의 영향 재검증을 결합해 H2의 **로컬 검증 충족**으로 기록한다.
+새 전체 실행의 10,863 PASS를 관측했다거나 원격 CI가 통과했다고 주장하지 않는다.
+커밋·push·PR 생성·devel 병합은 하지 않았으며, 후속 통합 범위와 출시 차단 목록은 유지한다.

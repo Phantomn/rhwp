@@ -962,9 +962,10 @@ fn issue_1633_centerline_excludes_diagonal_on_hwp_export() {
     );
     assert_eq!(
         bf.attr & (1 << 10),
-        1 << 10,
-        "CROSS 중심선은 한컴식 backSlash 중심선 보조 비트를 저장해야 함"
+        0,
+        "중심선은 별도 경계선 비트를 사용하지 않음"
     );
+    assert!(!bf.break_cell_separate_line);
     assert_eq!(bf.center_line, CenterLine::Cross);
     assert_eq!(bf.diagonal.diagonal_type, 1);
     assert_eq!(

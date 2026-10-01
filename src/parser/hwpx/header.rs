@@ -1828,6 +1828,12 @@ fn parse_border_fill(
         }
     }
 
+    // 한컴 저장본은 중심선 방향에 관계없이 centerLine="VERTICAL"을 쓰고
+    // slash Crooked(bits 8..9)에 가로=1/세로=2/교차=3을 보존한다.
+    // 명시적 HORIZONTAL/CROSS를 쓰는 입력은 기존 편집 API 의미를 유지한다.
+    if bf.center_line == CenterLine::Vertical {
+        bf.center_line = CenterLine::from_hwp_attr(bf.attr);
+    }
     doc_info.border_fills.push(bf);
     Ok(())
 }
@@ -3654,7 +3660,7 @@ mod tests {
     }
 
     #[test]
-    fn test_center_line_vertical_sets_attr_and_direction() {
+    fn test_center_line_enabled_with_crooked_three_is_cross() {
         let bf = parse_single_border_fill(
             r##"<hh:borderFill id="9" centerLine="VERTICAL">
                  <hh:slash type="NONE" Crooked="3" isCounter="0"/>
@@ -3663,7 +3669,7 @@ mod tests {
                </hh:borderFill>"##,
         );
 
-        assert_eq!(bf.center_line, CenterLine::Vertical);
+        assert_eq!(bf.center_line, CenterLine::Cross);
         assert_ne!(bf.attr & (1 << 13), 0, "centerLine != NONE → bit 13 설정");
         assert_eq!((bf.attr >> 8) & 0x03, 3, "slash Crooked=3 보존");
         assert_eq!(

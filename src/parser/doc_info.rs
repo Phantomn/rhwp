@@ -340,7 +340,11 @@ pub(crate) fn parse_face_name(data: &[u8]) -> Result<Font, DocInfoError> {
 
 fn parse_border_fill(data: &[u8]) -> Result<BorderFill, DocInfoError> {
     let mut r = ByteReader::new(data);
-    let attr = r.read_u16().unwrap_or(0);
+    let binary_attr = r.read_u16().unwrap_or(0);
+    // Hancom's HWP5 writer stores breakCellSeparateLine at bit 10. Keep it
+    // separate from the legacy IR diagonal/center-line attr representation;
+    // otherwise HWP->HWPX invents backSlash Crooked=1 and changes center lines.
+    let attr = binary_attr & !(1 << 10);
 
     // HWP 실제 바이너리: 인터리브 형식 (각 테두리별 종류+굵기+색상 반복)
     // 순서: 좌, 우, 상, 하 × (종류 1바이트 + 굵기 1바이트 + 색상 4바이트)
@@ -391,8 +395,7 @@ fn parse_border_fill(data: &[u8]) -> Result<BorderFill, DocInfoError> {
         center_line: CenterLine::from_hwp_attr(attr),
         fill,
         three_d: false,
-        // The published HWP5 BorderFill bit table does not define this HWPX flag.
-        break_cell_separate_line: false,
+        break_cell_separate_line: binary_attr & (1 << 10) != 0,
     })
 }
 

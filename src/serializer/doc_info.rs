@@ -562,6 +562,10 @@ pub fn serialize_border_fill(bf: &BorderFill) -> Vec<u8> {
             | (1 << 13));
         attr |= center_line.hwp_binary_attr_bits();
     }
+    // Independent HWP5 bit (Hancom ON/OFF save comparison, #7353).
+    // Set AND clear after legacy center-line packing, so model edits win over
+    // stale attr bits and cannot silently retain an enabled separator.
+    attr = (attr & !(1 << 10)) | (u16::from(bf.break_cell_separate_line) << 10);
     w.write_u16(attr).unwrap();
 
     // 4방향 테두리 (인터리브: 종류 + 굵기 + 색상)

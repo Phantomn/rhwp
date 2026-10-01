@@ -454,7 +454,12 @@ fn diagonal_shape_type(code: u8) -> &'static str {
 }
 
 fn center_line_type(bf: &BorderFill) -> &'static str {
-    effective_center_line(bf).as_hwpx()
+    // 한컴의 방향 값은 slash Crooked에 기록한다. centerLine은 활성 표시다.
+    if effective_center_line(bf) == CenterLine::None {
+        "NONE"
+    } else {
+        "VERTICAL"
+    }
 }
 
 fn effective_center_line(bf: &BorderFill) -> CenterLine {
@@ -1879,8 +1884,8 @@ mod tests {
             "centerLine 방향이 보존되어야 함: {xml}"
         );
         assert!(
-            xml.contains(r#"<hh:slash type="NONE" Crooked="3" isCounter="0"/>"#),
-            "VERTICAL 중심선의 HWP attr 보조 비트가 Crooked=3 으로 보존되어야 함: {xml}"
+            xml.contains(r#"<hh:slash type="NONE" Crooked="1" isCounter="0"/>"#),
+            "가로 중심선 방향은 Crooked=1 이어야 함: {xml}"
         );
     }
 

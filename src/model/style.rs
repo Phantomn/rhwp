@@ -571,7 +571,7 @@ pub struct BorderFill {
     /// 3차원 효과 (HWPX borderFill@threeD)
     pub three_d: bool,
     /// 자동으로 나뉜 표의 별도 경계선 (HWPX borderFill@breakCellSeparateLine).
-    /// HWP5의 대응 비트는 확인되지 않았으므로 attr에서 추측하지 않는다.
+    /// HWP5 binary bit 10. IR attr의 기존 대각선 표현과 분리해 읽고 쓴다.
     pub break_cell_separate_line: bool,
 }
 
@@ -581,9 +581,9 @@ pub enum CenterLine {
     /// 없음
     #[default]
     None,
-    /// HWPX `VERTICAL` 값. 한컴 2024 기준으로는 셀 중앙 가로선으로 표시된다.
+    /// 셀 중앙 가로선. 기존 편집 API의 `VERTICAL` 명칭을 유지한다.
     Vertical,
-    /// HWPX `HORIZONTAL` 값. 한컴 2024 기준으로는 셀 중앙 세로선으로 표시된다.
+    /// 셀 중앙 세로선. 기존 편집 API의 `HORIZONTAL` 명칭을 유지한다.
     Horizontal,
     /// 가로+세로 중심선
     Cross,
@@ -594,12 +594,13 @@ impl CenterLine {
         if attr & (1 << 13) == 0 {
             return Self::None;
         }
-        let slash_crooked = attr & (1 << 8) != 0;
-        let backslash_crooked = attr & (1 << 10) != 0;
-        match (slash_crooked, backslash_crooked) {
-            (true, false) => Self::Vertical,
-            (false, true) => Self::Horizontal,
-            _ => Self::Cross,
+        // 방향은 bits 8..9의 enum이다. bit 10은 별도 경계선 속성으로,
+        // 중심선 방향에 참여하지 않는다.
+        match (attr >> 8) & 3 {
+            1 => Self::Vertical,
+            2 => Self::Horizontal,
+            3 => Self::Cross,
+            _ => Self::None,
         }
     }
 
@@ -615,19 +616,14 @@ impl CenterLine {
     pub fn hwp_attr_bits(self) -> u16 {
         match self {
             Self::None => 0,
-            Self::Vertical => (1 << 13) | (0x03 << 8),
-            Self::Horizontal => (1 << 13) | (1 << 10),
-            Self::Cross => (1 << 13) | (0x03 << 8) | (1 << 10),
+            Self::Vertical => (1 << 13) | (1 << 8),
+            Self::Horizontal => (1 << 13) | (2 << 8),
+            Self::Cross => (1 << 13) | (3 << 8),
         }
     }
 
     pub fn hwp_binary_attr_bits(self) -> u16 {
-        match self {
-            Self::None => 0,
-            Self::Vertical => (1 << 13) | (0x03 << 8),
-            Self::Horizontal => (1 << 13) | (1 << 10),
-            Self::Cross => (1 << 13) | (0x03 << 8) | (1 << 10),
-        }
+        self.hwp_attr_bits()
     }
 
     pub fn as_hwpx(self) -> &'static str {
