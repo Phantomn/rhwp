@@ -1345,6 +1345,30 @@ impl TypesetEngine {
             }
         });
         let precedes_reserved_table_flow = original_control_frame.is_some_and(|placement| {
+            let preceding_text_clears = st.current_items.iter().all(|item| {
+                let (previous_index, end_line) = match item {
+                    PageItem::FullParagraph { para_index } => (
+                        *para_index,
+                        paragraphs_all
+                            .get(*para_index)
+                            .map_or(0, |previous| previous.line_segs.len()),
+                    ),
+                    PageItem::PartialParagraph {
+                        para_index,
+                        end_line,
+                        ..
+                    } => (*para_index, *end_line),
+                    _ => return true,
+                };
+                let Some(previous) = paragraphs_all.get(previous_index) else {
+                    return false;
+                };
+                !para_has_non_whitespace_text(previous)
+                    || st
+                        .paragraph_fragment_content_bottoms
+                        .get(&(previous_index, end_line))
+                        .is_some_and(|bottom| *bottom <= placement.table_top)
+            });
             placement.table_top < st.current_height
                 && !preceding_host_tail_is_free
                 && table.common.flow_with_text
@@ -1366,10 +1390,13 @@ impl TypesetEngine {
                     // 표의 점유 끝을 넘는 저장 원점은 앞 표와 충돌하지 않는다.
                     // 배치 계획이 없는 표는 기존의 보수적인 이월 판정을 유지한다.
                     *para_index != para_idx
-                        && !st
-                            .paragraph_float_placements
-                            .get(&(*para_index, *control_index))
-                            .is_some_and(|previous| previous.occupied_bottom <= placement.table_top)
+                        && !(preceding_text_clears
+                            && st
+                                .paragraph_float_placements
+                                .get(&(*para_index, *control_index))
+                                .is_some_and(|previous| {
+                                    previous.occupied_bottom <= placement.table_top
+                                }))
                         && paragraphs_all
                             .get(*para_index)
                             .and_then(|host| host.controls.get(*control_index))

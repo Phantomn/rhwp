@@ -224,6 +224,16 @@ impl TypesetState {
     ) {
         self.data.paragraph_float_placements.insert(key, placement);
     }
+    /// 뒤 줄간격과 문단 아래 여백을 제외한 확정 본문 하단을 보존한다.
+    pub(in crate::renderer::typeset) fn record_paragraph_content_bottom(
+        &mut self,
+        key: (usize, usize),
+        content_height: f64,
+    ) {
+        self.data
+            .paragraph_fragment_content_bottoms
+            .insert(key, self.data.current_height + content_height);
+    }
     pub(in crate::renderer::typeset) fn append_endnote_paragraph(
         &mut self,
         paragraph: crate::model::paragraph::Paragraph,

@@ -31,8 +31,9 @@ use super::{
     missing_lineseg_trailing_line_break, native_hwp5_existing_footnote_reset_overlap_break_line,
     native_hwp5_first_footnote_overlap_break_line,
     native_hwp5_text_reset_before_large_tac_topbottom_picture_break_line, page_item_vpos_base,
-    para_has_visible_text, para_is_treat_as_char_picture_only, preceding_stored_vpos,
-    stored_body_reset_fragment_matches_current_flow, stored_vpos_rewinds, TypesetState,
+    para_has_non_whitespace_text, para_has_visible_text, para_is_treat_as_char_picture_only,
+    preceding_stored_vpos, stored_body_reset_fragment_matches_current_flow, stored_vpos_rewinds,
+    TypesetState,
 };
 use crate::model::paragraph::Paragraph;
 use crate::renderer::hwpunit_to_px;
@@ -230,6 +231,14 @@ pub(super) fn place_fitted_paragraph(
                 ),
             st.vpos_page_base.is_none() && st.vpos_lazy_base.is_some(),
         );
+    // 다음 저장 표가 이 문단의 후행 간격을 사용할 수는 있어도
+    // 실제 글줄 안으로 들어오면 안 된다. 수용에 쓴 구성 높이를 공유한다.
+    if para.controls.is_empty() && para_has_non_whitespace_text(para) && fmt.line_count() > 0 {
+        st.record_paragraph_content_bottom(
+            (para_idx, fmt.line_count()),
+            (fmt.height_for_fit - fmt.spacing_after - trimmed_spacing_before).max(0.0),
+        );
+    }
     st.apply_full_paragraph_flow(
         advance,
         fmt.total_height,
