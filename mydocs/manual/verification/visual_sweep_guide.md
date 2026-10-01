@@ -58,16 +58,44 @@ PNG는 인쇄 프로필 실행의 점수·증적과 섞지 않고 새 출력에�
 
 ```bash
 python3 scripts/visual_sweep.py --silhouette-only \
-  --png-pair output/<기존 실행>/<key>/rhwp_png output/<기존 실행>/<key>/pdf_png \
-  --out output/<새 실행>/silhouette
+  --png-pair "output/<기존 실행>/<key>/rhwp_png" "output/<기존 실행>/<key>/pdf_png" \
+  --out "output/<새 실행>/silhouette"
 ```
 
 ```bash
 python3 scripts/visual_sweep.py --silhouette-only \
-  --hwp samples/<원문>.hwp --pdf pdf/<기준>.pdf --key <key> \
+  --hwp "samples/<원문>.hwp" --pdf "pdf/<기준>.pdf" --key "<key>" \
   --rhwp-bin target/pr-review/release-test/rhwp --dpi 96 \
-  --out output/<새 실행>
+  --out "output/<실행>-native-scores"
 ```
+
+위 예시의 `<...>`는 실제 경로·이름으로 바꾼다. 현재 코드로 web package를 새로 빌드한 뒤
+fresh WASM도 같은 입력·기준 PDF·DPI·글꼴 환경으로 실행한다.
+
+```bash
+python3 scripts/visual_sweep.py --silhouette-only \
+  --hwp "samples/<원문>.hwp" --pdf "pdf/<기준>.pdf" --key "<key>" \
+  --rhwp-bin target/pr-review/release-test/rhwp --wasm-pkg pkg --dpi 96 \
+  --out "output/<실행>-wasm-scores"
+```
+
+원문 입력 결과는 `output/<실행>-native-scores/<key>/silhouette.tsv` 및 WASM 대응 경로에,
+`--png-pair` 결과는 지정한 `--out` 바로 아래에 저장된다. 각 TSV를 스프레드시트에서 탭 구분으로
+열어 `page`별 `tolerant_content_match_percent`를 Native/WASM 간 대조하고, `below_90`과
+최저값을 확인한다. 이 값은 **실루엣 일치율 보조값**이며 전체 렌더링 정확도나 구조 일치율이 아니다.
+
+검증 대상 전체 문서에서 Native와 fresh WASM TSV를 각각 먼저 산출하고,
+비교 쪽수·최저 일치율·90% 미만/누락 쪽을 결과보고와 PR 본문에 기록한다.
+WASM은 같은 원문·PDF에 `--wasm-pkg pkg`와 검증한 `--rhwp-bin`을 명시한다.
+원문 전체 쪽수는 Native `native-export.json`의 `pageCount`, WASM `wasm/manifest.json`의
+`pageCount`와 독립 PDF 메타데이터를 별도로 대조한다. 선택 raster 개수를 전체 쪽수로 쓰지 않는다.
+기존 `--png-pair`는 양쪽 번호 누락을 거부하지만 원문에 몇 쪽이 있어야 하는지는 입증하지 않는다.
+
+미달/구조 차이 쪽과 대표 변경 경계의 PNG만 일반 모드 `--pages`로 추가 생성한다.
+일반 모드는 대상 key 디렉터리를 새로 정리하므로 TSV 실행과 **서로 다른 output 경로**를 사용한다.
+예를 들어 점수는 `output/<실행>-scores`, 직접 판독은 `output/<실행>-review`에 저장한다.
+대표 이미지의 PR 본문 표시 의무는 유지하며, 그 밖의 전쪽 overlay 합성은 기본 요구가 아니다.
+코드가 바뀌면 영향 범위의 TSV와 대표 이미지도 새 head에서 다시 산출한다.
 
 TSV 열은 `page`, `tolerant_content_match_percent`, `below_90`이다.
 `--pages 10,17,28`로 선택할 수 있으며, 번호 중복·양쪽 입력 누락을 허용하지 않는다.

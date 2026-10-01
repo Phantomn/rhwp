@@ -2,7 +2,7 @@
 kind: guide
 status: active
 canonical: mydocs/manual/pr_review_workflow.md
-last_verified: 2026-09-30
+last_verified: 2026-10-01
 ---
 
 # 시각·fixture 증적
@@ -44,11 +44,20 @@ reviewer는 메인터너 보정으로 대신하지 않는다. 한컴 PDF와 rhwp
 이 상태에서는 "원 PR 증적 확인", "numeric/contract test 통과", "IR sweep baseline 통과" 같은 표현을
 "visual sweep 통과"와 섞지 않는다.
 
+페이지별 점수 수집은 [TSV 전용 절차](../verification/visual_sweep_guide.md#실루엣-보조값만-빠르게-tsv-산출)를 우선 사용한다.
+검증 대상 전체 페이지를 Native/fresh WASM으로 산출해 최저값·90% 미만·누락 쪽을 기록한다.
+기존 PNG 재사용이면 원 실행의 source/build/font provenance를 연결하고 최종 head 재출력으로
+기록하지 않는다. TSV가 모두 90% 이상이면 `not_evaluated`, 미달이면 `re_review_required`이며
+직접 시각/구조 판정과 구분한다.
+미달/구조 차이 쪽과 대표 경계는 일반 모드로 PNG를 추가 산출해 직접 판독한다.
+모든 페이지의 overlay 합성은 불필요하지만 대표 PR 이미지와 각주·문단 소속/전체 쪽수 검증은 유지한다.
+
 visual sweep을 실제 검토 근거로 쓰면 review 문서에 다음을 모두 기록한다.
 
 - 문서 비교 절차의 정본인 [PDF/SVG visual sweep 가이드](../verification/visual_sweep_guide.md#github-merge-comment)와
   적용한 command·판정 범위
-- compare, overlay, review PNG의 임시 output 경로
+- 페이지별 TSV와 silhouette manifest의 경로·해시, 최저값·90% 미만/누락 쪽 및 source/build/font 출처
+- 직접 판독한 compare, overlay, review PNG의 임시 output 경로
 - 검토한 페이지 수와 자동 후보 수
 - pixel match, visual_accuracy_proxy_percent
 - `tolerant_content_match_percent`와 `pr_review_gate`의 결과. 90% 미만이면 보정·재실행 전 `승인`으로 쓰지 않는다.

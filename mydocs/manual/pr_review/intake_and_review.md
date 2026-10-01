@@ -2,7 +2,7 @@
 kind: guide
 status: active
 canonical: mydocs/manual/pr_review_workflow.md
-last_verified: 2026-09-17
+last_verified: 2026-10-01
 ---
 
 # PR 접수와 리뷰 기록
@@ -191,6 +191,10 @@ review 문서에는 최소한 다음을 포함한다.
 
 - PR metadata 표: 번호, 작성자, base, 규모, mergeable 작성 시점 참고값
 - 관련 issue 요약과 변경 범위: 핵심 기능, metadata 변경, 범위 밖 변경
+- Native/fresh WASM 페이지별 TSV의 비교 범위·최저값·90% 미만/누락 쪽, 입력 및 source/build/font 출처.
+  [TSV 전용 절차](../verification/visual_sweep_guide.md#실루엣-보조값만-빠르게-tsv-산출)를 우선 사용하며,
+  기존 PNG 재사용을 새 head 재출력으로 취급하지 않는다. 낮은 점수·구조 차이·대표 경계의 직접 PNG
+  판독과 각주 수량·문단 소속·전체 쪽수 검증을 함께 확인한다. TSV 성공/`not_evaluated`만으로 승인하지 않는다.
 - 렌더 영향과 visual sweep 필요 여부
 - 공통 조판 원칙 적용 여부와 근거; 적용 대상은 2.7의 원칙별 준수 판정·증거·미검증·보류 해제 조건
 - 검증 입력 커밋 확인: 2.8의 판정, 실제 사용한 HWP/HWPX/PDF 목록·저장소 경로·출처·SHA-256·확인한 commit SHA

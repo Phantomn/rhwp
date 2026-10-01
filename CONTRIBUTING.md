@@ -147,8 +147,17 @@ PR 화면에 표시되는지 확인하세요. 이미지가 빠졌으면 PR을 �
 보완하세요. 이는 메인터너 review 기록 작성 의무가 아니라 기여자의 제출 의무입니다.
 메인터너가 특정 기록 파일의 추가를 명시적으로 요청한 경우에만 그 요청 범위에서 예외로 합니다.
 
-이 Visual Sweep에서 대표 review PNG의 2px 이웃 관용 내용 실루엣 일치율은 모두
-90% 이상이어야 합니다. `scripts/visual_sweep.py`가 `re_review_required`를 기록하거나 non-zero로 끝나면
+페이지별 일치율은 [TSV 전용 절차](mydocs/manual/verification/visual_sweep_guide.md#실루엣-보조값만-빠르게-tsv-산출)로 먼저 산출하세요.
+검증 대상 전체 페이지의 Native/fresh WASM `silhouette.tsv`에서 비교 쪽수·최저값과
+90% 미만/누락 쪽을 확인하고, 해당 쪽과 구조 차이·대표 경계는 일반 모드의 PNG로 직접 판독합니다.
+전쪽 overlay PNG를 일률 생성할 필요는 없지만 대표 이미지 제출 의무는 유지합니다.
+TSV·입력/출력 provenance와 최저값·미달 페이지를 PR 증거에 연결하세요.
+기존 PNG 재사용은 원 실행의 코드·빌드·글꼴 조건을 확인하며 새 head 검증으로 표시하지 않습니다.
+TSV 산출 exit0 또는 `not_evaluated`는 승인 판정이 아닙니다. 90% 이상이어도 각주 수량·문단 소속,
+내용 누락·중복과 전체 쪽수가 PDF와 다르면 원인을 수정하고 다시 검증합니다.
+
+이 Visual Sweep에서 검증 대상 전체 페이지의 TSV와 대표 review PNG의 2px 이웃 관용 내용
+실루엣 일치율은 모두 90% 이상이어야 합니다. `scripts/visual_sweep.py`가 `re_review_required`를 기록하거나 non-zero로 끝나면
 PR을 제출하지 말고 본인 branch에서 PDF·overlay 원인을 재검토·수정한 뒤 새 head에서 gate를 통과할 때만
 PR을 생성·갱신합니다. reviewer가 메인터너 보정으로 대신하지 않습니다. 한컴 PDF와 rhwp에 실제로 적용된 글꼴이 완전히
 다른 경우에만 양쪽 font family와 확인 방법을 적은 UTF-8 증거 파일을

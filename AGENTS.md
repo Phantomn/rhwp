@@ -136,6 +136,11 @@
 - 동일 입력의 기준 출력과 변경 전후 실제 출력을 같은 페이지·영역에서 직접 비교한다.
   표 외곽·뒤 문단 위치·겹침·누락·줄바꿈 등 주장한 의미를 확인하며, 페이지 수·텍스트 추출·해시·
   픽셀 점수 또는 빈 줄에 보이는 글자가 없다는 이유만으로 시각 통과를 선언하지 않는다.
+- 페이지별 실루엣 일치율은 [TSV 전용 절차](mydocs/manual/verification/visual_sweep_guide.md#실루엣-보조값만-빠르게-tsv-산출)로 먼저 확인한다.
+  검증 대상 전체 페이지의 Native/fresh WASM 최저값·90% 미만·누락 쪽을 기록하고, 해당 쪽과
+  구조 차이·대표 경계의 PNG를 추가 생성해 직접 판독한다. 전쪽 overlay 합성을 기본 요구로 삼지 않는다.
+  기존 PNG 재사용은 최신 head 재출력과 구분한다. TSV 성공·`not_evaluated`는 승인 판정이 아니며,
+  각주 수량·문단 소속·누락·중복·전체 쪽수 차이를 점수로 면제하지 않는다.
 - 렌더링 변경은 [Visual Sweep](mydocs/manual/verification/visual_sweep_guide.md)을 실행한다.
   영향 페이지의 Native/fresh WASM compare·standalone overlay·review를 산출해 직접 확인하고,
   source SHA·입력/기준 PDF·페이지·명령·대표 PNG·남은 차이를 결과보고에 연결한다. PR review를

@@ -2,7 +2,7 @@
 kind: canonical
 status: active
 canonical: mydocs/manual/verification/visual_verification_governance.md
-last_verified: 2026-09-30
+last_verified: 2026-10-01
 ---
 
 # PR 시각 검증 거버넌스 (OVL-step)
@@ -30,6 +30,15 @@ last_verified: 2026-09-30
 렌더링 변경의 새 회귀 테스트 추가는 [회귀 추가 선행 조건](../pr_review/visual_fixture_evidence.md#렌더링-회귀-테스트-신규-추가의-시각-검증-선행-조건)에 따라 관련 모든 페이지·fixture·
 Native/fresh WASM 출력의 최저 일치율 90% 이상을 먼저 입증한다. 미달·측정 불가이면 회귀를 추가하지
 않고 실제 출력을 개선한다. 평균값·글꼴 예외·CI 성공으로 면제하지 않으며 기존 검사는 자동 삭제하지 않는다.
+
+## 페이지별 일치율 산출과 직접 판독
+
+검증 대상으로 정한 문서의 전체 페이지 일치율은 [TSV 전용 절차](visual_sweep_guide.md#실루엣-보조값만-빠르게-tsv-산출)로 먼저 확인한다.
+Native/fresh WASM의 비교 쪽수·최저값·90% 미만/누락 쪽과 입력/빌드 출처를 기록한다.
+전쪽 overlay 합성은 기본 요구가 아니다. 미달 쪽, 각주·문단 소속 같은 구조 차이 쪽과
+대표 변경 경계에는 비교 PNG를 추가 생성하고 사람이 독립 PDF와 직접 판독한다.
+TSV 성공 또는 `not_evaluated`는 측정 완료만 뜻한다. 평균·90% 이상 점수로 각주 수량,
+쪽수·내용 누락/중복 차이를 승인하지 않으며 대표 PR 이미지 제출 의무도 유지한다.
 
 ## bug-hunter와 visual sweep 라우팅
 
