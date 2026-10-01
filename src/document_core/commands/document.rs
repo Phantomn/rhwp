@@ -291,7 +291,9 @@ impl DocumentCore {
             render_normalization: super::super::RenderNormalizationState::default(),
             dpi: DEFAULT_DPI,
             fallback_font: DEFAULT_FALLBACK_FONT.to_string(),
-            layout_engine: LayoutEngine::new(DEFAULT_DPI),
+            layout_engine: (engine == TypesettingEngine::Legacy)
+                .then(|| LayoutEngine::new(DEFAULT_DPI)),
+            font_state: crate::renderer::font_layout_state::FontLayoutState::default(),
             clipboard: None,
             table_transpose_clipboard: None,
             paste_cascade_count: 0,
@@ -2108,7 +2110,7 @@ impl DocumentCore {
 
         let slot = ExactFontSlot::new(char_shape_id, language_index);
         let registration = self
-            .layout_engine
+            .font_state
             .register_exact_font_source(slot, font_bytes, face_index)
             .map_err(|reason| {
                 HwpError::RenderError(format!(
@@ -2120,7 +2122,7 @@ impl DocumentCore {
         // 등록한 generation을 즉시 읽어야 한다.
         self.refresh_exact_font_measurement_contexts();
         let handle = self
-            .layout_engine
+            .font_state
             .exact_font_source_handle(slot)
             .cloned()
             .ok_or_else(|| {
@@ -2143,7 +2145,7 @@ impl DocumentCore {
             ExactFontRegistryRegistration::AlreadyRegistered => "already-registered",
         };
         let (slot_count, source_count, total_source_bytes, generation) =
-            self.layout_engine.exact_font_source_registry_counts();
+            self.font_state.exact_font_source_registry_counts();
         Ok(serde_json::json!({
             "ok": true,
             "status": status,
@@ -2193,7 +2195,7 @@ impl DocumentCore {
             &variations,
         )?;
         let canonical_axes = self
-            .layout_engine
+            .font_state
             .horizontal_shaping_instance_request(slot)
             .ok_or_else(|| {
                 HwpError::RenderError(
@@ -2208,10 +2210,9 @@ impl DocumentCore {
             HorizontalShapingInstanceRequestRegistration::Updated => "updated",
             HorizontalShapingInstanceRequestRegistration::AlreadyRegistered => "already-registered",
         };
-        let source_generation = self.layout_engine.exact_font_source_registry_counts().3;
-        let (request_count, request_generation) = self
-            .layout_engine
-            .horizontal_shaping_instance_request_counts();
+        let source_generation = self.font_state.exact_font_source_registry_counts().3;
+        let (request_count, request_generation) =
+            self.font_state.horizontal_shaping_instance_request_counts();
         Ok(serde_json::json!({
             "ok": true,
             "status": status,
@@ -2242,15 +2243,14 @@ impl DocumentCore {
         )?;
         let slot = ExactFontSlot::new(options.char_shape_id, options.language_index);
         let removed = self
-            .layout_engine
+            .font_state
             .clear_horizontal_shaping_instance_request(slot);
         if removed {
             self.invalidate_horizontal_shaping_instance_change();
         }
-        let source_generation = self.layout_engine.exact_font_source_registry_counts().3;
-        let (request_count, request_generation) = self
-            .layout_engine
-            .horizontal_shaping_instance_request_counts();
+        let source_generation = self.font_state.exact_font_source_registry_counts().3;
+        let (request_count, request_generation) =
+            self.font_state.horizontal_shaping_instance_request_counts();
         Ok(serde_json::json!({
             "ok": true,
             "status": if removed { "cleared" } else { "already-cleared" },
@@ -2285,7 +2285,7 @@ impl DocumentCore {
         use crate::renderer::shaping_context::HorizontalShapingInstanceRequestRegistration;
 
         let registration = self
-            .layout_engine
+            .font_state
             .set_horizontal_shaping_instance_request_dormant(
                 ExactFontSlot::new(char_shape_id, language_index),
                 variations,

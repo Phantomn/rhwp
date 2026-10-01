@@ -200,7 +200,8 @@ pub struct DocumentCore {
     /// 대체 폰트 경로
     pub(crate) fallback_font: String,
     /// 레이아웃 엔진 (자동 번호 카운터 포함)
-    pub(crate) layout_engine: LayoutEngine,
+    pub(crate) layout_engine: Option<LayoutEngine>,
+    pub(crate) font_state: crate::renderer::font_layout_state::FontLayoutState,
     /// 내부 클립보드
     pub(crate) clipboard: Option<ClipboardData>,
     /// 표 셀 행/열 바꿈 복사 버퍼
@@ -315,6 +316,14 @@ pub struct DocumentCore {
 }
 
 impl DocumentCore {
+    /// Explicit Legacy sessions alone own the Legacy renderer and its caches.
+    /// Never lazily allocate it for V2 or turn a missing owner into a fallback.
+    pub(crate) fn legacy_layout_engine(&self) -> Result<&LayoutEngine, crate::error::HwpError> {
+        self.layout_engine.as_ref().ok_or_else(|| {
+            crate::error::HwpError::RenderError("Legacy layout requested by a V2 session".into())
+        })
+    }
+
     /// 구역에서 지정한 머리말/꼬리말 정의의 원본 control 위치를 찾는다.
     ///
     /// 편집 command와 대표 페이지 renderer가 반드시 이 resolver를 공유해야 한다
@@ -521,7 +530,8 @@ impl DocumentCore {
             render_normalization: RenderNormalizationState::default(),
             dpi: DEFAULT_DPI,
             fallback_font: DEFAULT_FALLBACK_FONT.to_string(),
-            layout_engine: LayoutEngine::new(DEFAULT_DPI),
+            layout_engine: Some(LayoutEngine::new(DEFAULT_DPI)),
+            font_state: crate::renderer::font_layout_state::FontLayoutState::default(),
             clipboard: None,
             table_transpose_clipboard: None,
             paste_cascade_count: 0,

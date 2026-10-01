@@ -37,6 +37,58 @@ fn open(data: &[u8]) -> DocumentCore {
 }
 
 #[test]
+fn product_font_registry_is_not_owned_by_the_legacy_renderer() {
+    // Structural ownership assertion, separate from the output contract below.
+    let core = include_str!("../../src/document_core/mod.rs");
+    assert!(core.contains("layout_engine: Option<LayoutEngine>"));
+    let open = include_str!("../../src/document_core/commands/document.rs");
+    assert!(open.contains("(engine == TypesettingEngine::Legacy)"));
+    assert!(open.contains(".then(|| LayoutEngine::new(DEFAULT_DPI))"));
+    let fonts = include_str!("../../src/renderer/font_layout_state.rs");
+    assert!(!fonts.contains("LayoutEngine::"));
+    assert!(!fonts.contains("layout_table"));
+}
+
+#[test]
+fn product_font_registration_and_reset_preserve_both_engine_sessions() {
+    const FONT: &[u8] = include_bytes!("../fixtures/fonts/RHWPExactKerningSmoke.ttf");
+    for engine in [TypesettingEngine::V2, TypesettingEngine::Legacy] {
+        let mut core = DocumentCore::from_bytes_with_engine(SAVED, engine).unwrap();
+        let register = |core: &mut DocumentCore| -> serde_json::Value {
+            serde_json::from_str(
+                &core
+                    .register_exact_font_source_native(0, 1, FONT, 0)
+                    .unwrap(),
+            )
+            .unwrap()
+        };
+        let first = register(&mut core);
+        assert_eq!(first["status"], "registered");
+        assert_eq!(first["registry"]["slotCount"], 1);
+        assert_eq!(first["registry"]["sourceCount"], 1);
+        assert_eq!(first["registry"]["totalSourceBytes"], FONT.len());
+        // Registration is idempotent. Compare actual final SVG, not just page
+        // count: a repeated source may not shift any line or object coordinates.
+        let before: Vec<_> = (0..core.page_count())
+            .map(|p| core.render_page_svg_native(p).unwrap())
+            .collect();
+        let again = register(&mut core);
+        assert_eq!(again["status"], "already-registered");
+        assert_eq!(first["registry"], again["registry"]);
+        let after: Vec<_> = (0..core.page_count())
+            .map(|p| core.render_page_svg_native(p).unwrap())
+            .collect();
+        assert_eq!(before, after);
+        core.create_blank_document_native().unwrap();
+        assert_eq!(core.typesetting_engine(), engine);
+        // Replacement clears font registration as well as shaping snapshots.
+        assert_eq!(register(&mut core)["status"], "registered");
+        core.insert_text_native(0, 0, 0, "AV reset").unwrap();
+        assert!(text(&core.build_page_render_tree(0).unwrap().root).contains("AV reset"));
+    }
+}
+
+#[test]
 fn product_v2_blank_replacement_and_password_open_keep_engine() {
     let mut core = open(SAVED);
     core.create_blank_document_native().unwrap();

@@ -3171,53 +3171,43 @@ impl DocumentCore {
             return Ok(Unsupported);
         }
 
+        let layout_engine = self.legacy_layout_engine()?;
         // ── 좌표계 프라이밍 — build_page_tree/build_single_column 과 동일 상태.
         // (memoized cell_units 등 포인터-키 캐시가 동일 값으로 채워지도록, 상태
         // 의존 게이트·컷 계획보다 먼저 프라이밍한다.)
-        self.layout_engine
-            .set_show_transparent_borders(self.show_transparent_borders);
-        self.layout_engine.set_clip_enabled(self.clip_enabled);
-        self.layout_engine
-            .set_show_control_codes(self.show_control_codes);
-        self.layout_engine
-            .set_layout_profile(self.effective_layout_profile());
-        self.layout_engine.set_hwp3_origin_flow_spacing_before(
+        layout_engine.set_show_transparent_borders(self.show_transparent_borders);
+        layout_engine.set_clip_enabled(self.clip_enabled);
+        layout_engine.set_show_control_codes(self.show_control_codes);
+        layout_engine.set_layout_profile(self.effective_layout_profile());
+        layout_engine.set_hwp3_origin_flow_spacing_before(
             super::rendering::uses_hwp3_origin_flow_spacing_before(&self.document),
         );
-        self.layout_engine
-            .set_active_field(self.active_field.as_ref().map(|af| {
-                (
-                    af.section_idx,
-                    af.para_idx,
-                    af.control_idx,
-                    af.cell_path.clone(),
-                )
-            }));
-        self.layout_engine
-            .set_hidden_header_footer(&self.hidden_header_footer);
+        layout_engine.set_active_field(self.active_field.as_ref().map(|af| {
+            (
+                af.section_idx,
+                af.para_idx,
+                af.control_idx,
+                af.cell_path.clone(),
+            )
+        }));
+        layout_engine.set_hidden_header_footer(&self.hidden_header_footer);
         let total_pages: u32 = self.pagination.iter().map(|p| p.pages.len() as u32).sum();
-        self.layout_engine.set_total_pages(total_pages);
-        self.layout_engine.set_file_name(&self.file_name);
-        self.layout_engine
-            .set_hidden_empty_paras(&pr.hidden_empty_paras);
-        self.layout_engine
-            .set_pre_emitted_host_paras(&pr.pre_emitted_host_paras);
-        self.layout_engine
-            .set_pre_emitted_host_heights(&pr.pre_emitted_host_heights);
+        layout_engine.set_total_pages(total_pages);
+        layout_engine.set_file_name(&self.file_name);
+        layout_engine.set_hidden_empty_paras(&pr.hidden_empty_paras);
+        layout_engine.set_pre_emitted_host_paras(&pr.pre_emitted_host_paras);
+        layout_engine.set_pre_emitted_host_heights(&pr.pre_emitted_host_heights);
         let layout = &page_content.layout;
-        self.layout_engine.prime_column_layout_env(layout);
+        layout_engine.prime_column_layout_env(layout);
 
         // ── 상태 의존 게이트: auto counter 소비(개요/번호·AutoNumber·캡션 번호)가
         // 표 서브트리에 있으면 이전 페이지 replay 없이는 번호가 어긋난다 ──
-        if self
-            .layout_engine
-            .table_subtree_blocks_cursor_probe(table, &self.styles)
-        {
+        if layout_engine.table_subtree_blocks_cursor_probe(table, &self.styles) {
             return Ok(Unsupported);
         }
 
         // ── 컷 계획: 이 조각에서 대상 셀의 컷 창과 창 문단 범위 ──
-        let plan = self.layout_engine.partial_table_cell_probe_plan(
+        let plan = layout_engine.partial_table_cell_probe_plan(
             table,
             cell,
             *start_row,
@@ -3333,7 +3323,7 @@ impl DocumentCore {
             windowed,
             window_paras,
         };
-        self.layout_engine.layout_partial_table(
+        layout_engine.layout_partial_table(
             &mut scratch_frame,
             &mut scratch_col,
             paragraphs,
@@ -6680,9 +6670,10 @@ mod tests {
                 );
             }
         }
-        let units = core
-            .layout_engine
-            .debug_cell_units(giant, table, &core.styles);
+        let units =
+            core.legacy_layout_engine()
+                .unwrap()
+                .debug_cell_units(giant, table, &core.styles);
         eprintln!("units 총 {}개; 처음 14개:", units.len());
         for (i, u) in units.iter().take(14).enumerate() {
             eprintln!(
@@ -6858,7 +6849,8 @@ mod tests {
             table.repeat_header
         );
         let blocked = core
-            .layout_engine
+            .legacy_layout_engine()
+            .unwrap()
             .table_subtree_blocks_cursor_probe(table, &core.styles);
         eprintln!("subtree_blocked = {blocked}");
         if blocked {
@@ -6944,18 +6936,21 @@ mod tests {
         }) = col.items.first()
         {
             let cell = &table.cells[cell_idx];
-            let plan = core.layout_engine.partial_table_cell_probe_plan(
-                table,
-                cell,
-                *start_row,
-                *end_row,
-                start_cut,
-                end_cut,
-                *is_block_split,
-                *start_cut_is_block,
-                &core.styles,
-                6,
-            );
+            let plan = core
+                .legacy_layout_engine()
+                .unwrap()
+                .partial_table_cell_probe_plan(
+                    table,
+                    cell,
+                    *start_row,
+                    *end_row,
+                    start_cut,
+                    end_cut,
+                    *is_block_split,
+                    *start_cut_is_block,
+                    &core.styles,
+                    6,
+                );
             match plan {
                 ProbeCutPlan::Unsupported => eprintln!("plan=Unsupported"),
                 ProbeCutPlan::Uncut => eprintln!("plan=Uncut (n={})", cell.paragraphs.len()),

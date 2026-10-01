@@ -27,7 +27,7 @@ use crate::renderer::kerning::{
     ExactFontRegistryRegistration, ExactFontSlot, MAX_KERNING_REGISTRY_SLOTS,
 };
 use crate::renderer::layer_renderer::LayerRenderer;
-use crate::renderer::layout::{estimate_text_width_exact, CellContext};
+use crate::renderer::layout::{estimate_text_width_exact, CellContext, LayoutEngine};
 use crate::renderer::page_layout::PageLayoutInfo;
 use crate::renderer::pagination::{
     HeaderFooterRef, MasterPageRef, PageContent, PaginationResult, Paginator,
@@ -899,19 +899,19 @@ impl DocumentCore {
     /// Exact registry의 한 immutable snapshot에서 W9와 Q2-B contexts를 함께
     /// 만든다. 둘 중 하나만 남는 부분 갱신은 허용하지 않는다.
     pub(crate) fn refresh_exact_font_measurement_contexts(&mut self) {
-        let (kerning, shaping) = self
-            .layout_engine
-            .exact_font_measurement_context_snapshots();
+        if let Some(engine) = &mut self.layout_engine {
+            engine.set_font_state(self.font_state.clone());
+        }
+        let (kerning, shaping) = self.font_state.exact_font_measurement_context_snapshots();
         self.styles.kerning_measurement_context = kerning;
         self.styles.horizontal_shaping_context = shaping;
     }
 
     fn ensure_exact_font_measurement_contexts(&mut self) {
-        let generation = self.layout_engine.exact_font_source_registry_counts().3;
-        let slot_count = self.layout_engine.exact_font_source_registry_counts().0;
-        let (instance_request_count, instance_request_generation) = self
-            .layout_engine
-            .horizontal_shaping_instance_request_counts();
+        let generation = self.font_state.exact_font_source_registry_counts().3;
+        let slot_count = self.font_state.exact_font_source_registry_counts().0;
+        let (instance_request_count, instance_request_generation) =
+            self.font_state.horizontal_shaping_instance_request_counts();
         let current = self
             .styles
             .kerning_measurement_context
@@ -950,7 +950,8 @@ impl DocumentCore {
     /// 선등록한다. 개별 32 MiB·문서 layout owner 총 64 MiB 상한은 기존 page lowering과
     /// 동일하며, 초과·손상 source는 추측 없이 등록하지 않는다.
     pub(crate) fn rebuild_embedded_exact_font_sources(&mut self) {
-        self.layout_engine.clear_exact_font_sources();
+        self.font_state.clear_exact_font_sources();
+        self.refresh_exact_font_measurement_contexts();
         self.styles.kerning_measurement_context = None;
         self.styles.horizontal_shaping_context = None;
         let has_embedded_source = self
@@ -1077,7 +1078,7 @@ impl DocumentCore {
                 continue;
             };
             match self
-                .layout_engine
+                .font_state
                 .register_exact_font_source(slot, bytes, face_index)
             {
                 Ok(ExactFontRegistryRegistration::Registered)
@@ -1095,7 +1096,9 @@ impl DocumentCore {
     pub fn build_page_render_tree(&self, page_num: u32) -> Result<PageRenderTree, HwpError> {
         self.require_portable_metrics()?;
         let tree = self.build_page_tree(page_num)?;
-        let _overflows = self.layout_engine.take_overflows();
+        if let Some(engine) = &self.layout_engine {
+            let _overflows = engine.take_overflows();
+        }
         Ok(tree)
     }
 
@@ -1121,7 +1124,9 @@ impl DocumentCore {
         profile: RenderProfile,
     ) -> Result<PageLayerTree, HwpError> {
         self.ensure_typesetting_ready()?;
-        let _overflows = self.layout_engine.take_overflows();
+        if let Some(engine) = &self.layout_engine {
+            let _overflows = engine.take_overflows();
+        }
         let idx = page_num as usize;
         let fingerprint = self
             .layer_output_options_fingerprint(profile, crate::paint::LayerJsonOptions::default());
@@ -1323,13 +1328,17 @@ impl DocumentCore {
     /// [#3668] 직전 렌더에서 발생한 `LAYOUT_OVERFLOW_CELL` 줄 수를 읽고 리셋한다.
     /// 페이지 렌더 직후 호출하면 그 페이지 귀속 카운트가 된다.
     pub fn take_overflow_cell_lines(&self) -> u32 {
-        self.layout_engine.take_overflow_cell_lines()
+        self.layout_engine
+            .as_ref()
+            .map_or(0, LayoutEngine::take_overflow_cell_lines)
     }
 
     /// [#4515] 직전 렌더에서 발생한 최상위 표 y 겹침(`LAYOUT_TABLE_OVERLAP`) 목록을
     /// 읽고 리셋한다. 페이지 렌더 직후 호출하면 그 페이지 귀속 목록이 된다.
     pub fn take_table_overlaps(&self) -> Vec<crate::renderer::layout::LayoutTableOverlap> {
-        self.layout_engine.take_table_overlaps()
+        self.layout_engine
+            .as_ref()
+            .map_or_else(Vec::new, LayoutEngine::take_table_overlaps)
     }
 
     /// Production SVG entry point. Screen-profile paint decisions are built once in
@@ -1343,7 +1352,9 @@ impl DocumentCore {
     pub fn render_page_svg_legacy_native(&self, page_num: u32) -> Result<String, HwpError> {
         self.require_portable_metrics()?;
         let tree = self.build_page_tree(page_num)?;
-        let _overflows = self.layout_engine.take_overflows();
+        if let Some(engine) = &self.layout_engine {
+            let _overflows = engine.take_overflows();
+        }
         let mut renderer = SvgRenderer::new();
         renderer.show_paragraph_marks = self.show_paragraph_marks;
         renderer.show_control_codes = self.show_control_codes;
@@ -1647,7 +1658,9 @@ impl DocumentCore {
     pub fn render_page_html_native(&self, page_num: u32) -> Result<String, HwpError> {
         self.require_portable_metrics()?;
         let tree = self.build_page_tree(page_num)?;
-        let _overflows = self.layout_engine.take_overflows();
+        if let Some(engine) = &self.layout_engine {
+            let _overflows = engine.take_overflows();
+        }
         let mut renderer = HtmlRenderer::new();
         renderer.show_paragraph_marks = self.show_paragraph_marks;
         renderer.show_control_codes = self.show_control_codes;
@@ -1666,7 +1679,9 @@ impl DocumentCore {
     pub fn render_page_canvas_legacy_native(&self, page_num: u32) -> Result<u32, HwpError> {
         self.require_portable_metrics()?;
         let tree = self.build_page_tree(page_num)?;
-        let _overflows = self.layout_engine.take_overflows();
+        if let Some(engine) = &self.layout_engine {
+            let _overflows = engine.take_overflows();
+        }
         let mut renderer = CanvasRenderer::new();
         renderer.render_tree(&tree);
         Ok(renderer.command_count() as u32)
@@ -2183,7 +2198,7 @@ impl DocumentCore {
     /// key의 길이·BLAKE3 digest와 registry owner를 다시 대조한다. 등록되지 않았거나 오래된
     /// key, 비정규 표기, 32 MiB 상한 초과는 모두 `None`으로 닫힌다.
     pub fn get_source_font_bytes_native(&self, key: &str) -> Option<Vec<u8>> {
-        self.layout_engine
+        self.font_state
             .exact_font_source_bytes_for_resource_key(key)
             .map(|bytes| bytes.to_vec())
     }
@@ -5789,7 +5804,9 @@ impl DocumentCore {
         }
         let overlay = std::sync::Arc::new(overlay);
         self.render_normalization.overlay = std::sync::Arc::clone(&overlay);
-        self.layout_engine.set_render_normalization_overlay(overlay);
+        if let Some(engine) = &self.layout_engine {
+            engine.set_render_normalization_overlay(overlay);
+        }
     }
 
     pub(crate) fn refresh_render_normalized_body_paragraph_after_edit(
@@ -7225,7 +7242,9 @@ impl DocumentCore {
         self.page_layer_tree_cache.borrow_mut().clear();
         // [Task #1949] IR 이 바뀌는 재조판 경계에서 셀 단위 레이아웃 캐시(포인터 키)도
         // 함께 비워 다른 IR 의 셀 포인터 재사용으로 인한 오재사용을 방지한다.
-        self.layout_engine.clear_layout_caches();
+        if let Some(engine) = &self.layout_engine {
+            engine.clear_layout_caches();
+        }
     }
 
     /// 캐시된 페이지 렌더 트리를 반환한다 (캐시 미스 시 빌드 후 캐시).
@@ -7405,37 +7424,35 @@ impl DocumentCore {
         use crate::renderer::layout::resolve_numbering_id;
         use crate::renderer::pagination::PageItem;
 
+        let layout_engine = self.legacy_layout_engine()?;
+
         // [#4126/#4128 회귀 가드] 콜드 캐럿 질의의 O(pages) 빌드 폭증 판별용 작업량 카운터.
         crate::diagnostics::perf_counters::record_page_tree_build();
 
-        self.layout_engine
-            .set_show_transparent_borders(self.show_transparent_borders);
-        self.layout_engine.set_clip_enabled(self.clip_enabled);
-        self.layout_engine
-            .set_show_control_codes(self.show_control_codes);
+        layout_engine.set_show_transparent_borders(self.show_transparent_borders);
+        layout_engine.set_clip_enabled(self.clip_enabled);
+        layout_engine.set_show_control_codes(self.show_control_codes);
         // [#2403] 소스분기 파생 일원화 — paginate_pass 와 동일하게 layout_profile
         // 단일 소유 (Issue #1770 규칙 승계). set_layout_profile 의 결합 부수효과
         // (variant → flow spacing_before)는 다음 줄이 종전 순서대로 덮어쓴다.
-        self.layout_engine
-            .set_layout_profile(self.effective_layout_profile());
-        self.layout_engine.set_hwp3_origin_flow_spacing_before(
-            uses_hwp3_origin_flow_spacing_before(&self.document),
-        );
-        self.layout_engine.set_hwpx_page_preview(
+        layout_engine.set_layout_profile(self.effective_layout_profile());
+        layout_engine.set_hwp3_origin_flow_spacing_before(uses_hwp3_origin_flow_spacing_before(
+            &self.document,
+        ));
+        layout_engine.set_hwpx_page_preview(
             self.document
                 .hwpx_aux_entry("Preview/PrvImage.png")
                 .filter(|_| matches!(self.source_format, crate::parser::FileFormat::Hwpx)),
         );
         // 활성 필드 정보를 레이아웃 엔진에 전달 (안내문 숨김용)
-        self.layout_engine
-            .set_active_field(self.active_field.as_ref().map(|af| {
-                (
-                    af.section_idx,
-                    af.para_idx,
-                    af.control_idx,
-                    af.cell_path.clone(),
-                )
-            }));
+        layout_engine.set_active_field(self.active_field.as_ref().map(|af| {
+            (
+                af.section_idx,
+                af.para_idx,
+                af.control_idx,
+                af.cell_path.clone(),
+            )
+        }));
         let (base_page_content, paragraphs, composed) = self.find_page(page_num)?;
         let overridden_page_content =
             if let Some((section_idx, is_header, apply_to)) = header_footer_override {
@@ -7500,7 +7517,7 @@ impl DocumentCore {
 
         // 번호 상태 리셋 후, 이 페이지 이전의 번호 문단을 재계산하여 카운터 복원
         // (이전 구역 + 현재 구역의 이전 페이지 모두 포함하여 구역 간 번호 연속 지원)
-        self.layout_engine.reset_numbering_state();
+        layout_engine.reset_numbering_state();
         let sec_idx = page_content.section_index;
         let sec_page_offset: usize = self
             .pagination
@@ -7521,6 +7538,7 @@ impl DocumentCore {
                         .outline_numbering_id;
                     for pg in &pr.pages {
                         self.replay_numbering_page(
+                            layout_engine,
                             pg,
                             prev_paras,
                             prev_outline_id,
@@ -7535,6 +7553,7 @@ impl DocumentCore {
                 for prev_local in 0..local_idx {
                     if let Some(prev_page) = pr.pages.get(prev_local) {
                         self.replay_numbering_page(
+                            layout_engine,
                             prev_page,
                             paragraphs,
                             outline_num_id,
@@ -7561,13 +7580,12 @@ impl DocumentCore {
             .unwrap_or(paragraphs);
 
         // 머리말/꼬리말 감추기 세트를 레이아웃 엔진에 전달
-        self.layout_engine
-            .set_hidden_header_footer(&self.hidden_header_footer);
+        layout_engine.set_hidden_header_footer(&self.hidden_header_footer);
 
         // 총 쪽수·파일 이름을 레이아웃 엔진에 전달 (머리말/꼬리말 필드 치환용)
         let total_pages: u32 = self.pagination.iter().map(|p| p.pages.len() as u32).sum();
-        self.layout_engine.set_total_pages(total_pages);
-        self.layout_engine.set_file_name(&self.file_name);
+        layout_engine.set_total_pages(total_pages);
+        layout_engine.set_file_name(&self.file_name);
 
         // [Task #2102] 쪽 배경 이미지 채우기는 구역 첫 쪽에만 적용한다.
         // 현재 페이지가 소속 구역의 첫 글로벌 페이지인지 판정하여 엔진에 전달.
@@ -7577,8 +7595,7 @@ impl DocumentCore {
             .and_then(|pr| pr.pages.first())
             .map(|first| first.page_index == page_content.page_index)
             .unwrap_or(true);
-        self.layout_engine
-            .set_current_page_is_section_first(is_section_first_page);
+        layout_engine.set_current_page_is_section_first(is_section_first_page);
 
         // [#5717] 구역정의 "첫 쪽에만 테두리/배경 표시" (flags bit 8/9,
         // HWPX visibility SHOW_FIRST) — 켜진 구역은 첫 쪽 밖에서 억제한다.
@@ -7593,8 +7610,7 @@ impl DocumentCore {
                 )
             })
             .unwrap_or((false, false));
-        self.layout_engine
-            .set_page_border_fill_first_page_only(first_page_border, first_page_fill);
+        layout_engine.set_page_border_fill_first_page_only(first_page_border, first_page_fill);
 
         let wrap_around_paras = self
             .pagination
@@ -7604,18 +7620,14 @@ impl DocumentCore {
 
         // 빈 줄 감추기 문단 집합을 레이아웃 엔진에 전달
         if let Some(pr) = self.pagination.get(sec_idx) {
-            self.layout_engine
-                .set_hidden_empty_paras(&pr.hidden_empty_paras);
+            layout_engine.set_hidden_empty_paras(&pr.hidden_empty_paras);
             // [Task #1755] pre-emit 된 host 문단 → fragment 쪽 host 렌더 억제.
-            self.layout_engine
-                .set_pre_emitted_host_paras(&pr.pre_emitted_host_paras);
+            layout_engine.set_pre_emitted_host_paras(&pr.pre_emitted_host_paras);
             // [#2015] pre-emit host 높이 → layout vert_offset 이중계상 보정.
-            self.layout_engine
-                .set_pre_emitted_host_heights(&pr.pre_emitted_host_heights);
-            self.layout_engine
-                .set_endnote_para_sources(paragraphs.len(), &pr.endnote_para_sources);
+            layout_engine.set_pre_emitted_host_heights(&pr.pre_emitted_host_heights);
+            layout_engine.set_endnote_para_sources(paragraphs.len(), &pr.endnote_para_sources);
             // 섹션 미주 모양의 정규화 여백 전달 → HeightCursor min-gap 및 renderer overflow 판정.
-            self.layout_engine.set_endnote_shape_margins_hu(
+            layout_engine.set_endnote_shape_margins_hu(
                 pr.endnote_separator_above_hu,
                 pr.endnote_between_notes_hu,
                 pr.endnote_separator_below_hu,
@@ -7650,7 +7662,7 @@ impl DocumentCore {
             (&combined_paragraphs, &combined_composed)
         };
 
-        let mut tree = self.layout_engine.build_render_tree(
+        let mut tree = layout_engine.build_render_tree(
             page_content,
             render_paragraphs,
             header_paragraphs,
@@ -7667,7 +7679,7 @@ impl DocumentCore {
         );
         // 확장 바탕쪽 추가 렌더링
         for ext_mp in &extra_mps {
-            self.layout_engine.build_master_page_into(
+            layout_engine.build_master_page_into(
                 &mut tree,
                 Some(*ext_mp),
                 &page_content.layout,
@@ -7688,6 +7700,7 @@ impl DocumentCore {
     /// 한 페이지의 번호 문단을 replay하여 카운터를 전진시킨다.
     fn replay_numbering_page(
         &self,
+        layout_engine: &LayoutEngine,
         page: &crate::renderer::pagination::PageContent,
         paras: &[crate::model::paragraph::Paragraph],
         outline_num_id: u16,
@@ -7721,7 +7734,7 @@ impl DocumentCore {
                                     outline_num_id,
                                 );
                                 if nid > 0 {
-                                    self.layout_engine.advance_numbering(nid, ps.para_level);
+                                    layout_engine.advance_numbering(nid, ps.para_level);
                                 }
                             }
                         }

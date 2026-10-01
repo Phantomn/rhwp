@@ -19022,9 +19022,16 @@ mod row_cut_tests {
                     let table = owner_table(&core);
                     let target = &table.cells[2];
                     let sibling = &table.cells[1];
-                    let target_before = core.layout_engine.cell_units(target, table, &core.styles);
-                    let sibling_before =
-                        core.layout_engine.cell_units(sibling, table, &core.styles);
+                    let target_before = core.legacy_layout_engine().unwrap().cell_units(
+                        target,
+                        table,
+                        &core.styles,
+                    );
+                    let sibling_before = core.legacy_layout_engine().unwrap().cell_units(
+                        sibling,
+                        table,
+                        &core.styles,
+                    );
                     let target_para = &target.paragraphs[5];
                     (
                         table as *const Table as usize,
@@ -19044,13 +19051,17 @@ mod row_cut_tests {
                     )
                 };
                 assert!(
-                    core.layout_engine
+                    core.legacy_layout_engine()
+                        .unwrap()
                         .table_nested_text_flag_cache
                         .borrow()
                         .contains_key(&table_key),
                     "{label}: owner flag must be warmed by cell units"
                 );
-                core.layout_engine.table_nested_text_flag_scan_count.set(0);
+                core.legacy_layout_engine()
+                    .unwrap()
+                    .table_nested_text_flag_scan_count
+                    .set(0);
 
                 core.insert_text_in_cell_native_deferred_pagination(
                     0,
@@ -19098,20 +19109,39 @@ mod row_cut_tests {
                 );
 
                 let membership = {
-                    let cell_cache = core.layout_engine.cell_units_cache.borrow();
-                    let flag_cache = core.layout_engine.table_nested_text_flag_cache.borrow();
+                    let cell_cache = core
+                        .legacy_layout_engine()
+                        .unwrap()
+                        .cell_units_cache
+                        .borrow();
+                    let flag_cache = core
+                        .legacy_layout_engine()
+                        .unwrap()
+                        .table_nested_text_flag_cache
+                        .borrow();
                     (
                         cell_cache.contains_key(&target_key),
                         cell_cache.contains_key(&sibling_key),
                         flag_cache.contains_key(&table_key),
                     )
                 };
-                let target_after = core.layout_engine.cell_units(target, table, &core.styles);
-                let sibling_after = core.layout_engine.cell_units(sibling, table, &core.styles);
+                let target_after =
+                    core.legacy_layout_engine()
+                        .unwrap()
+                        .cell_units(target, table, &core.styles);
+                let sibling_after =
+                    core.legacy_layout_engine()
+                        .unwrap()
+                        .cell_units(sibling, table, &core.styles);
                 let owner_flag_after = core
-                    .layout_engine
+                    .legacy_layout_engine()
+                    .unwrap()
                     .table_has_visible_text_with_nested_table(table);
-                let table_scan_count = core.layout_engine.table_nested_text_flag_scan_count.get();
+                let table_scan_count = core
+                    .legacy_layout_engine()
+                    .unwrap()
+                    .table_nested_text_flag_scan_count
+                    .get();
                 let target_recomputed = !std::sync::Arc::ptr_eq(&target_before, &target_after);
                 let sibling_reused = std::sync::Arc::ptr_eq(&sibling_before, &sibling_after);
                 // [#4167 갱신 이력] 기대값을 "무조건 evict"에서 "units 지문 변화 시에만
@@ -19239,11 +19269,17 @@ mod row_cut_tests {
                 let owner_before = table
                     .cells
                     .iter()
-                    .map(|cell| core.layout_engine.cell_units(cell, table, &core.styles))
+                    .map(|cell| {
+                        core.legacy_layout_engine()
+                            .unwrap()
+                            .cell_units(cell, table, &core.styles)
+                    })
                     .collect::<Vec<_>>();
-                let nested_before =
-                    core.layout_engine
-                        .cell_units(&nested.cells[0], nested, &core.styles);
+                let nested_before = core.legacy_layout_engine().unwrap().cell_units(
+                    &nested.cells[0],
+                    nested,
+                    &core.styles,
+                );
                 (
                     table as *const Table as usize,
                     table
@@ -19258,7 +19294,8 @@ mod row_cut_tests {
                 )
             };
             assert_eq!(
-                core.layout_engine
+                core.legacy_layout_engine()
+                    .unwrap()
                     .table_nested_text_flag_cache
                     .borrow()
                     .get(&owner_table_key)
@@ -19266,7 +19303,10 @@ mod row_cut_tests {
                 Some(false),
                 "{label}: cached owner flag before edit"
             );
-            core.layout_engine.table_nested_text_flag_scan_count.set(0);
+            core.legacy_layout_engine()
+                .unwrap()
+                .table_nested_text_flag_scan_count
+                .set(0);
 
             core.insert_text_in_cell_native_deferred_pagination(
                 0, 0, 2, host_cell, host_para, 0, "x",
@@ -19314,8 +19354,16 @@ mod row_cut_tests {
             );
 
             let membership = {
-                let cell_cache = core.layout_engine.cell_units_cache.borrow();
-                let flag_cache = core.layout_engine.table_nested_text_flag_cache.borrow();
+                let cell_cache = core
+                    .legacy_layout_engine()
+                    .unwrap()
+                    .cell_units_cache
+                    .borrow();
+                let flag_cache = core
+                    .legacy_layout_engine()
+                    .unwrap()
+                    .table_nested_text_flag_cache
+                    .borrow();
                 (
                     owner_cell_keys
                         .iter()
@@ -19328,12 +19376,22 @@ mod row_cut_tests {
             let owner_after = table
                 .cells
                 .iter()
-                .map(|cell| core.layout_engine.cell_units(cell, table, &core.styles))
+                .map(|cell| {
+                    core.legacy_layout_engine()
+                        .unwrap()
+                        .cell_units(cell, table, &core.styles)
+                })
                 .collect::<Vec<_>>();
-            let nested_after =
-                core.layout_engine
-                    .cell_units(&nested.cells[0], nested, &core.styles);
-            let table_scan_count = core.layout_engine.table_nested_text_flag_scan_count.get();
+            let nested_after = core.legacy_layout_engine().unwrap().cell_units(
+                &nested.cells[0],
+                nested,
+                &core.styles,
+            );
+            let table_scan_count = core
+                .legacy_layout_engine()
+                .unwrap()
+                .table_nested_text_flag_scan_count
+                .get();
             let owner_recomputed = owner_before
                 .iter()
                 .zip(&owner_after)

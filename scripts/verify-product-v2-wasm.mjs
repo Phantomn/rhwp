@@ -39,6 +39,8 @@ const files = new Map([
   ['/rhwp_bg.wasm', ['application/wasm', readFileSync(join(pkg, 'rhwp_bg.wasm'))]],
   ['/input', ['application/octet-stream', readFileSync(input)]],
 ]);
+const fontSource = process.argv.includes('--font-source') ? option('--font-source') : null;
+if (fontSource) files.set('/exact-font', ['application/octet-stream', readFileSync(fontSource)]);
 const server = http.createServer((request, response) => {
   const file = files.get(request.url);
   if (!file) { response.writeHead(404).end(); return; }
@@ -182,12 +184,40 @@ try {
     await page.screenshot({ path: join(out, 'browser', 'edited-canvas.png') });
     writeFileSync(join(out, 'editing.json'), JSON.stringify(editing, null, 2));
   }
+  let fontRegistration;
+  if (fontSource) {
+    fontRegistration = await page.evaluate(async () => {
+      const { HwpDocument } = await import('/rhwp.js');
+      const input = new Uint8Array(await (await fetch('/input')).arrayBuffer());
+      const font = new Uint8Array(await (await fetch('/exact-font')).arrayBuffer());
+      const check = (ok, message) => { if (!ok) throw new Error(message); };
+      const records = [];
+      for (const engine of ['v2', 'legacy']) {
+        const doc = HwpDocument.openWithTypesetter(input, engine);
+        try {
+          const register = () => JSON.parse(doc.registerExactFontSource(0, 1, font, 0));
+          const first = register();
+          check(first.status === 'registered' && first.registry.slotCount === 1, 'font registration owner');
+          const before = Array.from({ length: doc.pageCount() }, (_, i) => doc.renderPageSvg(i));
+          const repeated = register();
+          check(repeated.status === 'already-registered', 'font registration idempotence');
+          check(JSON.stringify(first.registry) === JSON.stringify(repeated.registry), 'stable font generation');
+          const after = Array.from({ length: doc.pageCount() }, (_, i) => doc.renderPageSvg(i));
+          check(JSON.stringify(before) === JSON.stringify(after), 'font registration must preserve final coordinates');
+          records.push({ engine, registry: first.registry, pages: before.length });
+        } finally { doc.free(); }
+      }
+      return records;
+    });
+  }
   const sha = data => createHash('sha256').update(data).digest('hex');
   writeFileSync(join(out, 'browser-manifest.json'), JSON.stringify({
     result: 'PASS', route: 'HwpDocument.openWithTypesetter(v2) -> product Canvas/SVG',
     browser: await browser.version(), input_sha256: sha(readFileSync(input)),
     wasm_sha256: sha(files.get('/rhwp_bg.wasm')[1]), js_sha256: sha(files.get('/rhwp.js')[1]), pages: result.pages.length,
     default_v2: process.argv.includes('--default-v2'),
+    font_registration: fontRegistration,
+    font_sha256: fontSource ? sha(readFileSync(fontSource)) : undefined,
     scope: process.argv.includes('--default-v2')
       ? 'W3 default constructor/empty/password APIs and product output; Studio UI evidence is separate'
       : editing ? 'W2 product editing APIs; Studio default/history UI remain W3' : 'W1 reading/output only; editing and default switch are W2/W3', editing,

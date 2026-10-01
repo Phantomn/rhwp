@@ -1989,13 +1989,15 @@ impl DocumentCore {
                 [control_idx];
             if let Control::Table(table) = control {
                 if let Some(edited_cell) = table.cells.get(cell_idx) {
-                    self.layout_engine.invalidate_cell_units_after_text_edit(
-                        edited_cell,
-                        table,
-                        local_contribution_before,
-                        local_contribution_after,
-                        units_fp_unchanged,
-                    );
+                    if let Some(engine) = &self.layout_engine {
+                        engine.invalidate_cell_units_after_text_edit(
+                            edited_cell,
+                            table,
+                            local_contribution_before,
+                            local_contribution_after,
+                            units_fp_unchanged,
+                        );
+                    }
                 }
             }
         }
@@ -2326,13 +2328,15 @@ impl DocumentCore {
                 [control_idx];
             if let Control::Table(table) = control {
                 if let Some(edited_cell) = table.cells.get(cell_idx) {
-                    self.layout_engine.invalidate_cell_units_after_text_edit(
-                        edited_cell,
-                        table,
-                        local_contribution_before,
-                        local_contribution_after,
-                        units_fp_unchanged,
-                    );
+                    if let Some(engine) = &self.layout_engine {
+                        engine.invalidate_cell_units_after_text_edit(
+                            edited_cell,
+                            table,
+                            local_contribution_before,
+                            local_contribution_after,
+                            units_fp_unchanged,
+                        );
+                    }
                 }
             }
         }
@@ -5565,7 +5569,7 @@ impl DocumentCore {
                                 && *control_index == control_idx =>
                             {
                                 contains |= self
-                                    .layout_engine
+                                    .legacy_layout_engine()?
                                     .partial_table_page_contains_cell_position(
                                         table,
                                         cell,
