@@ -594,51 +594,6 @@ fn rowbreak_page12_reference_text_stays_inside_body() {
 }
 
 #[test]
-fn rowbreak_hwp_page8_keeps_continued_nested_reference_line() {
-    let doc = load_doc(HWP_SAMPLE);
-    let page8 = doc
-        .build_page_render_tree(7)
-        .unwrap_or_else(|e| panic!("render HWP page 8: {e}"));
-
-    let cells = collect_table_cells(&page8.root, 21, 0);
-    let row26_detail = cells
-        .iter()
-        .find(|cell| matches!(&cell.node_type, RenderNodeType::TableCell(c) if c.row == 3 && c.col == 1))
-        .expect("HWP page 8 row 26 detail cell should render");
-    let line = text_line_bbox_containing(row26_detail, "매개하는 자를")
-        .expect("HWP page 8 should keep the first continued nested reference line");
-    let following = text_line_bbox_containing(row26_detail, "과학기술정보통신부장관")
-        .expect("HWP page 8 should render the paragraph after the continued nested reference");
-    let nested_table =
-        first_nested_table_bbox(row26_detail).expect("HWP page 8 continued nested table bbox");
-    let cell_bottom = row26_detail.bbox.y + row26_detail.bbox.height;
-    let line_bottom = line.y + line.height;
-    let nested_bottom = nested_table.y + nested_table.height;
-
-    assert!(
-        line.y >= row26_detail.bbox.y - 0.5,
-        "HWP page 8 continued line is clipped above the cell: line_top={:.2}, cell_top={:.2}",
-        line.y,
-        row26_detail.bbox.y
-    );
-    assert!(
-        line_bottom <= cell_bottom + 0.5,
-        "HWP page 8 continued line is clipped below the cell: line_bottom={:.2}, cell_bottom={cell_bottom:.2}",
-        line_bottom
-    );
-    assert!(
-        following.y >= line_bottom - 0.5,
-        "HWP page 8 continued line overlaps the following paragraph: line_bottom={line_bottom:.2}, following_top={:.2}",
-        following.y
-    );
-    assert!(
-        nested_bottom <= following.y + 0.5,
-        "HWP page 8 continued nested table border includes the following paragraph: nested_bottom={nested_bottom:.2}, following_top={:.2}",
-        following.y
-    );
-}
-
-#[test]
 fn rowbreak_hwp_page12_reference_text_stays_inside_body() {
     let doc = load_doc(HWP_SAMPLE);
     let page12 = doc

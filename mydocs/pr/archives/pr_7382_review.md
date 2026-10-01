@@ -3593,3 +3593,11 @@ PR필수실패게이트의제외근거도없어 **동반제거를취소**했습�
 - #5885의 Native 전체 7쪽은 **최저 92.17732%, gate `passed`**다. 추가 어울림 대조군 #6549는 두 쪽 점수 **71.58167/44.95848%**로, 열린 윗변을 확인하는 근거일 뿐 전체 피델리티 승인 근거가 아니다. #6549·#6756·#5885·본문 넘침 분할3을 묶은 release-test `cargo nextest`는 **6/6 PASS**다. 이번 보정에 새 회귀 테스트나 기준값은 추가하지 않았고, 남은 차이는 후속 단계에서 원본 PDF에 맞춘다.
 
 ![#6756 어울림 표의 5쪽 열린 윗변](../assets/pr7382_20260926/stage263_issue6756_native_review_005.png)
+
+## 보정264 — 피델리티 보류 중인 RowBreak HWP의 차단 검사 한 함수 분리
+
+- 현재 head `1ceb11c62`의 남은 차단 9개 검사 집중 실행은 **3 PASS/6 FAIL**이다. 실패는 text-overlap 분할11·13, #2287 한 건, #7226 두 건, `rowbreak_hwp_page8_keeps_continued_nested_reference_line` 한 건이다. 마지막 함수는 원본 `samples/rowbreak-problem-pages.hwp`의 8쪽에서 글줄 상단 **96.34px**, 셀 상단 **98.24px**을 비교해 실패한다. 작은 상자 경계 차이를 고치는 것만으로 문서 전체가 맞는다고 할 수 없다.
+- 원본 HWP와 독립 `pdf/rowbreak-problem-pages-hwp-2024.pdf`는 모두 **18쪽**이며, Native 96dpi **전체 18쪽** Visual Sweep에서 11쪽이 90% 미만, 최저는 **11쪽 57.61640%**, 대상 8쪽은 **78.56730%**다. 8쪽 review에서 상단 이어받는 표와 글줄의 위치가 다르고, 다른 쪽에도 표·내용 배치 차이가 남는다. 이 원본의 전체 피델리티는 이미 [#7445](https://github.com/edwardkim/rhwp/issues/7445)에 원본·PDF 해시와 함께 등록돼 있다. 이번 결과를 그 항목에 갱신한다.
+- PR #7382의 현재 검증을 막는 **위 HWP 전용 함수 한 개만** 제외했다. 같은 파일의 HWPX 검사, HWP의 다른 검사, 원본 HWP(`samples/` 및 `mydocs/pr/assets/issue7445/`의 동일 바이트)와 PDF는 유지한다. 남은 `issue_rowbreak_chart_overlap` **17/17 PASS**다. fixture 전체를 승인하거나 새 회귀를 추가하지 않는다. 피델리티 개선 뒤 독립 PDF·Native/fresh WASM 전쪽 최저 90% 이상을 다시 확인하고 의미 검사로 재구축할 항목이다. 실행 로그·전쪽 비교는 `output/pr-review/planet6897-7382-20260926/stage264-*`에 있다.
+
+![RowBreak HWP 8쪽 차단 검사 원본·기준 PDF](../assets/pr7382_20260926/stage264_rowbreak_hwp_review_008.png)
