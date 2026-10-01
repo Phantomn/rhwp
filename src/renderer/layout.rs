@@ -5364,6 +5364,14 @@ impl LayoutEngine {
                 if !in_run.is_empty() {
                     in_run.sort_unstable_by_key(|(rel, _)| *rel);
                     let chars: Vec<char> = line.runs[run_idx].text.chars().collect();
+                    // 번호 자리만 든 런은 표시 숫자의 언어별 글꼴을 사용한다. 원본
+                    // 공백의 한글 슬롯을 유지하면 영문 슬롯에 저장된 숫자 글꼴이
+                    // 사라지고, 글상자의 오른쪽 정렬 폭까지 달라진다.
+                    let replacement_lang =
+                        (chars.len() == 1 && in_run.len() == 1 && in_run[0].0 == 0)
+                            .then(|| in_run[0].1.chars().next())
+                            .flatten()
+                            .map(crate::renderer::style_resolver::detect_lang_category);
                     let mut display = String::new();
                     let mut cursor = 0usize;
                     for (rel, rep) in in_run {
@@ -5381,6 +5389,9 @@ impl LayoutEngine {
                     // `line.runs[run_idx].text` 는 marker 를 포함한 원 모델 문자열이다.
                     // 바꾸지 않아야 char_start/offset 이 표시 자릿수에 끌려가지 않는다.
                     line.runs[run_idx].display_text = Some(display);
+                    if let Some(lang) = replacement_lang {
+                        line.runs[run_idx].lang_index = lang;
+                    }
                     applied = true;
                 }
                 run_start = run_end;
