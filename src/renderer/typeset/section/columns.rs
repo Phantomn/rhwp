@@ -146,8 +146,19 @@ impl TypesetEngine {
             .controls
             .iter()
             .any(|c| matches!(c, Control::ColumnDef(cd) if cd.column_count.max(1) > 1));
+        let title_exit_pad = para_idx.checked_sub(1).and_then(|previous| {
+            crate::renderer::solo_title_exit_pad_px(
+                &paragraphs[previous],
+                &paragraphs[para_idx],
+                st.current_zone_design_spacing_px,
+                new_ds,
+                self.dpi,
+            )
+        });
         let solo_zone_pad = if leaving_is_header_band {
             0.0
+        } else if let Some(title_exit_pad) = title_exit_pad {
+            title_exit_pad
         } else if column_break_new_band && st.col_count > 1 && new_band_is_multicol {
             crate::renderer::multicol_band_break_pad_px(self.dpi)
         } else if entering_solo_zero || leaving_solo_zero || column_break_new_band {

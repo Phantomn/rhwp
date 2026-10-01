@@ -6632,8 +6632,26 @@ impl LayoutEngine {
                     .map(|p| p.column_type == crate::model::paragraph::ColumnBreakType::Column)
                     .unwrap_or(false);
                 let new_band_is_multicol = zone_layout.column_areas.len() > 1;
+                let title_exit_pad = col_content_idx.checked_sub(1).and_then(|previous| {
+                    let previous_para = page_content.column_contents[previous]
+                        .items
+                        .last()
+                        .and_then(|item| match item {
+                            PageItem::FullParagraph { para_index } => paragraphs.get(*para_index),
+                            _ => None,
+                        })?;
+                    super::solo_title_exit_pad_px(
+                        previous_para,
+                        paragraphs.get(new_zone_first_para?)?,
+                        prev_zone_design_px,
+                        new_zone_design,
+                        self.dpi,
+                    )
+                });
                 let solo_zone_pad = if prev_zone_was_header_band {
                     0.0
+                } else if let Some(title_exit_pad) = title_exit_pad {
+                    title_exit_pad
                 } else if column_break_new_band && prev_zone_was_multi && new_band_is_multicol {
                     super::multicol_band_break_pad_px(self.dpi)
                 } else if new_zone_is_solo_zero || prev_zone_is_solo_zero || column_break_new_band {

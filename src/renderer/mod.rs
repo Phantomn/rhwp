@@ -1876,7 +1876,46 @@ pub(crate) fn multicol_band_break_pad_px(dpi: f64) -> f64 {
     hwpunit_to_px(1500, dpi)
 }
 
-/// 같은 저장 줄을 끝으로 갖는 다단에서 빈 마지막 문단의 추가 줄간격 중 뒤쪽 절반.
+/// 저장 한 줄 소제목에서 다단 본문으로 넘어갈 때 본문 두 줄 진행을 확보한다.
+/// 제목에서 이미 소비한 줄 상자와 별도로 더할 디자인 간격은 예약에서 제외한다.
+pub(crate) fn solo_title_exit_pad_px(
+    title: &crate::model::paragraph::Paragraph,
+    body: &crate::model::paragraph::Paragraph,
+    title_design_px: f64,
+    body_design_px: f64,
+    dpi: f64,
+) -> Option<f64> {
+    use crate::model::control::Control;
+    if title.line_segs.len() != 1
+        || !title.text.trim_start().starts_with('<')
+        || !title.controls.iter().any(|control| {
+            matches!(control, Control::ColumnDef(cd) if cd.column_count.max(1) <= 1 && cd.spacing <= 283)
+        })
+        || !body.controls.iter().any(|control| {
+            matches!(control, Control::ColumnDef(cd) if cd.column_count.max(1) > 1)
+        })
+    {
+        return None;
+    }
+    let title_line = title.line_segs.first()?;
+    let body_line = body.line_segs.first()?;
+    let title_advance = title_line
+        .line_height
+        .saturating_add(title_line.line_spacing);
+    let body_advance = body_line.line_height.saturating_add(body_line.line_spacing);
+    if title_advance <= 0 || body_advance <= 0 {
+        return None;
+    }
+    Some(
+        (2.0 * hwpunit_to_px(body_advance, dpi)
+            - hwpunit_to_px(title_advance, dpi)
+            - title_design_px / 2.0
+            - body_design_px / 2.0)
+            .max(0.0),
+    )
+}
+
+/// 같은 저장 줄을 끝으로 갖는 다단에서 빈 마지막 문단의 추가 줄간격.
 /// 글자가 있는 다른 단의 줄 상자는 유지하고, 빈 단의 뒤쪽 여백만 다음 구역에서 제외한다.
 pub(crate) fn parallel_blank_tail_spacing_excess_px(
     columns: &[pagination::ColumnContent],
@@ -1927,7 +1966,7 @@ pub(crate) fn parallel_blank_tail_spacing_excess_px(
         .max()
         .unwrap_or(0)
         .max(0);
-    hwpunit_to_px(excess_hu, dpi) / 2.0
+    hwpunit_to_px(excess_hu, dpi)
 }
 
 /// 한 줄 표 헤더 뒤의 예약 높이. 아래 바깥여백은 저장 줄에서 이미 소비했다.
