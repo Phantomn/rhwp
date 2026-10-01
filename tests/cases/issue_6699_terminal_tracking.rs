@@ -48,10 +48,10 @@ fn logo_and_first_glyph_match_existing_hancom_pdf() {
         (text_x - 250.679992676 * scale).abs() < 1.0,
         "첫 글자 x={text_x}"
     );
-    assert!(
-        (text_x - logo_x - logo_width - 16.0).abs() < 0.1,
-        "원본 공백 유지"
-    );
+    // #7353 메인테이너 시각 승인: 폰트 차이는 허용한다. 16px는 규칙이
+    // 아닌 이전 출력값이었다. 정확한 공백 advance/연속 배치는
+    // first_page_inline_pictures_follow_their_text_line의 replay 계약으로 보호한다.
+    assert!(text_x > logo_x + logo_width, "그림 뒤 원본 공백 유지");
 }
 
 #[test]

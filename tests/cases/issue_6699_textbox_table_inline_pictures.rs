@@ -4,6 +4,7 @@
 use rhwp::document_core::DocumentCore;
 use rhwp::model::control::Control;
 use rhwp::model::style::Alignment;
+use rhwp::renderer::layout::{EmbeddedTextMeasurer, TextMeasurer};
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 
 fn document() -> DocumentCore {
@@ -46,21 +47,34 @@ fn first_page_inline_pictures_follow_their_text_line() {
     let text = nodes.iter().find(|node| {
         matches!(&node.node_type, RenderNodeType::TextRun(run) if run.text.starts_with("충남중부"))
     }).expect("text after logo");
-    // Preserve the existing text origin instead of shifting the whole centered
-    // table to hide the remaining font-metric difference from the PDF.
-    //
-    // [#7254] 334.40 -> 334.73. 배치 run 폭의 정수 반올림을 걷어내면서 이 줄의 앞선
-    // 내용이 0.33px 오른쪽으로 갔다. 한/글 정본(pdf/table-in-tbox-hwp-2020.pdf)의
-    // 같은 글자 origin 은 334.24px 이므로 이 문서에서는 오차가 +0.16 -> +0.49px 로
-    // 늘어난다 — 반올림이 글꼴 메트릭 차를 반대부호로 상쇄하고 있던 자리다. 그 잔차는
-    // 메트릭 축(#6389)이고, 여기서 반올림을 되살려 가리지 않는다. 아래 공백 한 칸
-    // 간격 계약은 그대로 유지된다.
-    assert!((text.bbox.x - 334.73).abs() < 0.1, "text x={}", text.bbox.x);
+    // #7353: 2026-10-01 메인테이너 시각 승인(폰트 차이 허용).
+    // 과거 출력의 x=334.73/공백=15.97 대신 원문 공백의 독립 replay와
+    // 그림 → 공백 → 글자 연속 배치를 보호한다. PDF 원점 계약은
+    // issue_6699_terminal_tracking에서 별도로 유지한다.
     let logo = nodes.iter().find(|node| {
         matches!(&node.node_type, RenderNodeType::Image(image) if image.bin_data_id == 8)
     }).unwrap();
-    let gap = text.bbox.x - logo.bbox.x - logo.bbox.width;
-    assert!((gap - 15.97).abs() < 0.1, "single source space: gap={gap}");
+    let line = nodes
+        .iter()
+        .find(|node| node.children.iter().any(|child| std::ptr::eq(child, *text)))
+        .expect("text owns a line");
+    let text_index = line
+        .children
+        .iter()
+        .position(|child| std::ptr::eq(child, *text))
+        .unwrap();
+    assert!(text_index > 0, "source space precedes text");
+    let space = &line.children[text_index - 1];
+    let RenderNodeType::TextRun(run) = &space.node_type else {
+        panic!("source space must remain a text run");
+    };
+    assert_eq!(run.text, " ");
+    let positions = EmbeddedTextMeasurer.compute_char_positions(&run.text, &run.style);
+    let advance = *positions.last().expect("space replay advance");
+    assert!(advance > 0.0);
+    assert!((space.bbox.x - logo.bbox.x - logo.bbox.width).abs() < 1e-7);
+    assert!((space.bbox.width - advance).abs() < 1e-7);
+    assert!((text.bbox.x - space.bbox.x - advance).abs() < 1e-7);
 }
 
 #[test]

@@ -12423,3 +12423,111 @@ detached worktree `/tmp/rhwp-090-width-odtNKR`에서 집중 실행했다. 고정
 실험 종료 후 새로 만든 임시 worktree만 제거해 약 4.4GiB를 회수했다(여유 공간 276GiB).
 기존 두 worktree와 WIP는 보존했다. 실험은 기록한 head·진단 패치·harness로 재구성 가능하다.
 고정 target의 진단 빌드는 출시 산출물이 아니며 다음 제품 검증은 정상 source에서 빌드한다.
+
+#### 2026-10-01 — 실패 계약의 메인테이너 시각 재판정 준비
+
+작업지시자는 기존 테스트 충족을 위한 규칙 없는 상수 조정을 지적하고, 실패 사례를 직접
+시각 판정한 뒤 성공 여부를 정정하도록 지시했다. 이번 작업은 판정 자료 준비이며 제품 코드,
+assertion, golden, hash, ignore는 수정하지 않았다. 기존 8건의 실패 상태도 아직 유지한다.
+
+판정 진입점: [로컬 비교 화면](../../output/7353/closeout/maintainer-visual/index.html).
+원본·PDF 링크, Native/WASM review·compare·standalone overlay, 기존 golden/actual 비교,
+대상 영역과 판정 메모를 한 화면에 모았다. 판정은 전부 `미판정`으로 시작하며 브라우저의
+선택은 자동으로 테스트에 반영되지 않는다. JSON 내려받기로 판정 범위와 이유를 보존할 수 있다.
+
+| 실패 묶음 | 원본 | 화면 쪽 | 확인 범위 |
+| --- | --- | --- | --- |
+| #6699 2건 | `samples/table-in-tbox.hwp` | 1 | 하단 로고 뒤 공백·첫 글자·가운데 정렬. 동일 페이지 좌표 확대도 제공 |
+| form-002 SVG | `samples/hwpx/form-002.hwpx` | 1 | 셀 본문 정렬·줄바꿈·외곽과 앞뒤 내용 |
+| #157 SVG | `samples/hwpx/issue_157.hwpx` | 2 | 자리차지 표·위임장·본문 간격과 겹침 |
+| #677 SVG | `samples/복학원서.hwp` | 1 | 접수증·점선·가운데 정렬·인라인 표 |
+| #617 SVG | `samples/exam_kor.hwp` | 6 | 16번 보기 셀 여백과 줄 구성. 테스트의 page5는 0-based |
+| #4961 hash | `samples/143E433F503322BD33.hwp` | 1 | 본문 양쪽 정렬. 아래 기준 출력 제한에 따라 원본 직접 판정 필요 |
+
+검증한 source head는 `06cf3c7be`다. 정상 checkout에서
+`CARGO_BUILD_JOBS=2 cargo build --locked --bin rhwp --target-dir /home/edward/mygithub/rhwp/target/pr-review`
+를 실행해 성공했다. `scripts/visual_sweep.py`로 위 6개 영향 페이지를 Native/WASM 각각
+120dpi로 새 캡처했으며 12회 모두 exit 0이다. 전체 회귀나 전체 페이지 피델리티 검증은 아니다.
+WASM은 build head `1f28344b673b66911d14e0c1f3d8e35444b8a308`의 기존 pkg를 재사용했다.
+현재 head까지 `src/`, `crates/`, `Cargo.toml`, `Cargo.lock` 차이가 없고 JS/WASM 해시가 기존
+검증 기록과 같음을 확인했다. 따라서 새 캡처이지 fresh WASM 재빌드라고 보고하지 않는다.
+
+**경로 구분:** 이번 출력은 실패 테스트와 같은 기존 전체 문서 `HwpDocument` 경로다.
+`HostedSectionV2`가 이 6개 입력을 거부한 기존 결과는 유효하며, V2 fallback이나 수용 조건
+변경은 하지 않았다. 여기서의 통과는 V2 전체 문서 지원 완료·Canvas·편집/저장 통과가 아니다.
+
+Native/WASM 페이지 PNG는 6건 모두 byte-identical했다. 대표 review들을 직접 열어 확인했다.
+이는 경로 간 출력 일치일 뿐 한컴 피델리티 통과가 아니다. #6699 굵기, form-002 본문 위치,
+#677 상단 로고·영문 줄 등 보이는 차이는 화면에 남겼다. 이를 자동으로 폰트 문제나 기존 차이로
+면책하지 않고 작업지시자의 범위별 판정을 기다린다.
+
+**#4961 제한:** 보유 `pdf/hwpx/143E433F503322BD33.pdf`는 HWPX 대응 출력이다. 같은 상공신문
+내용은 확인했지만 차트 형상과 단 흐름에 큰 차이가 있어 해당 HWP의 확정 정답지로 사용할 수
+없다. 화면에는 참고 비교라고 명시했으며 원본 HWP를 한컴에서 직접 판정하거나 같은 HWP에서
+생성한 정상 PDF가 필요하다. 시각 통과만으로 폰트 trace의 선택·provenance 계약을 대체하지 않는다.
+
+**#3528 분리:** `samples/issue1891_external_bindata_link.hwpx`의 HWP5 저장은
+`breakCellSeparateLine` 미지원으로 거부되어 결과 파일이 없다. 기존 오류 로그를 연결했으며,
+원본의 시각 통과로 저장 후 캡션 보존을 통과시킬 수 없다. 지원 범위/직렬화 계약 판단으로 남긴다.
+
+증적은 `output/7353/closeout/maintainer-visual/`의 `manifest.json`(head·입력/PDF·binary·pkg
+해시와 실행 명령), 각 실행 로그와 `snapshots/manifest.json`에 있다. snapshot 4쌍은 보존한
+`svg-mismatches.tar.gz`에서 추출해 같은 Chrome webfont 정책으로 raster화했으며 정답지가
+아니라 이전 rhwp 출력과의 변경점 비교로 표시했다. 브라우저에서 이미지 23개 로딩과 링크 존재,
+6개 판정의 `미판정` 초기 상태를 확인했다(`browser-check.json`).
+
+메인테이너 판정 뒤 승인된 영역·허용 차이·규칙을 근거로 계약을 수정한다. 현재 관측 좌표로
+상수만 치환하거나, 시각 판정을 받기 전에 실패를 PASS/ignore로 바꾸지 않는다.
+
+#### 2026-10-01 — 메인테이너 시각 판정 접수 및 #3528 확인 파일
+
+작업지시자가 위 6개 문서 모두 시각 통과로 판정했다. 이는 가로 배치 관련 자동 실패 7건의
+시각 수용 근거이며 자동 테스트 실행 결과가 PASS로 바뀌었다는 뜻은 아니다. 테스트 계약의
+정정 시 아래 허용 범위를 연결하며, 렌더러를 기존 상수에 맞추는 보정은 하지 않는다.
+
+| 대상 | 판정 | 메인테이너 허용 사유 |
+| --- | --- | --- |
+| #6699 1쪽 (2개 검사) | 통과 | 폰트의 차이 |
+| form-002 1쪽 | 통과 | 사각형 입력 박스와 폰트 차이. 이 정도 조판 차이는 허용 |
+| #157 2쪽 | 통과 | 이 정도 조판 차이는 허용 |
+| #677 1쪽 | 통과 | 이 정도 조판 차이는 허용 |
+| #617 6쪽 | 통과 | 이 정도 조판 차이는 허용 |
+| #4961 1쪽 | 통과 | OLE가 다음 단으로 이동해 생긴 빈 공간을 한컴은 후속 텍스트로 일부 채우지만, rhwp는 비워 둠. 이전 legacy에서도 수용한 차이 |
+
+판정 원문은 `output/7353/closeout/maintainer-visual/maintainer-decisions.json`과 비교 화면에
+반영했다. #4961 참고 PDF의 출처 한계는 유지하되, 이를 이유로 메인테이너가 수용한 조판을
+반복 보류하지 않는다. V2 admission, Canvas, 편집/저장이나 trace의 비시각 의미 계약을 이번
+시각 승인에 포함하지 않는다. 아직 Rust/test/golden/hash/ignore 변경은 없다.
+
+#3528은 생성 파일을 한컴편집기로 직접 열면서 해결하는 방식으로 진행하도록 지시받았다.
+현재 HWP5 변환은 여전히 `breakCellSeparateLine` 미지원으로 출력 전 거부된다. 이 속성을
+몰래 버리거나 거부 분기를 제거하지 않았다. 대신 속성을 표현할 수 있는 HWPX 재직렬화로
+한컴 확인용 산출물을 준비했다. **HWP5 실패 테스트의 성공 산출물이 아니다.**
+
+- 원본: `samples/issue1891_external_bindata_link.hwpx` (변경 없음).
+- 생성본: [issue3528-rhwp-resaved.hwpx](../../output/7353/closeout/maintainer-visual/issue3528-rhwp-resaved.hwpx).
+- 명령: `/home/edward/mygithub/rhwp/target/pr-review/debug/rhwp export-hwpx samples/issue1891_external_bindata_link.hwpx output/7353/closeout/maintainer-visual/issue3528-rhwp-resaved.hwpx --verify`.
+- 실제 파일 175,969 bytes 생성. ZIP 무결성 검사 통과, `breakCellSeparateLine="1"` 보존 확인.
+- `--verify` **exit 3**: section0 문단176/444에서 `pageNumPos` 2개가 1개로 줄어든 IR 차이 2건.
+  자체 재파싱은 실행됐지만 저장 동등성이나 한컴 정상 열기 통과로 보고하지 않는다.
+- 로그: 같은 디렉터리 `issue3528-export.stdout`, `issue3528-export.stderr`.
+
+#### 2026-10-01 — 승인된 6개 문서의 계약 변경
+
+메인테이너의 위 시각 승인 및 계약 변경 지시에 따라 렌더러 수정 없이 반영했다.
+form-002/157/677/617 SVG 4개만 현재 승인 출력으로 갱신했다. #6699는 PDF 원점
+허용오차를 유지하면서, 과거 x/공백 폭 상수를 원문 공백의 메트릭 replay와
+그림→공백→텍스트의 연속 배치 관계로 교체했다. 내부 tracking 7개 간격 검사도 유지했다.
+#4961은 전체 advance를 포함하는 고정 해시를 제거하고 각 fixture 반복 실행 동일성,
+글꼴 선택/누락/대체 계보, HWP/HWPX 동등성 검사를 유지했다. missing-face 프로필도
+동일 계약을 적용하며 이 문서의 새로운 시각 승인을 주장하지 않는다.
+
+검증은 공유 target/pr-review에서 파생 suite 006/020/025/011의 해당 모듈만 실행:
+Native 7+2+6+8=23 PASS. SVG 갱신 후 UPDATE_GOLDEN 없이 다시 통과했다.
+`node --experimental-strip-types --test scripts/tests/font_decision_trace_e2e.test.mjs`도 통과.
+로그는 `output/7353/closeout/maintainer-visual/approved-*.log`에 보존했다.
+기존 WASM은 렌더러 변경이 없는 이 계약 검증에 재사용했으며 fresh build로 표기하지 않는다.
+전체 회귀 완료 주장이 아니고, 다음 범위는 #3528 HWP5 속성 저장 구현이다.
+
+후속은 생성 HWPX의 한컴 열기·캡션/내부 표·쪽번호 확인 및 HWP5 미지원 속성의 저장 계약
+해결이다. 시각 승인 6건과 저장 문제의 미해결 상태를 분리해 유지한다.
