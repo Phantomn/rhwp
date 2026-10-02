@@ -11723,6 +11723,9 @@ impl LayoutEngine {
             }
             let mut table_visual_shift = 0.0;
             let mut table_y_end = y_offset;
+            // 표가 실제로 그려진 시작 y. 글앞/글뒤 표는 종이층에 그려져 `table_y_end` 가
+            // 흐름을 따라오지 않으므로, 저장 줄 없는 TAC 전진이 하단을 이 값으로 잡는다.
+            let mut table_paint_top = y_offset;
             if renders_outside_body {
                 let tmp_id = tree.next_id();
                 let mut tmp_node = RenderNode::new(
@@ -12191,6 +12194,7 @@ impl LayoutEngine {
                     );
                 }
                 table_y_end = table_visual_end;
+                table_paint_top = table_y_start;
                 // [Task #1841] 자리차지(TopAndBottom) 표 아래에서 host 본문이 재개될 때
                 // 표의 바깥 여백 bottom 을 띄운다 (한글 실측: 표 하단→첫 줄 gap =
                 // rhwp 10.2pt + outer_bottom 8.5pt = 한글 18.7pt, 결재문서 헤더 표
@@ -12608,6 +12612,23 @@ impl LayoutEngine {
                                     }
                                 }
                             }
+                        }
+                    } else if matches!(
+                        t.common.text_wrap,
+                        crate::model::shape::TextWrap::InFrontOfText
+                            | crate::model::shape::TextWrap::BehindText
+                    ) {
+                        // 저장 줄이 없는 host 는 앵커 줄 높이 증거가 없다. 글자처럼 취급한
+                        // 표는 그 자체가 앵커 줄이므로(#539) 표 하단 + 바깥여백 하까지 전진한다 —
+                        // typeset 은 같은 줄을 조판 줄 높이로 예약한다. 글앞/글뒤 표는 종이층에
+                        // 그려져 `table_y_end` 가 시작 y 에 머무르므로 측정 높이로 하단을 잡는다.
+                        // 이 전진이 없으면 후속 문단이 표 위로 겹친다.
+                        // ls 는 이후 TAC seg handling 이 후가산한다.
+                        let anchor_line_end = table_paint_top
+                            + table_visual_height
+                            + hwpunit_to_px(t.outer_margin_bottom as i32, self.dpi);
+                        if anchor_line_end > y_offset {
+                            y_offset = anchor_line_end;
                         }
                     }
                 }
