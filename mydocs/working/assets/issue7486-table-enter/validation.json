@@ -237,5 +237,28 @@
       "bytes": 164,
       "sha256": "888e36110d95d3e030cb550c68ce509614b6865ab466222d207b01234183ba5c"
     }
+  },
+  "focusedRegression": {
+    "baseSha": "e1ecaa248ecf7f667d8fccab4d9938e70a253392",
+    "verifiedTestCommit": "97e65c23d156452f3fc220c641dabb3e619be0cd",
+    "before": {
+      "passed": 4,
+      "failed": 2,
+      "errors": [
+        "paragraph34 has no page",
+        "paragraph10 has no page"
+      ]
+    },
+    "after": {
+      "passed": 6,
+      "failed": 0
+    },
+    "scope": "same final test source, create/split/save/reopen/order/table ownership; fixed-base suite policy and fmt check passed",
+    "logs": {
+      "before-new-focused-final.log": "6106d25d6910d2ebe0bd241652681cdd7a371ca67bb09226d21af5105613657f",
+      "after-new-focused.log": "b12fd1f09418967e0bf59b83baa7b9c0a6e1d4abaed30e58c9cef5c9725da7bb",
+      "fmt-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "suite-policy-final.log": "482abb86feb5bd7175179e9009b9fb2f1a73d94079a3722566e07aed4cc16b4a"
+    }
   }
 }

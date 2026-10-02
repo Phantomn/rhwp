@@ -46,3 +46,8 @@ PR 전 전체 Rust lint·release-test·Native Skia 게이트는 별도 PR 준비
 `prior_trailing_drift && previous_item_is_empty_para` 분기로 숨겨졌다. 앞 줄의 누적 간격과
 새 줄의 점유는 별개이므로 이 Hidden 분기를 제거한다. 문단 자체의 미세 overflow 및 각주 예약
 흡수는 유지한다. 이 입력도 원본을 보존해 독립 한컴 PDF와 대조하며, 표 행 수를 가드에 쓰지 않는다.
+
+로컬 검증 결과와 사용자 재검증 안내는 [결과 보고](../report/task_m100_7486_table_report.md)에 연결했다.
+4개 원문 전체 7쪽 × Native/fresh WASM 최저 실루엣 100%를 먼저 충족한 뒤 정식 회귀 2개를 추가했다.
+동일 최종 검사본은 base에서 4 PASS/2 FAIL, 보정 후 6 PASS/0 FAIL이다. 사용자 재검증과 PR 전
+전체 검증·원격 제출은 다음 단계로 남는다.
