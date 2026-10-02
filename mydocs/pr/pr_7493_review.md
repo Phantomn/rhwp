@@ -55,10 +55,10 @@ Core의 `get_text_range_native`는 Unicode scalar 단위다.
 검증해야 한다. wrapper의 skip 검출도 고쳐 정식 테스트에서 실행되게 해야 한다.
 실제 browser/WASM 편집 검증은 아직 미실행이므로 UI 전체 정상 판정은 하지 않는다.
 소스에 임의 메인터너 보정을 넣거나 기존 필드 Redo 문제까지 이번 결함으로 합치지 않았다.
-보류 근거 comment는 승인 뒤 게시한다.
-# 승인 후 게시 기록
+보류 근거 comment는 작업지시자의 승인 뒤 게시했다.
+
+## 승인 후 게시 기록
 
 2026-10-02 작업지시자의 댓글 게시 승인 후 [보류 사유 comment](https://github.com/edwardkim/rhwp/pull/7493#issuecomment-5944041776)를 게시했다.
 게시 직전 원 head가 그대로 OPEN임을 확인하고 API 재조회로 한글 본문·BOM/치환 없음 및
 작성 문안과의 일치를 확인했다(파일 끝 개행만 정규화). 코드 변경·push·GitHub 승인·merge 없음.
-

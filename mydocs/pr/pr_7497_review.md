@@ -8,7 +8,8 @@ last_verified: 2026-10-02
 
 ## 최종 판정
 
-머지 보류 — 기능 검토는 수용 권고이나, 보류 PR을 제외한 최종 통합 후보의 검증이 아직 없다.
+승인 — 보류 PR을 제외한 선별 통합 후보의 전체 Rust·필수 lint·fresh WASM API 검증을 통과했다.
+원격 게시 및 merge에는 작업지시자의 별도 승인이 필요하며 통합 후보의 GitHub CI는 아직 없다.
 
 검토일: 2026-10-02. 작성자: semanticist21. 대상: devel.
 기준 devel: `e5098bc91be44a49367a7f2895a14fcd4f4c2c7f`.
@@ -43,8 +44,8 @@ char_offsets·서식 시작·문단 병합 및 저장/재열기에 보존한다.
 
 ## 다음 조건
 
-기능상 수용 후보로 선정한다. 누적 진단은 보류 PR 4건도 포함하므로 승인/통합 완료가 아니다.
-선별한 수용 그룹에 대한 코드 후보와 검증·CI를 고정한 뒤 최종 승인한다.
-원 head CI 재사용은 원 head에만 적용하며 누적 c6ef의 Full CI로 보고하지 않는다.
-원격 review/comment/push/merge는 아직 수행하지 않았다.
-
+선별 source head `514d4933b`, 검증 checkout `f27661e63`에서 전체 Rust 10,243 PASS / 0 FAIL / 50 skip,
+필수 Clippy 3종·workspace build·fmt·manifest 및 fresh WASM 실제 API 3/3를 통과했다.
+[선별 후보 최종 결과](pr_semanticist21_20261002_review_impl.md#선별-후보의-최종-rust-결과)에 source SHA와 명령을 연결한다.
+원 head CI는 원 head의 근거이고 이 선별 후보의 GitHub CI로 대신하지 않는다.
+원격 review/comment/push/merge는 이 PR에 아직 수행하지 않았다. 게시/통합 승인 후 최신 CI를 확인한다.

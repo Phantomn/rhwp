@@ -137,3 +137,90 @@ baseline 빌드는 `cargo build --locked --lib --profile release-test --target-d
 개별 review의 게시 기록에 URL을 남겼다. GitHub approve·push·PR 생성·merge·close는
 이번 승인에 포함하지 않았다. 댓글 게시와 별개로 수용 후보 #7497·#7498·#7508만
 e509 기반으로 선별한 로컬 통합 branch에서 최종 필수 검증을 진행한다.
+
+### 선별 통합 후보
+
+로컬 branch: `review/semanticist21-accepted-20261002`.
+source head: `514d4933b01efa848eba7a37b98a79fe4ffc4736`.
+review-only 문서를 옮긴 검증 checkout head: `f27661e63`.
+전체 7건 진단 branch는 `review/semanticist21-20261002`와 기록 commit `9cfaf07b5`로 보존했다.
+새 worktree나 target directory를 만들지 않았다. PR source branch를 rebase/force-push하지 않았다.
+
+| PR | 원 commit → 선별 branch commit |
+| --- | --- |
+| #7497 | 756f8fdc → d27652457, b22887f8 → c4c32db75, 64f76e37 → 38da0b73c |
+| #7498 | 98133ad9 → 5c700bcd3 |
+| #7508 | b53d3621 → 514d4933b |
+
+원 author와 `-x` 출처를 유지했고 선별 적용도 충돌이 없었다. 이 3건의 원 코드 외에
+source/test/fixture/baseline 보정을 넣지 않았다. 이전 7건의 결과를 새 후보 결과로 재사용하지 않고
+순차 Rust lint, manifest base 비교, release-test 전체 nextest, fresh WASM 실제 API를 확인한다.
+독립 PDF 시각 판정으로 보고하지 않는다. 지원 범위는 입력 IR/Query/클립보드 계약이다.
+
+검증 입력의 로컬 파일과 candidate의 `samples/`는 일치하며 sample 변경은 없다.
+#7497·#7508 입력은 커밋된 테스트의 공개 API로 만든 합성 문서이고 독립 한컴 출력이 아니다.
+#7498의 정상 저장본 SHA-256은 아래와 같다.
+
+| 입력 | SHA-256 |
+| --- | --- |
+| samples/para-001.hwp | bab4561ceb02cdfa184a1689be9619c08e18d6021cdbc423486b848bc14d267e |
+| samples/hwpx/para-001.hwpx | 3feded11906a573dda366b4299428bce2de573a153d11059fa8e1e26b6fc354d |
+| samples/table-complex.hwp | 9b5334f0fc164a3168e41042ef5f535ab7180e563b8fdfb59b0c157c895bbc22 |
+| samples/issue1937_rowbreak_footnote_overpagination.hwp | a3a075594994e4741a7fbe973bc230d95ae75fdee6578ac6017cec0d52844990 |
+| samples/한글문서파일형식_5.0_revision1.3.hwp | f21edf2138e134702366f2fb6a2ab082b05c6dcb42216ec4fa2575ed292efd1d |
+
+### 선별 후보의 최종 Rust 결과
+
+검증 checkout은 `f27661e63bb4654f6cf89f200c4a96cec6ea731d`이며 source는 위 `514d4933b`와 같다.
+문서 이외의 미커밋 변경은 없었다. 아래 명령을 공유 target에서 순차 실행해 모두 통과했다.
+
+```bash
+node scripts/rust-test-suite-manifest.mjs --prepare
+cargo fmt --all
+cargo fmt --all -- --check
+cargo clippy --locked --target-dir target/pr-review -- -D warnings
+cargo clippy --locked -p rhwp --lib --target wasm32-unknown-unknown --target-dir target/pr-review -- -D warnings
+cargo build --locked --workspace --target-dir target/pr-review
+cargo clippy --locked --workspace --all-targets --target-dir target/pr-review -- -D warnings
+node scripts/rust-test-suite-manifest.mjs --check --base-ref e5098bc91be44a49367a7f2895a14fcd4f4c2c7f
+cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review \
+  --tests --test-threads 16 --no-fail-fast
+```
+
+전체 Rust 회귀: **10,243 PASS / 0 FAIL / 50 skip**, 78 binaries, 실행 527.996초,
+테스트 빌드 4분 46초. 느린 검사 11개도 끝까지 통과했다. 기존 제외 50개를 새 ignore로 늘리지 않았다.
+대상 host는 논리 CPU 16개, RAM 31GiB이며 Cargo 실행을 서로 겹치지 않았다.
+`accepted-nextest.log` 및 `accepted-clippy-{native,wasm,workspace}.log`,
+`accepted-workspace-build.log`, `accepted-fmt.log`, `accepted-manifest.log`에 결과를 보존했다.
+nextest 0.9.137의 권장 버전(0.9.140) 경고와 JUnit `report-skipped` 미지원 경고는 별도로 남긴다.
+실행된 검사 수와 종료 Summary를 확인했으며 이를 검사 실패나 누락으로 분류하지 않았다.
+
+3건은 직접 renderer/paint/페이지네이션을 수정하지 않으므로 별도 Native Skia feature 전체 묶음과
+독립 PDF Visual Sweep을 실행하지 않았다. 입력·Query·클립보드 동작 및 기존 전체 회귀의
+무회귀와 한컴 시각 일치는 서로 다른 주장이다. source-side `#[cfg(test)]` 변경도 없어
+unit-tier 증가 검사는 비해당이다. 파생 suite/manifest는 ignored이며 커밋에 포함하지 않는다.
+
+원 PR 3건의 head는 최종 Rust 검사 후에도 접수 SHA 그대로 OPEN/MERGEABLE/CLEAN이었고,
+upstream/devel도 e509 그대로였다. 이 상태는 merge 시점에 다시 확인한다.
+
+### fresh WASM 및 최종 로컬 판정
+
+선별 checkout `f27661e63bb4654f6cf89f200c4a96cec6ea731d`에서 아래 명령을 실행했다.
+
+```bash
+CARGO_TARGET_DIR=target/pr-review scripts/wasm-pack-locked.sh --target web --dev \
+  --out-dir output/pr-review/semanticist21-20261002/pkg-accepted
+node output/semanticist21-20261002-browser.mjs --mode=headless --accepted
+```
+
+WASM build PASS(42.29초), 실제 HeadlessChrome 152 API smoke **3/3 PASS**.
+WASM SHA-256: `d3455486558c9dd9205498e6526e3bfc5a04409dddbbf0f963603a861b077547`.
+원래 7건 진단 package와 JSON은 덮어쓰지 않았다. 별도 `pkg-accepted`,
+`accepted-wasm-build.log`, `accepted-browser.json`에 source SHA·hash·결과를 보존했다.
+Studio public 갱신이나 사용자 CDP 조작, 독립 한컴 시각 일치 판정은 하지 않았다.
+
+최종 PR review 판정은 #7497·#7498·#7508 **승인**, #7487·#7491·#7493·#7504 **머지 보류**다.
+승인은 기능 검토의 결론이며 원격 GitHub approve/merge 실행과 별개다.
+이번 turn의 외부 변경은 승인받은 보류 댓글 4건뿐이다. 선별 후보의 push·통합 PR 생성·CI·merge는
+아직 수행하지 않았다. 다음 승인 범위는 선별 후보 게시 및 통합 PR 생성이며 merge/원 PR close는
+CI와 작업지시자의 후속 승인 뒤 별도로 진행한다.
