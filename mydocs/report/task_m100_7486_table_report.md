@@ -49,9 +49,10 @@ XML·LineSeg·PDF 내용은 변경하지 않았다. 각 파일의 저장소 경�
 | 10×2·160%·Enter40 | 2쪽 | 2쪽 | 2쪽 | 100% |
 | 30×2·300%·Enter9 | 2쪽 | 2쪽 | 2쪽 | 100% |
 
-production source SHA는 `75b433ccbe58ccf297a4f0ddbc6db83a1b850910`이며 입력·PDF·빌드 해시는
+회귀 추가 전 시각 선행 검증 source는 `75b433ccbe58ccf297a4f0ddbc6db83a1b850910`이다. 최종 제출 source는
+`97772d5d40787e77c3238debc2b2576b11713476`이며 입력·PDF·빌드 해시는
 [validation.json](../working/assets/issue7486-table-enter/validation.json)에 기록했다.
-source 이후 test·증적 commit은 production Rust를 바꾸지 않았다. wrapper의 **dev WASM**을 사용했고
+선행 검증은 wrapper의 dev WASM을, 최종 재검증은 **release `--no-opt` host WASM**을 사용했고
 root pkg/public JS·WASM 해시 일치를 확인했다. Native는 같은 source의 `release-test` CLI다.
 96dpi·print profile·고정 2px 관용으로 전체 7쪽 × 2 backend를 비교했다.
 측정 미달·누락 쪽, 글꼴 예외, 비교 영역 변경은 없다. 정식 회귀 추가 **전에** 이 조건을 충족했다.
@@ -94,11 +95,75 @@ rhwp의 표 선은 PDF보다 밝다. 실루엣 100%를 선 색상·전체 피델
 Cmd+Z로 1쪽 복귀, Cmd+Shift+Z로 2쪽 복원도 확인한다. 66%와 30행·300%·Enter9는 추가 대조군이다.
 
 사용자가 위 로컬 수정 결과를 확인했다. PR 제출 전 전체 release-test·Native Skia 3종·세 Clippy·
-workspace build·정책 base 비교를 진행 중이며 아직 전체 통과로 기록하지 않는다.
+workspace build·정책 base 비교를 포함한 아래 필수 로컬 검증을 모두 통과했다.
 최신 `upstream/devel`은 기준 SHA와 같다. GitHub CI·push·PR 생성은 미실행이다.
 
 로그·진단 스크립트는 ignored `output/pr-review/issue7486-table-fix-20261003/logs/`와 같은 작업 폴더에
 보존했다. 별도 `rust-review/` checkout은 전체 PR 검증에 재사용한다. 공유 `target/pr-review`와 다른
-작업의 worktree는 삭제하지 않았다. wrapper가 동기화한 generated `rhwp-studio/public/rhwp.js`는
-로컬 실행용 unstaged 변경이며 source commit에 포함하지 않았다. root/public 및 실제 서버 제공 WASM
-SHA-256은 `0bf1590a758a3e0bb2faa80e3036c59568e675f7dd2ce073dc0a57b380a907f1`로 일치한다.
+작업의 worktree는 삭제하지 않았다. generated package는 source commit에 포함하지 않았다. 최종 root/public WASM
+SHA-256은 `bf181de82cf87a7f7e8cd49833021169594f6e76995dbe03266322d165821dee`로 일치한다.
+Docker daemon 연결 불가로 Docker 표준 WASM은 미실행이며 host fallback과 wasm-opt 생략을 구분한다.
+
+## 전체 회귀에서 확인한 저장본 종료 guide 경계
+
+첫 전체 회귀는 head `a2960d63a`에서 10,248개 중 10,244 PASS / 4 FAIL / 50 skipped였다.
+#7226·#6761은 교육과정 문서의 413→414쪽, #6981은 그 추가 쪽 뒤 구역 이동, #2097은
+어구 금지 문서의 21→22쪽으로 실패했다. 기대값·baseline·golden은 변경하지 않았다.
+
+두 문서의 추가 쪽은 모두 분할 표의 모든 조각을 소비한 직후, 구역 끝의 한 빈 문단을
+fit 실패로 새 쪽에 놓아 생겼다. 저장 줄 끝은 기존 본문 안에 있고 명시적/저장 상단 쪽 경계도 없다.
+`paragraph/flow.rs`는 table coordinator가 끝난 뒤 호출되며, `empty::is_stored_table_closing_guide`는
+직전 `PartialTable`의 바로 다음 문단·구역 끝·단단·무텍스트/무컨트롤·저장 한 줄의 본문 내 포함을
+대조한다. fit 실패일 때만 기존 `place_unadvanced_empty_paragraph`로 guide를 같은 쪽에 소유시킨다.
+일반 Enter처럼 앞 항목이 본문 문단인 빈 줄과 저장 본문 밖 줄, 명시적 쪽/구역 나눔과
+저장 상단 reset은 이 분기에 들어오지 않는다. 확정 쪽의 사후 삭제를 되살리지 않았다.
+
+이 보정은 `94491536a599f6e2e246895a4dbc0de02cf72325`이며, source 변경 후
+Native/fresh WASM·브라우저·회귀·lint를 다시 실행했고 아래 원점 보정의 필요를 확인했다. 이전 캡처를 새 source 증거로 재사용하지 않았다.
+
+
+## 종료 guide의 원점 공유 보정
+
+`94491536a` 전체 회귀는 10,247 PASS / 1 FAIL / 50 skipped였다. #2097의 용지 밖 원장만
+1→2건으로 실패했다. 종료 문단의 소속은 보존했지만 layout은 이전 표의 넘친 흐름 끝
+`y=1272.6`을 다시 원점으로 사용했다. 끝 쪽을 삭제하거나 문단을 숨겨 오류를 없애지 않았다.
+
+실제 저장 줄은 어구 문서 `vpos=33298, lh=1000, sw=49324, tag=0x60000`, 교육과정
+`vpos=69967, lh=1600, sw=48188, tag=0x60000`이다. 둘 다 유효한 첫 저장 줄이고 본문 안에 있다.
+합성/무효 저장 줄은 종료 guide로 수용하지 않는다. `place_stored_empty_guide`는 저장 줄을
+`InlineFlowPlan::stored_empty_guide`로 확정한다. 저장 본문 vpos를 현재 column zone 기준으로
+변환한 `start`와, 표가 이미 소비한 흐름을 보존하는 `end`를 구분해 같은 plan에 저장한다.
+`ColumnContent.inline_flow_plans` → layout의 `FullParagraph` plan 분기 →
+`layout_inline_flow_plan`이 같은 `start`·줄 메트릭을 소비하며 기존 흐름 끝을 반환한다.
+이 분기 이후 별도 clamp·원점 덮어쓰기·출력 숨김은 없다.
+
+중간 원점 보정 `62183ee66`에서 기존 실패 4개·용지 밖 partition12·Enter 소속 경계를 포함한
+21개 검사를 모두 통과했다(3개는 nextest가 종료 후 열린 handle을 `leaky`로 표시했으며 exit0).
+최종 `97772d5d40787e77c3238debc2b2576b11713476`은 zone 좌표 변환 및 실제 저장 줄 유효성을
+포함하며 아래 검증을 다시 수행해 통과했다. 기존 기준값은 변경하지 않았다.
+
+
+최종 Native 진단에서 어구 문서는 21쪽이고, 마지막 쪽의 off-canvas는 기존 표1건만 남는다.
+보정 중 추가했던 종료 문단의 용지 밖 bbox는 사라졌으며 원래 표의 overflow까지 해결했다고
+보고하지 않는다. 기존 저장본의 전체 한컴 피델리티는 이번 합성 입력7쪽 시각 통과와 별개다.
+
+## 최종 제출 전 실행 결과
+
+검증 source는 `97772d5d40787e77c3238debc2b2576b11713476`이다. 이후 증적·문서 commit은 source/test를 바꾸지 않으며 제출 전에 동일성을 확인한다.
+
+| 명령·범위 | 결과 |
+| --- | --- |
+| 별도 review checkout `--prepare`; `cargo fmt --all -- --check` | PASS |
+| Native / WASM32 lib / workspace all-target Clippy `--locked`, `-D warnings`; workspace build | 모두 PASS |
+| suite 정책 `--check --base-ref e1ecaa248…`; manifest 계약 검사 | PASS |
+| 작은 경계 + off-canvas partition12 | Summary [  10.540s] 21 tests run: 21 passed, 10277 skipped |
+| 관련 focused | Summary [  10.999s] 20 tests run: 20 passed, 10278 skipped |
+| `cargo nextest run --locked --cargo-profile release-test --tests --no-fail-fast` | Summary [ 249.784s] 10248 tests run: 10248 passed (6 slow), 50 skipped |
+| `cargo test --locked --profile release-test --features native-skia --lib` | test result: ok. 3927 passed; 0 failed; 13 ignored; 0 measured; 0 filtered out; finished in 44.50s; test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s; test result: ok. 165 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s; test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s |
+| `run-rust-test.mjs issue_2225_missing_picture_placeholder -- … --features native-skia` | Summary [   1.186s] 2 tests run: 2 passed, 224 skipped |
+| `run-rust-test.mjs render_p37_direct_pdf_export -- … --features native-skia` | Summary [   0.956s] 4 tests run: 4 passed, 219 skipped |
+| root `CARGO_TARGET_DIR=target/pr-review scripts/wasm-pack-locked.sh --target web --out-dir pkg --no-opt` | fresh host release WASM PASS; root/public/서버 SHA-256 일치 |
+| Chrome Enter/Undo/Redo / API 소속 진단 / 8개 저장 문서 대조 | 56 PASS / 720 owner 누락0 / 쪽수 변화0 |
+| 전쪽 Native/fresh WASM sweep / 직접 review·overlay 판독 | 전체7쪽×2backend 최저100%, 대표4gate passed |
+
+모든 Cargo는 같은 절대 `target/pr-review`를 순차 재사용했다. sweep 명령은 `pr-sweep-guide.sh`의 `--silhouette-only` 전체 쪽 및 `--pages 1,2` 대표 review 경로이며 각 실행의 provenance와 입력 해시는 validation.json에 보존했다.
