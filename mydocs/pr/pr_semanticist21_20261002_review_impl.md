@@ -119,7 +119,7 @@ baseline 빌드는 `cargo build --locked --lib --profile release-test --target-d
 
 - 수용 후보: [#7497](archives/pr_7497_review.md), [#7498](archives/pr_7498_review.md), [#7508](archives/pr_7508_review.md).
   기능 검토는 통과했으나 보류 건을 제외한 최종 통합 후보와 CI를 아직 만들지 않았다.
-- 보류: [#7487](pr_7487_review.md), [#7491](pr_7491_review.md), [#7493](pr_7493_review.md), [#7504](pr_7504_review.md).
+- 보류(최초 판정): [#7487](pr_7487_review.md), [#7491](pr_7491_review.md), [#7493](archives/pr_7493_review.md), [#7504](pr_7504_review.md). #7493의 대응 재검증·병합은 아래 후속 절에 기록합니다.
   실행 결함과 독립 시각 증거 부족을 PR별로 구분했다.
 - 검토 중 신규 등록된 #7509(head `435f04507ba1cc5b43a12c39d73158ea9f01a872`)는
   입력/복사 논리 오프셋의 부분 수정으로 별도 접수했다. source/test diff를 읽었고 e509와
@@ -316,3 +316,22 @@ fast-pass인 이유로 CI를 다시 실행하지 않았다.
 `review/semanticist21-20261002`와 해당 output 증거는 보존한다. 기본 작업공간·공유
 `target/pr-review`, 다른 작업의 branch/worktree/stash는 정리 대상이 아니다.
 신규 #7509·#7510은 이번 수용 범위 밖이다. 최종 댓글·종료·정리 확정값은 GitHub에 남긴다.
+
+## #7493 대응 재검증 및 단독 병합
+
+기여자 대응 head `849955949f2f0d4a3f98e0006e727d6f3443333f`에서 최초 보류 사유를
+해소한 것을 확인했습니다. [개별 review](archives/pr_7493_review.md)에 수정 전 음성 대조 6건 FAIL /
+최신 코드 PASS, runner 31개 PASS, TypeScript PASS, Studio 전체 1,813 PASS / 0 FAIL / 2 skip,
+실제 Chrome/WASM 편집 19/19 PASS와 기존 WASM 사용의 한계를 연결했습니다.
+같은 head를 다시 검증하거나 누적 7건 branch를 통합하지 않았습니다.
+
+작업지시자의 PR 처리 지시에 따라 [#7493](https://github.com/edwardkim/rhwp/pull/7493)을
+2026-10-02 13:31:19 KST에 단독 병합했습니다. merge SHA는
+`f536f15e750d9a32d33b013da7be079ecb10d1f9`이며 로컬 devel 포함·#7489 자동 종료를 확인했습니다.
+공유 target과 다른 보류 PR의 누적 진단 branch는 보존합니다. 이번 response 전용 review branch만 정리합니다.
+운영 문서 commit의 원격 push는 별도 승인 대기로 둡니다.
+
+병합 후 이슈 종료 workflow는 성공했습니다. duration workflow도 성공했으나
+`no-verified-pr-duration-measurements`로 자료 갱신을 보류했습니다. Studio-only CI에서
+Rust worker가 skip됐으므로 측정 자료를 만들기 위한 전체 CI 재실행은 하지 않았습니다.
+후속 문서 push 승인 뒤 #7489·원 PR 안내 및 response 전용 branch cleanup을 이어갑니다.
