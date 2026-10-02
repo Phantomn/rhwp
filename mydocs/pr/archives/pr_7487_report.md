@@ -2,7 +2,7 @@
 
 ## 수용 판단
 
-현재 검토 source `f2f96733b838c860253a357721f713e931b469ae`는 **머지 보류**다. 원 기여자의 마지막 빈 쪽 보존 변경 위에 앞단의 빈 문단 흡수 보정을 push했고, candidate `38c0af21...`의 Full CI가 통과했고, 기여자의 devel 병합 후 head `f2f96733...`에서는 문서 경로 충돌 해소 bridge를 검증한 재사용 게이트가 통과했다. 동일 합성 입력의 한컴 기준 출력, 새 기준선의 직접 시각 재검증과 작업지시자의 시각·범위 판정은 남았다. [상세 리뷰](pr_7487_review.md)에 원인·정식 회귀·전체 검증·스크린샷·남은 차이를 연결했다.
+현재 시각 검증 source `c741f24135d03470588440d1bb67dff3defd3024`는 **머지 보류**다. 동일 Enter 입력 9개를 npx MCP로 한컴 PDF 변환했고, 정확한 source의 Native/fresh WASM 전체 24쪽씩과 대조하여 쪽수 일치·문단 소유 보존을 확인했다. 이전의 한컴 기준 출력·현재 source 재출력 미실행은 보완했다. 새 증적 head `2d26931d`의 Full CI 10,053 PASS / 50 skipped 및 관련 check가 통과했다. 남은 조건은 후속 문서 head의 gate·본문 이미지와 작업지시자의 시각·부분 해결 범위 확인이다. 흰 페이지의 100%는 캐럿 좌표의 한컴 일치 증거로 확대하지 않는다. [상세 리뷰](pr_7487_review.md)의 새 한컴 대조 절에 원본·기준 PDF·빌드·명령·대표 이미지·한계를 기록했다.
 
 | 계보 | SHA·역할 |
 | --- | --- |
@@ -23,26 +23,26 @@
 | 필수 lint·전체 Native·Native Skia·fresh WASM | 실제 실행 PASS; 개별 명령·횟수는 상세 리뷰에 기록 |
 | Chrome 실제 입력 | 새 쪽 즉시 생성 확인; 100%/66%에서 남은 Studio 지연 재현 |
 | 기존 p122 저장 문서 시각·geometry | Native/fresh WASM control gate passed, 그림 geometry delta=0 |
-| 새 합성 Enter 문서의 한컴 기준 출력 | 미검증, p122 control로 대체하지 않음 |
+| 새 합성 Enter 문서의 한컴 기준 출력 | 완료: 같은 입력 9개·독립 PDF 9개; 전쪽 비교·쪽수·소유 검사. 빈 출력 픽셀 점수의 한계 명시 |
 | Studio caret/scroll refresh | 별도 후속 수정 범위, 이번 코드에 포함하지 않음 |
 | 표 뒤 Enter | 미해결 범위 유지, 이번 보정의 해결 주장에 포함하지 않음 |
-| 원격 push·새 head CI | 두 commit 정상 push 완료; required Build & Test·CodeQL·Render Diff·CI Impact Policy 통과 |
-| review·merge·PR 본문 갱신 | 미수행; 문서 보완 push·본문 갱신·COMMENT 게시 승인받음, 정확한 새 head 확인 후 진행 |
+| 원격 push·새 head CI | 한컴 증적 `2d26931d` 정상 push; Full CI 실제 10,053 PASS / 0 FAIL / 50 skipped, required Build & Test·CodeQL·Render Diff·CI Impact Policy 통과 |
+| review·merge·PR 본문 갱신 | c741f241의 본문·COMMENT 게시 완료. 새 증적과 후속 기록은 진행 승인 범위; Approve·merge는 별도 |
 
 ## 게시·병합 준비 순서
 
 1. 두 commit의 실제 diff·검증·리뷰 문서를 제시하고 source push 승인받음(완료).
 2. PR head·contributor ref·maintainerCanModify를 재확인하고 승인 범위 정상 push(완료).
-3. 보정이 포함된 head `38c0af21...`의 Full CI·CodeQL·Render Diff·CI Impact Policy 및 MERGEABLE/CLEAN 확인(완료). 실제 최신-base merge checkout에서 회귀 10,087 PASS / 50 skipped; 원 source CI 재사용 없음. 기여자가 devel을 병합한 head `f2f96733...`로 미게시 문서 보완 commit만 정렬했다. 최신 base `4a7cf61c...`의 충돌·링크·기존 기록 보존을 재검증하고 승인된 push를 수행한다.
-4. 작업지시자의 시각 판정과 한컴 대조 미검증의 처리 범위를 확인하고 최종 판정을 갱신한다. PR 본문 asset은 head SHA 고정 raw URL로 표시한다.
-5. 확정된 review 문안을 제시해 별도 게시 승인을 받는다.
+3. 기존 `38c0af21` Full CI와 contributor 병합·문서 tail의 재사용 기록을 보존했다. 새 9개 HWPX·9개 PDF 등 증적 `2d26931d`를 정상 push하고 최신 base `4a7cf61c`와의 실제 merge checkout `5d926c85`에서 Full CI 10,053 PASS / 50 skipped 및 관련 check를 확인했다(완료). 서로 다른 CI 구성의 수치를 혼용하지 않는다.
+4. 후속 review 문서·provenance·오늘할일만 single-parent로 push하고 정확한 새 head의 candidate identity·required gate·mergeability를 확인한다. 승인된 본문 갱신은 새 head 고정 raw URL로 이미지를 표시한다.
+5. 새 COMMENT 재검토를 게시하고 실제 GitHub 본문/이미지/Unicode를 확인한다. 작업지시자의 시각·빈 문단 부분 범위 확인과 Approve 게시 승인은 별도다.
 6. merge는 별도 승인 뒤 진행하고 최종 merge SHA·실제 시각·CI 증적을 후속 comment에 남긴다.
 
 이 문서는 사전 판단이다. 미래 merge SHA·merge 시각·이슈 종료를 완료 사실로 적지 않는다. [#7486](https://github.com/edwardkim/rhwp/issues/7486)은 부분 해결이므로 OPEN을 유지한다.
 
 ## Contributor review 문안 초안
 
-아래는 COMMENT 리뷰 게시 전 초안이다. 필수 증거의 미검증이 남아 Approve를 제출하지 않는다. exact head의 CI 결과와 제한을 포함해 작업지시자에게 별도 게시 확인을 받는다.
+아래 인용은 기존 COMMENT 리뷰의 당시 초안이며 현재 판단으로 재사용하지 않는다. 실제 게시본은 상세 리뷰의 링크로 확인한다. 당시 미확보였던 한컴 기준 출력과 새 source 재출력은 아래 후속 검증으로 보완했고, 최종 Approve는 작업지시자 확인과 별도 게시 승인 전까지 제출하지 않는다.
 
 > Enter로 넘친 빈 문단의 끝 쪽을 보존하는 변경을 확인했습니다. 추가 경계 검증에서 줄간격 200%의 33번째 Enter와 300%의 22번째 Enter는 앞단의 빈 문단 흡수에서 쪽 소유를 잃는 것을 확인하여, 승인된 범위에서 같은 저장 줄 overflow 판별을 앞단에도 공유하는 보정 commit `45863eb2`를 별도로 추가하고 기록과 함께 head `38c0af21`로 정상 push했습니다.
 >
@@ -53,3 +53,20 @@
 > 동일 합성 Enter 입력의 한컴 기준 출력은 아직 미검증입니다. CI 통과와 기존 p122 대조군만으로 이 범위를 충족으로 바꾸지 않으며, 현재는 머지 보류로 기록합니다.
 
 > 기여자님의 devel 병합 head `f2f96733`의 CI 게이트도 확인했습니다. 해당 CI는 앞서 녹색인 candidate `38c0af21`과 문서 경로의 병합 충돌 해소를 검증하여 재사용한 결과입니다. 스크린샷은 보정 당시 source의 기록으로 구분했고, 갱신한 기준선의 직접 시각 재검증은 아직 수행하지 않았습니다.
+
+## 메인테이너 요구 대응과 새 재검토 문안
+
+- 문서 충돌: contributor `f2f96733...`에서 양쪽 기록을 보존해 해결했고 최신 base `4a7cf61c...`에서도 증적 후보 merge tree가 충돌 없이 생성됐다.
+- 동일 입력 한컴 PDF: `samples/issue7486/`와 `pdf/pr7487-spacing*-2020.pdf`, 9개 입력·9개 PDF·24쪽/backend의 새 직접 비교로 보완했다. npx client 0.9.0, profile 2020, Hancom 11.0.0.9136, input preprocessing none, client/server/local hash 일치를 확인했다.
+- 새 head CI: 증적 `2d26931d`의 [Full CI](https://github.com/edwardkim/rhwp/actions/runs/36976613881)를 실제 실행해 10,053 PASS / 0 FAIL / 50 skipped와 관련 check를 확인했다. 입력/PDF 추가를 review-only로 가정하지 않았다. 후속 문서 head·본문은 게시 단계에서 별도로 확인한다. Render Diff 보고용 경고 4건의 수치 변화와 미확정 원인도 상세 리뷰에 남겼다.
+- 작업지시자: 대표 PNG와 빈 출력의 의미·Studio/표 뒤 Enter 잔여 범위를 확인한 뒤 별도 Approve 게시 판단. merge는 그 다음 별도 승인 단계다.
+
+새 COMMENT 문안:
+
+> 동일 Enter 입력의 한컴 기준 PDF 요구를 보완했습니다. 기여해 주신 빈 쪽 보존 변경과 별도 보정을 유지한 source `c741f241`에서 실제 편집 API로 생성한 HWPX 9개를 수정 없이 npx MCP로 한컴 PDF로 변환했습니다. 200% Enter33·300% Enter22는 한컴·Native·fresh WASM 모두 2쪽이고, 나머지 입력도 전체 쪽수가 일치합니다. 두 backend의 전체 24쪽씩과 문단 누락·중복 및 소유를 확인했습니다. 빈 출력의 자동 100%는 캐럿 좌표 정확성으로 확대하지 않습니다. 현재 source의 p122 대조군도 새 review/overlay로 직접 확인했습니다.
+>
+> 오늘할일 충돌은 기여자님의 devel 병합에서 양쪽을 보존해 해결됐고 최신 base와의 후보 병합도 충돌 없이 확인했습니다. 새 입력·기준 PDF·대표 PNG·전쪽 지표를 포함해 재검토를 요청드립니다. Studio 캐럿·스크롤은 별도 PR로 분리하고 표 뒤 Enter는 잔여 범위로 유지하므로 #7486은 닫지 않습니다. 증적 head의 새 Full CI 10,053 PASS / 50 skipped 및 관련 check를 확인했습니다. 후속 문서 head gate와 작업지시자의 시각·부분 범위를 확인한 뒤 Approve·merge를 각각 별도로 진행하겠습니다.
+
+## Studio 별도 PR 계획
+
+#7487 병합 후 최신 devel을 기준으로 Enter의 비동기 페이지 배치 완료와 caret reveal을 연결한다. 100%·66% 배율의 실제 브라우저에서 추가 입력·배율 변경 없이 DOM 캐럿과 viewport가 새 쪽에 맞는지 검증하고 쪽/단 나누기·undo/redo 대조군을 유지한다. 이번 source와 증적 commit에는 Studio 구현을 넣지 않았으며 별도 PR 생성·병합 완료로 기록하지 않는다.
