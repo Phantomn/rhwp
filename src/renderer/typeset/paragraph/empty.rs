@@ -58,6 +58,13 @@ pub(super) fn is_stored_table_closing_guide(
     let [line] = para.line_segs.as_slice() else {
         return false;
     };
+    if crate::renderer::typeset::is_synthetic_line_seg(line)
+        || line.tag & crate::model::paragraph::LineSeg::TAG_FIRST_SEGMENT == 0
+        || line.segment_width <= 0
+        || line.line_height <= 0
+    {
+        return false;
+    }
     line.vertical_pos >= crate::renderer::px_to_hwpunit(page.current_zone_y_offset, dpi)
         && line.vertical_pos.saturating_add(line.line_height)
             <= crate::renderer::px_to_hwpunit(page.body_height, dpi)
