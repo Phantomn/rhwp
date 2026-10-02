@@ -1,0 +1,46 @@
+---
+kind: report
+status: active
+last_verified: 2026-10-02
+---
+
+# PR #7498 리뷰 — ‘채우기 없음’ 속성 조회
+
+## 최종 판정
+
+머지 보류 — 기능 검토는 수용 권고이나, 최종 선별 통합 후보의 검증·승인이 남는다.
+
+검토일: 2026-10-02. 작성자: semanticist21. 대상: devel.
+기준 devel: `e5098bc91be44a49367a7f2895a14fcd4f4c2c7f`.
+누적 진단 head: `c6ef30ea943308c37e5d68c8304dfdabdd7b8f74`.
+
+누적 실행 명령·로그·제한은 [일괄 검토 기록](pr_semanticist21_20261002_review_impl.md#누적-검증-결과)에 연결한다.
+원 PR의 exact-head 녹색 CI와 누적 진단 head의 결과는 별개다. 누적 head는 7건을 포함하며
+원 PR 또는 최종 수용 그룹의 전체 CI 통과로 간주하지 않는다. 메인터너 source/test 보정은 없다.
+
+원 PR code head: `98133ad9c57c695fce2dcf8d684e801c8d431438`.
+[원 PR](https://github.com/edwardkim/rhwp/pull/7498) · [exact-head Build & Test](https://github.com/edwardkim/rhwp/actions/runs/36812415019/job/110227773337).
+CI 집계 실패·진행 중 없음(확인 당시). 원 PR head는 최초 접수 이후 바뀌지 않았다.
+Reviewer edwardkim 지정. 원격 GitHub 승인 이벤트는 아직 게시하지 않았다.
+
+## 수용 권고 범위와 소비 경로
+
+#7495 종료 제안. 기능 commit `98133ad9`를 누적 적용했다.
+`fill_json_values` 공통 Query 결과를 글자·문단·표 셀·쪽 채우기 조회가 사용한다.
+단색·무늬 없음·배경 sentinel 0xFFFFFFFF를 none으로 답하고 실제 흰색 0x00FFFFFF는 solid로 유지한다.
+무늬 있는 채우기는 none으로 지우지 않는다. IR·serializer·paint는 변경하지 않는다.
+조판 변경 규칙/페이지네이션/픽셀 기준값 수정은 비해당이다.
+
+## 검증 결과
+
+- focused 4/4 PASS. 실제 HWP/HWPX no-fill, 무늬 있는 셀, 진짜 흰색 셀과 API 지정 흰색을 대조했다.
+- fresh WASM 실제 브라우저에서 no-fill과 white의 글자·문단 Query 및 HWP/HWPX 재열기 PASS.
+- e509 기준 merge simulation clean. 원 exact-head Full CI 성공.
+- 전체 GUI 메뉴 조작 검증은 하지 않았으며 API 계약의 통과와 구별한다.
+
+## 다음 조건
+
+기능상 수용 후보로 선정한다. 보류 PR을 뺀 최종 통합 candidate의 검증과 작업지시자 승인 후
+통합한다. 누적 c6ef의 focused·WASM 결과를 그 candidate의 전체 CI로 대신하지 않는다.
+source/test 보정 및 원격 게시/merge는 하지 않았다.
+

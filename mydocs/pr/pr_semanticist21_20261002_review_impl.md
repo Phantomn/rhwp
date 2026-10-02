@@ -1,0 +1,139 @@
+---
+kind: plan
+status: active
+last_verified: 2026-10-02
+---
+
+# semanticist21 열린 PR 7건 누적 검토 계획
+
+## 범위와 권한
+
+작업지시자의 일괄 검토 시작 승인에 따라 #7487, #7491, #7493, #7497, #7498,
+#7504, #7508을 검토한다. 원격 push·comment·PR 생성·merge·close는 아직 승인되지 않았다.
+검토 브랜치는 `review/semanticist21-20261002`, 기준은 최신 devel
+`e5098bc91be44a49367a7f2895a14fcd4f4c2c7f`이다. 기존 #7353 작업은 변경하지 않는다.
+
+## 누적 순서
+
+| PR | 고정 head | 변경 축 |
+| --- | --- | --- |
+| #7487 | 38c0af21a4370876da2fa34178f25d0ce0a782e0 | Enter 후 빈 페이지 소유 |
+| #7491 | c4367ec03a28369cc6f26b17eca46553ac61514c | 편집 문단 들여쓰기 |
+| #7493 | d29d483e4f5fc759c067e33766700bcad87133ed | 수정 모드·IME·Undo |
+| #7497 | 64f76e37b31bad9c0dedcb9bde67cc7a8f70eb58 | HTML 인라인 그림 붙여넣기 |
+| #7498 | 98133ad9c57c695fce2dcf8d684e801c8d431438 | 채우기 없음 조회 JSON |
+| #7504 | 7dc340284bd84e2ee475da3b577146005b989500 | 커닝 글리프·캐럿·등록 글꼴 비용 |
+| #7508 | b53d3621be516ed8f918b321a0e0b01f09f8ff19 | 첫 문단 복사 시 구조 컨트롤 슬롯 해제 |
+
+원 author와 `-x` 출처를 유지해 기능 commit을 위 순서로 적용한다.
+#7487의 `b28130e1`, 메인터너 보정 `45863eb2`는 함께 검토한다. 문서/asset commit
+`38c0af21`은 누적 코드 검증에서 제외한다. 이 commit의 `mydocs/orders/20261002.md`
+add/add 충돌은 원 기록을 덮어쓰지 않고 별도로 판정한다. 원 head의 증적은 직접 읽는다.
+다른 6건은 현재 devel과 merge-tree 충돌이 없다. 누적 적용 충돌은 따로 기록한다.
+
+## 검증 및 판정
+
+1. 원 head 코드·본문·테스트·CI를 대조한다. 변경값의 실제 소비 경로와 편집/Undo 경계를 확인한다.
+2. 공유 `target/pr-review`를 순차 사용해 6개 Rust 신규 사례와 관련 대조군만 먼저 실행한다.
+   Studio 수정 모드는 실제 명령을 실행하는 테스트와 TypeScript 검사를 수행한다.
+   generated integration suite는 검증 전용이며 stage하지 않는다.
+3. 실행 결함, 코드 검토상 우려, 필수 증거 부족을 구분한다. 렌더링/페이지 변경의
+   신규 회귀는 현행 독립 PDF 및 Native/fresh WASM 최저 90% 선행 조건으로 판정한다.
+   합성 계약·원 PR의 CI 녹색을 독립 시각 증거로 간주하지 않는다.
+4. 필요한 fresh WASM/시각 검증과 비용이 큰 누적 전체 검증은 선행 결과에 따라 결정한다.
+   기존 exact-head CI를 이유 없이 반복하지 않는다. 아직 장시간 전체 회귀를 시작하지 않는다.
+5. 원 PR별 검토 기록과 누적 검증 결과를 보고하고 필요한 다음 승인만 요청한다.
+
+## 시작 상태
+
+7건의 reviewer `edwardkim` 지정 완료. #7487은 문서 add/add 충돌,
+나머지는 clean merge simulation이다. #7504·#7508의 CI는 최초 조회 때 진행 중이었다.
+원격 게시나 통합은 수행하지 않았다.
+
+## 누적 검증 결과
+
+코드 candidate: `c6ef30ea943308c37e5d68c8304dfdabdd7b8f74`.
+22개 기능 commit을 `-x`로 적용했고 author를 유지했다. 코드 충돌·메인터너 코드 보정 없음.
+최종 수용 그룹을 따로 구성하지 않았으며 이 candidate 자체를 게시/통합하지 않는다.
+
+| 검사 | 실행 결과 | 범위 및 제한 |
+| --- | --- | --- |
+| Rust focused | 61 PASS / 1 FAIL | 신규 6개 축 및 #4968 포함 62개, 1233개 필터 제외 |
+| #6190 원 저장본 대조 | 1 PASS | #7491 저장 들여쓰기 대조 |
+| TypeScript | PASS | Studio tsconfig --noEmit |
+| Studio 전체 | 1813 PASS / 2 skip / 0 FAIL | 수정 모드 wrapper의 skip은 직접 runner로 보완 |
+| overwrite runner | 25 PASS | 실제 TS 명령 + 작성자 mock core |
+| 추가 수정 모드 반례 | 3 FAIL | astral 연속 입력 / scalar caret 뒤 명령 병합 Undo / deactivate 조각 잔류 |
+| fmt · manifest · diff whitespace | PASS | 정책 base e509 고정 |
+| fresh WASM build | PASS | host wrapper, dev profile, 별도 output pkg; Studio public 갱신 없음 |
+| 실제 브라우저 WASM API | 3 PASS | #7497·#7498·#7508, 독립 한컴 시각 판정은 아님 |
+| 원 PR 7건 exact-head CI | 모두 성공 | 누적 candidate의 Full CI로 간주하지 않음 |
+
+### 실행 명령과 증적
+
+로그 기본 경로: `output/pr-review/semanticist21-20261002/logs/`(ignored, 이번 로컬 진단).
+
+```bash
+cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review \
+  --test regression_suite_005 --test regression_suite_009 \
+  --test regression_suite_011 --test regression_suite_018 \
+  --test regression_suite_019 --test regression_suite_022 \
+  -E 'test(issue_7486_) | test(issue_7490_) | test(issue_7496_) | test(issue_7495_) | test(issue_7503_) | test(issue_7506_) | test(issue_4968_)'
+cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review \
+  --test regression_suite_017 -E 'test(issue_6190_)'
+npm --prefix rhwp-studio exec -- tsc --project rhwp-studio/tsconfig.json --noEmit
+npm --prefix rhwp-studio test
+node --experimental-transform-types --no-warnings rhwp-studio/tests/support/overwrite-mode.runner.mjs
+node --experimental-transform-types --no-warnings output/semanticist21-20261002-overwrite-boundaries.mjs
+cargo fmt --all -- --check
+node scripts/rust-test-suite-manifest.mjs --check --base-ref e5098bc91be44a49367a7f2895a14fcd4f4c2c7f
+CARGO_TARGET_DIR=target/pr-review scripts/wasm-pack-locked.sh --target web --dev \
+  --out-dir output/pr-review/semanticist21-20261002/pkg
+node output/semanticist21-20261002-browser.mjs --mode=headless
+```
+
+`semanticist21-20261002-focused.log` 및 `-indent-control.log`에 Rust 결과,
+`-studio-all.log`·`-overwrite-runner.log`·`-overwrite-boundaries.log`에 Studio 결과,
+`wasm-build.log`·`browser.json`에 실제 WASM source SHA·package hash·API 결과를 보존했다.
+`ci-heads.json`은 PR별 최신 head와 check URL의 조회 원문이다.
+
+WASM SHA-256: `7397517c38cee810b31536c17366118fb2150f26d8d4890c270f107b786dfe4b`.
+HeadlessChrome 152.0.0.0. 표준 Docker 경로 대신 host의 locked wrapper를 사용했다.
+root pkg/Studio public을 변경하지 않았고 사용자 CDP 편집 화면에 접근하지 않았다.
+
+### 실패 분류와 devel 대조
+
+#7491의 실패 assertion은 표 호스트 앞 글자 입력 후 우변 710.6px > 본문 699.2px이다.
+동일 샘플·API·편집 순서를 devel e509에서 실행해 동일 좌표를 관측했다.
+`output/semanticist21-20261002-indent-probe.rs`를 release-test librhwp에 연결했다.
+baseline 빌드는 `cargo build --locked --lib --profile release-test --target-dir target/pr-review`로
+실행했고 뒤에는 누적 review branch로 돌아왔다. 두 결과는 `-indent-probe.log`와
+`indent-probe-base.log`에 있다. 이는 기존 동작 재현이며 새 PR의 결함으로 단정하지 않는다.
+독립 편집 후 한컴 기준이 없으므로 assertion도 임의 수정하지 않았다.
+
+#7493 추가 반례의 두 번째 이름에는 redo가 있으나 Undo에서 먼저 실패했다. 실제 관측은
+명령 병합 실패/Undo 잔여이며 Redo까지 실행한 증거는 아니다. production handler/command를
+실행했지만 core는 작성자의 mock이라 실제 브라우저/WASM 재현과 구분한다.
+
+### PR별 판정 및 남은 작업
+
+- 수용 후보: [#7497](pr_7497_review.md), [#7498](pr_7498_review.md), [#7508](pr_7508_review.md).
+  기능 검토는 통과했으나 보류 건을 제외한 최종 통합 후보와 CI를 아직 만들지 않았다.
+- 보류: [#7487](pr_7487_review.md), [#7491](pr_7491_review.md), [#7493](pr_7493_review.md), [#7504](pr_7504_review.md).
+  실행 결함과 독립 시각 증거 부족을 PR별로 구분했다.
+- 검토 중 신규 등록된 #7509(head `435f04507ba1cc5b43a12c39d73158ea9f01a872`)는
+  입력/복사 논리 오프셋의 부분 수정으로 별도 접수했다. source/test diff를 읽었고 e509와
+  merge-tree는 clean이다. 아직 누적에 적용하지 않았고 CI는 최초 조회 때 시작 단계였으므로 승인하지 않았다.
+
+누적 전체 nextest·Native Skia 전체·누적 Clippy 3종·Visual Sweep은 실행하지 않았다.
+선행 실패/증거 부족 판정 뒤 동일 전체 검증을 반복하지 않았으며 미실행을 PASS로 쓰지 않는다.
+원 head CI는 원 head의 근거로만 남긴다. 선별 통합 head를 새로 게시하려면 해당 head에서
+필수 lint·회귀·CI를 충족해야 한다. generated suite/manifest는 stage하지 않는다.
+
+## 승인 후 댓글 게시 및 선별 검증
+
+작업지시자가 보류 사유 comment 게시를 승인했다. #7487·#7491·#7493·#7504에
+검토 head·실행 결과·미검증 범위·해제 조건을 게시하고 API로 본문을 재확인했다.
+개별 review의 게시 기록에 URL을 남겼다. GitHub approve·push·PR 생성·merge·close는
+이번 승인에 포함하지 않았다. 댓글 게시와 별개로 수용 후보 #7497·#7498·#7508만
+e509 기반으로 선별한 로컬 통합 branch에서 최종 필수 검증을 진행한다.
