@@ -117,7 +117,7 @@ baseline 빌드는 `cargo build --locked --lib --profile release-test --target-d
 
 ### PR별 판정 및 남은 작업
 
-- 수용 후보: [#7497](pr_7497_review.md), [#7498](pr_7498_review.md), [#7508](pr_7508_review.md).
+- 수용 후보: [#7497](archives/pr_7497_review.md), [#7498](archives/pr_7498_review.md), [#7508](archives/pr_7508_review.md).
   기능 검토는 통과했으나 보류 건을 제외한 최종 통합 후보와 CI를 아직 만들지 않았다.
 - 보류: [#7487](pr_7487_review.md), [#7491](pr_7491_review.md), [#7493](pr_7493_review.md), [#7504](pr_7504_review.md).
   실행 결함과 독립 시각 증거 부족을 PR별로 구분했다.
@@ -279,3 +279,40 @@ devel merge/rebase 또는 기존 로컬 전체 회귀를 반복하지 않는다.
 기존 3개 원 PR review와 오늘할일을 같은 통합 PR에서 갱신하고 문서 후속 head를 push한다.
 이 push의 최신 게이트를 확인한 뒤 병합 승인을 요청한다. 원 PR close·이슈 close·merge는
 이번 후속 기록 승인으로 수행하지 않는다.
+
+## 병합 및 승인된 후속 처리
+
+작업지시자의 별도 승인으로 [통합 PR #7511](https://github.com/edwardkim/rhwp/pull/7511)을
+2026-10-02 12:36:38 KST에 병합했다. 최종 head는
+`f2a9341f7ed8f1fc2912b17dd54d2635fa760dc0`, merge SHA는
+`c77ed685e21de0b2edca918efcec7c2ebbbf2bd5`다. merge 직전 MERGEABLE/CLEAN,
+원 PR 3건의 head 불변 및 모든 최신 필수 게이트 완료를 확인했다.
+
+| 최종 문서 head 검사 | 성공한 run 및 실행 방식 |
+| --- | --- |
+| CI | [36959554063](https://github.com/edwardkim/rhwp/actions/runs/36959554063), 검증한 code candidate의 fast-pass |
+| CodeQL | [36959554001](https://github.com/edwardkim/rhwp/actions/runs/36959554001), 후보 검색 실패로 Full analysis 실행 후 성공 |
+| Render Diff | [36959553768](https://github.com/edwardkim/rhwp/actions/runs/36959553768), 기존 성공 결과 재사용 |
+| Adapter inter-diff | [36959554087](https://github.com/edwardkim/rhwp/actions/runs/36959554087), 기존 성공 결과 재사용 |
+| Proptest roundtrip | [36959554030](https://github.com/edwardkim/rhwp/actions/runs/36959554030), 기존 성공 결과 재사용 |
+
+로컬 devel을 merge SHA로 fast-forward했고 최종 head의 포함을 확인했다. devel push에는
+CI 전체를 재실행하지 않고 이슈 종료·duration 갱신 두 workflow만 실행됐다.
+[이슈 종료 run](https://github.com/edwardkim/rhwp/actions/runs/36960931326)은 성공했고
+#7496·#7495·#7506 모두 CLOSED/completed를 확인했다.
+[duration 갱신 run](https://github.com/edwardkim/rhwp/actions/runs/36960931332)도 성공했다.
+code candidate `39f0a2792`의 Full CI `36955832835`에서 측정값을 가져와
+`ci-metrics/nextest-target-durations`에 `b5bd440a`로 게시했다. 최종 문서 head가
+fast-pass인 이유로 CI를 다시 실행하지 않았다.
+
+후속 기록은 maintainer 직접 반영 경로로 개별 수용 review 3건을 archive로 이동하고,
+이 일괄 기록과 오늘할일만 한 운영 문서 commit으로 devel에 반영한다.
+원 PR #7497·#7498·#7508에는 merge SHA·확정 review 링크·검증 범위와 제한을 안내하고
+통합 반영에 따른 superseded close를 수행한다. fork branch는 변경하지 않는다.
+
+정리 대상은 병합한 동일 저장소의 `review/semanticist21-accepted-20261002` local/remote branch다.
+병합 포함·원격 head 불변·동일 head의 다른 Open PR 부재를 확인한 뒤 제거한다.
+보류 #7487·#7491·#7493·#7504는 계속 Open으로 유지하므로 일괄 구현계획, 진단 branch
+`review/semanticist21-20261002`와 해당 output 증거는 보존한다. 기본 작업공간·공유
+`target/pr-review`, 다른 작업의 branch/worktree/stash는 정리 대상이 아니다.
+신규 #7509·#7510은 이번 수용 범위 밖이다. 최종 댓글·종료·정리 확정값은 GitHub에 남긴다.
