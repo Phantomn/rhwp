@@ -674,7 +674,7 @@ export class InputHandler {
       requestAnimationFrame(() => this.updateCaret(true));
     });
 
-    // 전체 mutation render는 renderer 선택 때문에 비동기다. 쪽/단 나누기 직후의 첫
+    // 전체 mutation render는 renderer 선택 때문에 비동기다. 쪽/단 나누기·본문 Enter 직후의 첫
     // updateCaret은 아직 이전 VirtualScroll을 보므로, 새 쪽 배치가 준비된 이 시점에
     // page-local rect와 DOM 위치를 다시 계산하고 한컴처럼 대상 쪽을 화면에 드러낸다.
     eventBus.on('document-layout-refreshed', () => {
@@ -3179,6 +3179,7 @@ export class InputHandler {
         if (keepFieldStartOutside) {
           this.markCurrentFieldStartOutside();
         }
+        this.caretLayoutReveal.requestFor(desc.command.type);
         this.refreshAfterOperation(desc.meta?.refresh, 'auto', desc.command.type, beforePos, newPos, {
           ...desc.command.getPageLocalTextEditOptions?.(),
           beforePageIndex,
