@@ -9,9 +9,32 @@ last_verified: 2026-10-03
 
 ## 최종 판정
 
-**승인.** 검증 source `97772d5d40787e77c3238debc2b2576b11713476`의 표 뒤 Enter 소속 보존과 저장본 종료 guide 보정은 아래 로컬·시각 게이트를 충족한다. 본인 PR의 self-review 기록이며 GitHub Approve event가 아니다. 최신 head required checks·mergeability 확인과 작업지시자의 별도 merge 승인이 남아 있다.
+**머지 보류 — 저장본 종료 guide 분기의 필수 시각 증거 부족.** 재검토 head `3edcbdbe172767d135ce420e459a41fc9b44f12e`의 Full CI와 관련 checks는 성공했다. 반복 Enter 경로의 검증은 충족하지만, 실제 저장본 2개에 발동하는 별도 guide 분기의 위치·흐름 보존을 독립 한컴 출력으로 확인하지 않았다. 기존 승인 기록은 이 두 범위를 충분히 구분하지 못해 이번 리뷰에서 바로잡는다. 실행으로 새 회귀를 검출했다는 판정은 아니다. 본인 PR의 self-review이며 GitHub Approve event가 아니다.
 
 직접 판독한 Native/fresh WASM 전체 7쪽 최저 실루엣 100%, 90% 미만·누락 쪽 0이다. 표 선 색상은 한컴 PDF보다 밝으며 전체 피델리티 100%로 해석하지 않는다. Docker daemon 연결 불가로 표준 Docker WASM은 미실행이고 host release `--no-opt` fallback을 사용했다. 이 제한을 실행 성공으로 바꾸어 기록하지 않는다.
+
+## 2026-10-03 재검토 발견 사항
+
+### [P1] 저장본 종료 guide 분기를 독립 출력으로 검증해야 한다 — 필수 증거 부족
+
+`src/renderer/typeset/paragraph/empty.rs:25-70`의 새 판단은 fit하지 않는 마지막 빈 문단을 분할 표의 종료 guide로 수용한다. `paragraph.rs:623-635`에서 정상 이월을 생략하고, `state.rs:612-626` 및 `inline_flow.rs:61-82`에서 저장 vpos를 실제 배치 원점으로 쓰면서 흐름 전진은 0으로 유지한다. 이는 문단 소속 보존 외에 줄 위치·점유의 해석을 바꾸는 경로다.
+
+제출된 4개 합성 HWPX와 대응 PDF, 대표 PNG·90% gate는 반복 Enter 경로에 대한 증거다. guide 판단은 직전 항목이 `PartialTable`이고 바로 다음 마지막 문단이어야 하므로, 표 뒤에 여러 빈 본문 문단을 만든 그 사례들의 통과를 guide 분기의 증거로 대신할 수 없다. 실제 발동 입력은 `samples/task2097/18095317_eogu_geumji.hwp`와 `samples/task2287/1342000_edu_curriculum_map.hwp`다. 현재 기록은 21/413쪽 유지, 저장 LineSeg 값, 기존 관련 회귀와 용지 밖 원장 통과다. `validation.json`의 `guidePlacementDiagnostic`도 어구 문서의 줄 좌표를 저장 vpos로 계산해 확인하며, 동일 원문의 독립 PDF와 직접 대조한 결과가 아니다. 어구 문서의 기존 마지막 표 off-canvas 1건은 남아 있다.
+
+저장 줄이 본문 안에 있다는 사실과 쪽수 회귀 통과만으로, 이 빈 문단이 전진하지 않는 종료 guide인지 또는 표 뒤에서 실제 공간을 차지해야 하는 빈 줄인지 확정할 수 없다. 두 실제 입력의 변경 페이지에서 표 끝·빈 문단 원점·마지막 내용과 다음 구역 소속을 동일 원문 한컴 PDF의 Native/fresh WASM 출력과 대조하고 직접 판독해야 한다. 쪽수 주장은 전체 쪽 대응을 확인한다. 적용되는 실루엣·대표 이미지 gate와 입력 커밋 요건도 함께 충족한 뒤 재판정한다. 자료가 부족한 현재 상태를 새 결함 재현이나 시각 통과로 기록하지 않는다.
+
+근거: [조판 원칙 검토 §2.7](../../manual/pr_review/intake_and_review.md#27-조판-원칙-준수-검토), [시각 검증 §3.5](../../manual/pr_review/visual_fixture_evidence.md#35-시각-검증-원칙). 저장 LineSeg 재사용과 편집 후 재조판의 증거를 구분하고, 실제 호출 경로의 미검증 범위를 승인으로 바꾸지 않는다는 공통 계약을 적용한다.
+
+### 완료한 재검토
+
+- 정확한 head `3edcbdbe…`의 [Full CI run 37045552995](https://github.com/edwardkim/rhwp/actions/runs/37045552995) 실제 로그에서 `CLASSIFICATION_STATUS: full`, lint·Native Skia·Archive A/B/C/D·Build & Test 성공을 확인했다. CodeQL, Render Diff, Adapter inter-diff, Proptest 및 CI Impact Policy도 성공이며 pending/failure가 없다. 정책상 skip과 성공은 구분한다.
+- 같은 production/test source인 `97772d5d…`와 최종 head 사이 source/test 차이는 없다. 로컬 전체 Cargo·lint는 기존 실행과 정확한 head의 Full CI를 재사용했으며 중복 실행하지 않았다.
+- 별도 review checkout에서 이번 리뷰의 경계·관련 회귀를 다시 실행했다. `cargo nextest run --locked --cargo-profile release-test --tests --no-fail-fast -E 'test(/issue_7486_enter_overflow_opens_page|issue_2097_band_fill|issue_6981_split_straddle_row_height|issue_7226_rowspan_only_row_cut|issue_6761_stored_vpos_rewind_page_break|off_canvas_does_not_grow_partition_12/)'`는 21 PASS / 0 FAIL / 10277 미선택, 11.176초다. shared `target/pr-review`를 재사용했으며 source를 변경하지 않았다. 로그는 ignored `output/pr-review/issue7486-table-fix-20261003/review7544-focused.log`에 있다.
+- `section.rs`에서 명시적 경계와 저장 reset 처리는 일반 문단 flow 이전에 실행됨을 확인했다. `paragraph/flow.rs`의 조기 반환 순서만으로 저장 쪽 나눔 회귀라고 판단하지 않았다.
+- guide 원점 생산 → `ColumnContent.inline_flow_plans` → layout `FullParagraph` → `layout_inline_flow_plan`의 실제 호출 경로를 대조했다. 같은 plan이 전달되는 것은 확인했지만, 독립 출력과의 일치까지 입증하는 근거로 확대하지 않았다.
+- 원격 base `e1ecaa248…` / head `3edcbdbe…`의 merge simulation은 exit0, tree `b353863c3a4ae77cea2049af9db1fb8a4780d92e`다. 공백·상대 링크22건·기존 오늘할일228개 보존을 통과했다.
+
+이 재검토는 로컬 review 문서에만 기록한다. 원격 push·review/comment 게시·merge·이슈 종료는 이번 요청에서 수행하지 않았다.
 
 ## 접수 정보
 
@@ -20,9 +43,9 @@ last_verified: 2026-10-03
 | PR·작성자·base | [#7544](https://github.com/edwardkim/rhwp/pull/7544) / postmelee / devel |
 | 기준 base | `e1ecaa248ecf7f667d8fccab4d9938e70a253392` |
 | production/test 검증 source | `97772d5d40787e77c3238debc2b2576b11713476` |
-| 제출 code candidate | `c0b075ca93b284af6d6c54975b92e7e7ae3531dd`; 검증 source 이후 증적·문서만 변경 |
+| 제출 code candidate·재검토 head | `c0b075ca93b284af6d6c54975b92e7e7ae3531dd` → `3edcbdbe172767d135ce420e459a41fc9b44f12e`; 검증 source 이후 증적·문서만 변경 |
 | 관련 이슈 | [#7486](https://github.com/edwardkim/rhwp/issues/7486), `Fixes`; #7487/#7539의 잔여 표 경로 |
-| reviewer·시점 상태 | 본인 PR이므로 reviewer 미지정 / Open, non-draft / 작성 시점 MERGEABLE / mergeStateStatus=BLOCKED / GitHub CI 진행 중 |
+| reviewer·시점 상태 | 본인 PR이므로 reviewer 미지정 / 재검토 시점 Open, non-draft, MERGEABLE / mergeStateStatus=CLEAN / GitHub CI 성공; 필수 증거 부족으로 리뷰 판정은 보류 |
 | 라우팅 | collaborator self-merge §8.2.1; archive self-review + 오늘할일을 trailing 문서 commit으로 포함 |
 
 ## 변경과 검토 범위
@@ -37,13 +60,13 @@ last_verified: 2026-10-03
 
 | 항목 | 판정·근거 |
 | --- | --- |
-| 구현 근거와 일반성 | 충족. API 생성·저장 원문과 독립 한컴 PDF의 1/2/2/2쪽 및 저장본의 실제 LineSeg를 대조한다. 문서 ID·표 행 수 예외, clamp, 가시 출력 은폐가 없다. |
-| 측정·배치 일관성 | 충족. 반복 Enter는 동일 fmt advance의 fit/배치를 보존한다. 종료 guide는 저장 줄 원점과 흐름 끝을 같은 plan에 확정해 layout이 소비한다. 소속 보존만으로 배치 위치를 추정하지 않는다. |
-| 분할·이어받기 계약 | table 컷/rowspan/요구·예약 높이 변경은 비해당. 최종 컷 소비 뒤 guide·새 페이지 종료는 충족. 기존 #7226/#6981의 쪽수·후속 구역·셀 포함과 #2097/#6761의 페이지 핀, off-canvas partition12를 실행했다. |
-| 줄 소속과 점유 높이 | 충족. 빈 글자의 표시·줄 상자·흐름 전진을 구분한다. 새 Enter는 실제 줄 점유로 정상 이월하고, 저장 종료 guide는 저장 줄 상자와 기존 흐름 끝을 각각 보존한다. |
-| 사례와 증거의 독립성 | 충족. 수동 XML 편집 없는 합성 계약 4개와 같은 원문의 한컴 PDF 전체 7쪽을 구분했다. 실제 저장본 2개는 기존 회귀 및 저장 메트릭 근거이며 새 독립 PDF 피델리티 통과로 확대하지 않는다. |
+| 구현 근거와 일반성 | 반복 Enter는 충족.종료 guide의 의미 해석은 미검증. API 생성·저장 원문과 독립 한컴 PDF의 1/2/2/2쪽은 확인했으나 실제 저장본 2개의 guide 해석을 독립 출력으로 검증하지 않았다. 문서 ID·표 행 수 예외, clamp는 없다. |
+| 측정·배치 일관성 | 동일 plan 전달은 충족. 반복 Enter는 동일 fmt advance의 fit/배치를 보존한다. 종료 guide의 저장 줄 원점과 흐름 끝은 layout까지 공유하지만 그 원점·0 전진이 독립 출력과 맞는지는 미검증. |
+| 분할·이어받기 계약 | table 컷/rowspan/요구·예약 높이 변경은 비해당. 기존 #7226/#6981의 쪽수·후속 구역·셀 포함과 #2097/#6761의 페이지 핀, off-canvas partition12는 통과했다. 최종 컷 뒤 guide의 독립 시각 계약은 미검증. |
+| 줄 소속과 점유 높이 | 반복 Enter는 충족. 빈 글자의 표시·줄 상자·흐름 전진을 구분하며 정상 이월한다. 저장 종료 guide를 전진 없이 수용하는 의미 계약은 미검증. |
+| 사례와 증거의 독립성 | 반복 Enter는 충족. 수동 XML 편집 없는 합성 계약 4개와 같은 원문의 한컴 PDF 전체 7쪽을 확인했다. 실제 저장본 guide 2개는 회귀·저장 메트릭 근거에 그쳐 필수 시각 증거는 미검증. |
 | 기준값 변경 | 비해당. baseline·golden·허용치 변경 없음. 첫 전체 회귀 4 FAIL, 중간 guide의 off-canvas 1 FAIL은 원인 보정으로 해소했으며 래칫을 완화하지 않았다. |
-| 주장과 검증 범위 | 충족. 아래 source·명령·전후 실행 증거와 최신 captures를 연결한다. Docker 표준 WASM·별도 정량 benchmark는 미검증으로 남긴다. |
+| 주장과 검증 범위 | 부분 충족. 아래 source·명령·전후 실행 증거와 최신 captures는 반복 Enter 범위를 입증한다. 저장본 guide의 필수 시각 증거·Docker 표준 WASM·별도 정량 benchmark는 미검증. |
 
 ## 검증 입력과 실행 결과
 
