@@ -14,7 +14,7 @@ Issue: [#7486](https://github.com/edwardkim/rhwp/issues/7486). 앞서 병합된 
 
 최신 `devel` `e1ecaa248ecf7f667d8fccab4d9938e70a253392`에서
 `codex/table-enter-page-ownership`을 만들었다. 사용자가 로컬 수정 결과를 직접 확인했고 PR 제출 준비를
-승인했다. remote push·PR 생성은 아직 수행하지 않았다. 기존 #7487/#7539를 다시 게시하거나 수정하지 않는다.
+승인했다. remote push와 Open PR #7544 생성을 수행했다. 기존 #7487/#7539를 다시 게시하거나 수정하지 않는다.
 
 10×2 위아래 표 뒤의 160% Enter33~39에서 확정된 빈 쪽을 `pages.pop()`으로 지워 문단 소속이
 사라졌다. 표 높이가 빠진 저장 vpos에 overflow 예외를 더하는 대신, 가시 텍스트가 없으면 공간도
@@ -96,7 +96,7 @@ Cmd+Z로 1쪽 복귀, Cmd+Shift+Z로 2쪽 복원도 확인한다. 66%와 30행·
 
 사용자가 위 로컬 수정 결과를 확인했다. PR 제출 전 전체 release-test·Native Skia 3종·세 Clippy·
 workspace build·정책 base 비교를 포함한 아래 필수 로컬 검증을 모두 통과했다.
-최신 `upstream/devel`은 기준 SHA와 같다. GitHub CI·push·PR 생성은 미실행이다.
+최신 `upstream/devel`은 기준 SHA와 같다. 정상 push와 Open [PR #7544](https://github.com/edwardkim/rhwp/pull/7544)를 생성했다. GitHub 최신 head CI·병합 승인은 남아 있다.
 
 로그·진단 스크립트는 ignored `output/pr-review/issue7486-table-fix-20261003/logs/`와 같은 작업 폴더에
 보존했다. 별도 `rust-review/` checkout은 전체 PR 검증에 재사용한다. 공유 `target/pr-review`와 다른
