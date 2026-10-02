@@ -10,8 +10,14 @@ import assert from 'node:assert/strict';
 const studioDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const srcDir = join(studioDir, 'src');
 
+// InputHandler(deactivate·dispose)가 import 하는 wasm 진입점. 이 러너는 문단 모델 wasm 을 직접
+// 넘기므로 실제 wasm 바이너리 없이 이름만 채운다.
+const WASM_ENTRY_STUB = 'data:text/javascript,export default async function init() {}'
+  + ' export class HwpDocument {} export function version() { return "0"; }';
+
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    if (specifier === '@wasm/rhwp.js') return { url: WASM_ENTRY_STUB, shortCircuit: true };
     if (specifier.startsWith('@/')) {
       const abs = join(srcDir, specifier.slice(2));
       const withTs = abs.endsWith('.ts') ? abs : abs + '.ts';
@@ -27,6 +33,7 @@ registerHooks({
 
 const text = await import(pathToFileURL(join(srcDir, 'engine', 'input-handler-text.ts')).href);
 const { CommandHistory } = await import(pathToFileURL(join(srcDir, 'engine', 'history.ts')).href);
+const { InputHandler } = await import(pathToFileURL(join(srcDir, 'engine', 'input-handler.ts')).href);
 
 /**
  * 본문 문단 하나(sec 0, para 0)와 셀 문단 하나를 담은 모델. 글자처럼 취급한 개체는 텍스트에
@@ -632,6 +639,43 @@ scenario('29. IME 가 😀 를 확정한 뒤(일본어 변환 등) 다음 조합
   h.undo();
   assert.equal(wasm.doc.body, 'abcd');
 });
+
+// ── 기록되기 전 조합의 문단 조각 수명 ────────────────────────────────────────────
+// 문서를 열거나 새로 만들면 문서를 바꾼 뒤 deactivate 가 불린다. 새 문서는 같은 코어를 다시 쓰므로
+// (createBlankDocument) 조합이 잡아 둔 조각을 해제하지 않으면 그대로 남는다.
+const inert = new Proxy(function () {}, { get: () => inert, apply: () => undefined });
+/** 실제 InputHandler 의 deactivate·dispose 를 실행한다. 화면·DOM 객체는 없으면 아무 일도 안 하는 대역이다. */
+function endSession(h, method) {
+  const orInert = (obj) => new Proxy(obj, { get: (t, k) => (k in t ? t[k] : inert) });
+  Object.assign(h, {
+    textarea: orInert(h.textarea), caret: orInert(h.caret), cursor: orInert(h.cursor),
+    isResizeDragging: false, dragRafId: 0, resizeHoverRafId: 0,
+  });
+  const hadDocument = 'document' in globalThis;
+  if (!hadDocument) globalThis.document = inert; // dispose 가 문서 전역 리스너를 뗀다
+  try {
+    InputHandler.prototype[method].call(orInert(h));
+  } finally {
+    if (!hadDocument) delete globalThis.document;
+  }
+}
+
+for (const method of ['deactivate', 'dispose']) {
+  scenario(`30. 덮은 IME 조합 중 ${method} 하면 기록되지 않은 문단 조각을 해제한다`, () => {
+    const wasm = makeWasm({ body: 'abcd' });
+    const h = makeHandler(wasm, bodyPos(0));
+    text.onCompositionStart.call(h);
+    h.textarea.value = 'ㅎ';
+    text.onInput.call(h);
+    assert.equal(wasm.fragments.size, 1, '덮을 때 문단 조각을 잡는다');
+    endSession(h, method);
+    assert.equal(wasm.fragments.size, 0, `${method}: 기록되지 않은 조각이 남으면 안 된다`);
+    // 브라우저가 늦게 보낸 compositionend 는 아무것도 기록하거나 되살리지 않는다.
+    text.onCompositionEnd.call(h);
+    assert.equal(h.history.canUndo(), false, `${method}: 끝난 조합을 기록하면 안 된다`);
+    assert.equal(wasm.doc.body, 'ㅎbcd', `${method}: 조합이 남긴 문서를 다시 건드리면 안 된다`);
+  });
+}
 
 if (failures.length > 0) {
   console.error(failures.join('\n'));
