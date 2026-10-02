@@ -42,7 +42,7 @@ fn textbox_contains_non_tac_picture(text_box: &TextBox) -> bool {
     })
 }
 
-fn shape_caption_for_layout(shape: &ShapeObject) -> Option<Caption> {
+pub(super) fn shape_caption_for_layout(shape: &ShapeObject) -> Option<Caption> {
     match shape {
         ShapeObject::Line(s) => s.drawing.caption.clone(),
         ShapeObject::Rectangle(s) => s.drawing.caption.clone(),
@@ -68,7 +68,9 @@ fn textbox_vpos_origin_hu(common: &CommonObjAttr, matrix_positioned: bool) -> Op
     }
 
     let origin = crate::renderer::float_placement::signed_hwpunit(common.vertical_offset);
-    (origin > 0).then_some(origin)
+    // 쪽 오프셋이 상자 자체 높이 안에 있으면 저장 줄 vpos를 쪽 좌표로 단정할 수 없다.
+    // 이 경우 첫 줄의 상자 내부 여백을 보존한다. 쪽 좌표가 분명한 오프셋만 재기저화한다.
+    (origin > 0 && origin >= common.height as i32).then_some(origin)
 }
 
 fn normalize_textbox_vpos_hu(vertical_pos: i32, origin_hu: Option<i32>) -> i32 {
@@ -668,8 +670,14 @@ impl LayoutEngine {
             }
 
             // 인라인 좌표 없으면 기존 방식 (정렬 기반 단독 배치)
-            let eq_w = hwpunit_to_px(eq.common.width as i32, self.dpi);
-            let eq_h = hwpunit_to_px(eq.common.height as i32, self.dpi);
+            let eq_w = hwpunit_to_px(
+                crate::renderer::equation::flow_width_hwp(eq) as i32,
+                self.dpi,
+            );
+            let eq_h = hwpunit_to_px(
+                crate::renderer::equation::flow_height_hwp(eq) as i32,
+                self.dpi,
+            );
             let eq_x = match alignment {
                 Alignment::Center | Alignment::Distribute => {
                     col_area.x + (col_area.width - eq_w).max(0.0) / 2.0
@@ -684,7 +692,7 @@ impl LayoutEngine {
             let ast = super::super::equation::parser::EqParser::new(tokens).parse();
             let font_size_px = hwpunit_to_px(eq.font_size as i32, self.dpi);
             let layout_box =
-                super::super::equation::layout::EqLayout::new(font_size_px).layout(&ast);
+                super::super::equation::layout::EqLayout::for_equation(eq, self.dpi).layout(&ast);
             let color_str = super::super::equation::svg_render::eq_color_to_svg(eq.color);
             let svg_content = super::super::equation::svg_render::render_equation_svg(
                 &layout_box,
@@ -3271,7 +3279,7 @@ impl LayoutEngine {
                                         Some(shape.as_ref().common().height as i32)
                                     }
                                     Control::Equation(eq) if eq.common.treat_as_char => {
-                                        Some(eq.common.height as i32)
+                                        Some(crate::renderer::equation::flow_height_hwp(eq) as i32)
                                     }
                                     _ => None,
                                 })
@@ -3444,9 +3452,14 @@ impl LayoutEngine {
                         }
                     }
                     Control::Equation(eq) => {
-                        total_inline_width += hwpunit_to_px(eq.common.width as i32, self.dpi);
-                        max_inline_height =
-                            max_inline_height.max(hwpunit_to_px(eq.common.height as i32, self.dpi));
+                        total_inline_width += hwpunit_to_px(
+                            crate::renderer::equation::flow_width_hwp(eq) as i32,
+                            self.dpi,
+                        );
+                        max_inline_height = max_inline_height.max(hwpunit_to_px(
+                            crate::renderer::equation::flow_height_hwp(eq) as i32,
+                            self.dpi,
+                        ));
                     }
                     Control::Table(table) if table.common.treat_as_char => {
                         total_inline_width += hwpunit_to_px(table.flow_width_hu() as i32, self.dpi)
@@ -3715,8 +3728,14 @@ impl LayoutEngine {
                     }
                     Control::Equation(eq) => {
                         // 글상자 내 수식: 항상 글자처럼 인라인 배치
-                        let eq_w = hwpunit_to_px(eq.common.width as i32, self.dpi);
-                        let eq_h = hwpunit_to_px(eq.common.height as i32, self.dpi);
+                        let eq_w = hwpunit_to_px(
+                            crate::renderer::equation::flow_width_hwp(eq) as i32,
+                            self.dpi,
+                        );
+                        let eq_h = hwpunit_to_px(
+                            crate::renderer::equation::flow_height_hwp(eq) as i32,
+                            self.dpi,
+                        );
                         // [Task #962] 글상자 내부 paragraph 의 inline equation 은
                         // paragraph_layout 가 layout_composed_paragraph 경로에서 정확한
                         // gap 위치 (text 사이) 에 emit 한다. 본 두번째 loop 는
@@ -3760,8 +3779,10 @@ impl LayoutEngine {
                             let ast = super::super::equation::parser::EqParser::new(tokens).parse();
                             let font_size_px = hwpunit_to_px(eq.font_size as i32, self.dpi);
                             let layout_box =
-                                super::super::equation::layout::EqLayout::new(font_size_px)
-                                    .layout(&ast);
+                                super::super::equation::layout::EqLayout::for_equation(
+                                    eq, self.dpi,
+                                )
+                                .layout(&ast);
                             let color_str =
                                 super::super::equation::svg_render::eq_color_to_svg(eq.color);
                             let svg_content =
@@ -4296,8 +4317,24 @@ impl LayoutEngine {
                     None
                 };
                 let effective_ref = effective_common.as_ref().unwrap_or(common);
-                let (bottom_y, shape_y) =
-                    self.calc_shape_bottom_y(effective_ref, col_area, body_area);
+                let (bottom_y, shape_y) = if let Control::Table(table) = ctrl {
+                    let (ref_y, ref_h) = match common.vert_rel_to {
+                        VertRelTo::Page => (body_area.y, body_area.height),
+                        VertRelTo::Paper => (0.0, self.current_page_height.get()),
+                        VertRelTo::Para => unreachable!("문단 기준 표는 위에서 제외됨"),
+                    };
+                    let (top, bottom) =
+                        crate::renderer::float_placement::absolute_table_vertical_geometry(
+                            table,
+                            ref_y,
+                            ref_h,
+                            hwpunit_to_px(effective_ref.height as i32, self.dpi),
+                            self.dpi,
+                        );
+                    (bottom, top)
+                } else {
+                    self.calc_shape_bottom_y(effective_ref, col_area, body_area)
+                };
 
                 // 본문 시작 근처만 고려 (페이지 하단 개체는 제외)
                 let threshold_y = col_area.y + col_area.height / 3.0;
@@ -4447,7 +4484,28 @@ impl LayoutEngine {
                 if shape_w < body_area.width * 0.8 {
                     continue;
                 }
-                let (bottom_y, shape_y) = self.calc_shape_bottom_y(common, body_area, body_area);
+                let (bottom_y, shape_y) = if let Control::Table(table) = ctrl {
+                    if matches!(common.vert_rel_to, VertRelTo::Page | VertRelTo::Paper) {
+                        let (ref_y, ref_h) = if common.vert_rel_to == VertRelTo::Page {
+                            (body_area.y, body_area.height)
+                        } else {
+                            (0.0, self.current_page_height.get())
+                        };
+                        let (top, bottom) =
+                            crate::renderer::float_placement::absolute_table_vertical_geometry(
+                                table,
+                                ref_y,
+                                ref_h,
+                                hwpunit_to_px(common.height as i32, self.dpi),
+                                self.dpi,
+                            );
+                        (bottom, top)
+                    } else {
+                        self.calc_shape_bottom_y(common, body_area, body_area)
+                    }
+                } else {
+                    self.calc_shape_bottom_y(common, body_area, body_area)
+                };
                 let threshold_y = body_area.y + body_area.height / 3.0;
                 if shape_y > threshold_y {
                     continue;

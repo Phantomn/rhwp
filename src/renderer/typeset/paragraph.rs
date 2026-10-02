@@ -28,12 +28,12 @@ pub(super) mod stored_lines;
 pub(super) mod whole_fit;
 
 use super::{
-    hwpx_saved_reset_fragment_matches_current_flow, missing_lineseg_trailing_line_break,
-    native_hwp5_existing_footnote_reset_overlap_break_line,
+    missing_lineseg_trailing_line_break, native_hwp5_existing_footnote_reset_overlap_break_line,
     native_hwp5_first_footnote_overlap_break_line,
     native_hwp5_text_reset_before_large_tac_topbottom_picture_break_line, page_item_vpos_base,
-    para_has_visible_text, para_is_treat_as_char_picture_only, preceding_stored_vpos,
-    stored_vpos_rewinds, TypesetState,
+    para_has_non_whitespace_text, para_has_visible_text, para_is_treat_as_char_picture_only,
+    preceding_stored_vpos, stored_body_reset_fragment_matches_current_flow, stored_vpos_rewinds,
+    TypesetState,
 };
 use crate::model::paragraph::Paragraph;
 use crate::renderer::hwpunit_to_px;
@@ -231,16 +231,24 @@ pub(super) fn place_fitted_paragraph(
                 ),
             st.vpos_page_base.is_none() && st.vpos_lazy_base.is_some(),
         );
+    // 다음 저장 표가 이 문단의 후행 간격을 사용할 수는 있어도
+    // 실제 글줄 안으로 들어오면 안 된다. 수용에 쓴 구성 높이를 공유한다.
+    if para.controls.is_empty() && para_has_non_whitespace_text(para) && fmt.line_count() > 0 {
+        st.record_paragraph_content_bottom(
+            (para_idx, fmt.line_count()),
+            (fmt.height_for_fit - fmt.spacing_after - trimmed_spacing_before).max(0.0),
+        );
+    }
     st.apply_full_paragraph_flow(
         advance,
         fmt.total_height,
         trimmed_spacing_before,
         body_bottom_vpos,
     );
-    // Only the KoPub justified reflow above deliberately invalidates a saved
-    // row ladder. Other documents (including HWP3-origin HWPX) can have fewer
-    // composed rows for unrelated reasons; subtracting their saved height
-    // from every later vpos would pull content past the physical page edge.
+    // 위의 KoPub 양쪽 정렬 재조판만 의도적으로 저장 줄 위치 관계를 무효화한다.
+    // HWP3에서 변환한 HWPX를 포함한 다른 문서는 별도 이유로 조판 줄 수가 줄 수 있다.
+    // 그 저장 높이를 모든 뒤 vpos에서 빼면
+    // 내용이 물리 쪽 경계를 넘어 당겨진다.
     let compacted_kopub_justified = st.profile.hwpx_stored_layout()
         && para.controls.iter().any(|control| {
             matches!(control, crate::model::control::Control::Picture(picture)
@@ -737,11 +745,36 @@ pub(super) fn prepare_forced_page_boundary(
     // 실제 FootnoteArea 경계와 source/flow가 함께 맞을 때만 강제 경계로 쓴다.
     let native_hwp5_existing_footnote_reset_line =
         native_hwp5_existing_footnote_reset_overlap_break_line(st, para, fmt, paragraphs, dpi);
-    let current_page_vpos_base = st.vpos_page_base.or_else(|| {
+    // 흐름 스냅이 이미 확정한 지연 기준은 마지막 줄·내부 쪽 경계도 함께 소비한다.
+    // 첫 빈 개체 호스트의 저장 위치는 표 밴드 뒤의 줄일 수 있어 쪽 원점으로 다시 쓰지 않는다.
+    let current_page_vpos_base = st.vpos_page_base.or(st.vpos_lazy_base).or_else(|| {
         st.current_items
             .first()
             .and_then(|item| page_item_vpos_base(item, paragraphs))
     });
+    // 쪽 소유가 저장 앵커와 현재 흐름으로 입증된 일반 본문은 시작 높이의
+    // 비율로 다시 거절하지 않는다. 기존 세션 편집 플래그와 구성 줄 수,
+    // 유효 저장 앵커를 확인하고 실제 재조판으로 사라진 reset은 재사용하지 않는다.
+    // 같은 원본 줄 사다리와 실제 흐름은 컨테이너 형식과 무관하게 같은 쪽을 소유한다.
+    let anchored_stored_body_reset_line = ((st.profile.hwpx_stored_layout()
+        || st.profile.hwp5_stored_pagination_layout())
+        && !st.profile.session_edited()
+        && para_has_visible_text(para)
+        && fmt.line_heights.len() == para.line_segs.len())
+    .then(|| {
+        (1..para.line_segs.len()).find(|&break_line| {
+            para.line_segs[break_line].vertical_pos < para.line_segs[break_line - 1].vertical_pos
+                && stored_body_reset_fragment_matches_current_flow(
+                    st,
+                    para,
+                    0,
+                    break_line,
+                    current_page_vpos_base.unwrap_or(0),
+                    dpi,
+                )
+        })
+    })
+    .flatten();
     let hwp3_converted_hwp5 = st.profile.hwp3_layout()
         && !st.profile.hwp3_native_layout()
         && !st.profile.hwpx_container();
@@ -759,7 +792,7 @@ pub(super) fn prepare_forced_page_boundary(
         // anchor가 맞지 않는 reset은 physical page 경계로 승격하지 않는다.
         !st.profile.hwpx_stored_layout()
             || st.current_items.is_empty()
-            || hwpx_saved_reset_fragment_matches_current_flow(
+            || stored_body_reset_fragment_matches_current_flow(
                 st,
                 para,
                 0,
@@ -768,7 +801,8 @@ pub(super) fn prepare_forced_page_boundary(
                 dpi,
             )
     });
-    let forced_page_break_line = internal_forced_page_break_line
+    let forced_page_break_line = anchored_stored_body_reset_line
+        .or(internal_forced_page_break_line)
         .or_else(|| {
             st.profile.hwpx_stored_layout().then(|| {
                 boundary::hwpx_explicit_page_break_tail_line(

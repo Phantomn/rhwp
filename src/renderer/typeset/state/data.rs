@@ -8,6 +8,9 @@ pub(in crate::renderer::typeset) struct StateView {
     pub(in crate::renderer::typeset) pages: Vec<PageContent>,
     /// 현재 단에 쌓이는 항목
     pub(in crate::renderer::typeset) current_items: Vec<PageItem>,
+    /// 수용한 일반 전체/분할 본문의 (문단, 끝 줄)별 단 상대 점유 하단.
+    pub(in crate::renderer::typeset) paragraph_fragment_content_bottoms:
+        std::collections::HashMap<(usize, usize), f64>,
     /// 현재 단에서 소비된 높이 (px)
     pub(in crate::renderer::typeset) current_height: f64,
     /// 현재 단 시작 시점의 논리 높이 (px)
@@ -66,7 +69,9 @@ pub(in crate::renderer::typeset) struct StateView {
     /// 옮겨 밴드 바닥을 확장할 때만 사용한다.
     pub(in crate::renderer::typeset) square_band_top: Option<f64>,
     pub(in crate::renderer::typeset) current_footnote_height: f64,
-    /// Current page owns a HWPX note body deferred from a picture marker page.
+    /// 현재 큐 예약은 실제 배치와 같은 본문 하단 앵커를 사용한다.
+    pub(in crate::renderer::typeset) current_footnote_body_bottom_reserved: bool,
+    /// 현재 쪽은 그림 표시가 있는 앞쪽에서 이월된 HWPX 각주 본문을 소유한다.
     pub(in crate::renderer::typeset) deferred_hwpx_note_body: bool,
     /// [Task #1658 v3] 페이지 하단 고정 표(vert=쪽·valign=Bottom, 결재/서명 틀)의
     /// 하단 배타 영역 높이 — 겹침 허용이므로 합이 아닌 max(union). 본문 텍스트는
@@ -135,6 +140,12 @@ pub(in crate::renderer::typeset) struct StateView {
     /// 단일 컬럼·caption 보유 picture 형상으로 한정한다.
     pub(in crate::renderer::typeset) deferred_next_page_square_pictures:
         Vec<DeferredSquarePictureControl>,
+    /// 현재 호스트를 남기고 다음 쪽의 저장 상단 프레임만 이월한다.
+    pub(in crate::renderer::typeset) deferred_next_page_stored_frames:
+        Vec<crate::renderer::typeset::DeferredStoredFrameControl>,
+    /// 저장 그림 상단 예약은 흐름에 반영하고 그림 항목은 단 확정 시 앞에 붙인다.
+    pub(in crate::renderer::typeset) page_start_stored_frames:
+        Vec<crate::renderer::typeset::DeferredStoredFrameControl>,
     /// 다음 physical page의 flush 시점에만 앞에 붙일 Square picture.
     /// `current_items`에 즉시 넣으면 out-of-flow 그림이 문단 fit/vpos 상태를 바꾸어
     /// p1356 뒤 본문을 한 쪽 더 분할한다. layout 순서에는 앞에 있어야 하지만,

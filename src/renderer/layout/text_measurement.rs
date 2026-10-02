@@ -833,7 +833,7 @@ pub(crate) fn resolved_to_text_style(
             // [#7387] 공백은 run 의 언어 슬롯과 무관하게 영문 슬롯 글꼴이 정한다.
             font_space_em: cs.font_space_em,
             hft_hangul_face: styles.hwp3_variant && cs.hft_hangul_face_for_lang(lang_index),
-            font_size: cs.font_size,
+            font_size: cs.font_size_for_lang(lang_index),
             color: cs.text_color,
             bold: cs.bold,
             italic: cs.italic,
@@ -979,7 +979,7 @@ fn quantize_hwp_px(px: f64) -> f64 {
     hwp as f64 / 75.0
 }
 
-/// [#7390] `KoPubDotum` Basic Latin(U+0020~U+007E) 전진폭, 1000em 기준.
+/// [#7390] `KoPubDotum` 기본 라틴 문자(U+0020~U+007E) 전진폭, 1000em 기준.
 ///
 /// KOPUS 배포본 `ttfs/kopub/KoPubDotum-{Light,Medium,Bold}.ttf` 의 `cmap`+`hmtx` 직독.
 /// 굵기 3종이 완전히 같아 한 벌만 둔다. 공백(첫 항목 290)은 **쓰지 않는다** —
@@ -992,7 +992,7 @@ static KOPUB_DOTUM_LATIN_0: [u16; 95] = [
     232, 891, 562, 549, 562, 562, 341, 506, 341, 562, 504, 802, 506, 504, 451, 310, 386, 310, 527,
 ];
 
-/// [#7390] `KoPubBatang` Basic Latin 전진폭. 위와 같은 출처·같은 규약이다.
+/// [#7390] `KoPubBatang` 기본 라틴 문자 전진폭. 위와 같은 출처·같은 규약이다.
 static KOPUB_BATANG_LATIN_0: [u16; 95] = [
     312, 312, 312, 573, 573, 745, 789, 312, 312, 312, 419, 648, 312, 503, 312, 468, 573, 573, 573,
     573, 573, 573, 573, 573, 573, 573, 312, 312, 484, 556, 484, 468, 834, 668, 640, 708, 770, 590,
@@ -1283,6 +1283,13 @@ fn measure_char_width_embedded_decision_for_font<'a>(
                 character_match: "miss",
             };
         };
+        // HMKMM TrueType의 가운뎃점은512/512 전각이며 독립 PDF도 같은 전진폭이다.
+        // 같은 face 이름의 HFT 출력은 좁은 호환 폭을 쓰므로 명시적 프로그램
+        // 선택이 확인된 세션만 바꾼다. 따옴표는 TrueType 글리프가 전각이어도
+        // 한컴 문단 조판에서 반각 처리되므로 기존 기호 규칙을 유지한다.
+        let human_true_type_punct = font_metric_trusted
+            && matches!(primary_name, "휴먼명조" | "HumanMyeongJo")
+            && c == '\u{00B7}';
         // [#7051] HWP3 변환본의 HFT 한글 전용 face 는 ASCII 를 반각(`em/2`)으로 전진시킨다.
         //
         // HWP3 시절 HFT 글꼴(`명조`·`신명 세명조`·`한양신명조` 등)은 한글 전용이고 ASCII
@@ -1344,7 +1351,9 @@ fn measure_char_width_embedded_decision_for_font<'a>(
             && glyph_w >= mm.metric.em_size
             && !is_monospace_metric(mm.metric)
             && (!font_metric_trusted || latin1_table_is_uninformative(mm.metric));
-        if hft_hangul_halfwidth_ascii {
+        if human_true_type_punct {
+            (mm.metric.em_size, "metricTrueTypeGlyph")
+        } else if hft_hangul_halfwidth_ascii {
             (mm.metric.em_size / 2, "metricHftHangulHalfwidthAscii")
         } else if (is_narrow_unicode_punct && glyph_w >= mm.metric.em_size) || is_b7_notdef_artifact
         {
@@ -2990,10 +2999,10 @@ mod tests {
     ///   표를 믿는다.
     /// - **신명 신신명조(HFT → HY신명조로 대체)** — 점선 리더 26점이 150.6px 칸에 들어간다
     ///   (`samples/issues/2809/jubo_20260104.hwp`). 전각이면 381px 라 불가능하다 → 좁힌다.
-    /// - **휴먼명조** — 이 글꼴의 `·` 슬롯은 오버레이가 307(0.3em)로 갈라 두었고, 정본이
-    ///   TrueType 1.000 ↔ Type3 0.384 로 갈려 이 변경에서는 움직이지 않는다. 표 값이
-    ///   em 미만이라 신뢰 여부와 무관하게 적힌 폭 그대로다(`font_metrics_overlays.rs` 주석).
-    ///   같은 face 의 작은따옴표는 갈리지 않아 아래 따옴표 시험이 따로 잠근다.
+    /// - **휴먼명조** — 보정325의 독립 한컴 PDF208쪽과 HMKMM.TTF의 hmtx는
+    ///   TrueType 가운뎃점이512/512 전각임을 확인한다. 명시적 TrueType 선택이
+    ///   확인된 신뢰 경로는1.0em, 비신뢰 HFT 호환 경로는 종전0.3em을 유지한다.
+    ///   작은따옴표의 별도 조판 규칙은 변경하지 않는다.
     ///
     /// 대체 안 된 HFT 가 전각이라는 정본은 아직 없어 그 경우는 종전대로 좁힌다.
     #[test]
@@ -3008,13 +3017,13 @@ mod tests {
                 ..Default::default()
             };
             let positions = m.compute_char_positions("가\u{00B7}나", &style);
-            assert!(positions.len() >= 3, "positions should have ≥ 3 entries");
+            assert!(positions.len() >= 3, "세 글자의 원점이 모두 있어야 한다");
             (positions[2] - positions[1]) / style.font_size
         };
         for (family, trusted, expected_em) in [
             ("HY신명조", true, 1.0),
             ("HY신명조", false, 0.3),
-            ("휴먼명조", true, 0.3),
+            ("휴먼명조", true, 1.0),
             ("휴먼명조", false, 0.3),
             ("한양신명조", true, 0.384),
         ] {
