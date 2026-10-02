@@ -7,11 +7,14 @@ last_verified: 2026-10-03
 
 # #7486 — 표 뒤 Enter의 빈 줄 소유권 보정
 
+Issue: [#7486](https://github.com/edwardkim/rhwp/issues/7486). 앞서 병합된 Studio 보고서와 구분하기 위해
+이번 표 경로의 보고서는 `_table_report.md` 이름으로 유지한다.
+
 ## 범위·원인
 
 최신 `devel` `e1ecaa248ecf7f667d8fccab4d9938e70a253392`에서
-`codex/table-enter-page-ownership`을 만들었다. 로컬 구현과 사용자 직접 재검증 단계이며
-remote push·PR 생성·이슈 종료를 수행하지 않았다. 기존 #7487/#7539를 다시 게시하거나 수정하지 않는다.
+`codex/table-enter-page-ownership`을 만들었다. 사용자가 로컬 수정 결과를 직접 확인했고 PR 제출 준비를
+승인했다. remote push·PR 생성은 아직 수행하지 않았다. 기존 #7487/#7539를 다시 게시하거나 수정하지 않는다.
 
 10×2 위아래 표 뒤의 160% Enter33~39에서 확정된 빈 쪽을 `pages.pop()`으로 지워 문단 소속이
 사라졌다. 표 높이가 빠진 저장 vpos에 overflow 예외를 더하는 대신, 가시 텍스트가 없으면 공간도
@@ -33,6 +36,11 @@ npx MCP 비동기 `start → status → download`로 독립 한컴 PDF를 확보
 입력 저장 제품은 `hancom-office-2020`이므로 engine `2020`을 명시했다. HOffice120 호환 profile의
 `pdf_output_mode=hancom2020_pdf_driver_one_up`, 한컴 11.0.0.9136, 파일 서명·SHA-256을 확인했다.
 endpoint·token은 증적에 포함하지 않는다.
+
+합성 편집 fixture는 `tests/fixtures/issue7486_table_enter/`에, 대응 MCP PDF는
+`pdf/issue7486_<원문 stem>-2020.pdf`에 보존했다. 최초 assets 경로의 같은 바이트를 옮겼으며
+XML·LineSeg·PDF 내용은 변경하지 않았다. 각 파일의 저장소 경로·SHA-256은 validation.json의
+`inputPaths`와 `files`에 연결했다. 최종 sweep는 이 저장소 경로를 사용한다.
 
 | 입력 | 한컴 PDF | Native | fresh WASM | 각 backend 전체 쪽 최저 실루엣 |
 | --- | ---: | ---: | ---: | ---: |
@@ -85,9 +93,9 @@ rhwp의 표 선은 PDF보다 밝다. 실루엣 100%를 선 색상·전체 피델
 33번째에 2쪽·새 쪽 캐럿·스크롤이 갱신되어야 하며 한 번 더 Enter나 배율 변경이 필요 없어야 한다.
 Cmd+Z로 1쪽 복귀, Cmd+Shift+Z로 2쪽 복원도 확인한다. 66%와 30행·300%·Enter9는 추가 대조군이다.
 
-이번 단계는 로컬 보정 재검증 완료 후보이며 PR 제출 준비 완료로 보고하지 않는다.
-PR 전 전체 release-test·Native Skia 3종·세 Clippy·workspace build·정책 base 비교와
-최신 devel 정합 확인은 사용자 재검증 뒤 PR 준비 단계에서 수행한다. GitHub CI·push·PR 생성은 미실행이다.
+사용자가 위 로컬 수정 결과를 확인했다. PR 제출 전 전체 release-test·Native Skia 3종·세 Clippy·
+workspace build·정책 base 비교를 진행 중이며 아직 전체 통과로 기록하지 않는다.
+최신 `upstream/devel`은 기준 SHA와 같다. GitHub CI·push·PR 생성은 미실행이다.
 
 로그·진단 스크립트는 ignored `output/pr-review/issue7486-table-fix-20261003/logs/`와 같은 작업 폴더에
 보존했다. 별도 `rust-review/` checkout은 전체 PR 검증에 재사용한다. 공유 `target/pr-review`와 다른

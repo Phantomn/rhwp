@@ -8,8 +8,8 @@ last_verified: 2026-10-03
 # #7486 — 표 뒤 Enter의 확정 쪽 소유 보존
 
 기준: `upstream/devel` `e1ecaa248ecf7f667d8fccab4d9938e70a253392`.
-Branch: `codex/table-enter-page-ownership`. 사용자 범위는 로컬 보정·검증 후 직접 재검증이다.
-원격 push·PR 생성·이슈 종료는 아직 수행하지 않는다.
+Branch: `codex/table-enter-page-ownership`. 최초 범위는 로컬 보정·검증 후 직접 재검증이었다.
+사용자가 수정 결과를 확인했고 2026-10-03 PR 제출 준비를 승인했다. 원격 제출은 필수 검증 뒤 진행한다.
 
 ## 근거와 수정 방향
 
@@ -49,5 +49,5 @@ PR 전 전체 Rust lint·release-test·Native Skia 게이트는 별도 PR 준비
 
 로컬 검증 결과와 사용자 재검증 안내는 [결과 보고](../report/task_m100_7486_table_report.md)에 연결했다.
 4개 원문 전체 7쪽 × Native/fresh WASM 최저 실루엣 100%를 먼저 충족한 뒤 정식 회귀 2개를 추가했다.
-동일 최종 검사본은 base에서 4 PASS/2 FAIL, 보정 후 6 PASS/0 FAIL이다. 사용자 재검증과 PR 전
-전체 검증·원격 제출은 다음 단계로 남는다.
+동일 최종 검사본은 base에서 4 PASS/2 FAIL, 보정 후 6 PASS/0 FAIL이다. 사용자 재검증을 마쳤으며
+PR 전 전체 검증·원격 제출은 결과 보고에서 이어 기록한다.
