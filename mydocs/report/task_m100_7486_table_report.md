@@ -10,6 +10,28 @@ last_verified: 2026-10-03
 Issue: [#7486](https://github.com/edwardkim/rhwp/issues/7486). 앞서 병합된 Studio 보고서와 구분하기 위해
 이번 표 경로의 보고서는 `_table_report.md` 이름으로 유지한다.
 
+## 최신 판정 — 실제 저장본 시각 실패로 병합 보류
+
+제출 때 합성 반복 Enter 입력 4개의 통과를 실제 저장본 종료 guide 검증과 충분히 구분하지 못했다.
+2026-10-03 누락된 비교를 실행한 결과, Native/fresh WASM 모두 `pr_review_gate=re_review_required`다.
+어구 문서는21/21쪽이나 전21쪽 최저14.72666%, 90% 미만16쪽이며20/21쪽 지도 소유·배치가 다르다.
+교육과정은413/415쪽으로 전쪽 TSV가 쪽수 불일치로 실패했고, 같은171/172쪽은66.33053%/24.00083%다.
+선택2쪽 점수를 전체415쪽의 검증으로 보고하지 않는다. 대표 review·standalone overlay를 직접 판독했다.
+
+어구 PDF는 승인된 npx MCP engine2020으로 새로 확보했으며, 교육과정 PDF는 기존 정상415쪽 기준을
+재사용했다. 원문·PDF·빌드·전후 출력 해시와 실행 범위는
+[실제 저장본 재검증 원장](../working/assets/issue7486-table-enter/stored-guide-recheck.json)에 보존했다.
+수정 전 base에서도 어구20/21쪽 출력이 동일하고 교육과정의413/415쪽 차이가 존재한다.
+교육과정171쪽은 소량 픽셀 차이가 있어 전체 바이트 동일로 기록하지 않는다.
+기존 결함이라는 분류와 현재 gate 실패를 구분하며, 승인·병합 조건을 충족했다고 보고하지 않는다.
+
+사용자 선택에 따라 이번 보정은 실패 증적·PR 본문·self-review·오늘할일 기록에 한정한다.
+어구 출력은 [#7207](https://github.com/edwardkim/rhwp/issues/7207), 교육과정은
+[#7445의 기존 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5874264216)에 분리해 추적한다.
+renderer·회귀·baseline·허용치는 변경하지 않았다. 자세한 판정·실패 대표 이미지와 초기 리뷰 정정은
+[PR #7544 self-review](../pr/archives/pr_7544_review.md#2026-10-03-실제-저장본-재검증--미충족)에 연결했다.
+아래7쪽 시각 통과는 합성 반복 Enter 범위의 과거 검증이다.
+
 ## 범위·원인
 
 최신 `devel` `e1ecaa248ecf7f667d8fccab4d9938e70a253392`에서
@@ -96,7 +118,7 @@ Cmd+Z로 1쪽 복귀, Cmd+Shift+Z로 2쪽 복원도 확인한다. 66%와 30행·
 
 사용자가 위 로컬 수정 결과를 확인했다. PR 제출 전 전체 release-test·Native Skia 3종·세 Clippy·
 workspace build·정책 base 비교를 포함한 아래 필수 로컬 검증을 모두 통과했다.
-최신 `upstream/devel`은 기준 SHA와 같다. 정상 push와 Open [PR #7544](https://github.com/edwardkim/rhwp/pull/7544)를 생성했다. GitHub 최신 head CI·병합 승인은 남아 있다.
+제출 당시 `upstream/devel`은 기준 SHA와 같았다. 정상 push와 Open [PR #7544](https://github.com/edwardkim/rhwp/pull/7544)를 생성했다. head `3edcbdbe…`의 Full CI는 성공했지만 상단 실제 저장본 시각 gate 실패로 병합을 보류한다.
 
 로그·진단 스크립트는 ignored `output/pr-review/issue7486-table-fix-20261003/logs/`와 같은 작업 폴더에
 보존했다. 별도 `rust-review/` checkout은 전체 PR 검증에 재사용한다. 공유 `target/pr-review`와 다른

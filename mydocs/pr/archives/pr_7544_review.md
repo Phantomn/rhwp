@@ -9,11 +9,33 @@ last_verified: 2026-10-03
 
 ## 최종 판정
 
-**머지 보류 — 저장본 종료 guide 분기의 필수 시각 증거 부족.** 재검토 head `3edcbdbe172767d135ce420e459a41fc9b44f12e`의 Full CI와 관련 checks는 성공했다. 반복 Enter 경로의 검증은 충족하지만, 실제 저장본 2개에 발동하는 별도 guide 분기의 위치·흐름 보존을 독립 한컴 출력으로 확인하지 않았다. 기존 승인 기록은 이 두 범위를 충분히 구분하지 못해 이번 리뷰에서 바로잡는다. 실행으로 새 회귀를 검출했다는 판정은 아니다. 본인 PR의 self-review이며 GitHub Approve event가 아니다.
+**머지 보류 — 실제 저장본의 Native/fresh WASM 시각 gate 미달.** 재검토 head `3edcbdbe172767d135ce420e459a41fc9b44f12e`의 Full CI와 관련 checks는 성공했다. 이후 빠졌던 실제 저장본 2개의 동일 원문 한컴 PDF 비교를 실행했고, 두 입력 모두 `pr_review_gate=re_review_required`였다. 반복 Enter 합성 계약의 통과와 실제 저장본의 출력 실패를 구분한다. 기존 승인 기록은 검증 범위를 충분히 구분하지 못해 바로잡는다. 본인 PR의 self-review이며 GitHub Approve event가 아니다.
 
-직접 판독한 Native/fresh WASM 전체 7쪽 최저 실루엣 100%, 90% 미만·누락 쪽 0이다. 표 선 색상은 한컴 PDF보다 밝으며 전체 피델리티 100%로 해석하지 않는다. Docker daemon 연결 불가로 표준 Docker WASM은 미실행이고 host release `--no-opt` fallback을 사용했다. 이 제한을 실행 성공으로 바꾸어 기록하지 않는다.
+반복 Enter 합성 입력 4개의 Native/fresh WASM 전체 7쪽 최저 실루엣은 100%였다. 이 결과는 아래 실제 저장본 2개의 실패를 면제하지 않는다. 표 선 색상은 한컴 PDF보다 밝으며 전체 피델리티 100%로 해석하지 않는다. Docker daemon 연결 불가로 표준 Docker WASM은 미실행이고 host release `--no-opt` fallback을 사용했다.
 
-## 2026-10-03 재검토 발견 사항
+## 2026-10-03 실제 저장본 재검증 — 미충족
+
+검증한 production/test source는 `97772d5d40787e77c3238debc2b2576b11713476`이며 원격 head `3edcbdbe…`와 코드가 같다. 실행 당시 문서 commit은 `0e1dd5d4…`였다. root wrapper로 fresh WASM을 다시 만들고 root/public 해시 일치를 확인했다. Native와 fresh WASM은 같은 원문·PDF를 96dpi print profile·고정 2px 관용으로 비교했다. 글꼴 예외·마스킹·허용치 변경은 없다. 명령·입력/출력 SHA-256·MCP job·backend provenance·전후 PNG 해시는 [재검증 원장](../../working/assets/issue7486-table-enter/stored-guide-recheck.json)에 있다.
+
+| 실제 입력 | 한컴 PDF / Native / fresh WASM | 전체 쪽 측정과 영향 페이지 | 판정 |
+| --- | --- | --- | --- |
+| `task2097/18095317_eogu_geumji.hwp` | 21 / 21 / 21쪽 | 양쪽 backend 전21쪽 TSV 최저 **14.72666% (19쪽)**, 90% 미만16쪽, 누락0. 영향20/21쪽은 **18.38669% / 19.92770%** | 미충족; 대표 gate `re_review_required` |
+| `task2287/1342000_edu_curriculum_map.hwp` | **415 / 413 / 413쪽** | 양쪽 전체 TSV는 쪽수 불일치로 측정 전 실패. 전체 최저값은 미산출. 같은 쪽171/172 비교는 **66.33053% / 24.00083%** | 미충족; 대표 gate `re_review_required`; 전쪽 일치는 미검증 |
+
+어구 문서는 사용자 승인 후 **npx MCP engine2020**으로 [동일 원문의 한컴 PDF](../../../pdf/18095317_eogu_geumji-2020.pdf)를 확보했다. job `6023e41e-d10c-4ef4-b6ef-49c08d8a100b`, 한컴 `11.0.0.9136`, 전처리 없음, one-up 출력, 21쪽/PDF1.4이며 PDF SHA-256은 `98a9378f5b3440cc8c56c03dd483e2af95a194b9340ebc916c08474ceea65eab`다. 교육과정은 [기존 정상 한컴 PDF415쪽](../../../pdf/task2287/1342000_edu_curriculum_map-hwp-2020.pdf)를 재사용했다. 파일명은 2020 bucket이나 실제 Creator는 Hwp2022이며 버전 이름만으로 기준을 폐기하지 않았다.
+
+대표 Native/fresh WASM review와 standalone overlay를 직접 판독했다. 어구21쪽은 이전 세로 지도가 다시 배치되고 마지막 `[부도5]` 지도는 아래로 밀려 용지 밖까지 이어진다. 기준 PDF21쪽은 마지막 지도만 본문 상단에 있다. 교육과정171쪽은 본문 행·성취기준 코드의 쪽 소유가 다르며 현재171쪽 내용은 기준PDF172쪽에 대응한다. 기준 페이지를 재번호하거나 잘라 점수를 올리지 않았다. 글꼴 이름으로 그림 배치·쪽 소유 차이를 면제할 수 없다.
+
+| 실패 대표 | Native review·overlay | fresh WASM review·overlay |
+| --- | --- | --- |
+| 어구21쪽 | [review](../../working/assets/issue7486-table-enter/blocked_native_eogu_review_021.png) · [overlay](../../working/assets/issue7486-table-enter/blocked_native_eogu_overlay_021.png) | [review](../../working/assets/issue7486-table-enter/blocked_wasm_eogu_review_021.png) · [overlay](../../working/assets/issue7486-table-enter/blocked_wasm_eogu_overlay_021.png) |
+| 교육과정171쪽 | [review](../../working/assets/issue7486-table-enter/blocked_native_curriculum_review_171.png) · [overlay](../../working/assets/issue7486-table-enter/blocked_native_curriculum_overlay_171.png) | [review](../../working/assets/issue7486-table-enter/blocked_wasm_curriculum_review_171.png) · [overlay](../../working/assets/issue7486-table-enter/blocked_wasm_curriculum_overlay_171.png) |
+
+수정 전 base `e1ecaa248…`의 Native binary로 같은 영향 페이지를 다시 비교했다. 어구20/21쪽은 점수와 PNG 바이트가 동일하다. 교육과정은 수정 전에도413/415쪽과 같은 내용 대응 차이가 있으며171/172쪽은66.32949%/24.00083%다. 172쪽 PNG는 동일하고171쪽은46 RGB 픽셀 차이가 있어 완전 동일로 보고하지 않는다. 이 비교는 기존 결함의 존속을 보여주며 #7544가 새로 만든 렌더링 회귀라는 판정은 아니다. 기존 결함이라는 분류도 현재 gate 실패를 해소하지 않는다.
+
+사용자는 **실패 증적·보류 사유를 #7544에 반영하고 기존 출력 결함은 분리**하도록 승인했다. 어구 독립 출력 판정은 [#7207](https://github.com/edwardkim/rhwp/issues/7207), 교육과정 전체 피델리티는 [#7445의 기존 등록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5874264216)에 연결한다. 이번 증적 보정에서 renderer·회귀·baseline은 변경하지 않는다. 저장 guide의 0 전진 의미 계약은 독립 시각 실패 때문에 여전히 미검증이며, 동일 원문 출력 개선과 새 head 재검증 전에는 승인·병합하지 않는다.
+
+## 2026-10-03 초기 재검토 발견 사항 — 재검증 전 기록
 
 ### [P1] 저장본 종료 guide 분기를 독립 출력으로 검증해야 한다 — 필수 증거 부족
 
@@ -34,7 +56,7 @@ last_verified: 2026-10-03
 - guide 원점 생산 → `ColumnContent.inline_flow_plans` → layout `FullParagraph` → `layout_inline_flow_plan`의 실제 호출 경로를 대조했다. 같은 plan이 전달되는 것은 확인했지만, 독립 출력과의 일치까지 입증하는 근거로 확대하지 않았다.
 - 원격 base `e1ecaa248…` / head `3edcbdbe…`의 merge simulation은 exit0, tree `b353863c3a4ae77cea2049af9db1fb8a4780d92e`다. 공백·상대 링크22건·기존 오늘할일228개 보존을 통과했다.
 
-이 재검토는 로컬 review 문서에만 기록한다. 원격 push·review/comment 게시·merge·이슈 종료는 이번 요청에서 수행하지 않았다.
+위 초기 재검토는 당시 로컬에만 기록했다. 이후 사용자 승인에 따라 실제 저장본 실패 증적·보류 기록을 동일 PR branch로 게시한다. GitHub Approve·merge·이슈 종료 승인은 포함하지 않는다.
 
 ## 접수 정보
 
@@ -45,7 +67,7 @@ last_verified: 2026-10-03
 | production/test 검증 source | `97772d5d40787e77c3238debc2b2576b11713476` |
 | 제출 code candidate·재검토 head | `c0b075ca93b284af6d6c54975b92e7e7ae3531dd` → `3edcbdbe172767d135ce420e459a41fc9b44f12e`; 검증 source 이후 증적·문서만 변경 |
 | 관련 이슈 | [#7486](https://github.com/edwardkim/rhwp/issues/7486), `Fixes`; #7487/#7539의 잔여 표 경로 |
-| reviewer·시점 상태 | 본인 PR이므로 reviewer 미지정 / 재검토 시점 Open, non-draft, MERGEABLE / mergeStateStatus=CLEAN / GitHub CI 성공; 필수 증거 부족으로 리뷰 판정은 보류 |
+| reviewer·시점 상태 | 본인 PR이므로 reviewer 미지정 / 재검토 시점 Open, non-draft, MERGEABLE / mergeStateStatus=CLEAN / head `3edcbdbe…` CI 성공; 실제 저장본 시각 gate 실패로 판정은 보류 |
 | 라우팅 | collaborator self-merge §8.2.1; archive self-review + 오늘할일을 trailing 문서 commit으로 포함 |
 
 ## 변경과 검토 범위
@@ -60,13 +82,13 @@ last_verified: 2026-10-03
 
 | 항목 | 판정·근거 |
 | --- | --- |
-| 구현 근거와 일반성 | 반복 Enter는 충족.종료 guide의 의미 해석은 미검증. API 생성·저장 원문과 독립 한컴 PDF의 1/2/2/2쪽은 확인했으나 실제 저장본 2개의 guide 해석을 독립 출력으로 검증하지 않았다. 문서 ID·표 행 수 예외, clamp는 없다. |
+| 구현 근거와 일반성 | 반복 Enter는 충족. 종료 guide의 의미 해석은 미검증. 실제 저장본 2개의 독립 출력 비교는 실행했으나 출력이 미달해 해당 해석의 정확성을 입증하지 못했다. 문서 ID·표 행 수 예외, clamp는 없다. |
 | 측정·배치 일관성 | 동일 plan 전달은 충족. 반복 Enter는 동일 fmt advance의 fit/배치를 보존한다. 종료 guide의 저장 줄 원점과 흐름 끝은 layout까지 공유하지만 그 원점·0 전진이 독립 출력과 맞는지는 미검증. |
 | 분할·이어받기 계약 | table 컷/rowspan/요구·예약 높이 변경은 비해당. 기존 #7226/#6981의 쪽수·후속 구역·셀 포함과 #2097/#6761의 페이지 핀, off-canvas partition12는 통과했다. 최종 컷 뒤 guide의 독립 시각 계약은 미검증. |
 | 줄 소속과 점유 높이 | 반복 Enter는 충족. 빈 글자의 표시·줄 상자·흐름 전진을 구분하며 정상 이월한다. 저장 종료 guide를 전진 없이 수용하는 의미 계약은 미검증. |
-| 사례와 증거의 독립성 | 반복 Enter는 충족. 수동 XML 편집 없는 합성 계약 4개와 같은 원문의 한컴 PDF 전체 7쪽을 확인했다. 실제 저장본 guide 2개는 회귀·저장 메트릭 근거에 그쳐 필수 시각 증거는 미검증. |
+| 사례와 증거의 독립성 | 반복 Enter는 충족. 합성 계약 4개·동일 원문 PDF 전체7쪽을 확인했다. 실제 저장본 2개의 독립 PDF는 확보·재사용했고 Native/fresh WASM 비교 결과는 미충족이다. 쪽수·CI 통과로 대체하지 않는다. |
 | 기준값 변경 | 비해당. baseline·golden·허용치 변경 없음. 첫 전체 회귀 4 FAIL, 중간 guide의 off-canvas 1 FAIL은 원인 보정으로 해소했으며 래칫을 완화하지 않았다. |
-| 주장과 검증 범위 | 부분 충족. 아래 source·명령·전후 실행 증거와 최신 captures는 반복 Enter 범위를 입증한다. 저장본 guide의 필수 시각 증거·Docker 표준 WASM·별도 정량 benchmark는 미검증. |
+| 주장과 검증 범위 | 부분 충족. 아래 증거는 반복 Enter 범위를 입증한다. 실제 저장본 출력은 미충족, 종료 guide 의미·교육과정 전쪽 대응·Docker 표준 WASM·별도 정량 benchmark는 미검증. |
 
 ## 검증 입력과 실행 결과
 
@@ -87,7 +109,7 @@ last_verified: 2026-10-03
 | `run-rust-test.mjs render_p37_direct_pdf_export -- … --features native-skia` | Summary [   0.956s] 4 tests run: 4 passed, 219 skipped |
 | root `CARGO_TARGET_DIR=target/pr-review scripts/wasm-pack-locked.sh --target web --out-dir pkg --no-opt` | fresh host release WASM PASS; root/public/서버 SHA-256 일치 |
 | Chrome Enter/Undo/Redo / API 소속 진단 / 8개 저장 문서 대조 | 56 PASS / 720 owner 누락0 / 쪽수 변화0 |
-| 전쪽 Native/fresh WASM sweep / 직접 review·overlay 판독 | 전체7쪽×2backend 최저100%, 대표4gate passed |
+| 반복 Enter 합성 입력 전쪽 Native/fresh WASM sweep / 직접 판독 | 전체7쪽×2backend 최저100%, 대표4gate passed; 실제 저장본은 상단 실패 결과와 구분 |
 
 모든 Cargo는 같은 절대 `target/pr-review`를 순차 재사용했다. sweep 명령은 `pr-sweep-guide.sh`의 `--silhouette-only` 전체 쪽 및 `--pages 1,2` 대표 review 경로이며 각 실행의 provenance와 입력 해시는 validation.json에 보존했다.
 
@@ -113,7 +135,7 @@ PR 본문에는 최신 head SHA의 실제 raw URL로 대표 review·overlay8개�
 
 본인 PR이므로 원 기여자 PR 본문 수정·대신 Approve는 비해당이다. 별도 병합 승인을 받으면 이 PR과 #7486의 후속 처리에서 merge SHA·성공 CI URL 및 [Visual Sweep 정본](../../manual/verification/visual_sweep_guide.md#pr-body-visual-evidence)을 연결하고 실제 대표 PNG를 merge SHA로 고정해 재게시한다. raw URL은 `https://raw.githubusercontent.com/edwardkim/rhwp/<merge-commit-sha>/mydocs/working/assets/issue7486-table-enter/native_table33_review_001.png`와 동일 WASM/overlay 경로를 사용한다. 표 선 밝기와 Docker fallback 제한을 함께 적고 `--body-file` 게시 뒤 API로 본문·이미지를 재조회한다. 이 계획은 이번 턴의 게시·merge 승인으로 간주하지 않는다.
 
-게시 문안: “표 뒤 Enter에서 새 빈 문단의 쪽 소속이 사라지는 경로와 저장본 종료 guide의 배치 원점을 보정했습니다. 선행 #7487/#7539의 수정 위에서 새 쪽 캐럿·스크롤, 저장·재열기와 관련 전체 회귀를 확인했습니다. 입력과 동일 한컴 PDF의 Native/fresh WASM 전체 비교 및 대표 증적을 연결드립니다. 표 선의 밝기 차이는 남아 있습니다.”
+현재는 실제 저장본 시각 gate 미달로 위 merge 후 게시 계획을 실행하지 않는다. 합성 입력의 일치를 전체 실제 문서 일치로 표현한 기존 예정 문안은 철회한다. 출력 개선 뒤 정확한 새 head의 증거로 다시 판정하고 merge 문안을 작성한다.
 
 
 ## 원격 제출·병합 사전 확인
