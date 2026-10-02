@@ -240,3 +240,19 @@ remerge-diff의 수동 충돌 해소는 오늘할일 문서뿐이었다. 문서 
 라우팅은 maintainer_general에 intake_and_review, local_validation,
 multi_pr_update_branch, review_only_fast_pass를 적용한다. 기존 검토를 새로 반복하지 않으며,
 게시 직전 고정 base/head의 merge-tree·공백·변경 문서 링크·오늘할일 기록 보존을 확인한다.
+
+### 원격 게시 결과
+
+선별 branch를 upstream에 push하고 [통합 PR #7511](https://github.com/edwardkim/rhwp/pull/7511)을
+devel 대상으로 생성했다. 게시 head는 `39f0a27922ac5a1a14d6dd9dc69421d181f9bb31`이며,
+정확한 upstream/devel e509와의 merge-tree는 `33b7158fbd6059d962257516b4253256e14246ea`이다.
+merge-tree 종료 0, 실제 HEAD tree와 동일, 공백 검사 및 변경 문서 9개의 내부 링크 검사를 통과했다.
+오늘할일의 기존 #7382/#7505 기록을 보존하고 별도 semanticist21 절만 추가했다.
+push 직전 원격 base가 e509이며 해당 원격 branch가 없는 것을 확인했고 새 branch를 일반 push했다.
+upstream tracking은 devel이 아니라 동일 이름의 원격 선별 branch로 설정됐다.
+
+PR 본문은 UTF-8 파일로 게시했으며 API 재조회에서 원문 동일·BOM/`??` 없음과 정확한
+head/base를 확인했다. [CI 실행](https://github.com/edwardkim/rhwp/actions/runs/36955832835)은
+게시 뒤 시작됐으며 이 기록 시점에는 대기 중이다. CI 완료를 통과로 선기록하지 않는다.
+이 게시 기록은 code candidate CI 성공 뒤 같은 PR의 trailing 문서 commit으로 반영한다.
+원 PR approve/close, 통합 PR merge, 이슈 close는 아직 수행하지 않았다.
