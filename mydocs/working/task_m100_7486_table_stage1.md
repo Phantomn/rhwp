@@ -1,0 +1,43 @@
+---
+kind: working
+status: active
+canonical: mydocs/manual/pr_review_workflow.md
+last_verified: 2026-10-03
+---
+
+# #7486 — 표 뒤 Enter의 확정 쪽 소유 보존
+
+기준: `upstream/devel` `e1ecaa248ecf7f667d8fccab4d9938e70a253392`.
+Branch: `codex/table-enter-page-ownership`. 사용자 범위는 로컬 보정·검증 후 직접 재검증이다.
+원격 push·PR 생성·이슈 종료는 아직 수행하지 않는다.
+
+## 근거와 수정 방향
+
+실제 편집 API로 만든 A4·10pt·160%·10×2 위아래 표 뒤에서 Enter를 반복했다.
+수동 XML·LineSeg 수정 없이 `createTable` → `splitParagraph` → `exportHwpx`로 입력을 보존했다.
+수정 전 Enter33~39의 문단34~40은 페이지 소속이 없고 Enter40에서 다시 나타난다.
+같은 Enter32/33/40 원문을 npx 한컴 MCP의 명시적 2020 엔진으로 출력한 독립 PDF는 각각 1/2/2쪽이다.
+저장 제품은 입력 `info`의 `hancom-office-2020`이며 2024 엔진으로 표시하지 않는다.
+
+가시 텍스트 없음은 줄 공간 점유 없음이 아니다. `discard_terminal_blank_only_page`는 이미 fit/배치가
+확정한 끝 쪽을 삭제하면서 문단 소속도 제거했다. 저장 vpos가 표 높이를 제외하고 있으면 #7487의
+저장 줄 overflow 예외로도 이를 구제할 수 없다. 사후 삭제 자체를 제거한다. 특정 표 크기·문서 ID·
+저장 vpos에 새 예외를 덧붙이거나 출력 좌표를 clamp하지 않는다. guide 흡수는 기존 문단 배치 판단에 남긴다.
+
+생산→소비 경로: table 측정과 문단 `FormattedParagraph` → `paragraph/flow.rs`의 fit 예산·whole-fit →
+실패 시 `place_after_failed_fit`/`place_split_paragraph`의 동일 line advance →
+`TypesetState::advance_column_or_new_page` → 확정 `ColumnContent`/`PageContent` →
+`section.rs`의 섹션 끝 확정 → 페이지 번호·HF 부착 → layout 및 `getCursorRect`.
+Enter33 진단에서는 앞 쪽 used height 878.7067px, 다음 쪽 문단34의 advance 21.3333px를
+이미 확정한 뒤 마지막 `pages.pop()`이 그 소속을 지웠다. 표 컷·요구 높이·예약 높이·rowspan·paint는
+바꾸지 않는다. 이 수정의 계약은 확정 결과 보존이며 분할 알고리즘 변경이 아니다.
+
+## 선행 검증과 다음 단계
+
+ignored `output/pr-review/issue7486-table-fix-20261003/`에 원문·독립 PDF·전후 CLI 진단을 보존한다.
+Native 선행 진단에서 Enter33은 1→2쪽, 저장 문서 8개 대조군은 쪽수 변화가 없다
+(`page-count-controls.json`). 이 대조는 한컴 시각 일치 완료나 전체 회귀 통과를 의미하지 않는다.
+최종 source의 Native/fresh WASM 전체 페이지 sweep와 직접 판독이 끝나기 전 새 정식 회귀를 추가하지 않는다.
+관련 최저 실루엣 90% 이상에서만 소속·내용 보존 회귀를 추가하고 수정 전 FAIL/후 PASS를 확인한다.
+실제 Studio 키 Enter·Undo·Redo 및 캐럿/viewport를 확인한 뒤 사용자 재검증용 서버를 유지한다.
+PR 전 전체 Rust lint·release-test·Native Skia 게이트는 별도 PR 준비 단계에서 완료해야 한다.
