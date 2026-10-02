@@ -582,6 +582,57 @@ scenario('25. 빈 누름틀 바로 앞 글자를 덮지 않아 친 글자가 누
   }
 });
 
+// ── 코어 오프셋은 Unicode scalar 다: 😀 는 UTF-16 두 칸이지만 한 글자다 ────────────────────
+scenario('26. 수정 모드 abcd 에서 😀, X → 😀Xcd 이고 캐럿은 scalar 오프셋에 선다', () => {
+  const wasm = makeWasm({ body: 'abcd' });
+  const h = makeHandler(wasm, bodyPos(0));
+  h.type('😀X');
+  assert.equal(wasm.doc.body, '😀Xcd', 'X 는 😀 바로 뒤의 b 를 덮어야 한다');
+  assert.equal(h.cursor.getPosition().charOffset, 2, '캐럿은 X 뒤(scalar 2)여야 한다');
+  h.undo();
+  assert.equal(wasm.doc.body, 'abcd');
+  assert.equal(wasm.fragments.size, 0);
+  h.redo();
+  assert.equal(wasm.doc.body, '😀Xcd', '다시 실행은 입력을 scalar 오프셋으로 되풀이해야 한다');
+});
+
+scenario('27. 😀 뒤 scalar 1 에서 친 X 는 앞 입력과 한 묶음으로 되돌리고 다시 실행한다', () => {
+  const wasm = makeWasm({ body: 'abcd' });
+  const h = makeHandler(wasm, bodyPos(0));
+  h.type('😀');
+  h.cursor.moveTo(bodyPos(1));
+  h.type('X');
+  assert.equal(wasm.doc.body, '😀Xcd');
+  h.undo();
+  assert.equal(wasm.doc.body, 'abcd', '연속 명령은 한 번에 되돌아가야 한다');
+  assert.equal(h.history.canUndo(), false, '되돌릴 편집이 하나만 기록돼야 한다');
+  h.redo();
+  assert.equal(wasm.doc.body, '😀Xcd');
+  assert.equal(h.cursor.getPosition().charOffset, 2);
+});
+
+scenario('28. 삽입 모드도 😀 뒤 캐럿·병합을 scalar 오프셋으로 한다', () => {
+  const wasm = makeWasm({ body: 'abcd' });
+  const h = makeHandler(wasm, bodyPos(0), { insertMode: true });
+  h.type('😀X');
+  assert.equal(wasm.doc.body, '😀Xabcd');
+  h.undo();
+  assert.equal(wasm.doc.body, 'abcd', '연속 입력은 한 번에 되돌아가야 한다');
+  h.redo();
+  assert.equal(wasm.doc.body, '😀Xabcd');
+});
+
+scenario('29. IME 가 😀 를 확정한 뒤(일본어 변환 등) 다음 조합은 b 를 덮는다', () => {
+  const wasm = makeWasm({ body: 'abcd' });
+  const h = makeHandler(wasm, bodyPos(0));
+  h.compose('😀');
+  h.compose('ㅎ', '하');
+  assert.equal(wasm.doc.body, '😀하cd');
+  assert.equal(h.cursor.getPosition().charOffset, 2);
+  h.undo();
+  assert.equal(wasm.doc.body, 'abcd');
+});
+
 if (failures.length > 0) {
   console.error(failures.join('\n'));
   process.exit(1);

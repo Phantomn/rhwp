@@ -700,7 +700,7 @@ export class InsertTextCommand implements EditCommand {
           effects.add(replaceTextWithMutationEffects(
             wasm, { ...this.position, charOffset }, charCount(replaced), text,
           ));
-          charOffset += text.length;
+          charOffset += charCount(text);
         }
         this.lastMutationEffects = effects.consume();
       } catch (error) {
@@ -710,7 +710,8 @@ export class InsertTextCommand implements EditCommand {
     } else {
       this.lastMutationEffects = insertTextWithMutationEffects(wasm, this.position, this.text);
     }
-    const after = { ...this.position, charOffset: this.position.charOffset + this.text.length };
+    // 코어 오프셋은 Unicode scalar 다 — UTF-16 길이로 옮기면 😀 뒤 캐럿이 한 글자 더 간다.
+    const after = { ...this.position, charOffset: this.position.charOffset + charCount(this.text) };
     if (this.charFormat) {
       applyCharShapeModsToRange(wasm, this.position, this.position.charOffset, after.charOffset, this.charFormat);
     }
@@ -761,7 +762,7 @@ export class InsertTextCommand implements EditCommand {
       if (other.position.cellParaIndex !== this.position.cellParaIndex) return null;
     }
     // 연속 위치 확인
-    const expectedOffset = this.position.charOffset + this.text.length;
+    const expectedOffset = this.position.charOffset + charCount(this.text);
     if (other.position.charOffset !== expectedOffset) return null;
     // 300ms 이내
     if (other.timestamp - this.timestamp > 300) return null;
@@ -1532,7 +1533,7 @@ function hfFnStubPosition(sectionIdx: number): DocumentPosition {
  * [Task #2337-review] WASM 삭제 count 는 Rust `Paragraph::delete_text_at` 의 char(Unicode
  * scalar) 단위다. JS `String.length`(UTF-16 code unit)를 넘기면 astral 문자(😀 등)에서
  * 실제보다 많이 삭제해 undo/redo 가 인접 문자를 잃는다 → 코드포인트 수로 계산한다.
- * (커서 오프셋은 studio 의 UTF-16 관례를 유지하므로 여기서만 char 단위를 쓴다.)
+ * [#7489] 본문·셀 캐럿 오프셋도 같은 scalar 단위라 InsertTextCommand 의 캐럿·병합·다시 실행도 이것을 쓴다.
  */
 function charCount(s: string): number {
   return [...s].length;
