@@ -58,7 +58,7 @@ pub(super) fn is_stored_table_closing_guide(
     let [line] = para.line_segs.as_slice() else {
         return false;
     };
-    line.vertical_pos >= 0
+    line.vertical_pos >= crate::renderer::px_to_hwpunit(page.current_zone_y_offset, dpi)
         && line.vertical_pos.saturating_add(line.line_height)
             <= crate::renderer::px_to_hwpunit(page.body_height, dpi)
 }

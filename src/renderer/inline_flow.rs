@@ -62,8 +62,10 @@ impl InlineFlowPlan {
         line: &crate::model::paragraph::LineSeg,
         flow_end: f64,
         dpi: f64,
+        zone_y_offset: f64,
     ) -> Self {
-        let start = hwpunit_to_px(line.vertical_pos, dpi);
+        // LineSeg는 본문 기준, plan과 layout의 col_area는 현재 zone 기준이다.
+        let start = hwpunit_to_px(line.vertical_pos, dpi) - zone_y_offset;
         let mut row = line.clone();
         row.vertical_pos = 0;
         Self {

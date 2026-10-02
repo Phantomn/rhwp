@@ -618,6 +618,7 @@ impl TypesetState {
             line,
             self.data.current_height,
             self.data.layout.dpi,
+            self.data.current_zone_y_offset,
         );
         self.place_unadvanced_empty_paragraph(para_idx);
         self.data.inline_flow_plans.insert(para_idx, plan);
