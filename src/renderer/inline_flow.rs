@@ -56,6 +56,26 @@ pub struct InlineFlowPlan {
 }
 
 impl InlineFlowPlan {
+    /// 저장 종료 guide의 줄 원점과 이미 소비한 흐름 끝을 분리한다.
+    /// guide는 표의 끝을 더 전진시키지 않지만 저장 줄 상자와 문단 소속을 보존한다.
+    pub(crate) fn stored_empty_guide(
+        line: &crate::model::paragraph::LineSeg,
+        flow_end: f64,
+        dpi: f64,
+    ) -> Self {
+        let start = hwpunit_to_px(line.vertical_pos, dpi);
+        let mut row = line.clone();
+        row.vertical_pos = 0;
+        Self {
+            text_rows: Some(vec![row]),
+            start,
+            end: flow_end,
+            boxes: Vec::new(),
+            carved: false,
+            next_row_top: flow_end,
+        }
+    }
+
     pub(crate) fn relative_to(&mut self, x: f64, y: f64) {
         self.start -= y;
         self.end -= y;

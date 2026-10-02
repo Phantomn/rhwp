@@ -629,7 +629,7 @@ pub(super) fn try_absorb_empty_paragraph(
             &st.paragraph_empty_tail_page(),
         )
     {
-        st.place_unadvanced_empty_paragraph(para_idx);
+        st.place_stored_empty_guide(para_idx, &para.line_segs[0]);
         return true;
     }
     match empty::trailing_disposition(
