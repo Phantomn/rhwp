@@ -2,7 +2,9 @@
 
 ## 수용 판단
 
-현재 시각 검증 source `c741f24135d03470588440d1bb67dff3defd3024`는 **머지 보류**다. 동일 Enter 입력 9개를 npx MCP로 한컴 PDF 변환했고, 정확한 source의 Native/fresh WASM 전체 24쪽씩과 대조하여 쪽수 일치·문단 소유 보존을 확인했다. 이전의 한컴 기준 출력·현재 source 재출력 미실행은 보완했다. 새 증적 head `2d26931d`의 Full CI 10,053 PASS / 50 skipped 및 관련 check가 통과했다. 남은 조건은 후속 문서 head의 gate·본문 이미지와 작업지시자의 시각·부분 해결 범위 확인이다. 흰 페이지의 100%는 캐럿 좌표의 한컴 일치 증거로 확대하지 않는다. [상세 리뷰](pr_7487_review.md)의 새 한컴 대조 절에 원본·기준 PDF·빌드·명령·대표 이미지·한계를 기록했다.
+현재 시각 검증 source `c741f24135d03470588440d1bb67dff3defd3024`의 빈 문단 엔진 보정은 **승인**이다. 동일 Enter 입력 9개와 npx MCP 한컴 PDF, Native/fresh WASM 전체 24쪽씩을 대조해 쪽수·문단 소유 보존을 확인했다. 증적 head `2d26931d`의 Full CI는 10,053 PASS / 0 FAIL / 50 skipped이며, 검토 head `ebedf92e`의 필수 CI와 정책 Controller attempt 2가 성공했다. 흰 페이지의 100%는 캐럿 좌표의 한컴 일치 증거로 확대하지 않는다.
+
+사용자는 부분 해결·시각 증적을 수용하고 Approve·merge를 승인했다. 원 기여자 본문 보존 지시에 따라 대표 이미지의 게시 위치는 [기존 COMMENT 리뷰](https://github.com/edwardkim/rhwp/pull/7487#pullrequestreview-5389416480)로 대체했다. 이번 최종 판정 변경은 review/report 두 Markdown 파일만 포함한다. 새 문서 head의 required gate·정책·mergeability를 확인한 뒤 원격 승인·병합을 수행한다. Studio 캐럿·스크롤은 병합된 최신 devel에서 별도 PR로 처리하고 표 뒤 Enter는 잔여 범위로 유지하므로 #7486을 닫지 않는다.
 
 | 계보 | SHA·역할 |
 | --- | --- |

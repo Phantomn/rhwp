@@ -2,7 +2,9 @@
 
 ## 최종 판정
 
-**머지 보류.** 동일 Enter 합성 입력의 독립 한컴 PDF 미확보와 현재 PR source의 직접 시각 재출력 미실행은 이번 검증으로 해소했다. source `c741f24135d03470588440d1bb67dff3defd3024`에서 Native CLI와 fresh WASM을 다시 빌드하여 9개 동일 HWPX·한컴 PDF의 전체 24쪽씩을 비교했다. 아래 새 한컴 대조 절에 출처·한계·대표 PNG를 기록했다. 새 증적 head `2d26931d`의 Full CI와 관련 check는 통과했다. 남은 조건은 후속 문서 head의 required gate, PR 본문의 정확한 head 이미지 표시, 작업지시자의 시각 증적과 **빈 문단 엔진만의 부분 해결 범위** 확인이다. Approve·merge는 아직 수행하지 않았다.
+**승인.** 빈 문단 엔진의 새 쪽·문단 소유 보존 범위로 수용한다. source `c741f24135d03470588440d1bb67dff3defd3024`의 동일 Enter 입력 9개·한컴 기준 PDF 9개와 Native/fresh WASM 각각 전체 24쪽을 대조했고, 증적 head `2d26931d`의 Full CI는 10,053 PASS / 0 FAIL / 50 skipped다. 검토 head `ebedf92e9b36438b27a8fcacb188f5544e482368`의 필수 Build & Test와 CI·CodeQL·Render Diff가 성공했으며, 정책 Controller `36979324636` attempt 2는 `audit:stage3-5-truth-table`로 SUCCESS를 게시했다. 최초 수집 누락의 원인은 미확정이다.
+
+사용자는 대표 시각 증적과 부분 해결 범위를 수용하고 Approve·merge를 명시 승인했다. 원 기여자의 PR 본문을 수정하지 말라는 지시에 따라 기본 본문 임베드 절차의 게시 위치만 예외로 두고, 정확한 head로 고정한 대표 이미지 8장·검증 결과를 [COMMENT 리뷰](https://github.com/edwardkim/rhwp/pull/7487#pullrequestreview-5389416480)에 제공했다. 실제 Chrome에서 모든 이미지 로드를 확인했다. 문서-only 최종 head의 필수 체크·정책·mergeability를 다시 확인한 뒤 Approve·merge한다. 빈 출력 점수는 한컴 캐럿 좌표 정확성의 근거가 아니며, Studio 캐럿·스크롤과 표 뒤 Enter는 남은 범위로서 #7486을 열어 둔다.
 
 원 contributor `b28130e1...`와 보정 `45863eb2...`를 유지했다. 최초 code candidate `38c0af21...`의 Full CI가 통과했고, 기여자 devel 병합 `f2f96733...`와 문서 보완 `c741f241...`는 검증된 CI를 재사용한 gate가 통과했다. 새 자료를 그 당시의 검증으로 소급하지 않는다. Studio 캐럿·스크롤과 표 뒤 Enter는 이번 해결 범위에 포함하지 않으며 #7486은 OPEN을 유지한다.
 
