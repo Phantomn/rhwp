@@ -2,7 +2,8 @@
 
 use super::super::helpers::{
     clipboard_color_to_css, clipboard_escape_html, detect_clipboard_image_mime,
-    get_textbox_from_shape, logical_to_text_offset, utf16_pos_to_char_idx,
+    get_textbox_from_shape, logical_paragraph_length, logical_to_text_offset,
+    utf16_pos_to_char_idx,
 };
 use super::super::queries::field_query::rebuild_char_offsets;
 use crate::document_core::{ClipboardData, DocumentCore};
@@ -352,17 +353,21 @@ impl DocumentCore {
         end_para_idx: usize,
         end_logical: usize,
     ) -> Result<String, HwpError> {
-        let caret = |para_idx: usize, logical: usize| {
+        let para = |para_idx: usize| {
             self.document
                 .sections
                 .get(section_idx)
                 .and_then(|section| section.paragraphs.get(para_idx))
-                .map_or((logical, false), |para| {
-                    logical_to_text_offset(para, logical)
-                })
         };
-        let start = caret(start_para_idx, start_logical);
-        let end = caret(end_para_idx, end_logical);
+        let start = para(start_para_idx).map_or((start_logical, false), |p| {
+            logical_to_text_offset(p, start_logical)
+        });
+        let mut end = para(end_para_idx).map_or((end_logical, false), |p| {
+            logical_to_text_offset(p, end_logical)
+        });
+        // 문단 논리 끝에서 끝나면 copySelection 처럼 문단 끝에 붙은 개체(글자처럼 취급하지
+        // 않는 도형·그림·표 등)도 담는다. 이 개체들은 논리 오프셋에 칸이 없다.
+        end.1 |= para(end_para_idx).is_some_and(|p| end_logical >= logical_paragraph_length(p));
         self.copy_selection_range(section_idx, start_para_idx, start, end_para_idx, end)
     }
 
