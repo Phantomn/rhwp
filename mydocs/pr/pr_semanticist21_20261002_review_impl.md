@@ -224,3 +224,19 @@ Studio public 갱신이나 사용자 CDP 조작, 독립 한컴 시각 일치 판
 이번 turn의 외부 변경은 승인받은 보류 댓글 4건뿐이다. 선별 후보의 push·통합 PR 생성·CI·merge는
 아직 수행하지 않았다. 다음 승인 범위는 선별 후보 게시 및 통합 PR 생성이며 merge/원 PR close는
 CI와 작업지시자의 후속 승인 뒤 별도로 진행한다.
+
+## 선별 통합 PR 게시 승인
+
+작업지시자의 “PR 처리를 진행하세요” 지시에 따라 수용한 #7497·#7498·#7508의
+선별 branch push와 devel 대상 Open 통합 PR 생성을 진행한다. 통합 PR의 최신 head CI를
+확인한 뒤 병합과 원 PR close는 별도 승인을 요청한다. 보류 4건과 신규 #7509·#7510은 포함하지 않는다.
+
+게시 전 fetch 결과 upstream/devel은 검증 기준 e509 그대로이며, 수용한 3건의 원 head도
+접수 SHA와 같다. source/test를 추가 수정하지 않았으므로 완료한 전체 회귀·lint·fresh WASM
+결과를 재사용한다. #7487은 기여자가 devel e509를 병합해 head를 `f2f96733b`로 갱신했고,
+remerge-diff의 수동 충돌 해소는 오늘할일 문서뿐이었다. 문서 충돌은 해소됐지만 독립 시각
+증거 부족에 따른 보류는 유지한다. 이 변경은 선별 통합 source와 무관하다.
+
+라우팅은 maintainer_general에 intake_and_review, local_validation,
+multi_pr_update_branch, review_only_fast_pass를 적용한다. 기존 검토를 새로 반복하지 않으며,
+게시 직전 고정 base/head의 merge-tree·공백·변경 문서 링크·오늘할일 기록 보존을 확인한다.
