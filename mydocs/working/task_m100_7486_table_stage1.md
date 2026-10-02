@@ -41,3 +41,8 @@ Native 선행 진단에서 Enter33은 1→2쪽, 저장 문서 8개 대조군은 
 관련 최저 실루엣 90% 이상에서만 소속·내용 보존 회귀를 추가하고 수정 전 FAIL/후 PASS를 확인한다.
 실제 Studio 키 Enter·Undo·Redo 및 캐럿/viewport를 확인한 뒤 사용자 재검증용 서버를 유지한다.
 PR 전 전체 Rust lint·release-test·Native Skia 게이트는 별도 PR 준비 단계에서 완료해야 한다.
+
+추가 진단에서 30행·300%·Enter9는 사후 쪽 삭제를 제거해도 `trailing_disposition`의
+`prior_trailing_drift && previous_item_is_empty_para` 분기로 숨겨졌다. 앞 줄의 누적 간격과
+새 줄의 점유는 별개이므로 이 Hidden 분기를 제거한다. 문단 자체의 미세 overflow 및 각주 예약
+흡수는 유지한다. 이 입력도 원본을 보존해 독립 한컴 PDF와 대조하며, 표 행 수를 가드에 쓰지 않는다.
