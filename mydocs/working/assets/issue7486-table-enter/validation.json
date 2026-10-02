@@ -1,0 +1,241 @@
+{
+  "schemaVersion": 1,
+  "baseSha": "e1ecaa248ecf7f667d8fccab4d9938e70a253392",
+  "productionSourceSha": "75b433ccbe58ccf297a4f0ddbc6db83a1b850910",
+  "inputGeneration": "fresh WASM createBlankDocument -> applyParaFormat -> createTable -> repeated body splitParagraph -> exportHwpx; no hand-written XML or LineSeg edits",
+  "hancom": {
+    "client": "npx file:tools/hwp-convert-mcp-2024-client-20260824-011002.tar.gz",
+    "engine": "2020",
+    "profile": "HOffice120 compatibility",
+    "jobs": [
+      "1afc9f80-2630-4d82-8946-e54a503a4fd0",
+      "cb5653b0-9944-4e01-9620-cebca812af4d",
+      "f37fe063-ba16-4306-9b83-9d101aeda1aa",
+      "069ab28a-934d-4163-bba1-a38e303b924c"
+    ],
+    "pdfPageCounts": {
+      "table_enter_32": 1,
+      "table_enter_33": 2,
+      "table_enter_40": 2,
+      "table30_spacing300_enter9": 2
+    }
+  },
+  "build": {
+    "wasmMode": "dev",
+    "command": "CARGO_TARGET_DIR=target/pr-review scripts/wasm-pack-locked.sh --target web --out-dir pkg --dev",
+    "jsSha256": "8f01a5bcc227a41d72b4aca57792445e9f413c4400154b74bdf8992f35301df3",
+    "wasmSha256": "0bf1590a758a3e0bb2faa80e3036c59568e675f7dd2ce073dc0a57b380a907f1",
+    "rootPublicHashesMatched": true,
+    "nativeProfile": "release-test"
+  },
+  "sweep": {
+    "dpi": 96,
+    "comparisonProfile": "print",
+    "scope": "all 7 pages from all 4 inputs, both backends",
+    "checks": [
+      {
+        "backend": "native",
+        "inputKey": "table32",
+        "pages": [
+          1
+        ],
+        "minimumTolerantContentMatchPercent": 100.0,
+        "below90Pages": []
+      },
+      {
+        "backend": "native",
+        "inputKey": "table33",
+        "pages": [
+          1,
+          2
+        ],
+        "minimumTolerantContentMatchPercent": 100.0,
+        "below90Pages": []
+      },
+      {
+        "backend": "native",
+        "inputKey": "table40",
+        "pages": [
+          1,
+          2
+        ],
+        "minimumTolerantContentMatchPercent": 100.0,
+        "below90Pages": []
+      },
+      {
+        "backend": "native",
+        "inputKey": "table30",
+        "pages": [
+          1,
+          2
+        ],
+        "minimumTolerantContentMatchPercent": 100.0,
+        "below90Pages": []
+      },
+      {
+        "backend": "wasm",
+        "inputKey": "table32",
+        "pages": [
+          1
+        ],
+        "minimumTolerantContentMatchPercent": 100.0,
+        "below90Pages": []
+      },
+      {
+        "backend": "wasm",
+        "inputKey": "table33",
+        "pages": [
+          1,
+          2
+        ],
+        "minimumTolerantContentMatchPercent": 100.0,
+        "below90Pages": []
+      },
+      {
+        "backend": "wasm",
+        "inputKey": "table40",
+        "pages": [
+          1,
+          2
+        ],
+        "minimumTolerantContentMatchPercent": 100.0,
+        "below90Pages": []
+      },
+      {
+        "backend": "wasm",
+        "inputKey": "table30",
+        "pages": [
+          1,
+          2
+        ],
+        "minimumTolerantContentMatchPercent": 100.0,
+        "below90Pages": []
+      }
+    ],
+    "directReview": "table outlines, row/column boundaries and positions agree; rhwp lines are lighter than PDF; page2 is empty in both; silhouettes alone do not certify border color",
+    "rules": "90% minimum fulfilled before adding new regression tests; no font exception, area masking or changed tolerance"
+  },
+  "runtimeDiagnostics": {
+    "apiCases": 12,
+    "entersPerCase": 60,
+    "missingOwners": 0,
+    "browserAssertions": 56,
+    "browserCases": "table10 160% Enter33 and table30 300% Enter9, zoom100/66, Enter/Undo/Redo",
+    "externalExistingPageCountControls": 8,
+    "existingPageCountChanges": 0
+  },
+  "files": {
+    "after-table10-zoom100.png": {
+      "bytes": 53606,
+      "sha256": "14fd7c571d2953de6593296c809b3b1d4bc794cee21f3869bd63358faa97310f"
+    },
+    "after-table10-zoom66.png": {
+      "bytes": 57026,
+      "sha256": "843526a409d78086e472ae0145b225d32346c3a95e8063dacd79be6ea9dadfcf"
+    },
+    "after-table30-zoom100.png": {
+      "bytes": 54188,
+      "sha256": "7fe364933329be515dea6bb2fdd70d20388d4a585d5b5da27b1b758b718f2ac4"
+    },
+    "after-table30-zoom66.png": {
+      "bytes": 58751,
+      "sha256": "dc37f5b50a22c2dbb982bb68a4264d2b0d560ae45758ffd4f21cbc2354d3f017"
+    },
+    "native_table30_overlay_001.png": {
+      "bytes": 21214,
+      "sha256": "81c80560a77fe9575ac707c0481b15e90c2f4dc621107abcb240c0720e74333e"
+    },
+    "native_table30_review_001.png": {
+      "bytes": 31583,
+      "sha256": "c07f242d37debb3190f528bf7f0ac23649c9c906642b1aca93eb8dc6e4ef0fc0"
+    },
+    "native_table30_silhouette.tsv": {
+      "bytes": 164,
+      "sha256": "888e36110d95d3e030cb550c68ce509614b6865ab466222d207b01234183ba5c"
+    },
+    "native_table32_silhouette.tsv": {
+      "bytes": 138,
+      "sha256": "76292db165fc1a04b17dbbd1b6444ba8cf19f40aeff5fc42900007225280ac3b"
+    },
+    "native_table33_overlay_001.png": {
+      "bytes": 19668,
+      "sha256": "4006bbcccf176be71a53ac50126fa8940ff8ab8977748649dc8f120d5466166c"
+    },
+    "native_table33_review_001.png": {
+      "bytes": 27859,
+      "sha256": "ba69f937e9c29c906f38e68af557b04eaf0e6bdbf4da13745d51ced4a2ec3404"
+    },
+    "native_table33_silhouette.tsv": {
+      "bytes": 164,
+      "sha256": "888e36110d95d3e030cb550c68ce509614b6865ab466222d207b01234183ba5c"
+    },
+    "native_table40_silhouette.tsv": {
+      "bytes": 164,
+      "sha256": "888e36110d95d3e030cb550c68ce509614b6865ab466222d207b01234183ba5c"
+    },
+    "table30_spacing300_enter9-2020.pdf": {
+      "bytes": 7397,
+      "sha256": "fe360e6095b4ccd7a1f0b98ba4af22583b7d4f0c2cf63eb995d841fe6a7e665d"
+    },
+    "table30_spacing300_enter9.hwpx": {
+      "bytes": 8788,
+      "sha256": "79c350473cd54de687d66b0e53357b57b889f0ed368d57a49ceafad18e848c4c"
+    },
+    "table_enter_32-2020.pdf": {
+      "bytes": 6294,
+      "sha256": "3b08c1988ef0ef0ad9485181171ddbacb335dc08e23eb33828012400142e26d8"
+    },
+    "table_enter_32.hwpx": {
+      "bytes": 8366,
+      "sha256": "79d6412a6744ec332978f77d3c09fd3859075dabde7c3613ea04a435beeec517"
+    },
+    "table_enter_33-2020.pdf": {
+      "bytes": 6721,
+      "sha256": "909928debd7823ebd7713db0a96b59ba8559326b83d7844af6b77f754c50fff3"
+    },
+    "table_enter_33.hwpx": {
+      "bytes": 8375,
+      "sha256": "d49761580c9acce5338d17277395791ae63ce8a8d5546ff1a4efe3a77dceba45"
+    },
+    "table_enter_40-2020.pdf": {
+      "bytes": 6721,
+      "sha256": "562bd355ac70352dddbb889550d2960b03bbf052302dca0e3529d718e7a95a71"
+    },
+    "table_enter_40.hwpx": {
+      "bytes": 8433,
+      "sha256": "9d60a17e20ba6f8cbc28508fde139454fca8cff9856a3fc6d1d4eef9acb9609a"
+    },
+    "wasm_table30_overlay_001.png": {
+      "bytes": 22845,
+      "sha256": "cc2d88c58c027bb58ac70e01d8285b197d4d39769c40b470d2d258f8a4b0bc00"
+    },
+    "wasm_table30_review_001.png": {
+      "bytes": 33286,
+      "sha256": "3b923be6beb60091d67bb43735a15eb4adce8b2ffd5ae6758c4ea64b96f8fa2f"
+    },
+    "wasm_table30_silhouette.tsv": {
+      "bytes": 164,
+      "sha256": "888e36110d95d3e030cb550c68ce509614b6865ab466222d207b01234183ba5c"
+    },
+    "wasm_table32_silhouette.tsv": {
+      "bytes": 138,
+      "sha256": "76292db165fc1a04b17dbbd1b6444ba8cf19f40aeff5fc42900007225280ac3b"
+    },
+    "wasm_table33_overlay_001.png": {
+      "bytes": 21298,
+      "sha256": "f252782b7c4d9a038f380093791d244d1c795ac673688083377a468ea17e6678"
+    },
+    "wasm_table33_review_001.png": {
+      "bytes": 29523,
+      "sha256": "b70ea7b574138e1a719d7b84bfcf6997e922159a468474dd8498bbb8a9bdcefd"
+    },
+    "wasm_table33_silhouette.tsv": {
+      "bytes": 164,
+      "sha256": "888e36110d95d3e030cb550c68ce509614b6865ab466222d207b01234183ba5c"
+    },
+    "wasm_table40_silhouette.tsv": {
+      "bytes": 164,
+      "sha256": "888e36110d95d3e030cb550c68ce509614b6865ab466222d207b01234183ba5c"
+    }
+  }
+}
