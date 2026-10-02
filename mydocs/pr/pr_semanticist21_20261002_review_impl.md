@@ -256,3 +256,26 @@ head/base를 확인했다. [CI 실행](https://github.com/edwardkim/rhwp/actions
 게시 뒤 시작됐으며 이 기록 시점에는 대기 중이다. CI 완료를 통과로 선기록하지 않는다.
 이 게시 기록은 code candidate CI 성공 뒤 같은 PR의 trailing 문서 commit으로 반영한다.
 원 PR approve/close, 통합 PR merge, 이슈 close는 아직 수행하지 않았다.
+
+### 통합 code candidate CI 완료 및 문서 후속 처리
+
+작업지시자의 CI 완료 확인 및 다음 절차 진행 지시에 따라 exact 게시 head
+`39f0a27922ac5a1a14d6dd9dc69421d181f9bb31`의 결과를 API로 확인했다.
+아래 workflow는 모두 completed/success이며 CI의 Build & Test, lint·Native Skia·네 Rust archive
+검사도 성공했다. Frontend 등 비해당 skip과 GHAS CodeQL neutral은 실패로 세지 않는다.
+
+| 검사 | 성공한 run |
+| --- | --- |
+| Full CI | [36955832835](https://github.com/edwardkim/rhwp/actions/runs/36955832835) |
+| CodeQL | [36955832850](https://github.com/edwardkim/rhwp/actions/runs/36955832850) |
+| Render Diff | [36955832554](https://github.com/edwardkim/rhwp/actions/runs/36955832554) |
+| Adapter inter-diff | [36955832871](https://github.com/edwardkim/rhwp/actions/runs/36955832871) |
+| Proptest roundtrip | [36955832919](https://github.com/edwardkim/rhwp/actions/runs/36955832919) |
+
+재fetch한 upstream/devel도 e509로 동일하며 PR은 OPEN/MERGEABLE/CLEAN이었다.
+앞서 로컬에만 보존한 게시 기록 `7ed98221f`와 이번 CI 기록은 모두 mydocs 한정 single-parent
+후속 commit이다. source/test/fixture/workflow는 게시 head와 동일하다. 기록 반영을 위해
+devel merge/rebase 또는 기존 로컬 전체 회귀를 반복하지 않는다.
+기존 3개 원 PR review와 오늘할일을 같은 통합 PR에서 갱신하고 문서 후속 head를 push한다.
+이 push의 최신 게이트를 확인한 뒤 병합 승인을 요청한다. 원 PR close·이슈 close·merge는
+이번 후속 기록 승인으로 수행하지 않는다.
