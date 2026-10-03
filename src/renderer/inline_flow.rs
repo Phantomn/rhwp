@@ -552,19 +552,24 @@ pub(crate) fn plan_square_table_host(
         matches!(c, Control::Table(t)
         if !t.common.treat_as_char && t.common.text_wrap == crate::model::shape::TextWrap::Square)
     })?;
-    if para
-        .controls
-        .iter()
-        .enumerate()
-        .any(|(i, c)| i != control && !super::composer::control_is_width_neutral_marker(c))
-    {
+    if para.controls.iter().enumerate().any(|(i, c)| {
+        i != control
+            && !super::composer::control_is_width_neutral_marker(c)
+            && !matches!(c, Control::Picture(p) if !p.common.treat_as_char
+                    && matches!(p.common.text_wrap,
+                        crate::model::shape::TextWrap::InFrontOfText
+                            | crate::model::shape::TextWrap::BehindText))
+    }) {
         return None;
     }
     let style = styles.para_styles.get(para.para_shape_id as usize)?;
     // The floating table has its own paint owner and contributes no inline token.
     // Keep text/shape offsets intact; only the text frame is projected here.
     let mut text = para.clone();
-    text.controls.remove(control);
+    // Overlay pictures keep their separate Shape paint owners. They neither
+    // consume inline width nor carve the text frame; preserve source offsets.
+    text.controls
+        .retain(super::composer::control_is_width_neutral_marker);
     text.line_segs.clear();
     let Control::Table(table) = &para.controls[control] else {
         return None;

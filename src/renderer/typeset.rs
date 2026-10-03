@@ -116,20 +116,7 @@ fn empty_paragraph_fallback_line_metrics(
     // 부여한다 (사용안내 실측: Square 그림 앵커 빈 문단 pi1/pi6 이 0~5.3px 로 붕괴
     // → 한글은 27.7px(base 1300 × 160%) 부여 — PrvImage 줄 좌표 대조). 자리차지
     // (TopAndBottom)는 흐름 소비 계약이 별도라 제외를 유지한다.
-    let controls_flow_neutral = para.controls.iter().all(|c| {
-        let common = match c {
-            Control::Picture(p) => &p.common,
-            Control::Shape(s) => s.common(),
-            _ => return false,
-        };
-        !common.treat_as_char
-            && matches!(
-                common.text_wrap,
-                crate::model::shape::TextWrap::InFrontOfText
-                    | crate::model::shape::TextWrap::BehindText
-                    | crate::model::shape::TextWrap::Square
-            )
-    });
+    let controls_flow_neutral = crate::renderer::empty_host_controls_are_flow_neutral(para);
     // char_count == 0 배제는 순수 빈 문단(컨트롤 없음)에만 유지한다 — 글앞/글뒤
     // 도형·그림 앵커 문단은 char_count 0 으로 저장되는 경우가 있고(사용안내 pi1/pi6
     // 실측 0px 붕괴), 한글은 이들에도 완전한 em 줄박스를 부여한다.

@@ -2639,6 +2639,11 @@ fn textless_infront_para_host_requires_line_advance(para: &Paragraph) -> bool {
     }
 
     para.controls.iter().any(|ctrl| match ctrl {
+        Control::Table(table) => {
+            !table.common.treat_as_char
+                && table.common.text_wrap == TextWrap::InFrontOfText
+                && crate::renderer::empty_host_controls_are_flow_neutral(para)
+        }
         Control::Picture(pic) => {
             let cm = &pic.common;
             // vert_rel_to 는 그림이 어디에 붙어 그려지는지를 정할 뿐, host 문단이

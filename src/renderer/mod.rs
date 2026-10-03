@@ -1505,6 +1505,33 @@ pub(crate) fn para_has_no_stored_line_segs(p: &crate::model::paragraph::Paragrap
     p.line_segs.is_empty() || p.line_segs.iter().all(|s| s.tag & 0x8000_0000 != 0)
 }
 
+/// These controls do not replace the empty host paragraph's own text line.
+/// Square tables have a separate exclusion/flow owner and are not included.
+pub(crate) fn empty_host_controls_are_flow_neutral(
+    para: &crate::model::paragraph::Paragraph,
+) -> bool {
+    use crate::model::{control::Control, shape::TextWrap};
+    para.controls.iter().all(|control| {
+        let common = match control {
+            Control::Picture(picture) => &picture.common,
+            Control::Shape(shape) => shape.common(),
+            Control::Table(table) => {
+                return !table.common.treat_as_char
+                    && matches!(
+                        table.common.text_wrap,
+                        TextWrap::InFrontOfText | TextWrap::BehindText
+                    );
+            }
+            marker => return composer::control_is_width_neutral_marker(marker),
+        };
+        !common.treat_as_char
+            && matches!(
+                common.text_wrap,
+                TextWrap::InFrontOfText | TextWrap::BehindText | TextWrap::Square
+            )
+    })
+}
+
 /// 합성 Square 구간은 시작 위치까지의 왼쪽 여백을 이미 차지한다.
 /// 이를 본문 상자의 폭으로 환산해 측정과 배치가 같은 프레임을 사용하게 하며,
 /// 글꼴별 임의 허용 폭은 더하지 않는다.

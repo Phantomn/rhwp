@@ -606,20 +606,7 @@ pub(super) fn empty_no_lineseg_paragraph_metrics(
     // 동일 완화 — 비자리차지(글앞/글뒤/어울림) 앵커 도형·그림만 가진 빈 문단도 한글은
     // 완전한 em 줄박스를 부여한다. 두 장부(판정·그리기)가 같은 규칙을 가져야 렌더 y 와
     // 단 경계가 일치한다.
-    let controls_flow_neutral = para.controls.iter().all(|c| {
-        let common = match c {
-            crate::model::control::Control::Picture(p) => &p.common,
-            crate::model::control::Control::Shape(s) => s.common(),
-            _ => return false,
-        };
-        !common.treat_as_char
-            && matches!(
-                common.text_wrap,
-                crate::model::shape::TextWrap::InFrontOfText
-                    | crate::model::shape::TextWrap::BehindText
-                    | crate::model::shape::TextWrap::Square
-            )
-    });
+    let controls_flow_neutral = crate::renderer::empty_host_controls_are_flow_neutral(para);
     if !para.text.trim().is_empty()
         || !(para.controls.is_empty() || controls_flow_neutral)
         || !para.line_segs.is_empty()
