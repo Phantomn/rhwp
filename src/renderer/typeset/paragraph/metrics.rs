@@ -45,6 +45,7 @@ impl FormattedParagraph {
         let Some(rows) = plan.text_rows.as_ref() else {
             return;
         };
+        self.spacing_before = plan.text_spacing_before.unwrap_or(self.spacing_before);
         (self.line_heights, self.line_spacings) = rows
             .iter()
             .map(|row| {
