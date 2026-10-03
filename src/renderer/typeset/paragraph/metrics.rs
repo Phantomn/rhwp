@@ -55,7 +55,14 @@ impl FormattedParagraph {
             })
             .unzip();
         self.total_height = plan.end - plan.start;
-        self.height_for_fit = self.total_height - self.line_spacings.last().copied().unwrap_or(0.0);
+        let text_fit = rows.last().map_or(0.0, |row| {
+            plan.text_spacing_before.unwrap_or(0.0)
+                + crate::renderer::hwpunit_to_px(row.vertical_pos + row.line_height, dpi)
+        });
+        let object_fit = plan
+            .square_host_placement
+            .map_or(0.0, |p| p.occupied_bottom);
+        self.height_for_fit = text_fit.max(object_fit) + self.spacing_after;
         self.square_host_plan = Some(plan);
     }
 

@@ -2979,6 +2979,7 @@ fn layout_paragraph_in_frame_impl(
                     .then_some(terminal_inline_metrics)
                     .flatten();
                 let mut row_terminated = false;
+                let widest_interval = intervals.iter().map(|i| i.end - i.start).max().unwrap_or(0);
                 for interval in intervals {
                     // 부분 재조판도 배치가 예약하는 글머리표 본문 내어쓰기를 제외한다.
                     let marker_width = if start_char > 0 {
@@ -2990,6 +2991,37 @@ fn layout_paragraph_in_frame_impl(
                         interval.end.saturating_sub(interval.start),
                         dpi,
                     ) - marker_width;
+                    // Preserve an unbroken word when another interval on this
+                    // physical row can contain it. A narrow side segment must
+                    // not force the empty-line character fallback after the
+                    // wider segment has already been filled.
+                    if cursor.fallback_char_idx.is_none() {
+                        if let Some(BreakToken::Text {
+                            base_width,
+                            end_idx,
+                            max_font_size,
+                            ..
+                        }) = tokens.get(cursor.token_index)
+                        {
+                            let word = FitWidthHwp::trimmed(
+                                to_hwp(*base_width),
+                                &letter_spacing_px,
+                                *end_idx,
+                            );
+                            let fits =
+                                |width| text_token_fits_line_hwp(0, word, 0, width, *max_font_size);
+                            if !fits(to_hwp(available_width_px)) && fits(widest_interval) {
+                                let boundary =
+                                    char_index_to_utf16_offset(para, cursor.line_start_idx);
+                                segments.push(RowSegment::new(
+                                    boundary..boundary,
+                                    interval,
+                                    source_tag | LineSeg::TAG_EMPTY_SEGMENT,
+                                ));
+                                continue;
+                            }
+                        }
+                    }
                     let terminal = terminal_tokens.as_ref().and_then(|terminal_tokens| {
                         let mut replay = FillCursor::replay_from_boundary(
                             terminal_tokens,

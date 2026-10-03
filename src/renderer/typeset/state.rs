@@ -847,6 +847,13 @@ impl TypesetState {
 
     /// Preserve host-only rows; the table item owns the object and flow advance.
     pub(super) fn record_square_host_flow(&mut self, para_index: usize, plan: InlineFlowPlan) {
+        if let Some(placement) = plan.square_host_placement {
+            if let Some(control) = plan.square_host_control {
+                self.data
+                    .paragraph_float_placements
+                    .insert((para_index, control), placement);
+            }
+        }
         self.data.inline_flow_plans.insert(para_index, plan);
         self.data.vpos_ladder_dirty = true;
     }

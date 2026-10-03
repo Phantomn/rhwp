@@ -20,7 +20,7 @@ pub(in crate::renderer::typeset) struct InlineFlowInput<'a> {
     pub exclusions: Option<&'a BTreeMap<(usize, usize), FrameExclusion>>,
 }
 
-pub(super) fn build_plan(
+pub(in crate::renderer::typeset) fn build_plan(
     input: InlineFlowInput<'_>,
     para: &Paragraph,
     para_index: usize,

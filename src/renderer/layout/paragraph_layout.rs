@@ -2477,6 +2477,73 @@ impl LayoutEngine {
                     );
                     col_node.children.push(node);
                 }
+                InlineFlowContent::FloatingTable { control } => {
+                    let Control::Table(table) = &para.controls[*control] else {
+                        continue;
+                    };
+                    let common = &table.common;
+                    let style = styles.para_styles.get(para.para_shape_id as usize);
+                    let ml = hwpunit_to_px(i32::from(table.outer_margin_left), self.dpi);
+                    let mr = hwpunit_to_px(i32::from(table.outer_margin_right), self.dpi);
+                    let width = hwpunit_to_px(common.width as i32, self.dpi) + ml + mr;
+                    let (ref_x, ref_w) =
+                        if common.horz_rel_to == crate::model::shape::HorzRelTo::Para {
+                            let left = style.map_or(0.0, |s| s.margin_left);
+                            (
+                                col_area.x + left,
+                                col_area.width - left - style.map_or(0.0, |s| s.margin_right),
+                            )
+                        } else {
+                            (col_area.x, col_area.width)
+                        };
+                    let offset = hwpunit_to_px(
+                        super::super::float_placement::signed_hwpunit(common.horizontal_offset),
+                        self.dpi,
+                    );
+                    let left = match common.horz_align {
+                        crate::model::shape::HorzAlign::Left
+                        | crate::model::shape::HorzAlign::Inside => ref_x + offset,
+                        crate::model::shape::HorzAlign::Center => {
+                            ref_x + (ref_w - width) / 2.0 + offset
+                        }
+                        _ => ref_x + ref_w - width - offset,
+                    } + ml;
+                    let top =
+                        y + hwpunit_to_px(
+                            super::super::float_placement::signed_hwpunit(common.vertical_offset),
+                            self.dpi,
+                        ) + hwpunit_to_px(i32::from(table.outer_margin_top), self.dpi);
+                    let measured = measured_tables
+                        .iter()
+                        .find(|m| m.para_index == para_index && m.control_index == *control);
+                    self.layout_table(
+                        tree,
+                        col_node,
+                        table,
+                        section_index,
+                        styles,
+                        0,
+                        col_area,
+                        top,
+                        bin_data_content,
+                        measured,
+                        0,
+                        Some((para_index, *control)),
+                        Alignment::Left,
+                        None,
+                        0.0,
+                        0.0,
+                        None,
+                        None,
+                        Some(y),
+                        None,
+                        false,
+                        false,
+                        false,
+                        Some((Some(left), top)),
+                        Self::standalone_table_char_border_fill(Some(para), table, styles),
+                    );
+                }
                 InlineFlowContent::Table {
                     control,
                     margin_left,
@@ -5774,7 +5841,8 @@ impl LayoutEngine {
             let needs_distribute = alignment == Alignment::Distribute;
 
             let has_tabs = comp_line.runs.iter().any(|r| r.text.contains('\t'));
-            let renders_synthetic_wrap_trailing_space = !is_last_line_of_para
+            let renders_synthetic_wrap_trailing_space = !physical_frame_rows
+                && !is_last_line_of_para
                 && para
                     .and_then(|p| p.line_segs.get(line_idx))
                     .is_some_and(|seg| seg.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY != 0)

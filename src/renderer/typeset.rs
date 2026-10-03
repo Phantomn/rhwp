@@ -4601,8 +4601,9 @@ impl TypesetEngine {
                 )
             })
             .flatten();
-        let no_lineseg_host_flows_below =
-            no_lineseg_square_host && no_lineseg_square_band.is_none();
+        let no_lineseg_host_flows_below = no_lineseg_square_host
+            && no_lineseg_square_band.is_none()
+            && fmt.square_host_plan.is_none();
         let pre_table_end_line = if !is_visible_para_float
             && signed_vertical_offset > 0
             && !para.text.is_empty()
@@ -4771,7 +4772,7 @@ impl TypesetEngine {
         let no_lineseg_band_host = is_wrap_around_table
             && is_first_table
             && pre_height <= 0.0
-            && no_lineseg_square_band.is_some();
+            && (fmt.square_host_plan.is_some() || no_lineseg_square_band.is_some());
         if no_lineseg_band_host {
             let v_off_px = crate::renderer::hwpunit_to_px(signed_vertical_offset, self.dpi);
             let host_h = if fmt.square_host_plan.is_some() {
@@ -4780,7 +4781,12 @@ impl TypesetEngine {
                 fmt.line_advances_sum(0..total_lines)
             };
             let host_origin = st.current_height;
-            st.advance_flow_by(host_h.max(v_off_px + table_total_height));
+            let advance = if fmt.square_host_plan.is_some() {
+                host_h
+            } else {
+                host_h.max(v_off_px + table_total_height)
+            };
+            st.advance_flow_by(advance);
             if let Some(mut plan) = fmt.square_host_plan.clone() {
                 plan.relative_to(0.0, -host_origin);
                 st.record_square_host_flow(para_idx, plan);

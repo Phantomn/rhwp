@@ -11,7 +11,7 @@ use super::{
     float_placement::ObjectPlacementFrame,
     height_measurer::MeasuredTable,
     hwpunit_to_px,
-    layout::{estimate_text_width, resolved_to_text_style},
+    layout::{estimate_text_width, estimate_text_width_unrounded, resolved_to_text_style},
     layout_frame::{FrameExclusion, LayoutFrame},
     px_to_hwpunit,
     style_resolver::{detect_lang_category, ResolvedParaStyle, ResolvedStyleSet},
@@ -30,6 +30,8 @@ pub enum InlineFlowContent {
         margin_left: f64,
         margin_top: f64,
     },
+    /// Width-neutral object anchored to the physical text row.
+    FloatingTable { control: usize },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -50,12 +52,14 @@ pub struct InlineFlowPlan {
     /// Square table owns the object; this plan owns only its host text rows.
     pub(crate) square_host_control: Option<usize>,
     pub(crate) text_spacing_before: Option<f64>,
+    pub(crate) square_host_placement: Option<super::float_placement::ParagraphFloatPlacement>,
     pub start: f64,
     pub end: f64,
     pub boxes: Vec<InlineFlowBox>,
     /// 원래 가용 폭/높이에 실제로 간섭한 제외 영역이 있었는가.
     pub(crate) carved: bool,
     next_row_top: f64,
+    fallback_font_size: f64,
 }
 
 impl InlineFlowPlan {
@@ -63,6 +67,12 @@ impl InlineFlowPlan {
         self.start -= y;
         self.end -= y;
         self.next_row_top -= y;
+        if let Some(p) = &mut self.square_host_placement {
+            p.anchor_y -= y;
+            p.table_top -= y;
+            p.occupied_bottom -= y;
+            p.table_left = p.table_left.map(|left| left - x);
+        }
         for item in &mut self.boxes {
             item.x -= x;
             item.y -= y;
@@ -73,7 +83,7 @@ impl InlineFlowPlan {
 enum Atom {
     Box(InlineFlowBox),
     Float(FrameExclusion),
-    Break,
+    Break(InlineFlowBox),
 }
 
 #[derive(Clone, Copy, Default)]
@@ -131,6 +141,16 @@ pub(crate) fn plan(
         while controls.peek().is_some_and(|&(_, p)| p <= position) {
             let (ci, _) = controls.next()?;
             match &para.controls[ci] {
+                Control::Table(table) if !table.common.treat_as_char => {
+                    atoms.push(Atom::Box(InlineFlowBox {
+                        content: InlineFlowContent::FloatingTable { control: ci },
+                        x: 0.0,
+                        y: 0.0,
+                        width: 0.0,
+                        height: 0.0,
+                        baseline: 0.0,
+                    }));
+                }
                 Control::Table(table) => {
                     let measured = tables
                         .iter()
@@ -164,14 +184,21 @@ pub(crate) fn plan(
         let Some(&ch) = chars.get(position) else {
             break;
         };
-        if ch == '\n' || ch == '\r' {
-            atoms.push(Atom::Break);
-            continue;
-        }
-        let cs = super::composer::find_active_char_shape_visible(&para.char_shapes, position);
+        // CharShapeRef and char_offsets share the original UTF-16 stream,
+        // including the control slots removed from the visible text.
+        let stream_position = para
+            .char_offsets
+            .get(position)
+            .copied()
+            .unwrap_or(position as u32);
+        let cs = super::composer::find_active_char_shape(&para.char_shapes, stream_position);
         let lang = detect_lang_category(ch);
         let text_style = resolved_to_text_style(styles, cs, lang);
-        let width = estimate_text_width(&ch.to_string(), &text_style);
+        let width = if ch == ' ' {
+            estimate_text_width_unrounded(" ", &text_style)
+        } else {
+            estimate_text_width(&ch.to_string(), &text_style)
+        };
         let metrics = super::composer::frame_metrics_for_line(
             text_style.font_size,
             12.0,
@@ -180,7 +207,7 @@ pub(crate) fn plan(
             frame.dpi,
         );
         let height = hwpunit_to_px(metrics.line_height, frame.dpi);
-        atoms.push(Atom::Box(InlineFlowBox {
+        let mut item = InlineFlowBox {
             content: InlineFlowContent::Text {
                 range: position..position + 1,
                 style: cs,
@@ -191,7 +218,18 @@ pub(crate) fn plan(
             width,
             height,
             baseline: hwpunit_to_px(metrics.baseline_distance, frame.dpi),
-        }));
+        };
+        if ch == '\n' || ch == '\r' {
+            item.content = InlineFlowContent::Text {
+                range: position..position,
+                style: cs,
+                lang,
+            };
+            item.width = 0.0;
+            atoms.push(Atom::Break(item));
+        } else {
+            atoms.push(Atom::Box(item));
+        }
     }
     if controls.peek().is_some() {
         // 범위 밖 anchor를 누락시킨 부분 결과를 확정하지 않는다.
@@ -203,11 +241,17 @@ pub(crate) fn plan(
         text_rows: None,
         square_host_control: None,
         text_spacing_before: None,
+        square_host_placement: None,
         start: frame.paragraph_y,
         end: top,
         boxes: Vec::new(),
         carved: false,
         next_row_top: top,
+        fallback_font_size: para
+            .char_shapes
+            .first()
+            .and_then(|r| styles.char_styles.get(r.char_shape_id as usize))
+            .map_or(12.0, |s| s.font_size),
     };
     let mut row = Vec::new();
     let mut row_metrics = RowMetrics::default();
@@ -226,7 +270,11 @@ pub(crate) fn plan(
                 exclusions.push(exclusion);
                 row_metrics = RowMetrics::default();
             }
-            Atom::Break => {
+            Atom::Break(empty_line) => {
+                // Consecutive authored breaks reserve real lines even without ink.
+                if row.is_empty() {
+                    row.push(empty_line);
+                }
                 finish_row(
                     &mut result,
                     &mut row,
@@ -242,7 +290,8 @@ pub(crate) fn plan(
                     .iter()
                     .all(|v| v.is_finite())
                     || item.width < 0.0
-                    || item.height <= 0.0
+                    || (item.height <= 0.0
+                        && !matches!(item.content, InlineFlowContent::FloatingTable { .. }))
                 {
                     return None;
                 }
@@ -330,15 +379,24 @@ fn finish_row(
     let has_table = row
         .iter()
         .any(|b| matches!(b.content, InlineFlowContent::Table { .. }));
+    let row_font_size = row
+        .iter()
+        .filter(|item| matches!(item.content, InlineFlowContent::Text { .. }))
+        .map(|item| item.height)
+        .fold(plan.fallback_font_size, f64::max);
     for mut item in row.drain(..) {
         item.x = x;
-        item.y = y + baseline - item.baseline;
+        item.y = if matches!(item.content, InlineFlowContent::FloatingTable { .. }) {
+            y
+        } else {
+            y + baseline - item.baseline
+        };
         x += item.width;
         plan.boxes.push(item);
     }
     let metrics = super::composer::frame_metrics_for_line(
-        height,
-        height,
+        row_font_size,
+        plan.fallback_font_size,
         style.line_spacing_type,
         style.line_spacing,
         dpi,
@@ -432,9 +490,11 @@ pub(crate) fn plan_plain_text(
         boxes: Vec::new(),
         carved: !same_rows,
         next_row_top: end,
+        fallback_font_size: 12.0,
         text_rows: Some(rows),
         square_host_control: None,
         text_spacing_before: None,
+        square_host_placement: None,
     })
 }
 
@@ -448,8 +508,12 @@ pub(crate) fn plan_square_table_host(
     column_width: f64,
     dpi: f64,
 ) -> Option<InlineFlowPlan> {
-    let (left, width) =
-        super::no_lineseg_square_table_host_band(para, px_to_hwpunit(column_width, dpi))?;
+    use super::float_placement::{signed_hwpunit, ParagraphFloatFlow, ParagraphFloatPlacement};
+    use super::layout_frame::FrameExclusionPolicy;
+    use crate::model::shape::{HorzAlign, HorzRelTo, TextFlow, VertAlign, VertRelTo};
+    if !super::is_no_lineseg_visible_text_host(para) {
+        return None;
+    }
     let control = para.controls.iter().position(|c| {
         matches!(c, Control::Table(t)
         if !t.common.treat_as_char && t.common.text_wrap == crate::model::shape::TextWrap::Square)
@@ -474,41 +538,127 @@ pub(crate) fn plan_square_table_host(
     let measured = tables
         .iter()
         .find(|m| m.para_index == para_index && m.control_index == control)?;
-    let top = (super::float_placement::signed_hwpunit(table.common.vertical_offset)
-        + i32::from(table.outer_margin_top))
-    .max(0);
-    let bottom = top
-        .saturating_add(px_to_hwpunit(measured.total_height, dpi))
-        .saturating_add(i32::from(table.outer_margin_bottom));
-    let column_hu = px_to_hwpunit(column_width, dpi);
-    let blocked = if left == 0 {
-        left.saturating_add(width)..column_hu
-    } else {
-        0..left
+    let c = &table.common;
+    if c.vert_rel_to != VertRelTo::Para
+        || !matches!(c.vert_align, VertAlign::Top | VertAlign::Inside)
+    {
+        return None;
+    }
+    // Side captions own a second horizontal box; retain their existing owner.
+    if table.caption.as_ref().is_some_and(|cap| {
+        matches!(
+            cap.direction,
+            crate::model::shape::CaptionDirection::Left
+                | crate::model::shape::CaptionDirection::Right
+        )
+    }) {
+        return None;
+    }
+    let (ref_left, ref_width) = match c.horz_rel_to {
+        HorzRelTo::Column => (0.0, column_width),
+        HorzRelTo::Para => (
+            style.margin_left,
+            column_width - style.margin_left - style.margin_right,
+        ),
+        _ => return None,
     };
-    let exclusion = FrameExclusion {
-        horizontal: blocked,
-        vertical: top..bottom,
-        policy: super::layout_frame::FrameExclusionPolicy::BothSides,
+    let ml = hwpunit_to_px(i32::from(table.outer_margin_left), dpi);
+    let mr = hwpunit_to_px(i32::from(table.outer_margin_right), dpi);
+    let object_width = hwpunit_to_px(c.width as i32, dpi) + ml + mr;
+    let offset = hwpunit_to_px(signed_hwpunit(c.horizontal_offset), dpi);
+    let outer_left = match c.horz_align {
+        HorzAlign::Left | HorzAlign::Inside => ref_left + offset,
+        HorzAlign::Center => ref_left + (ref_width - object_width) / 2.0 + offset,
+        HorzAlign::Right | HorzAlign::Outside => ref_left + ref_width - object_width - offset,
     };
-    let box_ = super::composer::ParagraphBox::body_for_style(column_width, Some(style), dpi);
-    let mut frame = box_.frame_with(0, vec![exclusion]);
-    let rows = super::composer::layout_paragraph_in_frame(&text, &mut frame, styles, dpi)?;
+    let outer_top = hwpunit_to_px(signed_hwpunit(c.vertical_offset), dpi);
+    let table_top = outer_top + hwpunit_to_px(i32::from(table.outer_margin_top), dpi);
+    let occupied_bottom = table_top
+        + measured.total_height
+        + hwpunit_to_px(i32::from(table.outer_margin_bottom), dpi);
+    let placement = ParagraphFloatPlacement {
+        flow: ParagraphFloatFlow::Exclusion,
+        anchor_y: 0.0,
+        stored_host_origin: None,
+        stored_successor_line_origin: None,
+        table_left: Some(outer_left + ml),
+        table_top,
+        occupied_bottom,
+    };
     let spacing_before =
         if para.line_segs.is_empty() && std::env::var("RHWP_EXP_BODY_FRESH").is_err() {
             0.0
         } else {
             style.spacing_before
         };
-    let end = spacing_before + hwpunit_to_px(frame.top, dpi) + style.spacing_after;
+    let exclusion = FrameExclusion {
+        horizontal: px_to_hwpunit(outer_left, dpi)..px_to_hwpunit(outer_left + object_width, dpi),
+        vertical: px_to_hwpunit(outer_top - spacing_before, dpi)
+            ..px_to_hwpunit(occupied_bottom - spacing_before, dpi),
+        policy: match c.text_flow {
+            TextFlow::BothSides => FrameExclusionPolicy::BothSides,
+            TextFlow::LargestOnly => FrameExclusionPolicy::LargestSide,
+            TextFlow::LeftOnly => FrameExclusionPolicy::LeftSide,
+            TextFlow::RightOnly => FrameExclusionPolicy::RightSide,
+        },
+    };
+    let box_ = super::composer::ParagraphBox::body_for_style(column_width, Some(style), dpi);
+    let mut frame = box_.frame_with(0, vec![exclusion]);
+    let rows = super::composer::layout_paragraph_in_frame(&text, &mut frame, styles, dpi)?;
+    let end =
+        (spacing_before + hwpunit_to_px(frame.top, dpi)).max(occupied_bottom) + style.spacing_after;
     Some(InlineFlowPlan {
         text_rows: Some(rows),
         square_host_control: Some(control),
         text_spacing_before: Some(spacing_before),
+        square_host_placement: Some(placement),
         start: 0.0,
         end,
         boxes: Vec::new(),
         carved: true,
         next_row_top: end,
+        fallback_font_size: 12.0,
     })
+}
+
+/// Object-only rows and separator spaces have no prose word-breaking owner.
+/// Preserve their order, whitespace rows, and overlay anchors in one plan.
+pub(crate) fn supports_table_space_rows(para: &Paragraph) -> bool {
+    super::para_has_no_stored_line_segs(para)
+        && para.text.chars().all(|c| matches!(c, ' ' | '\n' | '\r'))
+        && para
+            .controls
+            .iter()
+            .any(|c| matches!(c, Control::Table(t) if t.common.treat_as_char))
+        && para.controls.iter().all(|c| match c {
+            Control::Table(t) => {
+                // Captions and cell notes have their own placement/reservation owner.
+                t.caption.is_none()
+                    && !t.cells.iter().any(|cell| {
+                        cell.paragraphs.iter().any(|p| {
+                            p.controls
+                                .iter()
+                                .any(|c| matches!(c, Control::Footnote(_) | Control::Table(_)))
+                        })
+                    })
+                    && (t.common.treat_as_char
+                        || (matches!(
+                            t.common.text_wrap,
+                            crate::model::shape::TextWrap::InFrontOfText
+                                | crate::model::shape::TextWrap::BehindText
+                        ) && matches!(
+                            t.common.vert_rel_to,
+                            crate::model::shape::VertRelTo::Para
+                        ) && matches!(
+                            t.common.vert_align,
+                            crate::model::shape::VertAlign::Top
+                                | crate::model::shape::VertAlign::Inside
+                        ) && matches!(
+                            t.common.horz_rel_to,
+                            crate::model::shape::HorzRelTo::Column
+                                | crate::model::shape::HorzRelTo::Para
+                        )))
+            }
+            c => super::composer::control_is_width_neutral_marker(c),
+        })
 }
