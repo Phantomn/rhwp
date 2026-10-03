@@ -8,7 +8,7 @@ last_verified: 2026-10-04
 
 ## 최종 판정
 
-**머지 보류.** 공통 TAC 줄 구성·Square 후속 흐름·legacy 커서 소유권 보정의 로컬 구현과 검증을 완료했다. 전체 회귀 10,265/10,265(50 skipped), focused 24/24, 필수 lint·Skia, CDP 18문서/45검사 PASS. Native/fresh WASM 각 27쪽을 직접 판독했다. 50% 쪽 수용의 적용 조건은 미검증이며 관련 이슈 전체 해결을 선언하지 않는다. 이번 #7482의 90% threshold만 사용자 예외를 적용하고 원 점수/남은 차이는 보존한다. 원격 push·comment·PR 생성·approve·merge는 수행하지 않았다.
+**머지 보류.** 공통 TAC 줄 구성·Square 후속 흐름·legacy 커서 소유권 보정의 로컬 구현과 검증을 완료했다. 전체 회귀 10,265/10,265(50 skipped), focused 24/24, 필수 lint·Skia, CDP 18문서/45검사 PASS. Native/fresh WASM 각 27쪽을 직접 판독했다. 50% 쪽 수용의 적용 조건은 미검증이며 관련 이슈 전체 해결을 선언하지 않는다. 이번 #7482의 90% threshold만 사용자 예외를 적용하고 원 점수/남은 차이는 보존한다. 사용자 승인 뒤 보정 branch push와 [별도 PR #7563](https://github.com/edwardkim/rhwp/pull/7563) 등록을 완료했다. 원 #7482의 comment·approve·close·merge는 수행하지 않았다.
 
 ## 접수와 검토 head
 
@@ -106,3 +106,7 @@ merge 후 contributor comment는 한국어 존댓말로 원 기여의 개선과 
 앞 legacy owner 뒤에서 과거 제외 영역만으로 unchanged plain rows의 절대 원점 소유를 바꾼 것이 c8 회귀의 원인이다. 마지막 실제 PageItem의 확정 shared plan.end와 현재 흐름 커서가 연결된 경우만 같은 rows를 이어받는다(`typeset/inline_flow.rs`). 해당 제외 영역이 실제 줄을 carve하는 경로/TAC 줄 구성은 유지한다. 그림 host 자체를 공통 계획으로 바꾸거나 좌표를 clamp하지 않는다.
 
 독립 한컴 p3 글줄 top 227.773/239.773pt의 12pt=16px 간격을 새 정식 `unrelated_exclusion_preserves_picture_host_successor_pitch`의 기대 관계로 삼았다. 실제 최종 141/142/143번 줄 간격·비겹침·뒤 빈 문단·문자를 검사하며, immutable c8 binary에서는 1 run FAIL, 현재 Native는 PASS다. 기존 TAC/Square 14개와 새 1개, #6970 경계 9개를 합쳐 24/24 PASS(0.308s). Native review/standalone overlay의 직접 판독에서도 오른쪽 세 줄이 분리되며 원 gate 74.11148%와 남은 왼쪽 단 차이는 보존한다. c8 full 실패 로그와 최신 head의 별도 검증 로그를 연결한다.
+
+## 승인된 부분 보정 공개
+
+사용자가 준비된 부분 보정의 push·별도 PR 생성을 승인해 `fix/pr7482-shared-tac-rows`와 Open [#7563](https://github.com/edwardkim/rhwp/pull/7563)을 공개했습니다. [새 PR self-review](archives/pr_7563_review.md)는 원 검토 head와 공개 head, 검증·남은 CI/검토 조건을 구분합니다. 원 #7482와 #7518의 disposition은 별도이며 merge 승인은 받지 않았습니다.

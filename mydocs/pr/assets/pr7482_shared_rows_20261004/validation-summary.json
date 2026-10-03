@@ -1,7 +1,7 @@
 {
   "code_sha": "0373fb43c4189a138482f72ebbb5ecb0a081b4a5",
   "base_sha": "6b3faf77d8085441f9f26d88d65a49791e910352",
-  "local_disposition": "Local implementation and validation complete for shared TAC rows, Square flow and legacy successor ownership; merge on hold pending 50 percent applicability/policy decision and scoped publication authorization",
+  "local_disposition": "Approved partial correction published as PR7563; latest remote CI and separate large-change review/merge approval remain; 50 percent applicability unresolved",
   "checks": {
     "fmt": "PASS",
     "native_clippy": "PASS",
@@ -580,8 +580,11 @@
   "publication": {
     "source_head": "9bc8478d5ddf43dc87c06278b8c0deb8c7640959",
     "source_fork_dry_run": "403 Permission to kidsnote/rhwp.git denied to edwardkim",
-    "remote_mutation": false,
-    "fallback": "prepare own repository correction PR draft; requires scoped authorization and unresolved-scope decision"
+    "remote_mutation": true,
+    "fallback": "User-approved own-repository partial correction PR created; original PR disposition and merge separate",
+    "correction_pr": "https://github.com/edwardkim/rhwp/pull/7563",
+    "published_candidate_sha": "659c940bd00b6c684493ba71781dda97fca726c7",
+    "original_pr_mutation": false
   },
   "regression_proof": {
     "prior_c8_full": "10263 passed / 1 actual overlap failed / 50 skipped",
