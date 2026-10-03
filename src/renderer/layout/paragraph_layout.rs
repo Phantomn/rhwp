@@ -2428,42 +2428,96 @@ impl LayoutEngine {
             return;
         }
         let chars: Vec<_> = para.text.chars().collect();
+        // Physical rows and per-character positions are the measurement
+        // result. Preserve them in the render tree and coalesce compatible
+        // adjacent characters without measuring their advances again.
+        for (line_index, row) in plan.rows.iter().enumerate() {
+            let mut line = RenderNode::new(
+                tree.next_id(),
+                RenderNodeType::TextLine(TextLineNode::with_para_vpos(
+                    row.height,
+                    row.baseline,
+                    section_index,
+                    para_index,
+                    line_index as u32,
+                    super::super::px_to_hwpunit(row.y, self.dpi),
+                )),
+                BoundingBox::new(
+                    col_area.x + row.x,
+                    col_area.y + row.y,
+                    row.width,
+                    row.height,
+                ),
+            );
+            for item in &plan.boxes[row.boxes.clone()] {
+                let InlineFlowContent::Text { range, style, lang } = &item.content else {
+                    continue;
+                };
+                let text: String = chars[range.clone()].iter().collect();
+                let text_style = resolved_to_text_style(styles, *style, *lang);
+                let x = col_area.x + item.x;
+                let y = col_area.y + item.y;
+                if let Some(previous) = line.children.last_mut() {
+                    if let RenderNodeType::TextRun(run) = &mut previous.node_type {
+                        if run.style == text_style
+                            && run.char_shape_id == Some(*style)
+                            && run.char_start.is_some_and(|start| {
+                                start + run.text.chars().count() == range.start
+                            })
+                            && (previous.bbox.x + previous.bbox.width - x).abs() < 0.01
+                            && (previous.bbox.y - y).abs() < 0.01
+                        {
+                            let positions = run.layout_positions.as_mut().unwrap();
+                            let start = previous.bbox.width;
+                            run.text.push_str(&text);
+                            previous.bbox.width += item.width;
+                            positions.push(start + item.width);
+                            run.is_para_end = range.end == chars.len();
+                            continue;
+                        }
+                    }
+                }
+                line.children.push(RenderNode::new(
+                    tree.next_id(),
+                    RenderNodeType::TextRun(TextRunNode {
+                        text,
+                        style: text_style,
+                        char_shape_id: Some(*style),
+                        para_shape_id: Some(para.para_shape_id),
+                        section_index: Some(section_index),
+                        para_index: Some(para_index),
+                        char_start: Some(range.start),
+                        cell_context: None,
+                        is_para_end: range.end == chars.len(),
+                        is_line_break_end: false,
+                        rotation: 0.0,
+                        is_vertical: false,
+                        char_overlap: None,
+                        border_fill_id: styles
+                            .char_styles
+                            .get(*style as usize)
+                            .map_or(0, |s| s.border_fill_id),
+                        baseline: item.baseline,
+                        field_marker: FieldMarkerType::None,
+                        layout_positions: Some(if range.is_empty() {
+                            vec![0.0]
+                        } else {
+                            vec![0.0, item.width]
+                        }),
+                        display_text: None,
+                    }),
+                    BoundingBox::new(x, y, item.width, item.height),
+                ));
+            }
+            if !line.children.is_empty() {
+                col_node.children.push(line);
+            }
+        }
         for item in &plan.boxes {
             let x = col_area.x + item.x;
             let y = col_area.y + item.y;
             match &item.content {
-                InlineFlowContent::Text { range, style, lang } => {
-                    let text: String = chars[range.clone()].iter().collect();
-                    let text_style = resolved_to_text_style(styles, *style, *lang);
-                    let node = RenderNode::new(
-                        tree.next_id(),
-                        RenderNodeType::TextRun(TextRunNode {
-                            text,
-                            style: text_style,
-                            char_shape_id: Some(*style),
-                            para_shape_id: Some(para.para_shape_id),
-                            section_index: Some(section_index),
-                            para_index: Some(para_index),
-                            char_start: Some(range.start),
-                            cell_context: None,
-                            is_para_end: range.end == chars.len(),
-                            is_line_break_end: false,
-                            rotation: 0.0,
-                            is_vertical: false,
-                            char_overlap: None,
-                            border_fill_id: styles
-                                .char_styles
-                                .get(*style as usize)
-                                .map_or(0, |s| s.border_fill_id),
-                            baseline: item.baseline,
-                            field_marker: FieldMarkerType::None,
-                            layout_positions: None,
-                            display_text: None,
-                        }),
-                        BoundingBox::new(x, y, item.width, item.height),
-                    );
-                    col_node.children.push(node);
-                }
+                InlineFlowContent::Text { .. } => {}
                 InlineFlowContent::FloatingTable { control } => {
                     let Control::Table(table) = &para.controls[*control] else {
                         continue;
@@ -6506,7 +6560,23 @@ impl LayoutEngine {
                 }
             }
 
-            col_node.children.push(line_node);
+            // An unused lane is structural exclusion metadata for another
+            // segment of this same physical row. It owns no text node; retain
+            // the row's metrics/advance below. A wholly empty row still owns
+            // its intentional line box.
+            let unused_frame_lane = physical_frame_rows
+                && para.is_some_and(|p| {
+                    p.line_segs.get(line_idx).is_some_and(|seg| {
+                        seg.tag & LineSeg::TAG_EMPTY_SEGMENT != 0
+                            && p.line_segs.iter().any(|other| {
+                                other.vertical_pos == seg.vertical_pos
+                                    && other.tag & LineSeg::TAG_EMPTY_SEGMENT == 0
+                            })
+                    })
+                });
+            if !unused_frame_lane {
+                col_node.children.push(line_node);
+            }
             // 줄간격 적용:
             //   - 셀 내 마지막 문단의 마지막 줄: trailing line_spacing 제외
             //     (셀 높이 모델은 trailing 미포함, 셀 내부와 정합)

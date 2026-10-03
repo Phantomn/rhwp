@@ -1709,9 +1709,18 @@ fn fill_one_interval(
                     cursor.last_break_token_idx = None;
                     cursor.token_index += 1;
                     cursor.emitted_any = true;
+                    // The terminal separator was consumed by this row. The
+                    // cursor is at paragraph end, not at a new empty line.
+                    // An authored final LineBreak follows its separate path.
+                    let at_end = absorbed && cursor.token_index == tokens.len();
+                    cursor.finished = at_end;
                     return Some(FilledInterval {
                         line,
-                        termination: FillTermination::IntervalFull,
+                        termination: if at_end {
+                            FillTermination::ParagraphEnd
+                        } else {
+                            FillTermination::IntervalFull
+                        },
                     });
                 }
                 cursor.last_break_token_idx = Some(ti);

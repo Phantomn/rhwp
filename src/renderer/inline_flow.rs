@@ -44,6 +44,16 @@ pub struct InlineFlowBox {
     pub baseline: f64,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct InlineFlowRow {
+    pub boxes: Range<usize>,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub baseline: f64,
+}
+
 /// 좌표와 높이는 같은 계산의 결과다. 확정 후 단 상대 좌표로 보관한다.
 #[derive(Debug, Clone, PartialEq)]
 pub struct InlineFlowPlan {
@@ -56,6 +66,7 @@ pub struct InlineFlowPlan {
     pub start: f64,
     pub end: f64,
     pub boxes: Vec<InlineFlowBox>,
+    pub(crate) rows: Vec<InlineFlowRow>,
     /// 원래 가용 폭/높이에 실제로 간섭한 제외 영역이 있었는가.
     pub(crate) carved: bool,
     next_row_top: f64,
@@ -76,6 +87,10 @@ impl InlineFlowPlan {
         for item in &mut self.boxes {
             item.x -= x;
             item.y -= y;
+        }
+        for row in &mut self.rows {
+            row.x -= x;
+            row.y -= y;
         }
     }
 }
@@ -255,6 +270,27 @@ pub(crate) fn plan(
     let word_ranges = super::composer::text_word_ranges(para, styles);
     let mut words = word_ranges.iter().peekable();
     let mut word_metrics = std::collections::BTreeMap::new();
+    let mut separator_spaces = std::collections::BTreeSet::new();
+    let mut followed_by_flow = false;
+    for atom in atoms.iter().rev() {
+        match atom {
+            Atom::Box(InlineFlowBox {
+                content: InlineFlowContent::Text { range, .. },
+                ..
+            }) if !range.is_empty() && chars[range.clone()].iter().all(|ch| *ch == ' ') => {
+                if followed_by_flow {
+                    separator_spaces.insert(range.start);
+                }
+            }
+            Atom::Box(InlineFlowBox {
+                content: InlineFlowContent::Text { .. } | InlineFlowContent::Table { .. },
+                ..
+            }) => followed_by_flow = true,
+            // A floating anchor owns its authored physical row. Spaces before
+            // it cannot be consumed as separators before the next flow box.
+            _ => followed_by_flow = false,
+        }
+    }
     let mut index = 0;
     while index < atoms.len() {
         let Atom::Box(first) = &atoms[index] else {
@@ -305,6 +341,7 @@ pub(crate) fn plan(
         start: frame.paragraph_y,
         end: top,
         boxes: Vec::new(),
+        rows: Vec::new(),
         carved: false,
         next_row_top: top,
         fallback_font_size: para
@@ -347,7 +384,7 @@ pub(crate) fn plan(
                 )?;
                 row_metrics = RowMetrics::default();
             }
-            Atom::Box(item) => {
+            Atom::Box(mut item) => {
                 if ![item.width, item.height, item.baseline]
                     .iter()
                     .all(|v| v.is_finite())
@@ -360,6 +397,23 @@ pub(crate) fn plan(
                 let row_horizontal =
                     paragraph_row_horizontal(&horizontal, style, result.boxes.is_empty());
                 let row_width = row_horizontal.end - row_horizontal.start;
+                // A separator consumed by a soft wrap remains in the source
+                // row. It must not create a whitespace-only row before the
+                // next word/table. Space-only paragraphs and authored breaks
+                // retain their real line boxes.
+                if matches!(&item.content, InlineFlowContent::Text { range, .. }
+                    if separator_spaces.contains(&range.start))
+                    && row_metrics.width + item.width > row_width + 0.01
+                    && row.iter().any(|existing| match &existing.content {
+                        InlineFlowContent::Text { range, .. } => {
+                            chars[range.clone()].iter().any(|ch| !ch.is_whitespace())
+                        }
+                        InlineFlowContent::Table { .. } => true,
+                        InlineFlowContent::FloatingTable { .. } => false,
+                    })
+                {
+                    item.width = 0.0;
+                }
                 let lookahead = match &item.content {
                     InlineFlowContent::Text { range, .. } => word_metrics
                         .get(&range.start)
@@ -483,6 +537,8 @@ fn finish_row(
         .map(|item| item.height)
         .reduce(f64::max)
         .unwrap_or(plan.fallback_font_size);
+    let first_box = plan.boxes.len();
+    let row_x = x;
     for mut item in row.drain(..) {
         item.x = x;
         item.y = if matches!(item.content, InlineFlowContent::FloatingTable { .. }) {
@@ -493,6 +549,14 @@ fn finish_row(
         x += item.width;
         plan.boxes.push(item);
     }
+    plan.rows.push(InlineFlowRow {
+        boxes: first_box..plan.boxes.len(),
+        x: row_x,
+        y,
+        width: row_metrics.width,
+        height,
+        baseline,
+    });
     let metrics = super::composer::frame_metrics_for_line(
         row_font_size,
         plan.fallback_font_size,
@@ -600,6 +664,7 @@ pub(crate) fn plan_plain_text(
         start: placement.paragraph_y,
         end,
         boxes: Vec::new(),
+        rows: Vec::new(),
         carved: !same_rows,
         next_row_top: end,
         fallback_font_size: 12.0,
@@ -732,6 +797,7 @@ pub(crate) fn plan_square_table_host(
         start: 0.0,
         end,
         boxes: Vec::new(),
+        rows: Vec::new(),
         carved: true,
         next_row_top: end,
         fallback_font_size: 12.0,
