@@ -20,6 +20,43 @@ fn page(sample: &str) -> Value {
     rendered_page(&input, None)
 }
 
+/// The independent Hancom PDF places the first plain paragraph in the free
+/// left lane of the Square table, before that table's bottom. Subsequent
+/// paragraphs retain their order; the larger TAC owns the next page.
+#[test]
+fn square_exclusion_survives_host_without_advancing_following_text_to_its_bottom() {
+    let input = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("samples/issue7482/tac-after-plain-paragraphs.hwpx");
+    let tree = rendered_page(&input, Some(0));
+    let all = nodes(&tree);
+    let square = find(&all, "Table", 0);
+    let follower = find(&all, "TextLine", 1);
+    assert!(
+        coord(follower, "y") < bottom(square),
+        "{:?}",
+        follower["bbox"]
+    );
+    assert!(
+        coord(follower, "x") + coord(follower, "w") <= coord(square, "x"),
+        "the plain line overlaps the Square object"
+    );
+    let mut previous_bottom = bottom(find(&all, "TextLine", 0));
+    for pi in 1..=22 {
+        let line = find(&all, "TextLine", pi);
+        assert!(coord(line, "y") >= previous_bottom);
+        assert_eq!(text_of(&all, pi), "공간 확인");
+        previous_bottom = bottom(line);
+    }
+    assert_eq!(all.iter().filter(|n| n["type"] == "Table").count(), 1);
+    let next = rendered_page(&input, Some(1));
+    let next_nodes = nodes(&next);
+    assert_eq!(
+        next_nodes.iter().filter(|n| n["type"] == "Table").count(),
+        1
+    );
+    assert!(coord(find(&next_nodes, "Table", 23), "h") > 800.0);
+}
+
 fn rendered_page(input: &Path, page: Option<u32>) -> Value {
     let dir = std::env::temp_dir().join(format!(
         "rhwp-7482-{}-{}",

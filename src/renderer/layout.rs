@@ -12705,7 +12705,10 @@ impl LayoutEngine {
                         measured_tables,
                         plan,
                     );
-                    y_offset = y_offset.max(col_area.y + plan.end);
+                    // A Square object owns an exclusion, while this cursor
+                    // follows the shared host text rows, including successors
+                    // that can continue beside the object.
+                    y_offset = col_area.y + plan.end;
                 }
                 self.layout_wrap_around_paras(
                     tree,

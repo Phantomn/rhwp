@@ -56,3 +56,14 @@ The local verification report links SHA-pinned execution evidence under
 embedded SVGs are excluded from these public assets. Residual Paper-anchored
 header differences are separate from the tested body-flow relationships.
 The 50% page acceptance condition is unresolved and not asserted here.
+
+## 후속 일반 문단의 Square 배제 영역 대조군
+
+`tac-after-plain-paragraphs.hwpx`는 공개 #7481 제목/Square 입력의 NO_LS
+HWPX에 일반 문단 `공간 확인` 22개를 넣고 뒤의 큰 TAC를 유지한 수동 진단이다.
+용지 크기는 그대로이며 표의 쪽 경계 설정은 NONE이다. 독립 한컴 2020 PDF는
+`pdf/issue7482/tac-after-plain-paragraphs-hwpx-2020.pdf`이고 2쪽이다.
+첫 후속 문단은 Square의 왼쪽 가용 공간에서 시작하며 나머지 문단의 순서를
+보존한다. 큰 TAC는 다음 쪽에 통째로 있다. 줄 흐름 끝과 표의 점유 끝을
+같은 값으로 처리하는 가정을 검증한다. 저장 LineSeg 수용이나 50% 정책의
+정당성을 입증하는 입력으로 쓰지 않는다. 최신 보정과 시각 검증은 진행 중이다.

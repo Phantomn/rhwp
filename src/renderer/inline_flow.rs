@@ -63,6 +63,8 @@ pub struct InlineFlowPlan {
     pub(crate) square_host_control: Option<usize>,
     pub(crate) text_spacing_before: Option<f64>,
     pub(crate) square_host_placement: Option<super::float_placement::ParagraphFloatPlacement>,
+    /// Host-relative object geometry; survives after the host text has ended.
+    pub(crate) square_host_exclusion: Option<FrameExclusion>,
     pub start: f64,
     pub end: f64,
     pub boxes: Vec<InlineFlowBox>,
@@ -338,6 +340,7 @@ pub(crate) fn plan(
         square_host_control: None,
         text_spacing_before: None,
         square_host_placement: None,
+        square_host_exclusion: None,
         start: frame.paragraph_y,
         end: top,
         boxes: Vec::new(),
@@ -672,6 +675,7 @@ pub(crate) fn plan_plain_text(
         square_host_control: None,
         text_spacing_before: None,
         square_host_placement: None,
+        square_host_exclusion: None,
     })
 }
 
@@ -775,8 +779,7 @@ pub(crate) fn plan_square_table_host(
         };
     let exclusion = FrameExclusion {
         horizontal: px_to_hwpunit(outer_left, dpi)..px_to_hwpunit(outer_left + object_width, dpi),
-        vertical: px_to_hwpunit(outer_top - spacing_before, dpi)
-            ..px_to_hwpunit(occupied_bottom - spacing_before, dpi),
+        vertical: px_to_hwpunit(outer_top, dpi)..px_to_hwpunit(occupied_bottom, dpi),
         policy: match c.text_flow {
             TextFlow::BothSides => FrameExclusionPolicy::BothSides,
             TextFlow::LargestOnly => FrameExclusionPolicy::LargestSide,
@@ -785,15 +788,21 @@ pub(crate) fn plan_square_table_host(
         },
     };
     let box_ = super::composer::ParagraphBox::body_for_style(column_width, Some(style), dpi);
-    let mut frame = box_.frame_with(0, vec![exclusion]);
+    let mut text_exclusion = exclusion.clone();
+    let spacing_hu = px_to_hwpunit(spacing_before, dpi);
+    text_exclusion.vertical.start -= spacing_hu;
+    text_exclusion.vertical.end -= spacing_hu;
+    let mut frame = box_.frame_with(0, vec![text_exclusion]);
     let rows = super::composer::layout_paragraph_in_frame(&text, &mut frame, styles, dpi)?;
-    let end =
-        (spacing_before + hwpunit_to_px(frame.top, dpi)).max(occupied_bottom) + style.spacing_after;
+    // Following paragraphs can use the free side of the same object. The
+    // object remains an exclusion and fit budget; it is not a text advance.
+    let end = spacing_before + hwpunit_to_px(frame.top, dpi) + style.spacing_after;
     Some(InlineFlowPlan {
         text_rows: Some(rows),
         square_host_control: Some(control),
         text_spacing_before: Some(spacing_before),
         square_host_placement: Some(placement),
+        square_host_exclusion: Some(exclusion),
         start: 0.0,
         end,
         boxes: Vec::new(),

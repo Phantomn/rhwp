@@ -848,6 +848,20 @@ impl TypesetState {
 
     /// Preserve host-only rows; the table item owns the object and flow advance.
     pub(super) fn record_square_host_flow(&mut self, para_index: usize, plan: InlineFlowPlan) {
+        if let (Some(control), Some(mut exclusion)) =
+            (plan.square_host_control, plan.square_host_exclusion.clone())
+        {
+            let column = self.inline_flow_column();
+            let dx = crate::renderer::px_to_hwpunit(column.x, self.data.layout.dpi);
+            let dy = crate::renderer::px_to_hwpunit(column.y + plan.start, self.data.layout.dpi);
+            exclusion.horizontal.start += dx;
+            exclusion.horizontal.end += dx;
+            exclusion.vertical.start += dy;
+            exclusion.vertical.end += dy;
+            self.data
+                .side_wrap_exclusions
+                .insert((para_index, control), exclusion);
+        }
         if let Some(placement) = plan.square_host_placement {
             if let Some(control) = plan.square_host_control {
                 self.data

@@ -88,5 +88,16 @@
     "engine": "2020",
     "job_id": "0bcd8800-8ca7-41e9-b9b6-98a38c814085",
     "pages": 1
+  },
+  {
+    "input": "samples/issue7482/tac-after-plain-paragraphs.hwpx",
+    "input_sha256": "fed074d8cfcbc67948050b26d5b0397cb2d6144e650201a434684f25d90accd8",
+    "pdf": "pdf/issue7482/tac-after-plain-paragraphs-hwpx-2020.pdf",
+    "pdf_sha256": "be2819b19bb30ad9f3c1b6ea55256754ae4ae7ff9f00d4b514def8774996f668",
+    "engine": "2020",
+    "job_id": "23e7d90d-4499-4ade-8a9b-36549e583a15",
+    "pages": 2,
+    "generation": "수동 진단: 공개 #7481 제목/Square 입력을 HWPX로 내보내고 저장 LineSeg를 제거한 상태에서 원래 용지 크기를 유지한다. 호스트 뒤에 paraPrIDRef=0 일반 문단 공간 확인 22개를 넣고 큰 TAC를 유지하며 pageBreak=NONE으로 지정한다. 저장 LineSeg 유효성 근거가 아니다.",
+    "independent_expectation": "앞의 일반 문단들은 첫 Square 옆의 가용 영역부터 흐르고 순서를 보존한다. 큰 TAC는 2쪽 상단에 통째로 배치된다. 50% 새 정책의 기대값으로 쓰지 않는다."
   }
 ]

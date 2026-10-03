@@ -49,7 +49,7 @@ impl TypesetEngine {
         let Some(mut plan) = build(st, st.current_height, true) else {
             return false;
         };
-        if !table_text_rows && !plan.carved {
+        if !table_text_rows && !plan.carved && plan.text_rows.is_none() {
             return false;
         }
         if plan.end > st.available_height() + 0.01 {
