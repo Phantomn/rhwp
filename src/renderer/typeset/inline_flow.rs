@@ -20,12 +20,14 @@ impl TypesetEngine {
         tables: &[MeasuredTable],
     ) -> bool {
         let column = st.inline_flow_column();
+        let table_space_rows = inline_flow::supports_table_space_rows(para);
         if !inline_flow::supports(para, super::super::px_to_hwpunit(column.width, self.dpi))
             && !inline_flow::supports_plain_text(para)
         {
             return false;
         }
-        if st.side_wrap_exclusions.is_empty()
+        if !table_space_rows
+            && st.side_wrap_exclusions.is_empty()
             && !para.controls.iter().any(|c| {
                 matches!(c, Control::Picture(p) if !p.common.treat_as_char
                 && p.common.text_wrap == crate::model::shape::TextWrap::Square)
@@ -47,7 +49,7 @@ impl TypesetEngine {
         let Some(mut plan) = build(st, st.current_height, true) else {
             return false;
         };
-        if !plan.carved {
+        if !table_space_rows && !plan.carved {
             return false;
         }
         if plan.end > st.available_height() + 0.01 {

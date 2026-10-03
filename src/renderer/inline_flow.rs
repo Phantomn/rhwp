@@ -273,6 +273,7 @@ pub(crate) fn plan(
                     &exclusions,
                     style,
                     frame.dpi,
+                    Some(&chars),
                 )?;
                 exclusions.push(exclusion);
                 row_metrics = RowMetrics::default();
@@ -289,6 +290,7 @@ pub(crate) fn plan(
                     &exclusions,
                     style,
                     frame.dpi,
+                    Some(&chars),
                 )?;
                 row_metrics = RowMetrics::default();
             }
@@ -334,6 +336,7 @@ pub(crate) fn plan(
                         &exclusions,
                         style,
                         frame.dpi,
+                        Some(&chars),
                     )?;
                     row_metrics = RowMetrics::default();
                 }
@@ -349,6 +352,7 @@ pub(crate) fn plan(
         &exclusions,
         style,
         frame.dpi,
+        None,
     )?;
     result.end = result.end.max(result.next_row_top) + style.spacing_after;
     (result.start.is_finite() && result.end.is_finite()).then_some(result)
@@ -361,6 +365,7 @@ fn finish_row(
     exclusions: &[FrameExclusion],
     style: &ResolvedParaStyle,
     dpi: f64,
+    trim_separator_spaces: Option<&[char]>,
 ) -> Option<()> {
     if row.is_empty() {
         return Some(());
@@ -382,6 +387,19 @@ fn finish_row(
     }
     let baseline = row_metrics.baseline;
     let height = row_metrics.baseline + row_metrics.descent;
+    if let Some(chars) = trim_separator_spaces {
+        // Spaces consumed before a soft wrap or authored break do not move
+        // the centered/right-aligned ink. Paragraph-end spaces remain authored.
+        row_metrics.width -= row
+            .iter()
+            .rev()
+            .take_while(|item| {
+                matches!(&item.content, InlineFlowContent::Text { range, .. }
+                    if !range.is_empty() && chars[range.clone()].iter().all(|ch| *ch == ' '))
+            })
+            .map(|item| item.width)
+            .sum::<f64>();
+    }
     let (mut x, y, carved) = row_geometry(
         row_metrics,
         horizontal,
