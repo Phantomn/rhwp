@@ -15158,8 +15158,13 @@ impl LayoutEngine {
                                 crate::model::shape::TextWrap::InFrontOfText
                             ) || (pic.common.text_wrap
                                 == crate::model::shape::TextWrap::BehindText
-                                && para_has_no_stored_line_segs(para)
-                                && has_full_para_item)
+                                && crate::renderer::para_has_no_stored_line_segs(para)
+                                && page_content.column_contents.iter().any(|column| {
+                                    column.items.iter().any(|item| {
+                                        matches!(item, PageItem::FullParagraph { para_index: pi }
+                                            if *pi == para_index)
+                                    })
+                                }))
                             {
                                 result_y = saved_y_offset;
                             }
