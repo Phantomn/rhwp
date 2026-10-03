@@ -1,0 +1,489 @@
+{
+  "code_sha": "d86b35184ab50deefbe999125c532422cdb8a3c4",
+  "base_sha": "6b3faf77d8085441f9f26d88d65a49791e910352",
+  "local_disposition": "validated partial acceptance candidate; remote review and integration not performed",
+  "checks": {
+    "fmt": "PASS",
+    "native_clippy": "PASS",
+    "wasm_clippy": "PASS",
+    "workspace_build": "PASS",
+    "workspace_all_target_clippy": "PASS",
+    "manifest_base_check": "PASS",
+    "unit_tier_base_check": "PASS",
+    "focused": {
+      "passed": 38,
+      "failed": 0
+    },
+    "full_nextest": {
+      "passed": 10263,
+      "failed": 0,
+      "skipped": 50,
+      "seconds": 845.041
+    },
+    "native_skia_lib": {
+      "passed_by_binary": [
+        3927,
+        15,
+        165,
+        2
+      ],
+      "ignored": 13
+    },
+    "native_skia_picture": {
+      "passed": 2
+    },
+    "native_skia_direct_pdf": {
+      "passed": 4
+    },
+    "studio_cdp": {
+      "documents": 16,
+      "passed": 38,
+      "page_errors": 0
+    }
+  },
+  "visual_review": {
+    "pages_per_backend": 24,
+    "direct_review": "Native and fresh WASM review PNGs directly inspected; representative standalone overlays also inspected",
+    "raw_gate_unchanged": true,
+    "threshold_exception": "User approved PR 7482 only; no global gate or allowance changes",
+    "scores": [
+      {
+        "mode": "native",
+        "input_key": "distribution",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 95.9503
+          },
+          {
+            "page": 2,
+            "tolerant_content_match_percent": 96.45424
+          },
+          {
+            "page": 3,
+            "tolerant_content_match_percent": 85.83661
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "full-width",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 100.0
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "long-host",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 100.0
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "margin1034",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 99.87152
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "margin284",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 99.8719
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "original-tac",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 99.8719
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "tac-explicit-break",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 100.0
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "tac-mixed-explicit-break",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 100.0
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "tac-mixed-one-row",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 100.0
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "tac-one-row",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 100.0
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "tac-two-rows",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 100.0
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "tac-word-after-pair",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 99.85896
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "title",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 99.35552
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "ecard",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 96.68799
+          },
+          {
+            "page": 2,
+            "tolerant_content_match_percent": 98.07369
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "form",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 98.85463
+          },
+          {
+            "page": 2,
+            "tolerant_content_match_percent": 65.49734
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "gwanak",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 99.46759
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "masked",
+        "pages": [
+          {
+            "page": 2,
+            "tolerant_content_match_percent": 43.1166
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "negative-spacing",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 94.94989
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "regulatory-hwp",
+        "pages": [
+          {
+            "page": 38,
+            "tolerant_content_match_percent": 77.99388
+          }
+        ]
+      },
+      {
+        "mode": "native",
+        "input_key": "regulatory-hwpx",
+        "pages": [
+          {
+            "page": 38,
+            "tolerant_content_match_percent": 78.00141
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "distribution",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 95.9503
+          },
+          {
+            "page": 2,
+            "tolerant_content_match_percent": 96.45424
+          },
+          {
+            "page": 3,
+            "tolerant_content_match_percent": 85.83661
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "full-width",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 100.0
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "long-host",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 100.0
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "margin1034",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 99.87152
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "margin284",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 99.8719
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "original-tac",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 99.8719
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "tac-explicit-break",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 100.0
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "tac-mixed-explicit-break",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 100.0
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "tac-mixed-one-row",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 100.0
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "tac-one-row",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 100.0
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "tac-two-rows",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 100.0
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "tac-word-after-pair",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 99.85896
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "title",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 99.35552
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "ecard",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 96.68799
+          },
+          {
+            "page": 2,
+            "tolerant_content_match_percent": 98.07369
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "form",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 98.92451
+          },
+          {
+            "page": 2,
+            "tolerant_content_match_percent": 65.49734
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "gwanak",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 99.46759
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "masked",
+        "pages": [
+          {
+            "page": 2,
+            "tolerant_content_match_percent": 43.1166
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "negative-spacing",
+        "pages": [
+          {
+            "page": 1,
+            "tolerant_content_match_percent": 94.94989
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "regulatory-hwp",
+        "pages": [
+          {
+            "page": 38,
+            "tolerant_content_match_percent": 77.99388
+          }
+        ]
+      },
+      {
+        "mode": "wasm",
+        "input_key": "regulatory-hwpx",
+        "pages": [
+          {
+            "page": 38,
+            "tolerant_content_match_percent": 78.00141
+          }
+        ]
+      }
+    ]
+  },
+  "remaining": [
+    "50 percent page-fit rule has unresolved applicability versus independently generated Hancom 2020 controls; not implemented or claimed validated",
+    "Existing masked photo-table height and subsequent paragraphs differ substantially from the PDF; same base behavior",
+    "Existing regulatory and form vertical or cell/font/border differences, distribution table left origin, and paper decoration differences remain"
+  ]
+}

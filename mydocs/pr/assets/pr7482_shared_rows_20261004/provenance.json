@@ -1,0 +1,139 @@
+{
+  "source_sha": "d86b35184ab50deefbe999125c532422cdb8a3c4",
+  "base_sha": "6b3faf77d8085441f9f26d88d65a49791e910352",
+  "native_sha256": "541c9c9e7770a4806b649adc5d479fec721fa24e8479c84c4ae9fa29b16d7279",
+  "wasm_sha256": "a0b61ac1261741d67f4ab561a0a0f4bfbdb5656e63190d7f2a25dc04cd371231",
+  "dpi": 96,
+  "input_generation": "TAC HWPX inputs are manually authored variants with independent Hancom PDFs. Full-width is the public synthetic NO_LS HWP control with independent Hancom PDF. Distribution is an unchanged public HWPX with independent Hancom 2024 PDF.",
+  "threshold_exception": "User authorized the 90 percent threshold exception for PR 7482 only; raw gates and scores retained.",
+  "assets": [
+    {
+      "file": "tac-mixed-one-row_native_p001_review.png",
+      "sha256": "ef7c93c55b7bb282783411320f7f2cca070bb2b438e856f382b3702d43d43d4f",
+      "mode": "native",
+      "key": "tac-mixed-one-row",
+      "page": 1,
+      "kind": "review"
+    },
+    {
+      "file": "tac-mixed-one-row_native_p001_overlay.png",
+      "sha256": "df18b6cc04c32a0c0e06cb245936f323caf7e5b2cf94e4d60608d72a3390acfd",
+      "mode": "native",
+      "key": "tac-mixed-one-row",
+      "page": 1,
+      "kind": "overlay"
+    },
+    {
+      "file": "tac-mixed-one-row_wasm_p001_review.png",
+      "sha256": "fd677304c1475362216f7664ba60a14201a1dab759fa757710d3539d5e8d61dc",
+      "mode": "wasm",
+      "key": "tac-mixed-one-row",
+      "page": 1,
+      "kind": "review"
+    },
+    {
+      "file": "tac-mixed-one-row_wasm_p001_overlay.png",
+      "sha256": "e96b0696c0b66d55b82203fc7632e62ca42085a78e281256ac9e43d0611e4545",
+      "mode": "wasm",
+      "key": "tac-mixed-one-row",
+      "page": 1,
+      "kind": "overlay"
+    },
+    {
+      "file": "tac-mixed-explicit-break_native_p001_review.png",
+      "sha256": "5527d9be9dc9ab3e807168702d497c34a5fb5c44e16e53eb0d810ba390e894d7",
+      "mode": "native",
+      "key": "tac-mixed-explicit-break",
+      "page": 1,
+      "kind": "review"
+    },
+    {
+      "file": "tac-mixed-explicit-break_native_p001_overlay.png",
+      "sha256": "f3ac5744341395e86068c4158b97bafa7c420541264612a2de6d3aae795485cf",
+      "mode": "native",
+      "key": "tac-mixed-explicit-break",
+      "page": 1,
+      "kind": "overlay"
+    },
+    {
+      "file": "tac-mixed-explicit-break_wasm_p001_review.png",
+      "sha256": "3e792ae0c5537e54589e19aac785d4885efb5654ec6d8dc90ba9d557c10b06aa",
+      "mode": "wasm",
+      "key": "tac-mixed-explicit-break",
+      "page": 1,
+      "kind": "review"
+    },
+    {
+      "file": "tac-mixed-explicit-break_wasm_p001_overlay.png",
+      "sha256": "fddf12800e6bb3ce0c75813f89cf2452b13518f46cfa047701e7949710f2b990",
+      "mode": "wasm",
+      "key": "tac-mixed-explicit-break",
+      "page": 1,
+      "kind": "overlay"
+    },
+    {
+      "file": "full-width_native_p001_review.png",
+      "sha256": "69fd9b0eb8a8b8475224f7d182cf002a86707beb4ebb9096614b1ea99b23862d",
+      "mode": "native",
+      "key": "full-width",
+      "page": 1,
+      "kind": "review"
+    },
+    {
+      "file": "full-width_native_p001_overlay.png",
+      "sha256": "d63755f60271cdc967168fd8ebb098506fd8ff309b13e3e14b45edd3adbdd1ff",
+      "mode": "native",
+      "key": "full-width",
+      "page": 1,
+      "kind": "overlay"
+    },
+    {
+      "file": "full-width_wasm_p001_review.png",
+      "sha256": "9db688b237eea8f55aa1c76ca8fd7a300623f7de84c639105ae567481463ff7b",
+      "mode": "wasm",
+      "key": "full-width",
+      "page": 1,
+      "kind": "review"
+    },
+    {
+      "file": "full-width_wasm_p001_overlay.png",
+      "sha256": "fdf3b5f26153dbeb4856e8eaba811d897d3fdbc89f6d939f4f8fff26b5af260b",
+      "mode": "wasm",
+      "key": "full-width",
+      "page": 1,
+      "kind": "overlay"
+    },
+    {
+      "file": "distribution_native_p003_review.png",
+      "sha256": "4c8370eb2a40f36058e6d0571292cdef27f4f15fc8ab47744212f3db83e87f5b",
+      "mode": "native",
+      "key": "distribution",
+      "page": 3,
+      "kind": "review"
+    },
+    {
+      "file": "distribution_native_p003_overlay.png",
+      "sha256": "fd836da3fa427c6e56eb35a91a51725afd027917242434dfc19b04ce85e06ff5",
+      "mode": "native",
+      "key": "distribution",
+      "page": 3,
+      "kind": "overlay"
+    },
+    {
+      "file": "distribution_wasm_p003_review.png",
+      "sha256": "c81217ca1b4d7aa449cfb6e504c62c4f045253d1826a09d6da53110e5119f3d9",
+      "mode": "wasm",
+      "key": "distribution",
+      "page": 3,
+      "kind": "review"
+    },
+    {
+      "file": "distribution_wasm_p003_overlay.png",
+      "sha256": "83f26e80c1cac58816ce0a0fd884902081309bf084deb6b2af088f0e2b055e5c",
+      "mode": "wasm",
+      "key": "distribution",
+      "page": 3,
+      "kind": "overlay"
+    }
+  ]
+}
