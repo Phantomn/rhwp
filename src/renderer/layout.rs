@@ -10351,7 +10351,7 @@ impl LayoutEngine {
                                     composed.get(*para_index),
                                     self.dpi,
                                 );
-                                if no_stored_ladder_square_host {
+                                if crate::renderer::para_has_no_stored_line_segs(para) {
                                     // [#5929] 사다리가 없으면 조판이 기준이다 — typeset 은
                                     // 이 문단을 `sb + lines + sa` 로 계상한다(형제 빈 문단과
                                     // 같은 54.1px). 줄 부분만 주면 문단 앞뒤 간격(20px)이
@@ -15149,23 +15149,14 @@ impl LayoutEngine {
                             // positioning, but InFront pictures must not rewind the
                             // already-advanced text flow cursor back to that paragraph y.
                             //
-                            // A NO_LS FullParagraph reserves its own line before this
-                            // picture item. BehindText changes the paint layer, not
-                            // that committed advance. Stored host rows retain their
-                            // separate pagination contract.
+                            // Keep BehindText on the legacy non-advancing path. HWP5 files such
+                            // as samples/복학원서.hwp use an empty first paragraph with a
+                            // BehindText logo; preserving the advanced cursor there inserts an
+                            // extra line-height before the following table.
                             if matches!(
                                 pic.common.text_wrap,
                                 crate::model::shape::TextWrap::InFrontOfText
-                            ) || (pic.common.text_wrap
-                                == crate::model::shape::TextWrap::BehindText
-                                && crate::renderer::para_has_no_stored_line_segs(para)
-                                && page_content.column_contents.iter().any(|column| {
-                                    column.items.iter().any(|item| {
-                                        matches!(item, PageItem::FullParagraph { para_index: pi }
-                                            if *pi == para_index)
-                                    })
-                                }))
-                            {
+                            ) {
                                 result_y = saved_y_offset;
                             }
                             // A co-anchored fixed title needs the otherwise

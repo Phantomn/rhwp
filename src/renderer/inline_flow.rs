@@ -365,15 +365,23 @@ fn finish_row(
     if row.is_empty() {
         return Some(());
     }
-    let baseline = row.iter().map(|b| b.baseline).fold(0.0, f64::max);
-    let descent = row
-        .iter()
-        .map(|b| b.height - b.baseline)
-        .fold(0.0, f64::max);
-    let height = baseline + descent;
-    let row_metrics = row
+    let mut row_metrics = row
         .iter()
         .fold(RowMetrics::default(), |metrics, item| metrics.with(item));
+    if row_metrics.baseline + row_metrics.descent == 0.0 {
+        // A row containing only a floating anchor still has a paragraph line.
+        let metrics = super::composer::frame_metrics_for_line(
+            plan.fallback_font_size,
+            plan.fallback_font_size,
+            style.line_spacing_type,
+            style.line_spacing,
+            dpi,
+        );
+        row_metrics.baseline = hwpunit_to_px(metrics.baseline_distance, dpi);
+        row_metrics.descent = hwpunit_to_px(metrics.line_height - metrics.baseline_distance, dpi);
+    }
+    let baseline = row_metrics.baseline;
+    let height = row_metrics.baseline + row_metrics.descent;
     let (mut x, y, carved) = row_geometry(
         row_metrics,
         horizontal,
@@ -390,7 +398,8 @@ fn finish_row(
         .iter()
         .filter(|item| matches!(item.content, InlineFlowContent::Text { .. }))
         .map(|item| item.height)
-        .fold(plan.fallback_font_size, f64::max);
+        .reduce(f64::max)
+        .unwrap_or(plan.fallback_font_size);
     for mut item in row.drain(..) {
         item.x = x;
         item.y = if matches!(item.content, InlineFlowContent::FloatingTable { .. }) {

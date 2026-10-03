@@ -3010,7 +3010,13 @@ fn layout_paragraph_in_frame_impl(
                             );
                             let fits =
                                 |width| text_token_fits_line_hwp(0, word, 0, width, *max_font_size);
-                            if !fits(to_hwp(available_width_px)) && fits(widest_interval) {
+                            let widest_available = to_hwp(
+                                crate::renderer::hwpunit_to_px(widest_interval, dpi) - marker_width,
+                            );
+                            if interval.end - interval.start < widest_interval
+                                && !fits(to_hwp(available_width_px))
+                                && fits(widest_available)
+                            {
                                 let boundary =
                                     char_index_to_utf16_offset(para, cursor.line_start_idx);
                                 segments.push(RowSegment::new(
