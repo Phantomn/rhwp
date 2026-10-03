@@ -332,6 +332,31 @@ fn token_line_font_size(
     base.max(style.font_size).max(0.0)
 }
 
+/// Lexical text units shared with physical TAC row placement. Inline control
+/// boundaries remain owned by the caller, rather than joined into a word.
+pub(crate) fn text_word_ranges(para: &Paragraph, styles: &ResolvedStyleSet) -> Vec<Range<usize>> {
+    let chars: Vec<_> = para.text.chars().collect();
+    let style = styles.para_styles.get(para.para_shape_id as usize);
+    tokenize_paragraph_with_regenerated_space_metric(
+        &chars,
+        &para.char_offsets,
+        &para.char_shapes,
+        styles,
+        style.map_or(0, |s| s.english_break_unit),
+        style.map_or(0, |s| s.korean_break_unit),
+        SpaceMetric::Stored,
+        &[],
+    )
+    .into_iter()
+    .filter_map(|token| match token {
+        BreakToken::Text {
+            start_idx, end_idx, ..
+        } => Some(start_idx..end_idx),
+        _ => None,
+    })
+    .collect()
+}
+
 fn tokenize_paragraph_with_regenerated_space_metric(
     text_chars: &[char],
     char_offsets: &[u32],

@@ -40,7 +40,7 @@ pub(in crate::renderer::typeset) fn place(
     // 문단의 블록 표 fit 이 존 위에 겹쳐 배치됐다 (19439117: 870px 서식 표
     // 존 [31..902] 위에 866px 표가 y≈36 에 통배치 → 1쪽, 한글 2쪽).
     let host_col_w = st.prepare_table_paragraph_column();
-    if crate::renderer::inline_flow::supports_table_space_rows(para) {
+    if crate::renderer::inline_flow::supports_table_text_rows(para) {
         if let Some(plan) = crate::renderer::typeset::inline_flow::plan::build_plan(
             st.inline_flow_input(st.current_height, true),
             para,

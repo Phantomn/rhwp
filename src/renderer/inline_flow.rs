@@ -94,6 +94,14 @@ struct RowMetrics {
 }
 
 impl RowMetrics {
+    fn combined(self, other: Self) -> Self {
+        Self {
+            width: self.width + other.width,
+            baseline: self.baseline.max(other.baseline),
+            descent: self.descent.max(other.descent),
+        }
+    }
+
     fn with(self, item: &InlineFlowBox) -> Self {
         Self {
             width: self.width + item.width,
@@ -242,6 +250,51 @@ pub(crate) fn plan(
         // 범위 밖 anchor를 누락시킨 부분 결과를 확정하지 않는다.
         return None;
     }
+    // Reuse the composer's language/style word boundaries. A word that fits
+    // a whole line moves together; an overlong word retains character fallback.
+    let word_ranges = super::composer::text_word_ranges(para, styles);
+    let mut words = word_ranges.iter().peekable();
+    let mut word_metrics = std::collections::BTreeMap::new();
+    let mut index = 0;
+    while index < atoms.len() {
+        let Atom::Box(first) = &atoms[index] else {
+            index += 1;
+            continue;
+        };
+        let InlineFlowContent::Text {
+            range: first_range, ..
+        } = &first.content
+        else {
+            index += 1;
+            continue;
+        };
+        while words
+            .peek()
+            .is_some_and(|word| word.end <= first_range.start)
+        {
+            words.next();
+        }
+        let Some(word) = words
+            .peek()
+            .filter(|word| word.contains(&first_range.start))
+        else {
+            index += 1;
+            continue;
+        };
+        let start = first_range.start;
+        let mut metrics = RowMetrics::default();
+        while let Some(Atom::Box(item)) = atoms.get(index) {
+            let InlineFlowContent::Text { range, .. } = &item.content else {
+                break;
+            };
+            if !word.contains(&range.start) {
+                break;
+            }
+            metrics = metrics.with(item);
+            index += 1;
+        }
+        word_metrics.insert(start, metrics);
+    }
     let mut exclusions = preceding.to_vec();
     let horizontal = frame.container.x..frame.container.x + frame.container.width;
     let mut result = InlineFlowPlan {
@@ -304,20 +357,31 @@ pub(crate) fn plan(
                 {
                     return None;
                 }
+                let row_horizontal =
+                    paragraph_row_horizontal(&horizontal, style, result.boxes.is_empty());
+                let row_width = row_horizontal.end - row_horizontal.start;
+                let lookahead = match &item.content {
+                    InlineFlowContent::Text { range, .. } => word_metrics
+                        .get(&range.start)
+                        .filter(|metrics| metrics.width <= row_width + 0.01)
+                        .copied()
+                        .unwrap_or_else(|| RowMetrics::default().with(&item)),
+                    _ => RowMetrics::default().with(&item),
+                };
                 let moves_existing_row = if row.is_empty() {
                     false
                 } else {
                     let old = row_geometry(
                         row_metrics,
-                        &horizontal,
+                        &row_horizontal,
                         result.next_row_top,
                         &exclusions,
                         style,
                         frame.dpi,
                     )?;
                     let next = row_geometry(
-                        row_metrics.with(&item),
-                        &horizontal,
+                        row_metrics.combined(lookahead),
+                        &row_horizontal,
                         result.next_row_top,
                         &exclusions,
                         style,
@@ -326,7 +390,7 @@ pub(crate) fn plan(
                     next.1 > old.1 + 0.01
                 };
                 if !row.is_empty()
-                    && (row_metrics.width + item.width > frame.container.width + 0.01
+                    && (row_metrics.width + lookahead.width > row_width + 0.01
                         || moves_existing_row)
                 {
                     finish_row(
@@ -400,9 +464,10 @@ fn finish_row(
             .map(|item| item.width)
             .sum::<f64>();
     }
+    let row_horizontal = paragraph_row_horizontal(horizontal, style, plan.boxes.is_empty());
     let (mut x, y, carved) = row_geometry(
         row_metrics,
-        horizontal,
+        &row_horizontal,
         plan.next_row_top,
         exclusions,
         style,
@@ -440,6 +505,19 @@ fn finish_row(
     plan.next_row_top = y + height + if has_table { gap.max(0.0) } else { gap };
     plan.end = plan.end.max(y + height);
     Some(())
+}
+
+fn paragraph_row_horizontal(
+    horizontal: &Range<f64>,
+    style: &ResolvedParaStyle,
+    first: bool,
+) -> Range<f64> {
+    let indent = super::equation_tac_flow::paragraph_effective_margin_left(
+        0.0,
+        style.indent,
+        usize::from(!first),
+    );
+    horizontal.start + indent..horizontal.end
 }
 
 fn row_geometry(
@@ -660,11 +738,11 @@ pub(crate) fn plan_square_table_host(
     })
 }
 
-/// Object-only rows and separator spaces have no prose word-breaking owner.
-/// Preserve their order, whitespace rows, and overlay anchors in one plan.
-pub(crate) fn supports_table_space_rows(para: &Paragraph) -> bool {
+/// Reflowed TAC rows also own the text preceding, separating and following
+/// their objects. Stored rows and controls with other owners retain that path.
+pub(crate) fn supports_table_text_rows(para: &Paragraph) -> bool {
     super::para_has_no_stored_line_segs(para)
-        && para.text.chars().all(|c| matches!(c, ' ' | '\n' | '\r'))
+        && !para.text.contains('\t')
         && para
             .controls
             .iter()
