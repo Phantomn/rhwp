@@ -20,6 +20,29 @@ fn page(sample: &str) -> Value {
     rendered_page(&input, None)
 }
 
+/// Hancom 2020 p3 places the centered picture-host text and its successor
+/// at a 12pt (16px) pitch. A past exclusion outside these rows must not
+/// replace the legacy owner's cursor with an unrelated absolute plan.
+#[test]
+fn unrelated_exclusion_preserves_picture_host_successor_pitch() {
+    let input = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/issue_6970/synth_no_ls_square_wrap.hwp");
+    let tree = rendered_page(&input, Some(2));
+    let all = nodes(&tree);
+    let host = find(&all, "TextLine", 141);
+    let follower = find(&all, "TextLine", 142);
+    assert!(coord(follower, "y") >= bottom(host));
+    assert!(
+        (coord(follower, "y") - coord(host, "y") - 16.0).abs() < 0.1,
+        "host={:?}, follower={:?}",
+        host["bbox"],
+        follower["bbox"]
+    );
+    let empty = find(&all, "TextLine", 143);
+    assert!((coord(empty, "y") - coord(follower, "y") - 16.0).abs() < 0.1);
+    assert_eq!(text_of(&all, 142), "펔퐝 @풦픯햸홁훊 흓갸곁 굊귓깜껥꽮.");
+}
+
 /// The independent Hancom PDF places the first plain paragraph in the free
 /// left lane of the Square table, before that table's bottom. Subsequent
 /// paragraphs retain their order; the larger TAC owns the next page.

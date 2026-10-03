@@ -49,7 +49,16 @@ impl TypesetEngine {
         let Some(mut plan) = build(st, st.current_height, true) else {
             return false;
         };
-        if !table_text_rows && !plan.carved && plan.text_rows.is_none() {
+        // An unchanged plain row can continue a shared cursor, but an old
+        // exclusion alone does not transfer ownership from a legacy paragraph.
+        // In that case its paint cursor may differ from current_height, so
+        // publishing an unrelated absolute plan would rewind the next row.
+        let follows_shared_rows = st
+            .current_items
+            .last()
+            .and_then(|item| st.inline_flow_plans.get(&item.para_index()))
+            .is_some_and(|previous| (previous.end - st.current_height).abs() < 0.01);
+        if !table_text_rows && !plan.carved && (plan.text_rows.is_none() || !follows_shared_rows) {
             return false;
         }
         if plan.end > st.available_height() + 0.01 {
