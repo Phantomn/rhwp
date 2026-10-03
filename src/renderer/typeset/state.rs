@@ -831,6 +831,7 @@ impl TypesetState {
             page_height: self.data.layout.page_height,
             start,
             exclusions: preceding.then_some(&self.data.side_wrap_exclusions),
+            visible_float_exclusions: preceding.then_some(&self.data.visible_float_exclusions),
         }
     }
 
