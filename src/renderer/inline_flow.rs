@@ -160,6 +160,13 @@ pub(crate) fn plan(
                     let top = hwpunit_to_px(i32::from(table.outer_margin_top), frame.dpi);
                     let bottom = hwpunit_to_px(i32::from(table.outer_margin_bottom), frame.dpi);
                     let height = measured.total_height + top + bottom;
+                    let metrics = super::composer::frame_metrics_for_line(
+                        height,
+                        height,
+                        style.line_spacing_type,
+                        style.line_spacing,
+                        frame.dpi,
+                    );
                     atoms.push(Atom::Box(InlineFlowBox {
                         content: InlineFlowContent::Table {
                             control: ci,
@@ -170,7 +177,7 @@ pub(crate) fn plan(
                         y: 0.0,
                         width: hwpunit_to_px(table.common.width as i32, frame.dpi) + left + right,
                         height,
-                        baseline: height,
+                        baseline: hwpunit_to_px(metrics.baseline_distance, frame.dpi),
                     }));
                 }
                 Control::Picture(picture) => {

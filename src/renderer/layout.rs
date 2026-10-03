@@ -15149,14 +15149,18 @@ impl LayoutEngine {
                             // positioning, but InFront pictures must not rewind the
                             // already-advanced text flow cursor back to that paragraph y.
                             //
-                            // Keep BehindText on the legacy non-advancing path. HWP5 files such
-                            // as samples/복학원서.hwp use an empty first paragraph with a
-                            // BehindText logo; preserving the advanced cursor there inserts an
-                            // extra line-height before the following table.
+                            // A NO_LS FullParagraph reserves its own line before this
+                            // picture item. BehindText changes the paint layer, not
+                            // that committed advance. Stored host rows retain their
+                            // separate pagination contract.
                             if matches!(
                                 pic.common.text_wrap,
                                 crate::model::shape::TextWrap::InFrontOfText
-                            ) {
+                            ) || (pic.common.text_wrap
+                                == crate::model::shape::TextWrap::BehindText
+                                && para_has_no_stored_line_segs(para)
+                                && has_full_para_item)
+                            {
                                 result_y = saved_y_offset;
                             }
                             // A co-anchored fixed title needs the otherwise
