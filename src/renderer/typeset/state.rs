@@ -845,6 +845,12 @@ impl TypesetState {
         self.data.vpos_ladder_dirty = true;
     }
 
+    /// Preserve host-only rows; the table item owns the object and flow advance.
+    pub(super) fn record_square_host_flow(&mut self, para_index: usize, plan: InlineFlowPlan) {
+        self.data.inline_flow_plans.insert(para_index, plan);
+        self.data.vpos_ladder_dirty = true;
+    }
+
     /// 다음 fit의 안전여백 면제를 한 번 소비한다. float 배제 영역 적용 전에 호출한다.
     pub(super) fn take_paragraph_safety_margin(
         &mut self,

@@ -47,6 +47,9 @@ pub struct InlineFlowBox {
 pub struct InlineFlowPlan {
     /// NO_LS 본문의 확정 frame 행. 원본 IR은 바꾸지 않고 fit와 paint에 함께 전달한다.
     pub(crate) text_rows: Option<Vec<crate::model::paragraph::LineSeg>>,
+    /// Square table owns the object; this plan owns only its host text rows.
+    pub(crate) square_host_control: Option<usize>,
+    pub(crate) text_spacing_before: Option<f64>,
     pub start: f64,
     pub end: f64,
     pub boxes: Vec<InlineFlowBox>,
@@ -198,6 +201,8 @@ pub(crate) fn plan(
     let horizontal = frame.container.x..frame.container.x + frame.container.width;
     let mut result = InlineFlowPlan {
         text_rows: None,
+        square_host_control: None,
+        text_spacing_before: None,
         start: frame.paragraph_y,
         end: top,
         boxes: Vec::new(),
@@ -428,5 +433,82 @@ pub(crate) fn plan_plain_text(
         carved: !same_rows,
         next_row_top: end,
         text_rows: Some(rows),
+        square_host_control: None,
+        text_spacing_before: None,
+    })
+}
+
+/// Resolve the text beside a single Square table once, before fit and paint.
+/// Inline controls and other object owners keep their existing transaction.
+pub(crate) fn plan_square_table_host(
+    para: &Paragraph,
+    para_index: usize,
+    styles: &ResolvedStyleSet,
+    tables: &[MeasuredTable],
+    column_width: f64,
+    dpi: f64,
+) -> Option<InlineFlowPlan> {
+    let (left, width) =
+        super::no_lineseg_square_table_host_band(para, px_to_hwpunit(column_width, dpi))?;
+    let control = para.controls.iter().position(|c| {
+        matches!(c, Control::Table(t)
+        if !t.common.treat_as_char && t.common.text_wrap == crate::model::shape::TextWrap::Square)
+    })?;
+    if para
+        .controls
+        .iter()
+        .enumerate()
+        .any(|(i, c)| i != control && !super::composer::control_is_width_neutral_marker(c))
+    {
+        return None;
+    }
+    let style = styles.para_styles.get(para.para_shape_id as usize)?;
+    // The floating table has its own paint owner and contributes no inline token.
+    // Keep text/shape offsets intact; only the text frame is projected here.
+    let mut text = para.clone();
+    text.controls.remove(control);
+    text.line_segs.clear();
+    let Control::Table(table) = &para.controls[control] else {
+        return None;
+    };
+    let measured = tables
+        .iter()
+        .find(|m| m.para_index == para_index && m.control_index == control)?;
+    let top = (super::float_placement::signed_hwpunit(table.common.vertical_offset)
+        + i32::from(table.outer_margin_top))
+    .max(0);
+    let bottom = top
+        .saturating_add(px_to_hwpunit(measured.total_height, dpi))
+        .saturating_add(i32::from(table.outer_margin_bottom));
+    let column_hu = px_to_hwpunit(column_width, dpi);
+    let blocked = if left == 0 {
+        left.saturating_add(width)..column_hu
+    } else {
+        0..left
+    };
+    let exclusion = FrameExclusion {
+        horizontal: blocked,
+        vertical: top..bottom,
+        policy: super::layout_frame::FrameExclusionPolicy::BothSides,
+    };
+    let box_ = super::composer::ParagraphBox::body_for_style(column_width, Some(style), dpi);
+    let mut frame = box_.frame_with(0, vec![exclusion]);
+    let rows = super::composer::layout_paragraph_in_frame(&text, &mut frame, styles, dpi)?;
+    let spacing_before =
+        if para.line_segs.is_empty() && std::env::var("RHWP_EXP_BODY_FRESH").is_err() {
+            0.0
+        } else {
+            style.spacing_before
+        };
+    let end = spacing_before + hwpunit_to_px(frame.top, dpi) + style.spacing_after;
+    Some(InlineFlowPlan {
+        text_rows: Some(rows),
+        square_host_control: Some(control),
+        text_spacing_before: Some(spacing_before),
+        start: 0.0,
+        end,
+        boxes: Vec::new(),
+        carved: true,
+        next_row_top: end,
     })
 }

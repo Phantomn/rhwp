@@ -122,6 +122,7 @@ struct ColumnItemCtx<'a> {
     wrap_anchors: &'a std::collections::HashMap<usize, super::pagination::WrapAnchorRef>,
     inline_placements:
         &'a std::collections::HashMap<(usize, usize), super::float_placement::InlineBoxPlacement>,
+    inline_flow_plans: &'a std::collections::HashMap<usize, super::inline_flow::InlineFlowPlan>,
     paragraph_float_placements: &'a std::collections::HashMap<
         (usize, usize),
         super::float_placement::ParagraphFloatPlacement,
@@ -9796,6 +9797,7 @@ impl LayoutEngine {
                 wrap_around_paras: column_wrap_around_paras,
                 wrap_anchors: &col_content.wrap_anchors,
                 inline_placements: &col_content.inline_placements,
+                inline_flow_plans: &col_content.inline_flow_plans,
                 paragraph_float_placements: &col_content.paragraph_float_placements,
             };
             // 이 단에 이미 그려진 표들의 최상단 y — 잔여 행이 그 아래로 내려가면
@@ -10144,6 +10146,7 @@ impl LayoutEngine {
             wrap_around_paras,
             wrap_anchors,
             inline_placements,
+            inline_flow_plans,
             paragraph_float_placements,
         };
         let mut applied_tac_segment = false;
@@ -11733,9 +11736,6 @@ impl LayoutEngine {
             }
             let mut table_visual_shift = 0.0;
             let mut table_y_end = y_offset;
-            // 표가 실제로 그려진 시작 y. 글앞/글뒤 표는 종이층에 그려져 `table_y_end` 가
-            // 흐름을 따라오지 않으므로, 저장 줄 없는 TAC 전진이 하단을 이 값으로 잡는다.
-            let mut table_paint_top = y_offset;
             if renders_outside_body {
                 let tmp_id = tree.next_id();
                 let mut tmp_node = RenderNode::new(
@@ -12204,7 +12204,6 @@ impl LayoutEngine {
                     );
                 }
                 table_y_end = table_visual_end;
-                table_paint_top = table_y_start;
                 // [Task #1841] 자리차지(TopAndBottom) 표 아래에서 host 본문이 재개될 때
                 // 표의 바깥 여백 bottom 을 띄운다 (한글 실측: 표 하단→첫 줄 gap =
                 // rhwp 10.2pt + outer_bottom 8.5pt = 한글 18.7pt, 결재문서 헤더 표
@@ -12623,23 +12622,6 @@ impl LayoutEngine {
                                 }
                             }
                         }
-                    } else if matches!(
-                        t.common.text_wrap,
-                        crate::model::shape::TextWrap::InFrontOfText
-                            | crate::model::shape::TextWrap::BehindText
-                    ) {
-                        // 저장 줄이 없는 host 는 앵커 줄 높이 증거가 없다. 글자처럼 취급한
-                        // 표는 그 자체가 앵커 줄이므로(#539) 표 하단 + 바깥여백 하까지 전진한다 —
-                        // typeset 은 같은 줄을 조판 줄 높이로 예약한다. 글앞/글뒤 표는 종이층에
-                        // 그려져 `table_y_end` 가 시작 y 에 머무르므로 측정 높이로 하단을 잡는다.
-                        // 이 전진이 없으면 후속 문단이 표 위로 겹친다.
-                        // ls 는 이후 TAC seg handling 이 후가산한다.
-                        let anchor_line_end = table_paint_top
-                            + table_visual_height
-                            + hwpunit_to_px(t.outer_margin_bottom as i32, self.dpi);
-                        if anchor_line_end > y_offset {
-                            y_offset = anchor_line_end;
-                        }
                     }
                 }
                 tac_seg_applied = true;
@@ -12701,6 +12683,25 @@ impl LayoutEngine {
                 // Task #463: 인라인 floating 표 우측 x 계산 (paragraph border box 확장용).
                 // table_layout::compute_table_x_position 와 동일 공식.
                 let tbl_x_right = compute_square_wrap_tbl_x_right(t, col_area, self.dpi);
+                let host_plan = ctx
+                    .inline_flow_plans
+                    .get(&para_index)
+                    .filter(|plan| plan.square_host_control == Some(control_index));
+                if let Some(plan) = host_plan {
+                    self.layout_inline_flow_plan(
+                        tree,
+                        col_node,
+                        para,
+                        styles,
+                        col_area,
+                        page_content.section_index,
+                        para_index,
+                        bin_data_content,
+                        measured_tables,
+                        plan,
+                    );
+                    y_offset = y_offset.max(col_area.y + plan.end);
+                }
                 self.layout_wrap_around_paras(
                     tree,
                     col_node,
@@ -12717,7 +12718,9 @@ impl LayoutEngine {
                     wrap_text_width,
                     strip_x,
                     strip_width,
-                    !split_host_text_owned_by_fragments && paint_host_text_in_band,
+                    host_plan.is_none()
+                        && !split_host_text_owned_by_fragments
+                        && paint_host_text_in_band,
                     0.0,
                     bin_data_content,
                     Some(tbl_x_right),
@@ -12728,7 +12731,7 @@ impl LayoutEngine {
                 // 본문 ≤ 표 인 기존 다수 케이스는 host_text_bottom ≤ y_offset 이라 불변.
                 if let Some(comp) = composed
                     .get(para_index)
-                    .filter(|_| !split_host_text_owned_by_fragments)
+                    .filter(|_| host_plan.is_none() && !split_host_text_owned_by_fragments)
                 {
                     let mut text_h = 0.0;
                     let mut last_ls = 0.0;

@@ -4616,6 +4616,7 @@ impl TypesetEngine {
                     para, &table.common, st.base_available_height(), self.dpi,
                 ))
             && !no_lineseg_host_flows_below
+            && fmt.square_host_plan.is_none()
         {
             total_lines
         } else if table.common.treat_as_char
@@ -4773,8 +4774,17 @@ impl TypesetEngine {
             && no_lineseg_square_band.is_some();
         if no_lineseg_band_host {
             let v_off_px = crate::renderer::hwpunit_to_px(signed_vertical_offset, self.dpi);
-            let host_h = fmt.line_advances_sum(0..total_lines);
+            let host_h = if fmt.square_host_plan.is_some() {
+                fmt.total_height
+            } else {
+                fmt.line_advances_sum(0..total_lines)
+            };
+            let host_origin = st.current_height;
             st.advance_flow_by(host_h.max(v_off_px + table_total_height));
+            if let Some(mut plan) = fmt.square_host_plan.clone() {
+                plan.relative_to(0.0, -host_origin);
+                st.record_square_host_flow(para_idx, plan);
+            }
         } else if is_wrap_around_table && pre_height > 0.0 {
             let v_off_px = crate::renderer::hwpunit_to_px(vertical_offset as i32, self.dpi);
             let table_bottom = v_off_px + table_total_height;
@@ -5646,6 +5656,7 @@ mod issue_3780_line_advance_oob {
         FormattedParagraph {
             tail_line_remaining_width: None,
             computed_host_lines: None,
+            square_host_plan: None,
             total_height: 0.0,
             line_heights: vec![10.0; lines],
             line_spacings: vec![2.0; lines],

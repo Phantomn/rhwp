@@ -2486,7 +2486,7 @@ fn flow_inline_controls(para: &Paragraph) -> Vec<FlowInlineControl> {
 /// classified is laid out as ordinary text by the frame, which is at worst the
 /// same treatment its text would get anyway — where the previous shape left the
 /// whole paragraph unowned.
-fn control_is_width_neutral_marker(control: &Control) -> bool {
+pub(crate) fn control_is_width_neutral_marker(control: &Control) -> bool {
     inline_control_size_hwp(control).is_none() && !control_owns_a_layout_box(control)
 }
 

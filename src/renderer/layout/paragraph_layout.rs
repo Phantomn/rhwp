@@ -2429,7 +2429,14 @@ impl LayoutEngine {
                 Some(bin_data_content),
                 None,
                 true,
-                None,
+                plan.text_spacing_before
+                    .map(|before| ParagraphVerticalSpacing {
+                        before,
+                        after: styles
+                            .para_styles
+                            .get(para.para_shape_id as usize)
+                            .map_or(0.0, |s| s.spacing_after),
+                    }),
             );
             return;
         }
@@ -4803,7 +4810,9 @@ impl LayoutEngine {
 
             if physical_frame_rows {
                 if let Some(row) = para.and_then(|p| p.line_segs.get(line_idx)) {
-                    y = y_start + spacing_before + hwpunit_to_px(row.vertical_pos, self.dpi);
+                    y = y_start
+                        + vertical_spacing.map_or(spacing_before, |s| s.before)
+                        + hwpunit_to_px(row.vertical_pos, self.dpi);
                 }
             }
             // 다단 필터링: segment_width가 현재 단 너비와 불일치하면 건너뜀
