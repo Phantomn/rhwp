@@ -17,6 +17,10 @@ fn page(sample: &str) -> Value {
     let input = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("samples/issue7482")
         .join(sample);
+    rendered_page(&input, None)
+}
+
+fn rendered_page(input: &Path, page: Option<u32>) -> Value {
     let dir = std::env::temp_dir().join(format!(
         "rhwp-7482-{}-{}",
         std::process::id(),
@@ -26,23 +30,63 @@ fn page(sample: &str) -> Value {
             .as_nanos()
     ));
     std::fs::create_dir_all(&dir).unwrap();
-    let output = Command::new(rhwp_bin())
+    let mut command = Command::new(rhwp_bin());
+    command
         .arg("export-render-tree")
         .arg(input)
         .arg("-o")
-        .arg(&dir)
-        .output()
-        .expect("run actual renderer");
+        .arg(&dir);
+    if let Some(page) = page {
+        command.arg("-p").arg(page.to_string());
+    }
+    let output = command.output().expect("run actual renderer");
     assert!(output.status.success(), "{output:?}");
     let paths: Vec<PathBuf> = std::fs::read_dir(&dir)
         .unwrap()
         .map(|entry| entry.unwrap().path())
         .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
         .collect();
-    assert_eq!(paths.len(), 1, "independent PDF has one page: {sample}");
+    assert_eq!(paths.len(), 1, "one requested page: {input:?}");
     let tree = serde_json::from_str(&std::fs::read_to_string(&paths[0]).unwrap()).unwrap();
     std::fs::remove_dir_all(&dir).unwrap();
     tree
+}
+
+/// Hancom 2020 p38 has a horizontal rule at 389pt = 518.67px.
+/// A new whole-paragraph owner must not put the standalone RowBreak table
+/// into the preceding paragraph's last line (the failed candidate used 478.4px).
+#[test]
+fn standalone_rowbreak_table_preserves_preceding_text_and_following_flow() {
+    for sample in [
+        "samples/76076_regulatory_analysis.hwp",
+        "samples/issue1891/76076_regulatory_analysis.hwpx",
+    ] {
+        let input = Path::new(env!("CARGO_MANIFEST_DIR")).join(sample);
+        let tree = rendered_page(&input, Some(37));
+        let all = nodes(&tree);
+        let table = find(&all, "Table", 358);
+        assert!(
+            (coord(table, "y") - 518.67).abs() < 1.0,
+            "{sample}: {:?}",
+            table["bbox"]
+        );
+        assert!(
+            all.iter()
+                .filter(|n| n["type"] == "TextRun" && n["pi"] == 357)
+                .all(|n| bottom(n) <= coord(table, "y")),
+            "preceding text overlaps the table: {sample}"
+        );
+        assert_eq!(
+            all.iter()
+                .filter(|n| n["type"] == "Table" && n["pi"] == 358)
+                .count(),
+            1
+        );
+        assert!(
+            coord(find(&all, "TextLine", 360), "y") >= bottom(table),
+            "following heading overlaps the table: {sample}"
+        );
+    }
 }
 
 fn body_nodes<'a>(node: &'a Value, in_table: bool, out: &mut Vec<&'a Value>) {

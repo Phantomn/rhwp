@@ -807,9 +807,10 @@ pub(crate) fn plan_square_table_host(
 /// Reflowed TAC rows also own the text preceding, separating and following
 /// their objects. Stored rows and controls with other owners retain that path.
 pub(crate) fn supports_table_text_rows(para: &Paragraph) -> bool {
-    // Reuse a current single-object row already composed by normalization.
-    // Its table owner consumes the signed spacing and empty-host metrics.
-    // Rebuilding that row here discards the current composition result.
+    // Keep a standalone multi-row RowBreak table with its fragment/host owner,
+    // including inputs without a LineSeg. A one-row table has no inter-row
+    // cut: reuse its existing owner only when composition already supplies
+    // the current object row, otherwise build the physical row here.
     let flow_objects = para
         .controls
         .iter()
@@ -818,6 +819,14 @@ pub(crate) fn supports_table_text_rows(para: &Paragraph) -> bool {
     let has_text = super::composer::expand_pua_display_text(&para.text)
         .chars()
         .any(|ch| ch > '\u{001F}' && ch != '\u{FFFC}' && !ch.is_whitespace());
+    let has_standalone_fragment_owner = flow_objects == 1
+        && !has_text
+        && para.controls.iter().any(|control| {
+            matches!(control, Control::Table(table)
+                if table.common.treat_as_char
+                && table.row_count > 1
+                && table.page_break == crate::model::table::TablePageBreak::RowBreak)
+        });
     let has_composed_object_row = flow_objects == 1
         && !has_text
         && para.line_segs.len() == 1
@@ -827,6 +836,7 @@ pub(crate) fn supports_table_text_rows(para: &Paragraph) -> bool {
             super::composer::owned_rowbreak_tac_height(para, control).is_some()
         });
     super::para_has_no_stored_line_segs(para)
+        && !has_standalone_fragment_owner
         && !has_composed_object_row
         && !para.text.contains('\t')
         && para
