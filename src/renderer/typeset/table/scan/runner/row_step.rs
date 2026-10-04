@@ -199,6 +199,27 @@ impl TypesetEngine {
                     strict_painted_bottom_fit,
                     source_first_fragment_overflow_allowance,
                     source_first_fragment_row_end,
+                    ordinary_declared_band_can_split: mt.allows_row_break_split()
+                        && r > cursor_row
+                        && !rowspan_touched[r]
+                        && row_start_cut.is_empty()
+                        && ordinary_band_row_shape(table, r, row_total, self.dpi)
+                        && {
+                            // 초과 밴드를 자를 때에도 정렬된 전체 내용은 남은
+                            // 예산 안에 있어야 한다. 가운데 정렬의 닫힌 저장
+                            // 프레임은 형상만 보고 일반 빈 밴드로 바꾸지 않는다.
+                            let need = layout_engine
+                                .row_complete_cut_content_height(table, r, styles);
+                            let padding = table::scan::row_entry::RowEntryQuery {
+                                row: &row_query,
+                                row_start_cut,
+                            }
+                            .padding();
+                            need - padding >= MIN_TOP_KEEP_PX
+                                && layout_engine.row_aligned_content_bottom(
+                                    table, r, need, row_total, styles,
+                                ) <= avail_for_rows - consumed - cs_before + 0.5
+                        },
                 },
                 || self.render_normalization.table_text_reflowed(table),
                 |row| Self::row_has_no_text_or_controls(table, row),
