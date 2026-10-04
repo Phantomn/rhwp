@@ -9,7 +9,7 @@ last_verified: 2026-10-05
 
 ## 최종 판정
 
-**머지 보류** — 원 head의 CI Impact Policy PENDING은 Controller attempt2로 해소됐습니다. 최신 devel 기반 `review/planet6897-7538-20261005`에 원 변경을 적용하고 충돌·호출 계약 보정을 완료했습니다. 로컬 전체 nextest10,324 PASS·Skia4,109+6 PASS와 Native/fresh WASM의 수용 범위17쪽씩 최저95.07329%를 확인했습니다. 통합 CI 확인 전이므로 병합은 보류합니다. #7575의 검증을 이 PR의 통과 근거로 대신하지 않습니다.
+**수용 가능 — 최신 trailing head 확인 후 통합 병합**. 원 기여와 메인터너 보정의 로컬 검증 및 [통합 PR #7576](https://github.com/edwardkim/rhwp/pull/7576) code candidate `04c4a1c0ccdf3159d6e934c06540c2dc2afcf28e`의 새 Full CI·CodeQL·Render Diff·Adapter·Proptest·trusted policy가 모두 성공했습니다. 원 #7538은 source conflict 때문에 직접 merge하지 않고 같은 변경과 보정을 이 통합 PR로 반영합니다. 문서만 담은 trailing head의 exact CI/fast-pass·보호 조건을 다시 확인한 뒤 병합하며 현재 기록은 병합 전 사전 판단입니다. 대용량 문서 전체 피델리티 잔여는 [#7445](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5984016636)에서 계속 추적합니다. #7575의 CI로 이 PR을 대체 검증하지 않았습니다.
 
 ## 접수·범위
 
@@ -32,17 +32,17 @@ last_verified: 2026-10-05
 
 | 항목 | 현재 근거·해제 조건 | 판정 |
 | --- | --- | --- |
-| 구현 근거와 일반성 | 원 PR·관련 issue의 독립 기준을 코드와 대조 중 | 미검증 |
-| 측정·배치 일관성 | source 공통 helper 이후 실제 원점/흐름 소비 지점 검토 중 | 미검증 |
-| 분할·이어받기 계약 | 적용되는 컷·내용 소유·예약/배치와 정상 반례 검증 필요 | 미검증 |
-| 줄 소속과 점유 높이 | 저장 LineSeg·재조판 경로의 실제 호출 및 반례 실행 필요 | 미검증 |
-| 사례와 증거의 독립성 | source 증적은 참고; 통합 head 직접 검증 진행 중 | 미검증 |
-| 기준값 변경 | changed baseline·새 회귀의 독립 PDF/사양 근거 검토 중 | 미검증 |
-| 주장과 검증 범위 | focused 검사 실행 중; 선택 범위 완료 후 갱신 | 미검증 |
+| 구현 근거와 일반성 | 저장 LineSeg의 단 시작·되감김, 원본 outMargin·이전 단 vOff를 소비합니다. HFT 결측 U+2024는 독립 PDF Type3 전진과 원본 선언·face 폭 표에 근거합니다. 문서 ID·고정 페이지 좌표 분기는 없습니다. | 확인 |
+| 측정·배치 일관성 | 표의 paint inset은 실제 테두리에 반영되고 뒤 문단 흐름에서는 반복 소비되지 않습니다. 기호는 `resolved_to_text_style → char_width_decision → 줄 구성/최종 TextRun` 공통 전진을 소비합니다. | 확인 |
+| 분할·이어받기 계약 | 구역 첫 단·동일 단 둘째 표·다음 쪽 carry의 원점/오프셋을3개 회귀와 직접 시각 비교로 확인했습니다. 내용 컷·rowspan·각주 예약 계산은 이번 변경 범위 밖입니다. | 적용 범위 확인 |
+| 줄 소속과 점유 높이 | 저장 앵커와 뒤 문단·둘째 표 흐름 및 #7062 관계 회귀를 보존했습니다. 표 행이 본문 경계 안에 있고 후속 글자의 전진이 원본 HFT 계약을 지키는지 확인했습니다. | 확인 |
+| 사례와 증거의 독립성 | 기존 한컴 PDF16개 입력의 Git blob/hash, 정확한 devel A/B, Native/실제 Chrome fresh WASM을 대조했습니다. 원 source PNG만으로 승인하지 않았습니다. | 확인 |
+| 기준값 변경 | 원본 HU·표 흐름·본문/행 높이 관계로 회귀를 수정했습니다. API golden은 HFT26개 전각 분류의 두 카운트와 aggregateHash만 바꾸고 TrueType89개와 categories/legacy hash는 유지했습니다. | 확인 |
+| 주장과 검증 범위 | 로컬10324/0, Skia4109+6/0, CI Full4 archive workers10131/0 및 해당 CI 내부/Native 게이트 통과입니다. 시각 수용17쪽씩 최저95.07329%; 비교236쪽씩의12개 대용량 미달은 전체 수용에서 분리했습니다. | 범위 제한 수용 |
 
 ## 검증 입력 커밋 확인
 
-미검증. 실제 실행한 HWP/HWPX/PDF를 열거하고 최종 검증 commit과 내용 hash를 대조합니다. 기존 #7445 이관 자료와 제외 회귀를 자동 재등록하지 않습니다.
+[입력16개 출처](../assets/planet6897_7538_20261005/final/input-provenance.json)에 실제 HWP/PDF 경로·Git blob·SHA256·크기를 기록했습니다. 로컬 검증 head `cc59be714`와 모두 일치합니다. renderer 소스는 Native/WASM 빌드 head `c6ece0a6e`부터 동일하고 최종 source equivalence·SVG hash를 증적으로 보존했습니다. 새 기준 PDF를 산출하지 않았으며 기존 #7445 문서와 회귀를 삭제하지 않았습니다.
 
 ## 시각 검증 계획
 
@@ -103,3 +103,24 @@ Native/fresh WASM 전체228쪽씩 TSV 산출을 완료했습니다. 단독1쪽·
 [최종 검증 정본](../assets/planet6897_7538_20261005/final_validation.json)에 전체 nextest10,324 PASS/0 FAIL/50 skip(509.897초, threads8), Skia4,109 PASS/13 ignore 및 focused2+4 PASS, 필수 lint/build/manifest/fresh WASM을 기록했습니다. Native/실제 Chrome fresh WASM 각각236쪽 TSV를 보존했습니다. 단독1쪽·신청서2쪽·보도자료10쪽·float-stack2쪽 전체와 영향24쪽·rowbreak13쪽의 수용 범위17쪽씩은 최저95.07329%, 미달0입니다. Native/WASM 대표 PNG와 새 float-stack2쪽 PNG를 직접 확인했습니다. 기준 HWP/PDF16개는 로컬 검증 head의 Git blob과 일치합니다.
 
 정책연구의 미달7쪽은 정확한 devel과 SVG가 동일하며 해당 문서에서는24쪽만 바뀝니다. hwpspec의18·35·44·46쪽은 base보다 개선됐지만 여전히 미달이고, CBTA58쪽은 base78.71686%→73.17570%입니다. 이 대용량 문서들의 전체 피델리티 수용은 보류하며 #7445에 현재 TSV와 정확한 차이를 연결합니다. 해당 미달을 정상 회귀의 기준으로 고정하거나 기존 회귀를 제거하지 않았습니다. 통합 code candidate의 정확한 CI와 최신 head 조건을 확인한 뒤에만 최종 수용·오늘할일·후속 comment를 trailing 문서에 기록합니다.
+
+## 통합 code candidate CI 완료 — 2026-10-05
+
+- PR [#7576](https://github.com/edwardkim/rhwp/pull/7576), exact head `04c4a1c0ccdf3159d6e934c06540c2dc2afcf28e`, base `1e488ac370ec715a5b97c765542e16fc9bf65714`.
+- [CI37231838199](https://github.com/edwardkim/rhwp/actions/runs/37231838199) preflight는 `fast_pass=false reason=no-green-build-candidate`로 새 Full 검증을 선택했습니다. 실제 A3870/B1936/C1709/D2616, 총10131 PASS이며4 worker가 모두 attempt1에서 성공했고 Build & Test·lint·Native Skia가 통과했습니다. 로컬 전체10324 PASS와 CI의 configured archive count를 혼동하지 않습니다.
+- [CodeQL37231838202](https://github.com/edwardkim/rhwp/actions/runs/37231838202), [Render Diff37231837993](https://github.com/edwardkim/rhwp/actions/runs/37231837993), [Adapter37231838244](https://github.com/edwardkim/rhwp/actions/runs/37231838244), [Proptest37231838309](https://github.com/edwardkim/rhwp/actions/runs/37231838309), trusted controller37231838032 및 exact `CI Impact Policy`가 성공했습니다. CodeQL Analyze(rust)는 성공이고 publisher neutral/범위별 conditional skip은 해당 workflow·정책 결과로 보존했습니다.
+- CI witness: tested merge `863caa2ec1290308d3feea335f5e5015b6f517d7`, tree `284ce01fc9d9e01bb197e3bf567621217baf7d55`, 부모는 정확한 base와 candidate입니다. marker·archive artifact IDs·각 run/head/result·worker counts는 [CI 정본](../assets/planet6897_7538_20261005/final/ci-code-candidate.json)에 있습니다. trusted job의 성공만으로 reuse를 주장하지 않았습니다.
+- 원 head는 `e4abc99f2de1da071964bb3a86c22e4b3d0a4d64`로 동일합니다. 오늘할일을 보존해 추가 기록하며 이번 trailing에는 이 review·오늘할일·CI 증적만 포함합니다. production/test/fixture/workflow 변경은 없습니다. 최신 trailing head의 same-PR fast-pass 또는 Full provenance와 보호 조건 확인은 병합 직전에 별도 수행합니다.
+
+## Merge 후 contributor PR comment 계획
+
+원 #7538의 최신 head와 기존 comment를 확인하여 새 기여나 중복 게시를 막습니다. 실제 #7576 merge SHA와 CI run·Visual Sweep 정본·merge SHA 고정 raw PNG를 넣어 한국어 존댓말로 다음을 구분해 설명하고 통합 대체 병합으로 close합니다.
+
+1. 기여자께서 해결하신 단 맨 위 표 outMargin·이전 단 offset 제거·후속 흐름 보존과 원 두 commit의 `-x` 출처.
+2. 최신 devel 충돌에서 #7062의 개선된 회귀를 보존한 이유와 `bool`→`f64` 호출 계약 보정.
+3. 고정11.84px/HU 회귀를 원본 여백·오프셋·표 소속·흐름 관계로 바꾼 이유, 정확한 devel3 FAIL→현재3 PASS.
+4. 2쪽 정상 대조군에서 드러난 HFT U+2024 결측 폭 문제·독립 Type3 전각 근거·TrueType/hit 보존·기존5906 관계 회귀와 전2쪽98.08627/95.07329%.
+5. 공개 API golden의 HFT26개 분류 변경과 TrueType89개 불변·3필드 갱신·기존8개 API 회귀 통과, 최종10324 PASS와 실제 code candidate CI.
+6. 정책연구7쪽·hwpspec4쪽·CBTA58 대용량 전체 피델리티의 #7445 분리와 전체 수용을 주장하지 않는 범위. #4068/#7445의 미완료 범위·원본·PDF·기여자 fork는 보존합니다.
+
+게시에는 `--body-file`을 사용하고 API로 본문·close를 확인합니다. 정상 merge/CI·source 후속처리·devel fast-forward·소유 정리까지 완료한 뒤 종료합니다.

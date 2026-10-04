@@ -1,5 +1,5 @@
 {
-  "status": "local_complete_integration_ci_pending",
+  "status": "local_and_code_candidate_ci_complete_trailing_head_pending",
   "base": "1e488ac370ec715a5b97c765542e16fc9bf65714",
   "source_pr": 7538,
   "source_head": "e4abc99f2de1da071964bb3a86c22e4b3d0a4d64",
@@ -338,6 +338,21 @@
   "visual_summary": "final/visual-summary.json",
   "native_wasm_note": "Mac local wasm-pack --no-opt, not Docker optimized; actual Chrome WASM SVG compared at96DPI",
   "integration_ci": {
-    "status": "not_yet_submitted"
+    "pull_number": 7576,
+    "code_candidate": "04c4a1c0ccdf3159d6e934c06540c2dc2afcf28e",
+    "mode": "Full configured CI",
+    "preflight_reason": "no-green-build-candidate",
+    "status": "success",
+    "primary_ci_run": 37231838199,
+    "codeql_run": 37231838202,
+    "render_diff_run": 37231837993,
+    "adapter_run": 37231838244,
+    "proptest_run": 37231838309,
+    "policy_controller_run": 37231838032,
+    "archive_workers_passed": 10131,
+    "provenance": "final/ci-code-candidate.json",
+    "trailing_head_status": "pending exact-head checks",
+    "merge_status": "not yet merged",
+    "global_fidelity_deferred_issue_comment": "https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5984016636"
   }
 }
