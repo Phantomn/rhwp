@@ -54,3 +54,10 @@ last_verified: 2026-10-04
 ## 다음 단계
 
 원 PR 단위로 실패 원인과 증적을 먼저 분석하고, 필요한 보정은 코드 수정·결과 보고·커밋을 완료한 뒤 다음 보정으로 진행합니다. 통합 code candidate의 최종 검증 뒤 수용 판정·contributor 후속 comment 계획을 확정합니다. 아직 원 PR 또는 통합 PR을 병합한 것으로 표시하지 않습니다.
+
+## 단계7 통합 직접 검증과 남은 보류
+
+- 생산 code candidate `c8c5f535cd3ebf331cadc2714c68af9fdc663a4d`의 Native/fresh WASM으로 원문 `samples/exam_eng.hwp`와 독립 한컴 2022 `pdf/exam_eng-2022.pdf`를 전체 8쪽 대조했습니다. 저장 product도 한컴 2022입니다. 두 출력 모두 최저 93.01297%(2쪽), 미달·누락 0, 쪽수 8쪽 일치입니다. [실행 결과](../assets/planet6897_20261004/7534-stage7/results.json)·Native/WASM TSV 및 manifest를 보존했습니다.
+- [2쪽](../assets/planet6897_20261004/7534-stage7/native_review_p002.png)·[7쪽](../assets/planet6897_20261004/7534-stage7/native_review_p007.png)을 직접 열었습니다. 원 기여의 줄 진행·답지 시작 복구는 확인됐지만 2쪽 Woman/Man/Sophia의 NBSP 공백에 사각형 잉크가 나타납니다. 90% 통과만으로 이 출력 결함을 승인하지 않습니다.
+- 기존 `test_521`은 SVG에서 595..600px 영역을 찾고 24px 간격을 고정했습니다. 8쪽 시각 근거를 확인한 뒤 동일 기존 시험을 표 host pi104·다음 답안 pi105의 소유 관계 및 원문 저장 vpos에서 선언 표 높이를 뺀 간격으로 변경했습니다. 새 테스트는 추가하지 않았습니다. 변경된 기존 unit 1/1 PASS, 새 기여 회귀 5/5 PASS, unit tier 검사 PASS(개수 증가 0)입니다.
+- 다음 보정은 NBSP 잉크입니다. 문서에는 NBSP가 저장되어 있고 현재 HY신명조 글꼴 cmap은 U+00A0을 `uni0080`(윤곽선 2개)으로 매핑합니다. 공백이 실제 글리프처럼 그려지는 경로를 대조해 저장 폭·밑줄을 보존하며 잉크만 그리지 않도록 검토합니다. 메인터너 보정과 재출력 전 **개별 시각 보류**입니다.
