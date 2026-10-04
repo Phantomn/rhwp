@@ -14,7 +14,7 @@
 - 검토 PDF·진단 입력·대표 PNG 보존: `5eb671068d74e2757daf12925017f5f6cdbdd38a`, `d8b98bd325a8233b40430e36a5c3db10283e9889`.
 - 유지할 작업공간: `/tmp/rhwp-pr7518-review-20261004`, 현재 `integration/pr7518-maintainer-20261004`.
   이전 `review/pr7518-20261004`는 checkpoint `44ca6f0f9`로 보존합니다. 주 작업공간의 기존 #7494 branch와 #7353 worktree는 보존합니다.
-- 처리 경로: [`collaborator_external_pr.md` 9.1.1](../manual/pr_review/collaborator_external_pr.md#911-기본-작업공간-devel-기반-체리픽-통합-검토)의 별도 통합 PR입니다. 원 기여자 이력은 재작성하지 않습니다.
+- 처리 경로: [`collaborator_external_pr.md` 9.1.1](../../manual/pr_review/collaborator_external_pr.md#911-기본-작업공간-devel-기반-체리픽-통합-검토)의 별도 통합 PR입니다. 원 기여자 이력은 재작성하지 않습니다.
   현재 통합 후보에는 devel의 추가 보정과 독립 자료가 있으므로 이 이력을 기여자 fork에 그대로 push하지 않습니다.
   사용자가 명시한 경로에 따라 본 저장소에 통합 PR을 만들고, 그 PR이 merge된 뒤 원 PR #7518에
   통합 링크를 남겨 close합니다. 지금은 local 수정·검증 단계이며 원 PR을 먼저 닫지 않습니다.
@@ -512,3 +512,14 @@ test-only commit의 필수 fmt·Native/WASM/workspace-all-targets 세 Clippy·wo
 순차 검증은 모두 PASS했다. `integration-7568-lint.sh` 및 `logs/integration-7568-lint.log`에
 명령과 완료 결과가 있다. 같은 base의 source-unit tier check도 PASS다.
 이 결과를 전체 회귀·최종 PR 제출·remote 통합의 완료로 대신하지 않는다.
+
+### 메인터너 Open PR 등록 지시
+
+위 13 PASS / 4 FAIL 상태를 전달한 뒤 사용자가 메인터너 PR 등록·계속 처리를 명시 지시했다.
+2026-10-04 현재 후보를 Open PR로 공개하되 실패와 미완료 검증을 본문에서 공개한다.
+Draft나 전체 검증 통과로 바꾸어 표시하지 않으며 남은 보정은 같은 PR source branch에서 이어간다.
+등록 직전 최신 base는 여전히 `731de9e1b`였고 `git merge-tree --write-tree upstream/devel HEAD`는
+exit 0이었다. 별도 통합 절차에 따라 두 원 PR 문서를 archive로 옮겼으며 fixture README 상대 링크도
+함께 갱신했다. 현재 source의 대표 PNG 16개와 점수·실패 범위 JSON을
+`mydocs/pr/assets/pr7518_integration_20261004/`에 추가했다. 현재 PR 본문은 이 새 asset을
+정확한 head SHA의 raw URL로 고정한다. 과거 asset을 현재 출력처럼 사용하지 않는다.

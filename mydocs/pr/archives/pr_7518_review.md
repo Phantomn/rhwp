@@ -32,6 +32,12 @@ p33/p34는 모두 85.78689%/86.67962%다. review와 standalone overlay를 직접
 현재 7518 focused 전체는 13 PASS / 기존 4 FAIL이며 사용자 시각 수용과 구분한다.
 현재 SHA·통합 경로·검증 명령은 [최신 통합 검증](pr_7518_review_impl.md#최신-devel-통합과-사용자-시각-판정-적용)에 연결한다.
 
+2026-10-04 사용자는 위 남은 검사 4건을 보고받은 뒤 “메인테이너의 PR 로 등록해서 처리를 진행”하도록
+명시 지시했다. 이에 현재 후보를 메인터너 Open PR로 공개하고 같은 PR에서 후속 보정을 진행한다.
+이는 현재 전체 회귀 통과·merge 완료 판정이 아니다. 원 #7518은 통합 PR의 실제 병합 뒤에 연결하여 닫는다.
+최신 제출 증거는 [Native/fresh WASM 측정과 미완료 검사](../assets/pr7518_integration_20261004/validation.json)에
+분리하여 기록했다. 이전 asset은 과거 source의 증거로 보존한다.
+
 원 contributor head `02845752f76d5539c74df135d950ba5757bd1792`에는 그림 띠 문서 2쪽의 행 높이·중첩 표 위치 결함이 남았다.
 사용자의 “메인테이너쪽에서 해당 문제도 해결해서 처리” 지시에 따라 원 기여를 유지하고 별도 보정했다.
 #7482/#7563의 과거 예외를 자동 확대하지 않았으며, 위 수용은 이번 사용자의 새 명시 지시에 따른다.
@@ -103,19 +109,19 @@ PDF Creator `Hwp 2020 0.0.0.0`/PDF 1.4 표기만으로 배제하지 않았다. �
 
 | 입력 | SHA-256 |
 | --- | --- |
-| [TAC HWP](../../samples/issue7500/tac_table_host_spaces.hwp) | `401167ad369e1f15f9ee05ae6a22f36dd36878d0b6da9fa8acf7af24f665b93e` |
-| [그림 띠 HWP](../../samples/issue7500/picture_band_cell_spaces.hwp) | `70c76b83f86a9d5ee4bd619c32f60c22d16ae406fb7bed452b766e8838d207bb` |
-| [TAC 한컴 PDF](../../pdf/tac_table_host_spaces-2020.pdf) | `a5fafb93187518791a346b832037fb38563c3a0d46a89f21cf3367de84d898f0` |
-| [그림 띠 한컴 PDF](../../pdf/picture_band_cell_spaces-2020.pdf) | `06e7eb041bdd3be9fe61f3175dfd9d4ff0c7cf7dfce917ec28d0954199878754` |
+| [TAC HWP](../../../samples/issue7500/tac_table_host_spaces.hwp) | `401167ad369e1f15f9ee05ae6a22f36dd36878d0b6da9fa8acf7af24f665b93e` |
+| [그림 띠 HWP](../../../samples/issue7500/picture_band_cell_spaces.hwp) | `70c76b83f86a9d5ee4bd619c32f60c22d16ae406fb7bed452b766e8838d207bb` |
+| [TAC 한컴 PDF](../../../pdf/tac_table_host_spaces-2020.pdf) | `a5fafb93187518791a346b832037fb38563c3a0d46a89f21cf3367de84d898f0` |
+| [그림 띠 한컴 PDF](../../../pdf/picture_band_cell_spaces-2020.pdf) | `06e7eb041bdd3be9fe61f3175dfd9d4ff0c7cf7dfce917ec28d0954199878754` |
 
-합성 HWP 13개는 [fixture 생성 절차](../../tests/fixtures/pr7518_review_page_budget/README.md)에 보존했다.
+합성 HWP 13개는 [fixture 생성 절차](../../../tests/fixtures/pr7518_review_page_budget/README.md)에 보존했다.
 용지 높이 대조군 7개, unsplit, nested-split, terminal-tail, terminal-follower는 독립 한컴 PDF가 없는 계약 진단이다. 자동 높이 내부 행과 1×1 mixed 셀의 65문단 대조군 두 개도 같은 분류다.
 저장 정보의 수용 기준을 완화하거나 정상 한컴 저장본으로 주장하는 근거로 사용하지 않았다.
 추가 공개 대조 문서와 PDF를 포함한 입력 파일 19개 모두 disk bytes와 `git show <code-head>:<path>`를 대조했다. 전체 해시·소유 commit은 증적 JSON에 있다.
 
 ### 구현 주장과 반례의 대조
 
-정식 회귀 후보 검사 위치는 [issue_7518_reflow_row_physical_frame.rs](../../tests/cases/issue_7518_reflow_row_physical_frame.rs)다.
+정식 회귀 후보 검사 위치는 [issue_7518_reflow_row_physical_frame.rs](../../../tests/cases/issue_7518_reflow_row_physical_frame.rs)다.
 같은 최종 9개 test binary가 실제 CLI를 호출하도록 runtime `CARGO_BIN_EXE_rhwp`만 바꿔 직접 실행했다.
 Nextest가 CLI 환경을 다시 지정하는 점을 피한 부정 대조이며, 빌드 실패를 재현으로 세지 않았다.
 
@@ -164,7 +170,7 @@ base는 `8497729b4fb0e071c484fc5740f9bb2400bed437`로 고정했다. 실제 명�
 | unit tiers fixed-base check | PASS |
 | CDP 최초 + 요청에 따른 캐시 비활성화 재검증 | 각각 11/11 PASS; fresh WASM 응답 SHA 일치, page error 0 |
 
-[공개 검증 기록](assets/pr7518_maintainer_20261004/validation.json)에 명령·head/base·exit·소요 시간·입력/로그/이미지 해시를 연결했다. 상세 로컬 로그는 `output/pr-review/pr7518-20261004/logs/`에 보존한다. 원 #7518 head check 33개는 success 또는 skip이며, 통합 후보 CI는 아직 없다. 마지막 fetch에서도 base는 같고 `git merge-tree --write-tree upstream/devel HEAD`는 exit 0이었다.
+[공개 검증 기록](../assets/pr7518_maintainer_20261004/validation.json)에 명령·head/base·exit·소요 시간·입력/로그/이미지 해시를 연결했다. 상세 로컬 로그는 `output/pr-review/pr7518-20261004/logs/`에 보존한다. 원 #7518 head check 33개는 success 또는 skip이며, 통합 후보 CI는 아직 없다. 마지막 fetch에서도 base는 같고 `git merge-tree --write-tree upstream/devel HEAD`는 exit 0이었다.
 
 중간 공간 부족은 Skia 빌드 환경 실패로 구분했다. 실패 로그를 보존한 뒤 공간을 확보해 같은 code head에서 Skia를 다시 실행했다. 이를 렌더링 결함 재현으로 세지 않았다.
 
@@ -197,19 +203,19 @@ base는 `8497729b4fb0e071c484fc5740f9bb2400bed437`로 고정했다. 실제 명�
 표 아래끝은 기준 521.67px에 대해 약 525.9px로 약 4px 차이가 남고, 글자 색·폭·일부 줄바꿈의 소폭 차이도 남는다.
 90% 실루엣은 완전한 픽셀 일치가 아니다. 각쪽 strict ink 수치도 공개 JSON에 함께 기록했다. 글꼴 예외는 사용하지 않았다.
 
-![Native 그림 띠 p2 review](assets/pr7518_maintainer_20261004/native_picture_p2_review.png)
+![Native 그림 띠 p2 review](../assets/pr7518_maintainer_20261004/native_picture_p2_review.png)
 
-![Native 그림 띠 p2 standalone overlay](assets/pr7518_maintainer_20261004/native_picture_p2_overlay.png)
+![Native 그림 띠 p2 standalone overlay](../assets/pr7518_maintainer_20261004/native_picture_p2_overlay.png)
 
-![fresh WASM 그림 띠 p2 review](assets/pr7518_maintainer_20261004/wasm_picture_p2_review.png)
+![fresh WASM 그림 띠 p2 review](../assets/pr7518_maintainer_20261004/wasm_picture_p2_review.png)
 
-![fresh WASM 그림 띠 p2 standalone overlay](assets/pr7518_maintainer_20261004/wasm_picture_p2_overlay.png)
+![fresh WASM 그림 띠 p2 standalone overlay](../assets/pr7518_maintainer_20261004/wasm_picture_p2_overlay.png)
 
 대표 외 원본 모든 review PNG와 추가 대조 Native review/overlay도 같은 asset 디렉터리에 보존했다. 공개 asset은 PNG/검증 JSON이며 검증 글꼴·글꼴 임베딩 SVG는 포함하지 않는다.
 
 CDP는 문서를 실제 Studio로 열고 WASM 응답 해시, TAC 1쪽, 큰 표 순서/오른쪽 위치, 그림 3장 같은 띠, 이어받은 행 합·Column/LEFT·PDF lead·Center 관계를 검사했다. 재실행에서 캐시 응답 본문이 없어 첫 hash 확인은 실패했다. 캐시 비활성화 새 탭의 재실행에서는 11개 모두 통과했고 브라우저 page error는 없었다. 그 화면을 직접 확인했다. CDP 화면 글꼴은 행동 검사이며, Hancom pixel 비교는 위 공급 글꼴의 정식 sweep으로 구분한다.
 
-![요청에 따른 CDP 재검증 p2](assets/pr7518_maintainer_20261004/cdp_picture_p2.png)
+![요청에 따른 CDP 재검증 p2](../assets/pr7518_maintainer_20261004/cdp_picture_p2.png)
 
 
 ## Merge 후 contributor PR comment 계획
@@ -223,11 +229,11 @@ CDP는 문서를 실제 Studio로 열고 WASM 응답 해시, TAC 1쪽, 큰 표 �
 > 통합 PR에 남겼습니다. 실제 통합 PR·merge SHA·CI 링크와 같은 merge SHA로 고정한 대표 review/overlay 이미지를 안내드립니다.
 > 표 아래끝의 소폭 차이와 일부 글자 색·폭 차이는 남아 있으며 완전한 픽셀 일치로 보고하지 않았습니다.
 
-게시 문안에 [Visual Sweep 정본](../manual/verification/visual_sweep_guide.md#github-merge-comment)을 연결하고,
+게시 문안에 [Visual Sweep 정본](../../manual/verification/visual_sweep_guide.md#github-merge-comment)을 연결하고,
 `https://raw.githubusercontent.com/edwardkim/rhwp/<실제-merge-SHA>/mydocs/pr/assets/pr7518_maintainer_20261004/<image>.png`
 형식의 Native와 WASM Markdown 이미지를 넣는다. UTF-8 without BOM 파일을 `gh --body-file`로 전달하고
 API로 본문 한글·선두 BOM·`??` 치환 여부를 재조회한다. 통합 PR을 링크한 원 PR close도 별도 승인 범위에 포함돼야 한다.
-실제 issue close 및 branch/worktree 정리는 [post_merge](../manual/pr_review/post_merge.md) 절차로 그때 확인한다.
+실제 issue close 및 branch/worktree 정리는 [post_merge](../../manual/pr_review/post_merge.md) 절차로 그때 확인한다.
 
 ## 보류 해제 조건과 추가 대조 문서
 
@@ -238,15 +244,15 @@ API로 본문 한글·선두 BOM·`??` 치환 여부를 재조회한다. 통합 
 이는 추가 보정의 회귀 복원을 보여주지만 한컴 PDF와의 일치나 gate 예외를 입증하지 않는다.
 추가 문서 차이의 이번 PR 포함/별도 이슈 처리 범위를 사용자에게 비동기로 확인했으나 아직 답변은 없다. 이전 출력과 같다는 이유로 gate를 예외 처리하지 않으며, 이번 검토의 최종 판정은 머지 보류다.
 
-![추가 대조 p33: 80.90046%, 미통과](assets/pr7518_maintainer_20261004/native_control_p33_review.png)
+![추가 대조 p33: 80.90046%, 미통과](../assets/pr7518_maintainer_20261004/native_control_p33_review.png)
 
-![추가 대조 p34: 52.62315%, 미통과](assets/pr7518_maintainer_20261004/native_control_p34_review.png)
+![추가 대조 p34: 52.62315%, 미통과](../assets/pr7518_maintainer_20261004/native_control_p34_review.png)
 
 
-새 합성 렌더링 회귀 후보의 기준 PDF 부족도 **미검증**이다. [시각 선행 조건](../manual/pr_review/visual_fixture_evidence.md#렌더링-회귀-테스트-신규-추가의-시각-검증-선행-조건)은 합성 입력에도 Native/fresh WASM 최저 90%를 요구한다. 실제 좌표·점유 계약 9개가 통과했더라도 독립 PDF 없는 합성 경계를 정식 제출 완료로 보고하지 않는다. 기존 두 실물 문서의 기대값은 바꾸지 않았다.
+새 합성 렌더링 회귀 후보의 기준 PDF 부족도 **미검증**이다. [시각 선행 조건](../../manual/pr_review/visual_fixture_evidence.md#렌더링-회귀-테스트-신규-추가의-시각-검증-선행-조건)은 합성 입력에도 Native/fresh WASM 최저 90%를 요구한다. 실제 좌표·점유 계약 9개가 통과했더라도 독립 PDF 없는 합성 경계를 정식 제출 완료로 보고하지 않는다. 기존 두 실물 문서의 기대값은 바꾸지 않았다.
 
 보류 해제에는 추가 대조 문서의 실제 배치 차이를 해결하고 같은 좌표계의 Native/fresh WASM을 재검증하는 작업, 합성 신규 회귀 후보에 대응하는 독립 기준 출력과 필수 backend 증거가 필요하다. 이번 PR에 추가 문서를 포함할지에 대한 범위 답변은 별개이며, 범위를 정했다는 이유로 시각 gate를 면제하지 않는다. 다음 원격 조치를 요청하기 전에 이 증거를 갖춘 후보를 다시 제시한다.
 
 ### 대형 통합 후보 경로
 
-기여자 원 변경은 1,000줄 미만이었지만 메인터너 보정·계약 후보·문서를 포함한 통합 후보는 1,000줄을 넘는다. [대형 PR 절차](../manual/pr_review/rework_and_exceptions.md#113-대형-pr-1000-라인)를 추가로 적용했다. 코드 검토·merge simulation·필수 시각 증거와 작업지시자 판단을 별도 cycle로 진행하며 즉시 admin merge하지 않는다.
+기여자 원 변경은 1,000줄 미만이었지만 메인터너 보정·계약 후보·문서를 포함한 통합 후보는 1,000줄을 넘는다. [대형 PR 절차](../../manual/pr_review/rework_and_exceptions.md#113-대형-pr-1000-라인)를 추가로 적용했다. 코드 검토·merge simulation·필수 시각 증거와 작업지시자 판단을 별도 cycle로 진행하며 즉시 admin merge하지 않는다.

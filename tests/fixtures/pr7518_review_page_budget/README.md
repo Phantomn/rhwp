@@ -22,7 +22,7 @@ section의 `raw_stream`과 `raw_provenance`를 `None`으로 두고 `serialize_do
 
 코드 통합 후보 `55a2800aadc32fc85ed4aa3e8e17f6b169f3b0b0`에서 얻은 관측입니다.
 수정 전 대조·정식 `tests/cases` 회귀·한컴 PDF가 없으므로 새로운 결함 검출이나 완전한 분할 계약 충족으로 판정하지 않습니다.
-자세한 검토는 [PR #7518 review](../../../mydocs/pr/pr_7518_review.md)를 참조합니다.
+자세한 검토는 [PR #7518 review](../../../mydocs/pr/archives/pr_7518_review.md)를 참조합니다.
 
 ## 메인터너 보정의 실제 호출 경계 대조군
 
