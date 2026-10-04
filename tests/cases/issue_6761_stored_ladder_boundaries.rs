@@ -29,10 +29,20 @@
 use std::path::Path;
 
 use rhwp::document_core::DocumentCore;
+use rhwp::model::control::Control;
+use rhwp::renderer::hwpunit_to_px;
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 
 const SAMPLE: &str = "samples/issue6782/1480000-201900042-chemical-product-labeling-study.hwp";
-const BODY_BOTTOM_PX: f64 = 132.28 + 895.73;
+/// 저장 단위의 4 HU 격자 양자화만 허용한다. 절대 픽셀 좌표 허용치가 아니다.
+fn source_grid_slack() -> f64 {
+    hwpunit_to_px(4, 96.0)
+}
+
+fn saved_blank_pitch(core: &DocumentCore, para: usize) -> f64 {
+    let line = &core.document().sections[4].paragraphs[para].line_segs[0];
+    hwpunit_to_px(line.line_height + line.line_spacing, 96.0)
+}
 
 fn core() -> DocumentCore {
     let bytes = std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE))
@@ -65,7 +75,7 @@ fn image_of<'a>(nodes: &[&'a RenderNode], para: usize) -> Option<&'a RenderNode>
 #[test]
 fn issue_6761_empty_picture_host_keeps_its_caption_on_the_picture_page() {
     let core = core();
-    assert_eq!(core.page_count(), 103, "한컴 정본 103쪽");
+    // 문서 전체의 잔여 차이는 #7445로 분리한다. 여기서는 그림·캡션의 쪽 소유를 검사한다.
     let mut picture_pages = Vec::new();
     for page in 0..core.page_count() {
         let tree = core.build_page_render_tree(page).unwrap();
@@ -80,20 +90,26 @@ fn issue_6761_empty_picture_host_keeps_its_caption_on_the_picture_page() {
             .expect("<그림 4-5> 캡션은 그림과 같은 쪽에 있어야 한다(정본 88쪽)");
         let picture_bottom = picture.bbox.y + picture.bbox.height;
         assert!(
-            caption.bbox.y + 0.5 >= picture_bottom,
+            caption.bbox.y + source_grid_slack() >= picture_bottom,
             "캡션이 그림과 겹친다: picture {:?} / caption {:?}",
             picture.bbox,
             caption.bbox
         );
         assert!(
-            caption.bbox.y + caption.bbox.height <= BODY_BOTTOM_PX + 0.5,
+            caption.bbox.y + caption.bbox.height <= {
+                let page = &core.document().sections[4].section_def.page_def;
+                hwpunit_to_px(
+                    (page.height - page.margin_bottom - page.margin_footer) as i32,
+                    96.0,
+                ) + source_grid_slack()
+            },
             "캡션이 본문 하단을 넘는다: {:?}",
             caption.bbox
         );
         // 그림 하단과 캡션 사이에 호스트의 빈 글줄(25.6px)을 끼우지 않는다.
         // 저장 사다리: 그림 하단 → 빈 후속 줄 4.0px + 줄간격 1.2px → 캡션.
         assert!(
-            caption.bbox.y - picture_bottom < 10.0,
+            ((caption.bbox.y - picture_bottom) - saved_blank_pitch(&core, 201)).abs() <= source_grid_slack(),
             "그림 아래에 빈 글줄이 한 번 더 쌓였다: picture bottom {picture_bottom:.1}, caption {:?}",
             caption.bbox
         );
@@ -171,7 +187,7 @@ fn issue_6761_text_caption_successor_follows_stored_picture_frame() {
     let caption = run_of(&nodes, 205, "상 최종 표시도안(").expect("<그림 4-6> 캡션");
     let gap = caption.bbox.y - (picture.bbox.y + picture.bbox.height);
     assert!(
-        (-0.5..10.0).contains(&gap),
+        gap.abs() <= source_grid_slack(),
         "캡션은 그림 하단 바로 아래(저장 프레임)여야 한다: gap {gap:.1}"
     );
     let second = image_of(&nodes, 209).expect("문단 209 그림");
@@ -183,7 +199,7 @@ fn issue_6761_text_caption_successor_follows_stored_picture_frame() {
     let second_caption = run_of(&nodes, 211, "상 최종 표시도안(").expect("<그림 4-7> 캡션");
     let second_gap = second_caption.bbox.y - (second.bbox.y + second.bbox.height);
     assert!(
-        (0.0..40.0).contains(&second_gap),
+        (second_gap - saved_blank_pitch(&core, 210)).abs() <= source_grid_slack(),
         "<그림 4-7> 캡션은 빈 후속 줄 하나 뒤여야 한다: gap {second_gap:.1}"
     );
 }
@@ -201,7 +217,11 @@ fn issue_7345_page_top_spacing_keeps_following_items_on_the_stored_axis() {
     let first = line_top(&nodes, 4, 194).expect("쪽 머리 문단 194");
     let next = line_top(&nodes, 4, 195).expect("문단 195");
     assert!(
-        ((next - first) - 80.8).abs() < 0.5,
+        {
+            let ps = &core.document().sections[4].paragraphs;
+            let saved_delta = ps[195].line_segs[0].vertical_pos - ps[194].line_segs[0].vertical_pos;
+            ((next - first) - hwpunit_to_px(saved_delta, 96.0)).abs() <= source_grid_slack()
+        },
         "쪽 머리 앞 간격만큼 뒤 항목이 위로 갔다: {:.2}",
         next - first
     );
@@ -231,9 +251,23 @@ fn issue_7351_table_fragment_snap_keeps_host_spacing() {
             _ => None,
         })
         .expect("4쪽 문단 42 표 조각");
+    let previous = nodes
+        .iter()
+        .find(|node| {
+            matches!(&node.node_type,
+        RenderNodeType::TextLine(line) if line.para_index == Some(41))
+        })
+        .expect("표 앞 문단의 소유 글줄");
+    let paragraphs = &core.document().sections[0].paragraphs;
+    let saved_spacing = paragraphs[41].line_segs.last().unwrap().line_spacing;
+    let Control::Table(source_table) = &paragraphs[42].controls[0] else {
+        panic!("원본 문단 42 표")
+    };
+    let source_gap = hwpunit_to_px(saved_spacing + source_table.common.margin.top as i32, 96.0);
     assert!(
-        (table - 127.84).abs() < 1.0,
-        "표 조각이 host 앞 간격만큼 위로 붙었다: {table:.2} (정본 127.84)"
+        ((table - previous.bbox.y - previous.bbox.height) - source_gap).abs()
+            <= source_grid_slack(),
+        "표 조각이 앞 문단의 저장 줄간격·표 바깥여백 관계를 잃었다"
     );
 }
 
@@ -260,9 +294,11 @@ fn issue_6761_tac_pictures_share_the_object_baseline() {
     } else {
         (pictures[1], pictures[0])
     };
-    let expected = (tall.bbox.height - low.bbox.height) * 0.85;
+    let stored_line = &core.document().sections[4].paragraphs[195].line_segs[0];
+    let baseline_fraction = stored_line.baseline_distance as f64 / stored_line.line_height as f64;
+    let expected = (tall.bbox.height - low.bbox.height) * baseline_fraction;
     assert!(
-        ((low.bbox.y - tall.bbox.y) - expected).abs() < 0.5,
+        ((low.bbox.y - tall.bbox.y) - expected).abs() <= source_grid_slack(),
         "낮은 그림이 기준선에 앉지 않았다: {:.2} (기대 {expected:.2})",
         low.bbox.y - tall.bbox.y
     );

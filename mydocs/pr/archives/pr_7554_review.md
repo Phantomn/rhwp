@@ -9,7 +9,7 @@ last_verified: 2026-10-04
 
 ## 최종 판정
 
-**머지 보류** — 체리픽 적용 후 통합 head의 focused·전체 회귀와 필수 시각/구조 검증 진행 중. 원 source의 CI·PNG를 통합 검증 통과로 취급하지 않습니다.
+**메인터너 보정 후 수용 가능** — 영향 88·89쪽과 정상 대조군 전체 8쪽의 Native/fresh WASM 증적을 충족하고 회귀를 원본 저장 줄·본문 영역 관계로 보완했습니다. 기존 #7445 이관 범위인 대용량 문서 전체의 잔여 차이는 별도 추적합니다. 최종 통합 회귀·Rust lint·최신 CI가 남습니다.
 
 ## 접수·범위
 
@@ -56,3 +56,11 @@ last_verified: 2026-10-04
 
 - code head `072048a8ae2d19b1140c6b675ebfc234961b84a1`에서 `issue_6761_stored_ladder_boundaries`: **5 PASS / 0 FAIL**. `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --test-threads 8 --no-fail-fast`로 해당 suite와 이름 필터를 지정했습니다.
 - 로그는 ignored `output/pr-review/planet6897-20261004/stage18-full/`에 보존합니다. 검사 통과를 시각 정확도 승인으로 확대하지 않습니다. Native/fresh WASM 직접 시각 검증과 고정 px assertion의 독립 근거 검토는 계속 진행합니다.
+
+## Stage 20 전체 TSV·정상 대조군과 회귀 보정
+
+- 생산 코드 `072048a8ae2d19b1140c6b675ebfc234961b84a1`; 이후 commit은 문서·다른 검사 변경이며 생산 코드가 같습니다. 103쪽 전체 Native/fresh WASM TSV를 산출했고 미달은 양쪽 **24쪽, 최저 17.93315%**입니다. 이미 #7445에 이관됐던 전체 피델리티의 [현재 검증 결과](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5981264035)를 갱신했습니다. 전체 쪽수 일치·전쪽 시각 승인을 이 PR의 새 회귀에 포함하지 않습니다.
+- 직접 수정하는 **88쪽 92.67463%, 89쪽 95.97303%**는 두 backend에서 같습니다. Native의 88·89쪽 review PNG를 직접 열어 그림·캡션의 쪽 소속과 순서를 확인했습니다. `issue2004_cell_image_stack.hwp` 대조군은 PDF·rhwp 모두 실제 **8쪽**이며, 전체 최저 **96.40794%, 미달 0쪽**, 표 조각 4쪽 **99.95278%**입니다. 앞선 계획의 4쪽이라는 표현은 검사 대상 페이지이며 문서 전체 쪽수가 아닙니다. 파일명과 달리 기준 PDF Creator는 Hwp 2022이며 정상 출력이므로 재사용했습니다.
+- `127.84px`, `80.8px`, `BODY_BOTTOM_PX`·고정 gap 범위를 없애고, 표와 앞 글줄 사이의 저장 줄간격+표 바깥여백, 두 문단의 원본 vpos 차이, 용지의 하단·꼬리말 여백, 빈 후속 줄의 원본 pitch, 저장 bl/lh 비율을 검사합니다. 픽셀 반올림 대신 저장 4 HU 격자 오차만 허용합니다. 전체 103쪽 고정 assertion을 제거했으며 그림·캡션의 유일 소유, 다음 쪽 첫 문단, 앞 소제목 비침범은 유지합니다. 새 함수·픽스처를 추가하지 않았습니다.
+- 보정 후 해당 검사 **5 PASS / 0 FAIL**입니다. 측정·실제 배치의 stored-first-margin 공통 helper와 #6797 글자처럼 도형 제외 조건은 유지했습니다. 앞 문단/그림/후속 저장 줄의 원점을 실제 스냅된 cursor로 대조하는 경로와 표 조각의 host 여백 처리를 정상 대조군에서 검증했습니다.
+- [전체 TSV·provenance·대표 PNG](../assets/planet6897_20261004/7554-stage20/results.json)를 보존합니다. 로그는 ignored `output/pr-review/planet6897-20261004/stage20-7554/`입니다. Rust lint·통합 전체 nextest·최신 source head/CI를 완료한 뒤 최종 통합 판정을 확정합니다.
