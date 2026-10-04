@@ -23,12 +23,58 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
+use rhwp::model::control::Control;
+use rhwp::model::paragraph::Paragraph;
+use rhwp::model::table::Table;
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 use rhwp::DocumentCore;
 
 const SAMPLE: &str = "samples/hwpx_sample2.hwp";
-/// 정본 19쪽 중첩 1×2 표의 세로 괘선 길이(96dpi px).
-const ORACLE_NESTED_TABLE_PX: f64 = 107.6;
+// 저장 그림 기하와 유효 안 여백은 렌더 결과와 독립인 행 높이 하한이다.
+fn picture_row_floor(paragraphs: &[Paragraph]) -> Option<f64> {
+    for para in paragraphs {
+        for ctrl in &para.controls {
+            if let Control::Table(table) = ctrl {
+                if table.row_count == 1 && table.col_count == 2 {
+                    for cell in &table.cells {
+                        for cp in &cell.paragraphs {
+                            for cc in &cp.controls {
+                                if let Control::Picture(pic) = cc {
+                                    let padding = |value: i16, fallback: i16| {
+                                        if cell.apply_inner_margin && value >= 0 {
+                                            value
+                                        } else {
+                                            fallback
+                                        }
+                                    };
+                                    let top = padding(cell.padding.top, table.padding.top);
+                                    let bottom = padding(cell.padding.bottom, table.padding.bottom);
+                                    return Some(
+                                        (f64::from(pic.common.height)
+                                            + f64::from(pic.common.vertical_offset)
+                                            + f64::from(top)
+                                            + f64::from(bottom))
+                                            / 75.0,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                if let Some(height) = nested_picture_floor(table) {
+                    return Some(height);
+                }
+            }
+        }
+    }
+    None
+}
+fn nested_picture_floor(table: &Table) -> Option<f64> {
+    table
+        .cells
+        .iter()
+        .find_map(|cell| picture_row_floor(&cell.paragraphs))
+}
 
 fn collect<'a>(node: &'a RenderNode, depth: usize, out: &mut Vec<(usize, &'a RenderNode)>) {
     out.push((depth, node));
@@ -42,6 +88,10 @@ fn split_nested_row_keeps_sibling_square_picture_height() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE);
     let doc =
         DocumentCore::from_bytes(&std::fs::read(path).expect("공개 회귀 문서")).expect("문서 파싱");
+    let expected_floor = picture_row_floor(std::slice::from_ref(
+        &doc.document().sections[0].paragraphs[182],
+    ))
+    .expect("대상 문단 중첩 그림의 독립 행 높이 하한");
     let tree = doc.build_page_render_tree(18).expect("19쪽");
     let mut nodes = Vec::new();
     collect(&tree.root, 0, &mut nodes);
@@ -61,8 +111,8 @@ fn split_nested_row_keeps_sibling_square_picture_height() {
         .expect("그림을 품은 중첩 표");
 
     assert!(
-        (nested.height - ORACLE_NESTED_TABLE_PX).abs() <= 1.5,
-        "19쪽 중첩 1×2 표 높이 {:.2}px 이 정본 {ORACLE_NESTED_TABLE_PX}px 에서 벗어났다. \
+        (nested.height - expected_floor).abs() <= 1.5,
+        "19쪽 중첩 1×2 표 높이 {:.2}px 이 저장 그림·오프셋·안 여백 하한 {expected_floor}px 에서 벗어났다. \
          글줄 조각 합만으로 조각 상자를 정하면 옆 칸 Square 그림이 정하는 행 높이를 잃는다.",
         nested.height
     );
