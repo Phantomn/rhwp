@@ -810,7 +810,10 @@ Native geometry를 복사하지 않으며 같은 font-face CSS만 적용한다.
 임시39쪽 출력: `output/pr-review/pr7518-20261004/p39-frame-native/regulatory-p39-frame/`
 및 `p39-frame-wasm/regulatory-p39-frame/`. 대표 PNG·JSON·명령·로그는
 [안정 asset](../assets/pr7518_p39_wrapper_flow_20261005/validation.json)에 보존한다.
-이번 사용자39쪽 최종 시각 판정은 아직 기록하지 않았다. 이후 PR 갱신 시 검증/asset을
+2026-10-05 사용자는 “39쪽 시각 판정 통과입니다.”라고 승인했다. 이 판정은
+source `2869859ee38461645235978f6c05604013c05430`의 76076 문서 39쪽과
+아래 비교 PNG에 적용한다. 남은 분할 검사 4개·33쪽 좌표 검사 1개의 실패와
+미실행 제출 검증은 이 시각 승인으로 해소하지 않는다. 이후 PR 갱신 시 검증/asset을
 정확한 public head로 고정해 본문에 실제 Markdown 이미지로 표시한다. 원격 게시·push·
 merge·원PR close는 이번39쪽 구현 실행에서 수행하지 않았다.
 
