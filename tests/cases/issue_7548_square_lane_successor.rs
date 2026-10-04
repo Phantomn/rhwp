@@ -21,8 +21,6 @@ const SAMPLE: &str = "samples/21_언어_기출_편집가능본.hwp";
 const PAGE_INDEX: u32 = 13;
 const HOST_PARA: usize = 299;
 const SUCCESSOR_PARA: usize = 300;
-/// 저장 LineSeg 의 pi=299 마지막 줄 → pi=300 첫 줄 vpos 간격(1816HU).
-const STORED_PITCH_PX: f64 = 1816.0 / 75.0;
 
 #[derive(Debug, Clone)]
 struct Line {
@@ -44,7 +42,9 @@ fn collect(node: &RenderNode, lines: &mut Vec<Line>, tables: &mut Vec<(f64, f64,
                 });
             }
         }
-        RenderNodeType::Table(_) => {
+        RenderNodeType::Table(table)
+            if table.para_index == Some(HOST_PARA) && table.cell_context.is_none() =>
+        {
             tables.push((node.bbox.x, node.bbox.y, node.bbox.width, node.bbox.height));
         }
         _ => {}
@@ -54,29 +54,32 @@ fn collect(node: &RenderNode, lines: &mut Vec<Line>, tables: &mut Vec<(f64, f64,
     }
 }
 
-fn page_lines() -> (Vec<Line>, (f64, f64, f64, f64)) {
+fn page_lines() -> (Vec<Line>, (f64, f64, f64, f64), f64) {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE);
     let bytes = fs::read(path).expect("read 21_언어 fixture");
     let core = DocumentCore::from_bytes(&bytes).expect("parse 21_언어 fixture");
+    // 한컴 입력의 저장 줄 간격을 독립 기준으로 읽는다.
+    let paragraphs = &core.document().sections[0].paragraphs;
+    let host_vpos = paragraphs[HOST_PARA]
+        .line_segs
+        .last()
+        .expect("host 저장 마지막 줄")
+        .vertical_pos;
+    let next_vpos = paragraphs[SUCCESSOR_PARA]
+        .line_segs
+        .first()
+        .expect("다음 문단 저장 첫 줄")
+        .vertical_pos;
+    let stored_pitch = f64::from(next_vpos - host_vpos) / 75.0;
     let page = core
         .build_page_render_tree(PAGE_INDEX)
         .expect("render 14쪽");
     let mut lines = Vec::new();
     let mut tables = Vec::new();
     collect(&page.root, &mut lines, &mut tables);
-    // 꺾쇠 표: 폭이 좁고(본문 줄보다 훨씬 좁음) host 줄들과 세로로 겹치는 유일한 표.
-    let host_top = lines
-        .iter()
-        .filter(|l| l.para == HOST_PARA)
-        .map(|l| l.y)
-        .fold(f64::INFINITY, f64::min);
-    let bracket = tables
-        .iter()
-        .copied()
-        .filter(|(_, y, w, h)| *w < 40.0 && *y < host_top + 40.0 && y + h > host_top)
-        .collect::<Vec<_>>();
-    assert_eq!(bracket.len(), 1, "pi=299 의 [A] 꺾쇠 표 하나: {tables:?}");
-    (lines, bracket[0])
+    // 꺾쇠 표는 host 문단의 최외곽 제어 소유로 선택한다. 렌더 폭·좌표에 의존하지 않는다.
+    assert_eq!(tables.len(), 1, "pi=299 의 [A] 꺾쇠 표 하나: {tables:?}");
+    (lines, tables[0], stored_pitch)
 }
 
 fn line(lines: &[Line], para: usize, line: u32) -> &Line {
@@ -88,7 +91,7 @@ fn line(lines: &[Line], para: usize, line: u32) -> &Line {
 
 #[test]
 fn issue_7548_successor_first_line_keeps_stored_pitch_beside_square_table() {
-    let (lines, (_, table_y, _, table_h)) = page_lines();
+    let (lines, (_, table_y, _, table_h), stored_pitch) = page_lines();
     let host_last = lines
         .iter()
         .filter(|l| l.para == HOST_PARA)
@@ -97,8 +100,8 @@ fn issue_7548_successor_first_line_keeps_stored_pitch_beside_square_table() {
     let first = line(&lines, SUCCESSOR_PARA, 0);
     let gap = first.y - host_last.y;
     assert!(
-        (gap - STORED_PITCH_PX).abs() < 0.5,
-        "pi=300 첫 줄은 host 마지막 줄에서 저장 줄 간격({STORED_PITCH_PX:.1}px)만큼 아래다 \
+        (gap - stored_pitch).abs() < 0.5,
+        "pi=300 첫 줄은 host 마지막 줄에서 저장 줄 간격({stored_pitch:.1}px)만큼 아래다 \
          — 표 하단으로 밀리면 안 된다: gap={gap:.1}"
     );
     assert!(
@@ -111,7 +114,7 @@ fn issue_7548_successor_first_line_keeps_stored_pitch_beside_square_table() {
 
 #[test]
 fn issue_7548_successor_first_line_is_in_table_lane_and_second_line_is_full_width() {
-    let (lines, (table_x, _, table_w, _)) = page_lines();
+    let (lines, (table_x, _, table_w, _), _) = page_lines();
     let first = line(&lines, SUCCESSOR_PARA, 0);
     let second = line(&lines, SUCCESSOR_PARA, 1);
     assert!(

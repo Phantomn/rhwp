@@ -9,7 +9,7 @@ last_verified: 2026-10-04
 
 ## 최종 판정
 
-**머지 보류** — 체리픽 적용 후 통합 head의 focused·전체 회귀와 필수 시각/구조 검증 진행 중. 원 source의 CI·PNG를 통합 검증 통과로 취급하지 않습니다.
+**개별 차선 변경 범위 검증 통과·통합 머지 보류** — 기존 검사 선택 조건을 의미 기반으로 보정하고 영향 14쪽·대조 201쪽의 Native/fresh WASM과 PNG를 확인했습니다. 나머지 원 PR 및 통합 최종 검증은 진행 중입니다.
 
 ## 접수·범위
 
@@ -53,3 +53,16 @@ last_verified: 2026-10-04
 ## 다음 단계
 
 원 PR 단위로 실패 원인과 증적을 먼저 분석하고, 필요한 보정은 코드 수정·결과 보고·커밋을 완료한 뒤 다음 보정으로 진행합니다. 통합 code candidate의 최종 검증 뒤 수용 판정·contributor 후속 comment 계획을 확정합니다. 아직 원 PR 또는 통합 PR을 병합한 것으로 표시하지 않습니다.
+
+## 2026-10-04 메인터너 보정과 직접 검토
+
+- 생산 후보 `4cfe96e52`. `samples/21_언어_기출_편집가능본.hwp`와 독립 `pdf/21_언어_기출_편집가능본-2022.pdf` **14쪽** Native/fresh WASM **98.67045%**. 대조 `samples/task1725/text_footnote_tail_overpagination.hwp` / `pdf/task1725/text_footnote_tail_overpagination-hwp-2024.pdf` **201쪽** **97.65430%**. 선택한 2쪽 모두 미달·누락 0이며 전체 문서 점수·쪽수 검증으로 확대하지 않습니다. 이 PR의 기존 회귀는 전체 쪽수 대신 14쪽 문단 소속을 확인합니다.
+- 두 review PNG를 직접 열었습니다. 14쪽의 pi=300 첫 줄이 [A] 꺾쇠 표 옆 차선에서 시작하고 둘째 줄은 전폭으로 돌아오며, host 마지막 줄에서 이어집니다. 201쪽 표·본문과 다음 표 위치도 보존됩니다. 201쪽 화살촉의 잉크 크기 차이는 남아 있으며 차선 수정이 해결했다고 주장하지 않습니다. 이 대조 쪽의 전체 화소 완전 일치를 승인하는 기록은 아닙니다.
+- 기존 `issue_7548_square_lane_successor.rs`에서 표 선택 `width < 40px`, `host_top + 40px`를 제거했습니다. host 문단 299가 소유하는 최외곽 TableNode를 선택하므로 폭·위치가 조정되어도 대상이 유지됩니다. 고정 1816HU 간격 상수도 입력의 host 마지막 LineSeg와 다음 문단 첫 LineSeg vpos 차이에서 읽도록 보정했습니다. 실제 판정은 저장 간격·차선/전폭·표 띠 소속 관계를 유지합니다. 새 검사 추가나 기대값 완화는 없습니다.
+- 수정한 `regression_suite_008` 기존 **2/2 PASS**. 실행 로그는 ignored `output/pr-review/planet6897-20261004/stage13-7557-nextest.log`에 있습니다.
+- 코드 대조에서 layout/typeset이 같은 `square_successor_starts_beside_table`을 소비합니다. 정상 저장 host의 좁은 첫 줄 차선과 successor 첫 줄이 겹치는지 판단하며 빈 sw·구현 합성 줄을 제외합니다. 저장 전폭 한 줄을 기준으로 cs 차이를 반영해 왼 여백을 두 번 더하지 않습니다. 저장 줄 없는 host의 선행 공통 flow plan과 #7564 쪽 기준 분기 우선순위는 보존했습니다.
+- [결과](../assets/planet6897_20261004/7557-stage13/results.json), [14쪽 PNG](../assets/planet6897_20261004/7557-stage13/native_review_p014.png), [201쪽 대조 PNG](../assets/planet6897_20261004/7557-stage13/native_review_p201.png). 실행 바이너리·입력·PDF·글꼴·스크립트 해시와 TSV를 함께 보존했습니다. fresh WASM은 stage8 로컬 대체 빌드이며 실제 Studio Canvas 또는 Docker 최적화 검증으로 확대하지 않습니다.
+
+### 병합 후 기여자 설명 계획
+
+기여자께 공통 차선 판정의 측정·배치 일관성과 표 선택의 좌표 의존성을 제거한 메인터너 보정 이유를 설명드립니다. 통합 merge SHA·최신 CI·정본 링크·merge SHA 고정 PNG를 안내합니다. #7548의 남은 일반화 작업과 관련 원본 자료는 보존합니다.
