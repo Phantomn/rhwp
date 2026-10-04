@@ -36,6 +36,8 @@ pub struct ResolvedCharStyle {
     /// [#7051] 언어 슬롯별로 선언 글꼴이 **HFT 한글 전용 face** 여서 치환됐는지.
     /// 그런 글꼴의 ASCII 는 한컴이 반각으로 전진시킨다(측정 전용).
     pub font_families_hft_hangul: Vec<bool>,
+    /// 언어 슬롯이 대체되지 않은 원본 HFT 기호 전각 폭을 갖는지.
+    pub font_families_hft_fullwidth_dot: Vec<bool>,
     /// [#7418] 한/글이 한글 뒤 ASCII 구두점도 **영문 슬롯** 글꼴로 재고 그리는가.
     ///
     /// 영문 슬롯이 한컴 옛 영문 글꼴(`LegacyLatin` 치환)이고 그 치환이 **한글 글리프가 없는
@@ -138,6 +140,7 @@ impl Default for ResolvedCharStyle {
             font_families: Vec::new(),
             font_families_metric_trusted: Vec::new(),
             font_families_hft_hangul: Vec::new(),
+            font_families_hft_fullwidth_dot: Vec::new(),
             ascii_punct_latin_slot: false,
             font_families_metric_face: Vec::new(),
             font_space_em: None,
@@ -213,6 +216,21 @@ impl ResolvedCharStyle {
             0
         };
         self.font_families_hft_hangul
+            .get(slot)
+            .copied()
+            .unwrap_or(false)
+    }
+
+    /// 대체되지 않은 HFT 기호 슬롯의 원본 전각 전진을 보존한다.
+    pub fn hft_fullwidth_dot_for_lang(&self, lang_index: usize) -> bool {
+        let slot = if lang_index < self.font_families.len()
+            && !self.font_families[lang_index].is_empty()
+        {
+            lang_index
+        } else {
+            0
+        };
+        self.font_families_hft_fullwidth_dot
             .get(slot)
             .copied()
             .unwrap_or(false)
@@ -554,6 +572,7 @@ pub(crate) fn resolve_styles_with_environment(
                             || matches!(target, "휴먼명조" | "HumanMyeongJo"));
                     if explicit_true_type {
                         style.font_families_hft_hangul[lang] = false;
+                        style.font_families_hft_fullwidth_dot[lang] = false;
                         style.font_families_metric_face[lang] = None;
                     }
                 }
@@ -653,6 +672,7 @@ fn resolve_single_char_style(cs: &CharShape, doc_info: &DocInfo, dpi: f64) -> Re
     let mut font_families = Vec::with_capacity(LANG_COUNT);
     let mut font_families_metric_trusted = Vec::with_capacity(LANG_COUNT);
     let mut font_families_hft_hangul = Vec::with_capacity(LANG_COUNT);
+    let mut font_families_hft_fullwidth_dot = Vec::with_capacity(LANG_COUNT);
     let mut font_families_metric_face: Vec<Option<String>> = Vec::with_capacity(LANG_COUNT);
     let mut letter_spacings = Vec::with_capacity(LANG_COUNT);
     let mut ratios = Vec::with_capacity(LANG_COUNT);
@@ -678,6 +698,7 @@ fn resolve_single_char_style(cs: &CharShape, doc_info: &DocInfo, dpi: f64) -> Re
         );
         font_families_hft_hangul
             .push(decision.substitution_boundary == Some(FontSubstitutionBoundary::Hft));
+        font_families_hft_fullwidth_dot.push(decision.alt_type == Some(2) && !substituted);
         // [#7391] legacy-latin 폴백이 선언 face 를 한글 face 로 보내면서, 우리가 이미 가진
         // 그 face 자신의 폭 표를 버리는 경우만 되돌린다. HFT/TTF 경계는 손대지 않는다 —
         // HFT 한글 전용 face 의 반각 ASCII 회계(#7051)가 치환된 이름에 걸려 있다.
@@ -755,6 +776,7 @@ fn resolve_single_char_style(cs: &CharShape, doc_info: &DocInfo, dpi: f64) -> Re
         font_families,
         font_families_metric_trusted,
         font_families_hft_hangul,
+        font_families_hft_fullwidth_dot,
         ascii_punct_latin_slot,
         font_families_metric_face,
         font_space_em,

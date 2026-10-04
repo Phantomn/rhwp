@@ -2857,7 +2857,7 @@ impl LayoutEngine {
                         None,
                         false,
                         false,
-                        false,
+                        0.0,
                         Some((Some(left), top)),
                         Self::standalone_table_char_border_fill(Some(para), table, styles),
                     );
@@ -2897,7 +2897,7 @@ impl LayoutEngine {
                         None,
                         false,
                         false,
-                        false,
+                        0.0,
                         None,
                         Self::standalone_table_char_border_fill(Some(para), table, styles),
                     );
@@ -3786,7 +3786,7 @@ impl LayoutEngine {
                     None,
                     false,
                     false,
-                    false,
+                    0.0,
                     None,
                     Self::standalone_table_char_border_fill(Some(para), tbl, styles),
                 );
@@ -3844,7 +3844,7 @@ impl LayoutEngine {
                 None,
                 false,
                 false,
-                false,
+                0.0,
                 None,
                 Self::standalone_table_char_border_fill(Some(para), tbl, styles),
             );
@@ -8701,7 +8701,7 @@ impl LayoutEngine {
                                     None,
                                     false,
                                     false,
-                                    false,
+                                    0.0,
                                     None,
                                     Self::standalone_table_char_border_fill(Some(p), t, styles),
                                 );
@@ -9790,7 +9790,7 @@ impl LayoutEngine {
                                         None,
                                         false,
                                         false,
-                                        false,
+                                        0.0,
                                         None,
                                         Self::standalone_table_char_border_fill(Some(p), t, styles),
                                     );

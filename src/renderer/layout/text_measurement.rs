@@ -834,6 +834,7 @@ pub(crate) fn resolved_to_text_style(
             font_space_em: cs.font_space_em,
             layout_half_space: false,
             hft_hangul_face: styles.hft_ascii_halfwidth && cs.hft_hangul_face_for_lang(lang_index),
+            hft_fullwidth_dot: cs.hft_fullwidth_dot_for_lang(lang_index),
             font_size: cs.font_size_for_lang(lang_index),
             color: cs.text_color,
             bold: cs.bold,
@@ -1516,7 +1517,16 @@ pub(crate) fn char_width_decision<'a>(
                 embedded.metric,
                 embedded.character_match,
             )
-        } else if cluster_len[i] > 1 || is_cjk_char(c) || is_fullwidth_symbol(c) {
+        // 원본 HFT 한점 리더의 전진은 전각이다. 폭 표에서 그 글자만 빠졌을 때
+        // 일반 반각 폴백으로 좁히면 뒤 글자가 앞당겨진다. 기존 메트릭 hit는 보존한다.
+        } else if cluster_len[i] > 1
+            || is_cjk_char(c)
+            || is_fullwidth_symbol(c)
+            || (latin.is_none()
+                && style.hft_fullwidth_dot
+                && embedded.metric.is_some()
+                && c == '\u{2024}')
+        {
             (
                 font_size,
                 "heuristicFullwidth",

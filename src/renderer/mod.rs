@@ -393,6 +393,9 @@ pub struct TextStyle {
     /// 측정 결정에만 쓴다 — 레이어 트리 직렬화 바이트를 보존하려고 직렬화에서 뺀다.
     #[serde(skip_serializing)]
     pub hft_hangul_face: bool,
+    /// 원본 한글 HFT 기호 슬롯의 전각 폭 보존 여부. ASCII 반각 판정과 별개다.
+    #[serde(skip_serializing)]
+    pub hft_fullwidth_dot: bool,
     /// [#7418] 이 run 이 한글 슬롯이고 글자 모양이 `ascii_punct_latin_slot` 이면, ASCII
     /// 구두점을 잴 때 쓸 **영문 슬롯**의 기본 메트릭. run 을 쪼개지 않고 글자 단위로 폭만
     /// 영문 슬롯으로 잰다(#7051 HFT 반각 ASCII 와 같은 자리). 양쪽 정렬 여분 등 배치가 얹는
@@ -593,6 +596,7 @@ impl Default for TextStyle {
             font_space_em: None,
             layout_half_space: false,
             hft_hangul_face: false,
+            hft_fullwidth_dot: false,
             ascii_punct_latin: None,
         }
     }
