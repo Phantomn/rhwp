@@ -436,3 +436,79 @@ p34 84.06333%의 원 점수를 유지한다. 이 지표는 엄격 픽셀 일치�
 사용자 지시가 이 작업의 일반 90% 시각 게이트보다 우선하므로 같은 수용을 재확인하지 않고
 최신 base 통합과 정식 회귀·lint·새 head 출력 검증을 계속한다.
 다른 대조군의 누락·중복·불필요한 빈 쪽이나 기존 검사 실패까지 이 판정으로 통과 처리하지 않는다.
+
+### 최신 devel 통합과 사용자 시각 판정 적용
+
+최신 base `731de9e1b4bb946d76f35108ed7e186ebe4ebecb`(#7568)를 실제 작업 branch에
+통합했다. 위 다섯 conflict는 merge commit `d76cd8075c5e98f10da1b48f3af72155d9f3d40d`에서
+해결했다. contributor의 원 code·asset commit과 이전 메인터너 보정 history를 유지했다.
+`checkpoint/pr7518-before-7568-20261004`에 통합 전 상태도 보존했다.
+
+| 충돌 경로 | 최종 소비 계약 |
+| --- | --- |
+| `height_measurer.rs`, `table_layout.rs` | 재조판 nested host는 cut과 같은 cell-unit 원장을 측정한다. 최신 devel의 NO_LS TAC host 뒤 간격도 그 원장에 포함한다. 그 밖의 collapsed/all-NO_LS 경로는 최신 처리를 유지한다. |
+| `table_partial.rs` | 최신 저장 block-reset opening과 재조판 complete-content/physical-tail의 정렬 소유를 각 실제 cut 경로에서 유지한다. |
+| `block/prepare.rs` | 저장 body-filling frame의 새 outer-top은 유지하고 확정 빈 재조판 host의 top은 중복 열지 않는다. |
+| `fragment/emit.rs` | 빈 그림 띠의 물리 높이, 재조판 행의 physical tail, 저장 frame의 남은 높이는 각각의 실제 호출 분기로 이월한다. |
+
+같은 원본 HWP/PDF·글꼴 경로로 Native와 fresh WASM의 76076 33·34쪽을 다시 산출했다.
+source SHA는 위 merge code이며 renderer diff는 없다. 이후 test-only commit
+`f961b773935d823859efca682c6b2f1b926b6acb`는 renderer·WASM을 변경하지 않는다.
+Native CLI SHA-256은 `200ada66a6f0e582d58d4f28fd41acb308bd94716db78c98eea195a63b38d33d`,
+pkg/Studio public/캐시를 끈 CDP 실제 응답 WASM은 모두
+`7353d24cde4f554b6bef0bb14e5053e5c9004db093058ac974290642f221b6f8`다.
+
+| 새 직접 출력 | Native | fresh WASM | 판독 |
+| --- | ---: | ---: | --- |
+| 76076 p33 | 85.78689% | 85.78689% | 작은 두 표·다음 표의 보정 원점 유지, 사용자 시각 수용 범위 |
+| 76076 p34 | 86.67962% | 86.67962% | 최신 outer-top 보존으로 기준 괘선에 가까워짐, 사용자 시각 수용 범위 |
+| nested-split p1–p4 최저 | 97.68812% | 97.68812% | 2쪽 빈 셀 윤곽·3쪽 그림 안여백과 다음 행·4쪽 이어받기 유지 |
+
+각 backend의 해당 review PNG를 모두 열어 직접 비교했고, 76076 p33과 nested-split p3의
+standalone overlay도 직접 확인했다. 76076 자동 gate의 `re_review_required`는 그대로 보존한다.
+일반 90% 조건을 코드로 낮추지 않고 이번 사용자 명시 수용을 해당 비교 범위에 적용한다.
+증적 root는 `output/pr-review/pr7518-20261004/` 아래
+`integration-7568-regulatory-{native,wasm}/regulatory-integration`과
+`integration-7568-nested-{native,wasm}/nested-integration`다.
+각 `run_manifest.json`에 source·입력·PDF hash와 실행 인수를 고정했다.
+명령 원문과 점수는 `logs/integration-7568-{regulatory,nested}-{native,wasm}.log` 및
+각 root의 `summary.json`에 있다.
+
+CDP `cdp-regulatory-integration/result.json`은 새 WASM 제공 해시, source outer-top,
+작은 표 사이 before/body/after 한 번 소비, 뒤 큰 표의 인접 여백, 빈 split-host 글줄
+비생성, p33/p34 Native/WASM 표 좌표 일치, 브라우저 오류 부재를 확인하여 8/8 PASS다.
+실행은 `VITE_URL=http://localhost:7718 CHROME_CDP=http://localhost:19222 node
+output/pr-review/pr7518-20261004/cdp-regulatory-integration.mjs`이며 새 탭만 사용했다.
+
+정식 source `tests/cases/issue_7518_reflow_row_physical_frame.rs`에
+`empty_reflow_table_hosts_consume_the_source_margins_once`를 추가했다. 실제 source 속성으로
+앞 subtitle의 줄 점유·첫 표 outer-top·인접 표의 bottom/top 여백 관계와 325 host 글줄
+비생성을 검사하며 절대 픽셀 원점을 고정하지 않는다. 같은 compiled formal harness에서
+수정 전 immutable CLI `rhwp-integration-3d2354584`는 첫 host 위 여백 누락으로 FAIL,
+현재 `rhwp-integration-d76cd8075`는 PASS다. 이는 환경·빌드 실패가 아니다.
+증거는 `logs/integration-7568-empty-host-{before,after}.log`다.
+
+현재 source를 새로 링크한 focused 결과는 아래와 같다. 실행 명령은
+`node scripts/run-rust-test.mjs --cargo-test <case> -- --target-dir
+/home/edward/mygithub/rhwp/target/pr-review`이며 case별 로그를 보존했다.
+
+| 실제 검사 | 결과 | 증적 |
+| --- | --- | --- |
+| `issue_7418_host_text_and_split_row_geometry` | 7/7 PASS: stored/synthesized host·TAC 간격·continuation outer-top 등 정상 대조 | `logs/integration-7568-focused-7418.log` |
+| `issue_7422_recomposed_cell_frame_uses_paragraph_margins` | 1/1 PASS: 재조판 셀의 본래 문단 프레임 | `logs/integration-7568-focused-7422.log` |
+| `issue_7500_no_lineseg_trailing_whitespace_line` | 4/4 PASS: 원 TAC 줄·그림 소속 | `logs/integration-7568-focused-7500.log` |
+| `issue_7518_reflow_row_physical_frame` | 13 PASS / 기존 4 FAIL; 새 여백 검사는 PASS | `logs/integration-7568-focused-7518.log` |
+
+기존 실패 중 auto/mixed의 마지막 outer-row fragment 개수와 follower의 nested-table
+fragment 개수는 그 자체로 내용 중복을 입증하지 않는다. 실제 유닛 소유로 대조할 대상이다.
+한편 auto 대조군은 현재 Native 7쪽 / 동일 입력 한컴 PDF 8쪽이며 4·5·7쪽 직접 비교에서
+UNIT의 쪽 소속과 프레임 여백 차이가 확인된다. `integration-7568-auto-native/auto-integration`
+및 `integration-7568-auto-tree`에 현재 출력과 원본을 보존했다. p5 88.51980%, p7 73.02188%를
+76076 사용자 수용으로 통과 처리하지 않는다. mixed의 마지막 빈 쪽도 별도 원인 대상으로 남긴다.
+작은 영향 경계가 아직 해결되지 않아 비용이 큰 전체 회귀를 먼저 반복하지 않았다.
+
+최신 base 대비 manifest check는 통합 전의 옛 네 source 이동 문제를 해소하여 PASS했다.
+test-only commit의 필수 fmt·Native/WASM/workspace-all-targets 세 Clippy·workspace build·manifest
+순차 검증은 모두 PASS했다. `integration-7568-lint.sh` 및 `logs/integration-7568-lint.log`에
+명령과 완료 결과가 있다. 같은 base의 source-unit tier check도 PASS다.
+이 결과를 전체 회귀·최종 PR 제출·remote 통합의 완료로 대신하지 않는다.
