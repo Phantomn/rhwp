@@ -1997,6 +1997,36 @@ impl ParagraphFloatPlacement {
         .then_some(position)
     }
 
+    /// Preserve the same formatted before/body/after box in whole fit and paint.
+    /// No text line is inferred from an empty control-only host.
+    pub(crate) fn from_empty_reflow_host(
+        para: &Paragraph,
+        table: &Table,
+        origin: f64,
+        table_height: f64,
+        before: f64,
+        after: f64,
+    ) -> Option<Self> {
+        if !reflow_empty_table_host(para, table)
+            || ![origin, table_height, before, after]
+                .iter()
+                .all(|value| value.is_finite())
+            || table_height < 0.0
+        {
+            return None;
+        }
+        let table_top = origin + before;
+        Some(Self {
+            flow: ParagraphFloatFlow::Exclusion,
+            anchor_y: origin,
+            stored_host_origin: None,
+            stored_successor_line_origin: None,
+            table_left: None,
+            table_top,
+            occupied_bottom: table_top + table_height + after,
+        })
+    }
+
     /// 저장 LineSeg 대신 현재 frame에서 계산된 줄로 앵커를 결정한다.
     /// 모든 호스트 줄이 표보다 앞서는 계약만 소유하며, 혼합 배치를 임의로
     /// 본문 뒤 배치로 바꾸지 않는다. source의 UTF-16 위치/높이는 읽지 않는다.
@@ -2731,6 +2761,19 @@ pub(crate) fn is_para_topbottom_float(common: &CommonObjAttr) -> bool {
     !common.treat_as_char
         && matches!(common.text_wrap, TextWrap::TopAndBottom)
         && matches!(common.vert_rel_to, VertRelTo::Para)
+}
+
+/// With no stored line anchor, an empty block host places its sole flow table
+/// inside the before/after space already reserved by table formatting. Text and
+/// whitespace hosts retain their own line boxes; explicitly positioned objects
+/// and saved frames have different origins.
+pub(crate) fn reflow_empty_table_host(para: &Paragraph, table: &Table) -> bool {
+    para.text.is_empty()
+        && super::para_has_no_stored_line_segs(para)
+        && matches!(para.controls.as_slice(), [Control::Table(_)])
+        && is_para_topbottom_float(&table.common)
+        && matches!(table.common.vert_align, VertAlign::Top)
+        && signed_hwpunit(table.common.vertical_offset) == 0
 }
 
 /// 쪽·종이 기준 표의 외곽 여백을 포함한 가시 원점과 흐름 하단.

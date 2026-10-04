@@ -426,6 +426,7 @@ impl TypesetEngine {
         let fragment_placement = fragment_placement.map(|mut p| {
             if single_cell_fragment_shape
                 && !is_continuation
+                && !crate::renderer::float_placement::reflow_empty_table_host(para, table)
                 && prepared.host_frame
                     == (
                         st.pages.len(),
