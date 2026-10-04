@@ -661,3 +661,27 @@ text-overlap partition 9는 76076 신규 2건으로 FAIL하며 39쪽의 실제 �
 검사 실패를 숨기기 위한 pin·baseline 변경은 하지 않았다. 전체 회귀와 Native Skia는
 이번 source에서 재실행하지 않았으며 공개 head의 CI 상태도 이번 로컬 검사로 대체하지 않는다.
 예제 PNG·manifest·진단 스크립트와 핵심 로그는 위 tracked asset에 보존한다.
+
+
+### 39쪽 보정 계획 — 펼친 표 내용과 외곽 물리 프레임
+
+사용자는 22쪽과 38쪽을 해결로 판정했다. source 28f4cbbe5의 38쪽 Native
+한컴 비교는 94.06826%다. 39쪽 새 Native 비교는 36.71634%이고, 사용자가 제공한
+한컴 편집 화면에도 제목 뒤 독립 빈 문단과 중첩 표의 순서가 확인된다. 같은 tracked
+76076 원본과 2024 PDF를 독립 기준으로 재사용한다. 두 표 host 모두 실제 저장 LineSeg가 없다.
+
+39쪽 pi370은 1×1 외곽 셀 안에 3×3 표 하나를 가진다. 선언 외곽 높이는 9062HU,
+안쪽 표 측정 높이는 76.28px다. 측정·format은 안쪽 행만 반환하는 반면
+`table_layout.rs`의 unwrap은 셀/안쪽 바깥 여백과 외곽 선언 최소 높이를 소비한다.
+그 결과 표 이후 흐름은 typeset 110.1px, paint 154.6px로 약 44.6px 갈라진다.
+뒤 제목 pi373·빈 문단 pi374는 paint 위치를 따르지만 표 pi375의 새 공유 원점은
+뒤처진 typeset 커서를 사용해 제목 안으로 돌아온다.
+
+생산·소비 경로는 `HeightMeasurer::measure_table_impl`의 안쪽 행 메트릭 →
+`table::format`의 whole 높이/fit → `block/entry.rs`의 flow 예약·확정 원점 →
+`layout.rs`의 원점 소비와 `table_layout.rs`의 외곽 반환 높이다. 펼친 안쪽 행의
+높이와 외곽 물리 점유를 구분한 공통 query를 format과 실제 wrapper 배치가 소비하도록
+수정한다. 외곽 선언값을 안쪽 행에 비례 배분하거나 뒤 표 원점을 clamp하지 않는다.
+외곽 최소 높이보다 내용이 큰 경우, Center/Bottom 외곽 정렬, 저장·HWPX 대조군을
+기존 검사로 확인한다. split의 안쪽 행/내용 컷은 이번 whole-frame 조정과 구분해
+실제 호출 경로와 물리 잔여 공간의 반례를 대조한다.
