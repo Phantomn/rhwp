@@ -6,9 +6,11 @@
 85% 수준 출력을 수용합니다. 자동 측정값과 전역 기준은 바꾸지 않습니다.
 
 - 원 기여자 head: `02845752f76d5539c74df135d950ba5757bd1792` (`kidsnote/rhwp`, `fix/trailing-space-line`).
-- 현재 통합 base: `1d6bc70767fad365b07afe4ef57972d23b140f2b` (`upstream/devel`, #7567 포함).
+- 현재 통합 base: `731de9e1b4bb946d76f35108ed7e186ebe4ebecb` (`upstream/devel`).
+  이전 `1d6bc70767fad365b07afe4ef57972d23b140f2b` 통합 및 아래 회차별 검증은 보존한다.
   아래 이전 회차의 `8497729b4fb0e071c484fc5740f9bb2400bed437` 검증은 역사 기록입니다.
-- 현재 코드 통합 후보: `3d9239eeec32fc60ee188c3f3bc0d9ec5094ec3a`.
+- 현재 코드 통합 후보: `2869859ee38461645235978f6c05604013c05430`.
+  이전 `3d9239eeec32fc60ee188c3f3bc0d9ec5094ec3a` 후보의 결과는 이전 회차 기록이다.
   이전 통합 코드 `3d23545846942137256bc95afbdd8c6390fade42`의 결과는 아래 회차별로 구분한다.
   최초 후보 `55a2800aadc32fc85ed4aa3e8e17f6b169f3b0b0`, tree `40c2a2d91e2b2023c3110f5635ac95cca2e53820`는 보존합니다.
 - 검토 PDF·진단 입력·대표 PNG 보존: `5eb671068d74e2757daf12925017f5f6cdbdd38a`, `d8b98bd325a8233b40430e36a5c3db10283e9889`.
@@ -707,11 +709,111 @@ pi375 안쪽 표의 제시의견 셀은 원본 좌우 안여백 510HU(각 6.8px)
 복구한 글꼴 목록의 맑은 고딕·휴먼명조 누락도 발견했다. SVG의 실제 font name은
 각각 Noto Sans KR ExtraLight/HCR Batang으로 fallback했고 PDF의 실제 face와 달랐다.
 Windows의 Malgun Gothic과 한컴 private TTF의 실제 Human MyeongJo 등을 보충한
-59파일 환경에서
-수정 전후를 다시 캡처한다. 글꼴은 로컬 검증 전용으로 커밋하지 않으며 기존 49파일
+캐시 59파일(TTF/TTC 등 사용 가능한 파일 49개) 환경에서 수정 전후를 다시 캡처한다. 글꼴은 로컬 검증 전용으로 커밋하지 않으며 기존 49파일
 환경의 점수와 구분한다. 글꼴 예외로 배치 결함이나 gate를 면제하지 않는다.
 
 실제 font name 재검사로 HMFMMUEX.TTC는 휴먼모음T/휴먼엑스포임을 확인했다.
 한컴 설치 폴더 `Shared/TTF/Hwp/HMKMM.TTF`의 name table이 휴먼명조인 것을 확인해
 공급했다. 맑은 고딕과 일반 휴먼명조는 실제 face로 출력되고 휴먼명조 bold의
 HCR Batang fallback은 아직 남는다. 이 차이를 숨기거나 글꼴 예외로 처리하지 않는다.
+
+
+### 39쪽 보정 완료 — 2869859ee (2026-10-05)
+
+사용자가 제공한 한컴 편집 화면과 기존 tracked 76076 HWP/2024 PDF를 기준으로
+39쪽의 whole-table 배치를 수정했다. code/test source는
+`2869859ee38461645235978f6c05604013c05430`, fetch 뒤 고정한 base는
+`731de9e1b4bb946d76f35108ed7e186ebe4ebecb`다. [검증 manifest](../assets/pr7518_p39_wrapper_flow_20261005/validation.json)에
+입력/PDF·source file·Native CLI·WASM·글꼴 공급과 asset 해시를 연결한다.
+
+| 원인·생산 결과 | 실제 소비 경로 | 검증 의미·판정 |
+| --- | --- | --- |
+| 안쪽 행 높이와 외곽 프레임을 분리한 `TableWrapperVerticalFrame` | `height_measurer::unwrapped_table_whole_height` → `typeset/table::format` effective height/whole fit → `block/entry` occupied bottom → `layout/table_layout` 같은 frame의 child top/반환 높이 | 원본9062HU 물리 최소와 padding/child margin을 뒤 흐름까지 보존. 정식 source 관계 검사 PASS: 충족 |
+| NO_LS 빈 host의 양수 문단 오프셋 | `float_placement::from_empty_reflow_host` table top/occupied bottom → `block/entry` whole-frame budget·확정 → `layout.rs` 확정 원점/흐름 끝 | offset448HU 및 outer/padding을 한 번 소비. 음수·저장 host·문자/공백·절대 앵커는 재조판 빈 host의 비적용 경로: 충족 |
+| 실제 줄 피치 합과 안높이의 f64 인접값 비교 | `composer::shrunk_cell_horizontal_padding` → 같은 셀 줄 재조판 → 실제 TextLine x/너비·내용·높이 | 좌우510HU 보존·네 줄·셀 내부 표시·내용 무누락/중복. 실제 넘침 대조#7413도 PASS: 충족 |
+| 첫/이어받기 조각의 원점과 물리 공간 | `block/prepare` first fragment placement/host line 소유 → `continuation/fragment/budget` 첫 outer top 소유·예산 → row cut·이월 → partial layout | 실제 기존 continuation 검사와 대조. 7518의 아래4실패는 계속 남으며 전체 pagination 충족 판정으로 확대하지 않음: 미충족/미검증을 별도 기록 |
+
+두 whole 표의 child row 메트릭을 외곽 선언값에 비례 확대하지 않는다. Native wrapper의
+whole 높이는 padding·안쪽 바깥여백·외곽 최소를 포함한 scalar로 예약하며 actual unwrap도
+같은 frame을 소비한다. Center/Bottom의 정렬 공간이 있는 wrapper는 투명 wrapper에서
+제외한다. 기존 stored/HWPX/visible host·float 여백·진짜 넘침 대조 검사는 통과했다.
+새 분기는 문서 번호·쪽 번호·화면 맞춤 상수를 사용하지 않는다.
+
+| 39쪽 실제 최종 배치 | 수정 전28f4cbbe5 | 수정 후2869859ee Native/portable WASM | 독립 기준·의미 |
+| --- | --- | --- | --- |
+| 첫 비교표 pi370 | y115.4 / h76.3 | y117.2 / h76.3 | PDF 상단 괘선117.152px; source 양수 offset와 안쪽 inset |
+| 제목 pi373 → 빈 문단 pi374 | y254.2 → y284.2 | y260.2 → y290.2 | PDF 제목② baseline277.280px; source의 독립 빈 문단 유지 |
+| 의견수렴 표 pi375 | y253.3 / h100.6 | y303.9 / h100.6 | PDF 상단303.668px; 제목/빈 줄 뒤에 배치 |
+| 제시의견 셀 row1,col2 | x479.1, 안여백1px, 3줄 | x484.9, 좌우6.8px, 4줄 | 원본510HU, 한컴 네 줄의 마지막 ‘견’ 및 전체 내용 보존 |
+| 표 뒤 빈 문단 pi376 | y368.1 | y418.6 | visible child뿐 아니라 whole wrapper 점유 끝 뒤 배치 |
+
+위 bbox는 CLI JSON의0.1px 표시값이며 PDF 잉크 경계와 TextLine top을 같은 값으로
+취급하지 않는다. 전체 겹침 진단은82쪽·빈 쪽0·off-canvas0·overflow12를 유지했고
+text-overlap2→0, 일반 overlap1→0이다. 22·33·34·38쪽의 본문 문단/표 bbox는
+28f4cbbe5와 최종 code에서 동일하다. 전쪽 시각 통과의 증거로 확대하지 않는다.
+
+같은59파일 캐시/usable49font 환경에서39쪽2px 관용 내용 실루엣은
+수정 전36.64904%, 수정 후 Native/fresh WASM 모두96.33024%다. 두 PNG 해시가 같고
+자동 `pr_review_gate`는 모두 `passed`다. Native review·standalone overlay와
+fresh WASM review·standalone overlay를 직접 판독해 외곽·빈 줄·앞뒤 본문·셀 네 줄을
+확인했다. 글자 폭/굵기·괘선 두께와 후반 본문의 일부 간격 차이는 남는다.
+일반 휴먼명조는 실제 HMKMM.TTF로 공급되지만 bold face는 HCR Batang fallback이
+남는다. 임계값·baseline·golden·글꼴 예외는 변경하지 않았다.
+
+22·38쪽도 같은 최종 code/font의 Native/fresh WASM으로 새로 비교했다. 각각
+86.44203%/93.41579%이고 backend별 PNG는 각각 동일하다. 사용자는 이전에22·38쪽을
+해결로 판정했고 이번 본문 좌표 대조도 동일하다. 22쪽의 raw `re_review_required`는
+그대로 보존한다. 이 추가 대조의 낮은 수치를39쪽 새 회귀의 기대값으로 사용하지 않는다.
+
+새 정식 회귀3개는 Native/fresh WASM의 검사 관련39쪽 최저96.33024% 및 직접 판독을
+확인한 뒤 기존 `tests/cases/issue_7518_reflow_row_physical_frame.rs`에 추가했다.
+외곽 물리 점유/offset·의도된 빈 줄, 제목→빈 줄→표→뒤 문단, 셀 안여백/네 줄/
+내용 완전성을 실제 최종 좌표로 검사한다. 독립 기대값은 원본 속성과 한컴 PDF/
+편집 화면이며 구현 helper 반환값을 기대값으로 복사하지 않는다. 같은 compiled 검사에
+`CARGO_BIN_EXE_rhwp`로 immutable28f4 CLI를 주면 의도한 원인으로3FAIL,
+최종2869859ee CLI를 주면3PASS다. 환경/빌드 실패를 수정 전 FAIL로 세지 않는다.
+
+필수 fmt, root Native Clippy, WASM32 lib Clippy, workspace build, workspace all-targets
+Clippy, base 고정 suite policy는 모두 PASS다. 처음의 question_mark lint는 source를
+고쳤고, 테스트 포맷 이후 파생 harness weight drift는 `--prepare`로 다시 준비한 뒤
+all-targets Clippy와 base check를 재실행해 해소했다. 초기 실패 로그도 보존한다.
+source-side cfg(test)는 바뀌지 않았다. 파생 harness/manifest는 PR에 포함하지 않는다.
+
+focused nextest는68개 중64PASS/4FAIL이며 text-overlap partition9(73문서)는
+이전76076 신규2건 실패에서 PASS가 됐다. 남은4개는 이전과 같은
+`terminal_physical_tail_is_drawn_after_the_last_content_unit`,
+`auto_height_nested_row_shares_its_reserved_origin_and_child_cut`,
+`one_cell_nested_fragments_reuse_the_child_unit_ledger`,
+`independently_regenerated_reflow_context_preserves_units_and_following_rows`다.
+별도로2308 derived state는4PASS/1FAIL/1ignored로 p33의 기존
+expected y400.4/h636.8 대 actual y402.326667/h636.973333 실패를 유지한다.
+현재 head의 전체 release-test 및 Native Skia3종은 미실행이며 이번 focused 결과로
+대체하지 않는다. PR 제출 준비·전체 CI 성공·merge 완료로 보고하지 않는다.
+
+짧은 종이 예산의 추가 진단은 원본369..378 문단을 수동 IR 축소·raw seal 해제·
+본문140/160/162/220px로 바꾸고 직렬화/재파싱하여 실행했다. 출력은 유한하고
+셀 소유별 내용은 수정 전후 동일했지만 대응 한컴 PDF가 없으므로 조각의 물리
+잔여 공간·끝 컷·후속 빈 밴드의 정확한 배치는 미검증이다. 새 fixture/정식 기대값으로
+고정하지 않으며 원본과 임시 진단은 `output/pr-review/pr7518-20261004/p39-budget-probe-*`에
+보존한다. 위 실제 호출 경로 대조와 기존 검사 통과를 모든 split 분기의 충족으로
+대신하지 않는다.
+
+CDP는 루트 wrapper로 새 빌드한 WASM 실제 응답 = pkg = Studio public 해시
+`cba97aa8b5322cd4a533631a658ef3cbcc154eb7f47a1ae9a77aecaa8d2806a1`을
+캐시 비활성화 새 탭에서 확인했다. 실제 Studio의 문단/표 순서, portable WASM의
+39쪽 셀 안여백/네 줄, Native와39·22·38쪽 최종 bbox, 원82쪽 및 browser error0을
+검사하여10/10PASS다. WASM print SVG는 선택한 쪽만 CDP에서 내보내
+canonical Visual Sweep font-policy/raster/compare/overlay/review helper로 비교했다.
+Native geometry를 복사하지 않으며 같은 font-face CSS만 적용한다.
+전82쪽 WASM PNG 또는 모든 페이지의 시각 일치를 검증했다고 보고하지 않는다.
+
+임시39쪽 출력: `output/pr-review/pr7518-20261004/p39-frame-native/regulatory-p39-frame/`
+및 `p39-frame-wasm/regulatory-p39-frame/`. 대표 PNG·JSON·명령·로그는
+[안정 asset](../assets/pr7518_p39_wrapper_flow_20261005/validation.json)에 보존한다.
+이번 사용자39쪽 최종 시각 판정은 아직 기록하지 않았다. 이후 PR 갱신 시 검증/asset을
+정확한 public head로 고정해 본문에 실제 Markdown 이미지로 표시한다. 원격 게시·push·
+merge·원PR close는 이번39쪽 구현 실행에서 수행하지 않았다.
+
+![39쪽 Native 한컴 비교](../assets/pr7518_p39_wrapper_flow_20261005/native_review_039.png)
+
+![39쪽 fresh WASM standalone overlay](../assets/pr7518_p39_wrapper_flow_20261005/wasm_overlay_039.png)

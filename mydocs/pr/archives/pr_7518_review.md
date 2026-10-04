@@ -2,6 +2,15 @@
 
 ## 최종 판정
 
+2026-10-05 추가 보정 source `2869859ee38461645235978f6c05604013c05430`에서
+39쪽 제목·빈 문단·표의 겹침 및 제시의견 셀의 안여백/줄바꿈을 수정했다.
+Native/fresh WASM2px 관용 실루엣은96.33024%, PNG 동일, CDP10/10 및
+새 실제 좌표 회귀3개 수정 전 FAIL/수정 후 PASS를 확인했다. 사용자가22·38쪽을
+해결로 판정한 상태도 기록한다. 아래 이전 회차 결과와 구분하며 전체 PR 검증 완료나
+새39쪽의 사용자 최종 시각 승인으로 확대하지 않는다. 상세 source/호출 경로·원인·
+증적·남은4분할 검사 및2308 실패는 [최신 구현 기록](pr_7518_review_impl.md)과
+[검증 manifest](../assets/pr7518_p39_wrapper_flow_20261005/validation.json)에 연결한다.
+
 **메인터너 보정 후 수용 가능.** 2026-10-04 사용자는 이번 76076 비교 결과를
 “85% 수준에서 픽셀 일치시키는 수준이면 조판 허용치로는 수용”하며 “시각 판정 통과로 진행”하도록 지시했다.
 이 명시 판정을 현재 검토 source의 33·34쪽 수용 근거로 적용한다.
@@ -272,3 +281,24 @@ API로 본문 한글·선두 BOM·`??` 치환 여부를 재조회한다. 통합 
 ### 대형 통합 후보 경로
 
 기여자 원 변경은 1,000줄 미만이었지만 메인터너 보정·계약 후보·문서를 포함한 통합 후보는 1,000줄을 넘는다. [대형 PR 절차](../../manual/pr_review/rework_and_exceptions.md#113-대형-pr-1000-라인)를 추가로 적용했다. 코드 검토·merge simulation·필수 시각 증거와 작업지시자 판단을 별도 cycle로 진행하며 즉시 admin merge하지 않는다.
+
+
+### 39쪽 추가 시각 증적 (2026-10-05)
+
+39쪽 Native/fresh WASM 자동 gate는90% 기준을 통과했다. 별도 빈 문단과 표의 외곽
+물리 점유, 양수 오프셋과 제시의견의 네 줄을 보존한다. 원본 PDF의 줄·표 경계와
+실제 출력의 같은 영역을 직접 비교했다. 아직 남은 기존 focused 실패와 전체 제출
+검증은 계속 구분한다. 코드·테스트 수정은 로컬 integration branch에 커밋했고
+이번39쪽 처리에서는 원격 PR을 갱신하거나 통합하지 않았다.
+
+![39쪽 Native review](../assets/pr7518_p39_wrapper_flow_20261005/native_review_039.png)
+
+![39쪽 fresh WASM review](../assets/pr7518_p39_wrapper_flow_20261005/wasm_review_039.png)
+
+![39쪽 fresh WASM overlay](../assets/pr7518_p39_wrapper_flow_20261005/wasm_overlay_039.png)
+
+향후 merge 뒤 원 contributor comment에는 이번39쪽의 개선 범위와 남은 글꼴/간격
+차이도 포함한다. 실제 merge SHA로 고정한
+`https://raw.githubusercontent.com/edwardkim/rhwp/<실제-merge-SHA>/mydocs/pr/assets/pr7518_p39_wrapper_flow_20261005/native_review_039.png`
+및 같은 폴더의 `wasm_review_039.png`/`wasm_overlay_039.png`를 Markdown 이미지로
+표시하고, UTF-8 body-file 게시 후 API로 source/asset 및 한글 보존을 확인한다.
