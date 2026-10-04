@@ -119,6 +119,11 @@ pub(super) fn format(
         )
     };
 
+    let effective_height = if profile().hwp5_stored_pagination_layout() {
+        crate::renderer::height_measurer::unwrapped_table_whole_height(table, effective_height, dpi)
+    } else {
+        effective_height
+    };
     let total_height = effective_height + host_spacing.before + host_spacing.after;
 
     // 표 셀 내 각주 높이 사전 계산 (Paginator engine.rs:565-581 동일)
@@ -181,6 +186,13 @@ pub(super) fn fit_measured_for_host(
     dpi: f64,
     profile: impl Fn() -> LayoutCompatibilityProfile,
 ) -> Option<MeasuredTable> {
+    // An outer wrapper's height is a physical frame, not a target height for
+    // proportional rescaling of the unwrapped child's rows.
+    if profile().hwp5_stored_pagination_layout()
+        && crate::renderer::height_measurer::transparent_table_wrapper_child(table).is_some()
+    {
+        return mt.cloned();
+    }
     if profile().hwpx_stored_layout() && !profile().session_edited() {
         if let Some(fitted) =
             mt.and_then(|measured| fit_stored_inline_picture_frame(measured, table, dpi))

@@ -2844,7 +2844,7 @@ impl LayoutEngine {
                         // "안쪽 표 높이 + 상하 여백"으로 그리며, 뒤 흐름도 아래 여백만큼 더 내려간다.
                         // exam_social 1쪽 pi=15 실측: 여백 850HU=11.3px, 안쪽 표·그림 5장이
                         // (+11.3, +11.3), 상자 높이 +22.7px. 여백 0 이면 종전과 같다.
-                        let (pad_l, pad_r, pad_t, pad_b) =
+                        let (pad_l, pad_r, _, _) =
                             self.resolve_cell_padding_for_context(cell, table);
                         // nested 표 위치/size 미리 결정 (nested layout 의 위치 결정 logic 동일)
                         let pw_now = self.current_paper_width.get();
@@ -2893,8 +2893,6 @@ impl LayoutEngine {
                         // 실선에서 (8.7, 3.8) 안쪽 (90.6, 587.0); om 없이는 (88.7, 585.2).
                         let om_l = hwpunit_to_px(nested.outer_margin_left as i32, self.dpi);
                         let om_r = hwpunit_to_px(nested.outer_margin_right as i32, self.dpi);
-                        let om_t = hwpunit_to_px(nested.outer_margin_top as i32, self.dpi);
-                        let om_b = hwpunit_to_px(nested.outer_margin_bottom as i32, self.dpi);
                         // 안쪽 표가 여백을 뺀 내용 상자보다 조금 넓게 저장된 문서(exam_social:
                         // 1.4px)는 한/글처럼 오른쪽 여백으로 흘러넘기고 축소하지 않는다.
                         let inner_area = LayoutRect {
@@ -2903,7 +2901,14 @@ impl LayoutEngine {
                             width: (col_area.width - pad_l - pad_r - om_l - om_r).max(nested_w),
                             height: col_area.height,
                         };
-                        let inner_y_start = y_start + pad_t + om_t;
+                        let wrapper_frame =
+                            crate::renderer::height_measurer::TableWrapperVerticalFrame::new(
+                                table,
+                                nested,
+                                self.dpi,
+                                self.profile.get().hwp5_stored_pagination_layout(),
+                            );
+                        let inner_y_start = y_start + wrapper_frame.child_top;
                         // 글자처럼 상자는 x 를 줄 배치가 준 inline_x_override 로 받으므로 그 값도 옮긴다.
                         let inner_inline_x = inline_x_override.map(|x| x + pad_l + om_l);
 
@@ -2940,19 +2945,7 @@ impl LayoutEngine {
                         // 높이를 지우지 않는다. 관측 가능한 상자는 여전히 외곽1×1표다.
                         // 뒤 흐름과 아래 테두리는 자식·여백과 저장 외곽 높이 중 큰 값을
                         // 함께 소비한다(#6621).
-                        let padded_child_y_end = y_end + om_b + pad_b;
-                        let y_end = if self.profile.get().hwp5_stored_pagination_layout() {
-                            let declared_outer_height = hwpunit_to_px(
-                                crate::renderer::float_placement::signed_hwpunit(
-                                    table.common.height,
-                                )
-                                .max(0),
-                                self.dpi,
-                            );
-                            padded_child_y_end.max(y_start + declared_outer_height)
-                        } else {
-                            padded_child_y_end
-                        };
+                        let y_end = y_start + wrapper_frame.height(y_end - inner_y_start);
                         if let Some(bs_borders) = outer_border_meta {
                             let outer_h_actual = (y_end - outer_y).max(0.0);
                             if outer_h_actual > 0.0 {

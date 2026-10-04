@@ -36,6 +36,83 @@ pub(crate) fn single_table_wrapper_has_vertical_alignment_space(
     i64::from(signed_hwpunit(cell.height)) > content_height
 }
 
+/// The wrapper owns its padding, the child's outer margins and its physical
+/// minimum independently of the child's row/content ledger.
+pub(crate) struct TableWrapperVerticalFrame {
+    pub(crate) child_top: f64,
+    child_bottom: f64,
+    minimum: f64,
+}
+
+impl TableWrapperVerticalFrame {
+    pub(crate) fn new(table: &Table, nested: &Table, dpi: f64, native_hwp5: bool) -> Self {
+        let cell = &table.cells[0];
+        let padding = cell.effective_padding(&table.padding);
+        let mut top = hwpunit_to_px(i32::from(padding.top), dpi);
+        let mut bottom = hwpunit_to_px(i32::from(padding.bottom), dpi);
+        let guard_height = cell.vertical_padding_guard_height_hu(table);
+        if guard_height < 0x80000000 {
+            let height = hwpunit_to_px(guard_height as i32, dpi);
+            if crate::model::table::Cell::vertical_padding_is_abnormal(height, top + bottom) {
+                let scale = height * 0.5 / (top + bottom);
+                top *= scale;
+                bottom *= scale;
+            }
+        }
+        Self {
+            child_top: top + hwpunit_to_px(i32::from(nested.outer_margin_top), dpi),
+            child_bottom: bottom + hwpunit_to_px(i32::from(nested.outer_margin_bottom), dpi),
+            minimum: if native_hwp5 {
+                hwpunit_to_px(signed_hwpunit(table.common.height).max(0), dpi)
+            } else {
+                0.0
+            },
+        }
+    }
+
+    pub(crate) fn height(&self, child_height: f64) -> f64 {
+        (self.child_top + child_height + self.child_bottom).max(self.minimum)
+    }
+}
+
+pub(crate) fn transparent_table_wrapper_child(table: &Table) -> Option<&Table> {
+    let [cell] = table.cells.as_slice() else {
+        return None;
+    };
+    let [para] = cell.paragraphs.as_slice() else {
+        return None;
+    };
+    if table.row_count != 1
+        || table.col_count != 1
+        || para
+            .text
+            .chars()
+            .any(|ch| !ch.is_whitespace() && ch != '\r' && ch != '\n')
+    {
+        return None;
+    }
+    let Some(nested) = para.controls.iter().find_map(|c| match c {
+        Control::Table(t) => Some(t.as_ref()),
+        _ => None,
+    }) else {
+        return None;
+    };
+    if single_table_wrapper_has_vertical_alignment_space(table, nested) {
+        return None;
+    }
+    Some(nested)
+}
+
+/// Whole placement keeps the unwrapped row metrics intact and folds each
+/// enclosing frame around them. Split placement continues to own row cuts.
+pub(crate) fn unwrapped_table_whole_height(table: &Table, measured: f64, dpi: f64) -> f64 {
+    let Some(nested) = transparent_table_wrapper_child(table) else {
+        return measured;
+    };
+    TableWrapperVerticalFrame::new(table, nested, dpi, true)
+        .height(unwrapped_table_whole_height(nested, measured, dpi))
+}
+
 /// A stored Square table fits between its host line and the next visible paragraph.
 pub(crate) fn stored_square_table_anchor_offset(
     cell: &crate::model::table::Cell,
