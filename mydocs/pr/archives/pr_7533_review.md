@@ -50,3 +50,11 @@ last_verified: 2026-10-04
 ## 다음 단계
 
 원 PR 단위로 실패 원인과 증적을 먼저 분석하고, 필요한 보정은 코드 수정·결과 보고·커밋을 완료한 뒤 다음 보정으로 진행합니다. 통합 code candidate의 최종 검증 뒤 수용 판정·contributor 후속 comment 계획을 확정합니다. 아직 원 PR 또는 통합 PR을 병합한 것으로 표시하지 않습니다.
+
+## 기준 PDF 제자리 교체 검토 — 개별 범위 충족
+
+- source commit `42e81807b`의 PDF와 통합 파일의 바이트가 일치합니다. SHA-256 `98447f3c11fc586cef42ba46f263d1f23406aa070d05d2a2d38b19b75665ae5d`, 12,497바이트, 1쪽, 595×841pt입니다. creator `Hwp 2020 0.0.0.0`, producer `Hancom PDF 1.3.0.550`, H2hdrM 글꼴 내장을 실제 파일에서 확인했습니다. [원문 hash·PDF metadata·source 일치](../assets/planet6897_20261004/7533-provenance/results.json)를 기록했습니다.
+- [기준 1쪽 raster](../assets/planet6897_20261004/7533-provenance/reference_p001.png)를 직접 열어 짙은 쪽 배경, 제목/기간/날짜 3줄과 하단 흰 상자가 정상임을 확인했습니다. 유효 한컴 PDF의 독립 기준 교체이며 Native renderer 개선·시각 점수 검증으로 확대하지 않습니다.
+- tests/src/scripts의 runtime 인용·회귀 기대값 핀은 없습니다. `tools/oracle_public`의 과거 감사 catalog에도 이 경로가 있으나 당시 크기를 담은 snapshot으로, 이번 실행 증적이나 새 PDF hash 핀으로 사용하지 않습니다.
+- 생산 코드·회귀 변경이 없는 이 기여의 **기준 PDF 자산 교체 범위는 충족**합니다. 최종 통합 검증 대기이며 #7352의 다른 PDF 감사까지 완료하거나 관련 issue를 닫은 것으로 쓰지 않습니다.
+- merge 후 contributor 설명에는 잘못 명명된 cairo 기준을 유효 한컴 출력으로 바꾼 기여와 정확한 merge SHA를 기록합니다. 아직 comment/close를 수행하지 않았습니다.
