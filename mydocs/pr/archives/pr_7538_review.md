@@ -9,14 +9,14 @@ last_verified: 2026-10-05
 
 ## 최종 판정
 
-**머지 보류** — 원 head의 CI Impact Policy PENDING은 Controller attempt2로 해소됐습니다. 최신 devel 기반 `review/planet6897-7538-20261005`에 원 변경을 적용하고 충돌·호출 계약 보정을 완료했습니다. 최종 시각·전체 회귀·통합 CI 확인 전이므로 수용은 보류합니다. #7575의 검증을 이 PR의 통과 근거로 대신하지 않습니다.
+**머지 보류** — 원 head의 CI Impact Policy PENDING은 Controller attempt2로 해소됐습니다. 최신 devel 기반 `review/planet6897-7538-20261005`에 원 변경을 적용하고 충돌·호출 계약 보정을 완료했습니다. 로컬 전체 nextest10,324 PASS·Skia4,109+6 PASS와 Native/fresh WASM의 수용 범위17쪽씩 최저95.07329%를 확인했습니다. 통합 CI 확인 전이므로 병합은 보류합니다. #7575의 검증을 이 PR의 통과 근거로 대신하지 않습니다.
 
 ## 접수·범위
 
 - 원 PR: https://github.com/edwardkim/rhwp/pull/7538
 - 기여자: planet6897. 제목: 수정(조판): 단 맨 위 문단 기준 자리차지 표 테두리를 바깥 위 여백 아래에 그린다 (#4068)
 - 원 head: `e4abc99f2de1da071964bb3a86c22e4b3d0a4d64`. base: devel.
-- 검토 branch: `review/planet6897-20261004`. 통합 base: `731de9e1b4bb946d76f35108ed7e186ebe4ebecb`. 적용 단계 head: `fe0e6b9a772bd783d8c5b09bf05721d973e9e7d4`.
+- 현재 검토 branch: `review/planet6897-7538-20261005`, base `1e488ac370ec715a5b97c765542e16fc9bf65714`. 로컬 검증 head `cc59be7146142614f9a1f2ca74c2b078668a6f79`. 이전 #7575 batch에는 미적용이었습니다.
 - 원 PR reviewer: jangster77 지정
 - 경로: collaborator_external_pr 9.1.1; intake_and_review, local_validation, visual_fixture_evidence, multi_pr_update_branch, post_merge.
 - 작성 시점 CI/mergeability는 참고값이며 수용·push 전에 최신 source head를 다시 확인합니다.
@@ -25,7 +25,8 @@ last_verified: 2026-10-05
 
 | 원 commit | 통합 commit/처리 | 비고 |
 | --- | --- | --- |
-| — | 미적용 | source CI Impact Policy 대기; 이번 녹색 통합 대상에서 보류 |
+| `5e4a82579ab93ff15e38bfadf25d25470988e4e4` | `2743e2788` | `-x` 적용·기존 #7062 관계 회귀 보존 |
+| `e4abc99f2de1da071964bb3a86c22e4b3d0a4d64` | `8d9fc8bd0` | 원 기여의 시각 증적 적용 |
 
 ## 조판 원칙과 검증 현황
 
@@ -96,3 +97,9 @@ Native/fresh WASM 전체228쪽씩 TSV 산출을 완료했습니다. 단독1쪽·
 첫 전체 nextest는 10,324건 중10,323 PASS/1 FAIL/50 skip,652.786초입니다. 실패는 픽셀/좌표 검사가 아닌 read-only 폭 분류 API의 golden입니다. HFT 결측 한점 리더26개가 반각에서 전각으로 바뀌어 `heuristicFullwidth`524→550, `heuristicHalfwidth`118→92와 aggregateHash만 달라졌습니다. 동일 API로 공개 입력3개를 다시 조회했으며 format parity HWP/HWPX는 모든 golden 필드가 동일합니다. 문제 입력의 문자 총량·coverage categories·legacyProjectionHash도 그대로입니다. 원래 분류 계약을 유지하고 해당 두 카운트와 aggregateHash만 동기화하며 focused 후 전체를 다시 실행합니다.
 
 - 보정4 결과:19쪽 전체 trace가 complete이며 원본 HFT26개만 전각, TrueType89개는 반각을 유지합니다. classification/parity·privacy·분류 총량·불변성·선형 보행을 포함한 기존 API 회귀8개가 **8 PASS/0 FAIL**입니다. golden은3필드만 변경했고 생산 소스·PDF·렌더링 기준은 추가로 바꾸지 않았습니다. 최종 전체 nextest와 Native Skia를 이어서 확인합니다.
+
+### 로컬 최종 검증 완료 — 통합 CI 대기
+
+[최종 검증 정본](../assets/planet6897_7538_20261005/final_validation.json)에 전체 nextest10,324 PASS/0 FAIL/50 skip(509.897초, threads8), Skia4,109 PASS/13 ignore 및 focused2+4 PASS, 필수 lint/build/manifest/fresh WASM을 기록했습니다. Native/실제 Chrome fresh WASM 각각236쪽 TSV를 보존했습니다. 단독1쪽·신청서2쪽·보도자료10쪽·float-stack2쪽 전체와 영향24쪽·rowbreak13쪽의 수용 범위17쪽씩은 최저95.07329%, 미달0입니다. Native/WASM 대표 PNG와 새 float-stack2쪽 PNG를 직접 확인했습니다. 기준 HWP/PDF16개는 로컬 검증 head의 Git blob과 일치합니다.
+
+정책연구의 미달7쪽은 정확한 devel과 SVG가 동일하며 해당 문서에서는24쪽만 바뀝니다. hwpspec의18·35·44·46쪽은 base보다 개선됐지만 여전히 미달이고, CBTA58쪽은 base78.71686%→73.17570%입니다. 이 대용량 문서들의 전체 피델리티 수용은 보류하며 #7445에 현재 TSV와 정확한 차이를 연결합니다. 해당 미달을 정상 회귀의 기준으로 고정하거나 기존 회귀를 제거하지 않았습니다. 통합 code candidate의 정확한 CI와 최신 head 조건을 확인한 뒤에만 최종 수용·오늘할일·후속 comment를 trailing 문서에 기록합니다.
