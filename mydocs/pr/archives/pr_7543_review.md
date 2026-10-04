@@ -16,7 +16,7 @@ last_verified: 2026-10-05
 - 원 PR: https://github.com/edwardkim/rhwp/pull/7543
 - 기여자: planet6897. 제목: 수정(layout): 어울림 표 꼬리 레인 오판과 음수 줄간격 TAC 줄 전진 — 156714641 1쪽 71%→99% (#4599)
 - 원 head: `62332ec416efdbec603d85e5b98d377eec9c2083`. base: devel.
-- 검토 branch: `review/planet6897-20261004`. 통합 base: `731de9e1b4bb946d76f35108ed7e186ebe4ebecb`. 적용 단계 head: `caa9d67d3f5171dae027798a8248218343ef5696`.
+- 검토 branch: `review/planet6897-20261004`. 통합 base: `732047aa253e92772fd7625e4a5d7f6a9897fd73`. 적용 단계 head: `caa9d67d3f5171dae027798a8248218343ef5696`.
 - 원 PR reviewer: jangster77 지정
 - 경로: collaborator_external_pr 9.1.1; intake_and_review, local_validation, visual_fixture_evidence, multi_pr_update_branch, post_merge.
 - 작성 시점 CI/mergeability는 참고값이며 수용·push 전에 최신 source head를 다시 확인합니다.
@@ -85,3 +85,8 @@ code candidate `c8c5f535cd3ebf331cadc2714c68af9fdc663a4d`와 생산 코드가 �
 ## 최신 base 동기화 — #7574
 
 base `732047aa253e92772fd7625e4a5d7f6a9897fd73` 위로69개 commit을 충돌 없이 리베이스했습니다. 후보 `2fae901137a3d20662ce203fc4f5fb1ea7cd68ec`입니다. 이전 문서에 기록한 실행 head와 결과는 리베이스 전 실제 실행 기록이며 최신 후보의 통과로 재사용하지 않습니다. [이전 검증 보존](../assets/planet6897_20261004/final_validation_before_7574.json), [현재 재검증 상태](../assets/planet6897_20261004/final_validation.json). 원 contributor head/history는 변경하지 않았습니다.
+
+## #7574 리베이스 후 전체 회귀 완료
+
+- 최신 base `732047aa253e92772fd7625e4a5d7f6a9897fd73`, 실행 head `9e5f0c3fda484f756c8aca819c87d0578b428141`에서 전체 nextest **10,321 PASS / 0 FAIL / 50 skip**, 495.993초(threads=8, slow8)를 확인했습니다. upstream의 기존3개 검사가 포함되었으며 이번 보정으로 새 검사를 추가하지 않았습니다.
+- 필수 lint/build·fresh WASM·Skia·현재 후보 시각 비교는 진행 중입니다. 이전 base의 시각 통과를 현재 후보의 결과로 바꾸어 기록하지 않습니다.

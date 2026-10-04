@@ -1,19 +1,19 @@
 {
-  "status": "revalidation_required_after_upstream_7574",
-  "full_nextest_head": "aa10d4093f60c4e0c12aa186f2464861acbf89ea",
-  "final_code_head": "42ef60c96132e20a6c8056371d191f492bebdd4e",
-  "base": "731de9e1b4bb946d76f35108ed7e186ebe4ebecb",
+  "status": "rebased_full_nextest_pass_remaining_gates_in_progress",
+  "full_nextest_head": "9e5f0c3fda484f756c8aca819c87d0578b428141",
+  "final_code_head": "9e5f0c3fda484f756c8aca819c87d0578b428141",
+  "base": "732047aa253e92772fd7625e4a5d7f6a9897fd73",
   "branch": "review/planet6897-20261004",
   "full_nextest": {
-    "passed": 10318,
+    "passed": 10321,
     "failed": 0,
     "skipped": 50,
-    "slow": 9,
-    "seconds": 563.885,
+    "slow": 8,
+    "seconds": 495.993,
     "threads": 8,
     "command": "cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --tests --test-threads 8 --no-fail-fast",
-    "log": "output/pr-review/planet6897-20261004/final/nextest-retry.log",
-    "log_sha256": "424fde6ab8ffeb915cb6b9497ea9c37f11970d22a5fef70758e5fd1a7def72c3"
+    "log": "output/pr-review/planet6897-20261004/final/nextest-rebased.log",
+    "log_sha256": "1052ae738ed4a79e9a2ee96e9d825316c85c9a298712f446ab32f78806777af8"
   },
   "post_full_change": {
     "full_test_head": "aa10d4093f60c4e0c12aa186f2464861acbf89ea",
@@ -30,65 +30,6 @@
     },
     "workspace_all_targets_clippy": "PASS (-D warnings)"
   },
-  "required_gates": {
-    "fmt": {
-      "result": "PASS",
-      "log": "output/pr-review/planet6897-20261004/final/fmt.log",
-      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
-    "clippy-native": {
-      "result": "PASS",
-      "log": "output/pr-review/planet6897-20261004/final/clippy-native.log",
-      "log_sha256": "6de3778263fdfa2107b44c8a55716054239a49aa4468a459a6252afea3ae4594"
-    },
-    "clippy-wasm": {
-      "result": "PASS",
-      "log": "output/pr-review/planet6897-20261004/final/clippy-wasm.log",
-      "log_sha256": "cf39a6c9eea14bc2e993b94c5e89060cb6d3fba399a82982eca59260c055f081"
-    },
-    "workspace-build": {
-      "result": "PASS",
-      "log": "output/pr-review/planet6897-20261004/final/workspace-build.log",
-      "log_sha256": "03aac1ee0e95c206d2cc9eea8a0f1cae32d0fe26ee6473025ee2e244c45560b2"
-    },
-    "clippy-workspace": {
-      "result": "PASS",
-      "log": "output/pr-review/planet6897-20261004/final/clippy-workspace.log",
-      "log_sha256": "c54bca416b8a09e3c2018b0ada16771065b3b9b5469242539af42bc53077e2cf"
-    },
-    "manifest-final": {
-      "result": "PASS",
-      "log": "output/pr-review/planet6897-20261004/final/manifest-final.log",
-      "log_sha256": "4b16e596e677b2601946227d58034e5dffab65aed1b82dd60d11c3dfb3d71de0"
-    },
-    "fresh-wasm": {
-      "result": "PASS",
-      "log": "output/pr-review/planet6897-20261004/final/fresh-wasm.log",
-      "log_sha256": "792a8e1ae7877bc29dd54eecc7be4ca0edaf308e61b47166b282479acedabf0e"
-    },
-    "skia-lib": {
-      "result": "PASS",
-      "log": "output/pr-review/planet6897-20261004/final/skia-lib.log",
-      "log_sha256": "d4370d78190fb91b90cd13eb8569721e5ad20e84179089b60d9ac227f2addd3b"
-    },
-    "skia-placeholder": {
-      "result": "PASS",
-      "log": "output/pr-review/planet6897-20261004/final/skia-placeholder.log",
-      "log_sha256": "6e26021420024ef9b65251813362d7d12f6c45c7593c80087945bd7d716d39f8"
-    },
-    "skia-pdf": {
-      "result": "PASS",
-      "log": "output/pr-review/planet6897-20261004/final/skia-pdf.log",
-      "log_sha256": "1f2e148d6b8115769996a6363d2e3811af5694e245f5c7d13a9c589415a2751c"
-    }
-  },
-  "skia": {
-    "lib_passed": 4109,
-    "lib_failed": 0,
-    "lib_skipped": 13,
-    "placeholder_passed": 2,
-    "direct_pdf_passed": 4
-  },
   "studio": {
     "passed": 1815,
     "failed": 0,
@@ -101,21 +42,6 @@
     "manifest": "PASS: 1444 sources / 6191 static test attrs",
     "metadata": "PASS: 19 scoped review/order documents, final recheck",
     "markdown_links": "PASS: 641 documents / 496 changed paths; internal relative links valid"
-  },
-  "fresh_wasm": {
-    "build": "PASS: Mac --no-opt alternative",
-    "docker_optimized": false,
-    "sha256": "a16f67cc8522c818397f51acebb0e90a654974dc2dcde8c6091e78de76edd4f5",
-    "stage17_sha256": "a16f67cc8522c818397f51acebb0e90a654974dc2dcde8c6091e78de76edd4f5",
-    "binary_identical_to_visual_candidate": true
-  },
-  "native_cli": {
-    "fresh_rebuild": "PASS: native-skia feature",
-    "sha256": "e9f0dd82d874679b205ce1e0fc89ace66d21217353308e7c6559870138eae936",
-    "stage17_sha256": "b8c491de461cff4751a3d41cbf940b54ff8d434681bfb042c528bd3a70f20802",
-    "binary_identical_to_visual_candidate": false,
-    "command": "cargo build --locked --profile release-test --target-dir target/pr-review --features native-skia --bin rhwp",
-    "current_svg_verification": "final-visual/results.json; 104 approved scope pages, minimum90.80846%, below90=0"
   },
   "applied_prs": [
     7529,
@@ -6261,7 +6187,92 @@
     "binary_identical_to_visual_candidate": false,
     "command": "cargo build --locked --profile release-test --target-dir target/pr-review --bin rhwp"
   },
-  "final_visual": {
+  "rebase": {
+    "base": "732047aa253e92772fd7625e4a5d7f6a9897fd73",
+    "rebased_head": "2fae901137a3d20662ce203fc4f5fb1ea7cd68ec",
+    "commits": 69,
+    "conflicts": 0,
+    "prior_ref": "refs/pr-review/planet6897-20261004-before-7574",
+    "prior_validation_record": "mydocs/pr/assets/planet6897_20261004/final_validation_before_7574.json",
+    "reason": "upstream/devel에 표 프레임·쪽 소유의 생산 변경 #7574가 병합되어 이전 전체/시각 통과를 현재 후보에 적용하지 않음",
+    "validation_head": "9e5f0c3fda484f756c8aca819c87d0578b428141"
+  },
+  "prior_required_gates_before_rebase": {
+    "fmt": {
+      "result": "PASS",
+      "log": "output/pr-review/planet6897-20261004/final/fmt.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "clippy-native": {
+      "result": "PASS",
+      "log": "output/pr-review/planet6897-20261004/final/clippy-native.log",
+      "log_sha256": "6de3778263fdfa2107b44c8a55716054239a49aa4468a459a6252afea3ae4594"
+    },
+    "clippy-wasm": {
+      "result": "PASS",
+      "log": "output/pr-review/planet6897-20261004/final/clippy-wasm.log",
+      "log_sha256": "cf39a6c9eea14bc2e993b94c5e89060cb6d3fba399a82982eca59260c055f081"
+    },
+    "workspace-build": {
+      "result": "PASS",
+      "log": "output/pr-review/planet6897-20261004/final/workspace-build.log",
+      "log_sha256": "03aac1ee0e95c206d2cc9eea8a0f1cae32d0fe26ee6473025ee2e244c45560b2"
+    },
+    "clippy-workspace": {
+      "result": "PASS",
+      "log": "output/pr-review/planet6897-20261004/final/clippy-workspace.log",
+      "log_sha256": "c54bca416b8a09e3c2018b0ada16771065b3b9b5469242539af42bc53077e2cf"
+    },
+    "manifest-final": {
+      "result": "PASS",
+      "log": "output/pr-review/planet6897-20261004/final/manifest-final.log",
+      "log_sha256": "4b16e596e677b2601946227d58034e5dffab65aed1b82dd60d11c3dfb3d71de0"
+    },
+    "fresh-wasm": {
+      "result": "PASS",
+      "log": "output/pr-review/planet6897-20261004/final/fresh-wasm.log",
+      "log_sha256": "792a8e1ae7877bc29dd54eecc7be4ca0edaf308e61b47166b282479acedabf0e"
+    },
+    "skia-lib": {
+      "result": "PASS",
+      "log": "output/pr-review/planet6897-20261004/final/skia-lib.log",
+      "log_sha256": "d4370d78190fb91b90cd13eb8569721e5ad20e84179089b60d9ac227f2addd3b"
+    },
+    "skia-placeholder": {
+      "result": "PASS",
+      "log": "output/pr-review/planet6897-20261004/final/skia-placeholder.log",
+      "log_sha256": "6e26021420024ef9b65251813362d7d12f6c45c7593c80087945bd7d716d39f8"
+    },
+    "skia-pdf": {
+      "result": "PASS",
+      "log": "output/pr-review/planet6897-20261004/final/skia-pdf.log",
+      "log_sha256": "1f2e148d6b8115769996a6363d2e3811af5694e245f5c7d13a9c589415a2751c"
+    }
+  },
+  "required_gates": {},
+  "prior_skia_before_rebase": {
+    "lib_passed": 4109,
+    "lib_failed": 0,
+    "lib_skipped": 13,
+    "placeholder_passed": 2,
+    "direct_pdf_passed": 4
+  },
+  "prior_fresh_wasm_before_rebase": {
+    "build": "PASS: Mac --no-opt alternative",
+    "docker_optimized": false,
+    "sha256": "a16f67cc8522c818397f51acebb0e90a654974dc2dcde8c6091e78de76edd4f5",
+    "stage17_sha256": "a16f67cc8522c818397f51acebb0e90a654974dc2dcde8c6091e78de76edd4f5",
+    "binary_identical_to_visual_candidate": true
+  },
+  "prior_native_cli_before_rebase": {
+    "fresh_rebuild": "PASS: native-skia feature",
+    "sha256": "e9f0dd82d874679b205ce1e0fc89ace66d21217353308e7c6559870138eae936",
+    "stage17_sha256": "b8c491de461cff4751a3d41cbf940b54ff8d434681bfb042c528bd3a70f20802",
+    "binary_identical_to_visual_candidate": false,
+    "command": "cargo build --locked --profile release-test --target-dir target/pr-review --features native-skia --bin rhwp",
+    "current_svg_verification": "final-visual/results.json; 104 approved scope pages, minimum90.80846%, below90=0"
+  },
+  "prior_final_visual_before_rebase": {
     "evidence": "mydocs/pr/assets/planet6897_20261004/final-visual/results.json",
     "export_head": "bea737c9ad8a75a9a2122d8e3f0c153b645811ec",
     "approved_scope_pages_per_backend": 104,
@@ -6270,14 +6281,5 @@
     "below90": 0,
     "whole_deferred_documents_approved": false,
     "raster_policy": "현재 Native와 실제 Chrome/fresh WASM에서 수용 범위 SVG를 모두 재출력. byte-identical SVG의 기존 raster만 재사용, 달라진 SVG/font policy는 새 raster. 같은 원본/독립 PDF hash로 Visual Sweep PNG-pair TSV 재산출. global #7445 문서 승인 아님."
-  },
-  "rebase": {
-    "base": "732047aa253e92772fd7625e4a5d7f6a9897fd73",
-    "rebased_head": "2fae901137a3d20662ce203fc4f5fb1ea7cd68ec",
-    "commits": 69,
-    "conflicts": 0,
-    "prior_ref": "refs/pr-review/planet6897-20261004-before-7574",
-    "prior_validation_record": "mydocs/pr/assets/planet6897_20261004/final_validation_before_7574.json",
-    "reason": "upstream/devel에 표 프레임·쪽 소유의 생산 변경 #7574가 병합되어 이전 전체/시각 통과를 현재 후보에 적용하지 않음"
   }
 }
