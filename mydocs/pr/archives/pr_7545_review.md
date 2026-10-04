@@ -111,3 +111,9 @@ last_verified: 2026-10-05
 ### Stage22 — 이관한 80168 전체 쪽수 gate의 잔존 입력 제거
 
 기존 HWP5-origin 왕복 목록과 쪽수 원장에서 80168 HWP/HWPX 두 입력만 제외했습니다. 전체 피델리티를 #7445로 분리한 뒤에도 낡은157쪽 pin이 남아 있던 차단이며,156쪽을 새 정답으로 바꾸지 않았습니다. 다른 입력·원장 partition·개별120–121쪽 검사는 유지했습니다. 관련 기존 두 검사2/2 PASS(run `6c88d340-8a1e-4b66-817c-6a75af35d8f4`), [제외 결과](../assets/planet6897_20261004/7545-stage22/80168_gate_exclusion.json). [기존 이관 댓글](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5981105691)에 결과를 갱신했습니다.
+
+### Stage23 — 정확한 76076 HWP 기준 재출력 후 차단 범위 이관
+
+실패한 #2308 검사의 입력은 기존 이관 HWPX와 다른 `samples/76076_regulatory_analysis.hwp`였습니다. 해당 입력을 한컴2024로 다시 출력한 82쪽 PDF를 커밋에 포함합니다. Native 전체 82쪽 중37쪽이 90% 미만(최저16.58182%,33쪽87.69301%·34쪽58.82931%)이며 PNG에서 줄바꿈과 표 높이 차이를 확인했습니다. 다른 입력용 PDF로 진행한 이전 비교는 판정에서 제외했습니다.
+
+[#7445 이관](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5981636304) 후 고정 픽셀 위치·높이를 검사하던 함수1개만 제거했습니다. 원본·PDF·다른 구조 검사는 유지하며 남은 기존4개는4/4 PASS(run `b73ec59a-4cac-4810-8193-96f51af56f16`)입니다. [전쪽 TSV·정확한 입력/PDF hash·대표 PNG](../assets/issue7445/76076-original-hwp-20261005/results.json). 전체 피델리티 통과나 fresh WASM 확인을 주장하지 않습니다.
