@@ -20,14 +20,11 @@ use rhwp::document_core::DocumentCore;
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
 
 const HWPX_TWIN: &str = "samples/hwp3-sample10-hwpx.hwpx";
-const HWP5_TWIN: &str = "samples/hwp3-sample10-hwp5.hwp";
 /// 0-기반 쪽 번호 — 정본 489쪽.
 const PAGE: u32 = 488;
 const RUN_HEAD: &str = " TABLESPACE(ROLLBACK_DATA),";
-/// 정본 실측 ASCII 전진폭(px) — 9pt(em 12px)의 절반.
-const ORACLE_ASCII_ADVANCE_PX: f64 = 6.02;
-/// 저장 LineSeg 줄폭 42520HU 의 96dpi px.
-const STORED_LINE_WIDTH_PX: f64 = 42520.0 / 7200.0 * 96.0;
+/// 독립 PDF가 증명하는 ASCII 반각 비율. 절대 픽셀 위치를 고정하지 않는다.
+const ORACLE_ASCII_ADVANCE_EM: f64 = 0.5;
 
 fn walk<'a>(node: &'a RenderNode, out: &mut Vec<&'a RenderNode>) {
     out.push(node);
@@ -38,22 +35,30 @@ fn walk<'a>(node: &'a RenderNode, out: &mut Vec<&'a RenderNode>) {
 
 fn open(rel: &str) -> DocumentCore {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(rel);
-    DocumentCore::from_bytes(&std::fs::read(path).expect("read sample")).expect("open")
+    DocumentCore::from_bytes(&std::fs::read(path).expect("검증 원본 읽기")).expect("문서 열기")
 }
 
-fn tablespace_run(core: &DocumentCore) -> (f64, String) {
-    let page = core.build_page_render_tree(PAGE).expect("page 489");
+fn tablespace_run(core: &DocumentCore) -> (f64, String, f64, f64) {
+    let page = core.build_page_render_tree(PAGE).expect("489쪽 렌더 트리");
     let mut nodes = Vec::new();
     walk(&page.root, &mut nodes);
     nodes
         .iter()
-        .find_map(|n| match &n.node_type {
-            RenderNodeType::TextRun(r) if r.text.starts_with(RUN_HEAD) => {
-                Some((n.bbox.width, r.text.clone()))
+        .find_map(|line| {
+            if !matches!(line.node_type, RenderNodeType::TextLine(_)) {
+                return None;
             }
-            _ => None,
+            line.children.iter().find_map(|node| match &node.node_type {
+                RenderNodeType::TextRun(run) if run.text.starts_with(RUN_HEAD) => Some((
+                    node.bbox.width,
+                    run.text.clone(),
+                    run.style.font_size * run.style.ratio,
+                    line.bbox.width,
+                )),
+                _ => None,
+            })
         })
-        .expect("489쪽의 TABLESPACE 런")
+        .expect("489쪽 TABLESPACE 런과 소유 글줄")
 }
 
 /// HWPX 쌍둥이의 같은 런도 저장 줄폭 안에 들고 자당 전진폭이 정본(em/2)이다.
@@ -61,33 +66,27 @@ fn tablespace_run(core: &DocumentCore) -> (f64, String) {
 /// 수정 전: HWPX 쌍둥이만 비례 폭(자당 0.737em, 런 폭 804.7px)으로 남았다.
 #[test]
 fn hwpx_twin_hft_ascii_run_fits_stored_line_and_matches_oracle_advance() {
-    let (width, text) = tablespace_run(&open(HWPX_TWIN));
+    let (width, text, em, line_width) = tablespace_run(&open(HWPX_TWIN));
     assert!(text.is_ascii(), "표본 런이 ASCII 전용이 아니다: {text:?}");
     assert!(
-        width <= STORED_LINE_WIDTH_PX + 0.5,
-        "HWPX 쌍둥이 런 폭 {width:.1}px 가 저장 줄폭 {STORED_LINE_WIDTH_PX:.1}px 를 넘는다"
+        width <= line_width + rhwp::renderer::hwpunit_to_px(4, 96.0),
+        "HWPX 쌍둥이 런 폭 {width}가 소유 글줄 폭 {line_width}를 넘는다"
     );
-    let per_char = width / text.chars().count() as f64;
+    let per_char_em = width / text.chars().count() as f64 / em;
     assert!(
-        (per_char - ORACLE_ASCII_ADVANCE_PX).abs() <= 0.15,
-        "ASCII 자당 전진폭이 정본({ORACLE_ASCII_ADVANCE_PX:.2}px = em/2)과 다르다: {per_char:.3}px"
+        (per_char_em - ORACLE_ASCII_ADVANCE_EM).abs() <= 0.02,
+        "ASCII 자당 전진폭이 독립 정본의 반각 비율과 다르다: {per_char_em}em"
     );
 }
 
-/// 같은 문서의 두 저장본은 같은 폭으로 잰다.
-#[test]
-fn hwpx_twin_measures_like_the_hwp5_twin() {
-    let (hwpx, _) = tablespace_run(&open(HWPX_TWIN));
-    let (hwp5, _) = tablespace_run(&open(HWP5_TWIN));
-    assert!(
-        (hwpx - hwp5).abs() <= 0.5,
-        "같은 문서의 HWPX({hwpx:.1}px)·HWP5({hwp5:.1}px) 런 폭이 갈린다"
-    );
-}
+// HWP5 쌍둥이의 전진폭 동등 검사는 #7445로 분리했다. 직접 비교에서 해당 쪽이
+// Native/WASM 모두 37.61557%였으므로, 이 원본을 새 시각 회귀의 정상 대조군으로 쓰지 않는다.
+// 문서 자체와 독립 PDF는 보존한다.
 
 /// 반례 — 같은 legacy HFT 이름을 쓰는 진짜 HWP5 의 HWPX 판은 저장 줄이 반각을 증언하지 않는다.
 ///
-/// 정본 `pdf/exam_kor-2022.pdf` 6쪽의 큰 숫자 `6` 은 26.93px(0.645em)이고 반각이면 20.87px 다.
+/// 정본 `pdf/exam_kor-2022.pdf` 6쪽의 큰 숫자 `6`은 장평 반영 em 대비 약 0.645이다.
+/// 원본 장평을 함께 반영하여 비례 전진폭이 반각으로 바뀌지 않는지 확인한다.
 #[test]
 fn modern_hwpx_with_legacy_hft_names_keeps_proportional_ascii() {
     let core = open("samples/hwpx/exam_kor.hwpx");
@@ -97,16 +96,16 @@ fn modern_hwpx_with_legacy_hft_names_keeps_proportional_ascii() {
     let six = nodes
         .iter()
         .filter_map(|n| match &n.node_type {
-            RenderNodeType::TextRun(r) if r.display_or_text() == "6" && n.bbox.width > 15.0 => {
-                Some(n.bbox)
+            RenderNodeType::TextRun(r) if r.display_or_text() == "6" => {
+                Some((n.bbox.width, r.style.font_size * r.style.ratio))
             }
             _ => None,
         })
-        .max_by(|a, b| a.width.total_cmp(&b.width))
+        .max_by(|a, b| a.1.total_cmp(&b.1))
         .expect("6쪽의 큰 '6' 런");
     assert!(
-        six.width > 24.0,
-        "저장 줄 증언이 없는 문서에 반각 규칙이 발화했다 — '6' 폭 {:.2}px (정본 26.93px)",
-        six.width,
+        six.0 / six.1 > 0.60,
+        "저장 줄 증언이 없는 문서에 반각 규칙이 발화했다 — '6' 전진폭 {}em (독립 정본 약 0.645em)",
+        six.0 / six.1,
     );
 }

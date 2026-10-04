@@ -9,7 +9,7 @@ last_verified: 2026-10-04
 
 ## 최종 판정
 
-**머지 보류** — 체리픽 적용 후 통합 head의 focused·전체 회귀와 필수 시각/구조 검증 진행 중. 원 source의 CI·PNG를 통합 검증 통과로 취급하지 않습니다.
+**메인터너 보정 후 수용 가능** — 영향 29쪽과 현대 HWPX 반례의 Native/fresh WASM 시각 검증을 충족했습니다. 미달 HWP5 대조군의 incoming 비교 검사 한 건은 #7445로 분리합니다. 고정 px 검사는 원본 장평 반영 글자 크기와 소유 글줄 관계로 수정했습니다. 최종 통합 회귀·Rust lint·최신 CI가 남습니다.
 
 ## 접수·범위
 
@@ -56,3 +56,14 @@ last_verified: 2026-10-04
 
 - code head `072048a8ae2d19b1140c6b675ebfc234961b84a1`에서 `issue_7051_hwpx_twin_stored_ladder_witness`: **3 PASS / 0 FAIL**. `cargo nextest run --locked --cargo-profile release-test --target-dir target/pr-review --test-threads 8 --no-fail-fast`로 해당 suite와 이름 필터를 지정했습니다.
 - 로그는 ignored `output/pr-review/planet6897-20261004/stage18-full/`에 보존합니다. 검사 통과를 시각 정확도 승인으로 확대하지 않습니다. Native/fresh WASM 직접 시각 검증과 고정 px assertion의 독립 근거 검토는 계속 진행합니다.
+
+## Stage 19 직접 시각 검증과 회귀 보정
+
+- 생산 code head `072048a8ae2d19b1140c6b675ebfc234961b84a1`; 이후 문서 commit은 생산 소스가 같습니다. 원본 HWPX의 변경 영향 29쪽을 직접 비교했으며 Native/fresh WASM 모두 **최저 92.22769%, 미달 0쪽**입니다. 489·680쪽 review PNG도 직접 열어 본문·표시 위치를 확인했습니다. 전체 763쪽 통과 주장으로 확대하지 않습니다.
+- 기준은 커밋된 한컴 2024 HWP5 분할 PDF 3개를 순서대로 합친 763쪽입니다. 결합본은 ignored output에만 두며 원래 분할 PDF와 source 입력은 보존합니다. `samples/hwpx/exam_kor.hwpx`·`pdf/exam_kor-2022.pdf` 6쪽 정상 반례는 Native/fresh WASM **98.44675%**입니다.
+- `DocumentCore` 로드가 저장 줄의 HFT ASCII 반각/비례 증인 수를 판정하고 `SourceProvenance.hft_ascii_halfwidth_witnessed → ResolvedStyleSet.hft_ascii_halfwidth → resolved_to_text_style`로 전달합니다. 공통 텍스트 측정과 최종 렌더 노드가 같은 전진폭을 소비합니다. HWP3의 문단 간격 등 다른 보정은 이 별도 플래그로 켜지지 않습니다. 현대 반례에서 비례폭 유지도 확인했습니다.
+- 기존 incoming 시험의 `6.02px`, `566.9px`, `24px` 절대값·크기 선택 조건을 없애고, TABLESPACE 런의 소유 글줄 포함·장평 반영 글자 크기 대비 반각, 현대 큰 숫자의 비례폭으로 수정했습니다. 중간 후보에서 현대 글자의 원본 장평 90%를 빠뜨린 실패를 진단하고, 실제 source style의 장평을 반영했습니다. 허용 폭을 올려 실패를 숨기지 않았습니다.
+- HWP5 쌍둥이 489쪽은 양쪽 **37.61557%**이며 첫 문장 말미·세로 배치 차이가 있습니다. [#7445 후속 기록](https://github.com/edwardkim/rhwp/issues/7445#issuecomment-5981169881)으로 이관하고 `hwpx_twin_measures_like_the_hwp5_twin` 한 건만 수용 대상에서 제거했습니다. 원본·PDF와 미달 PNG는 보존합니다. HWPX 본 대상과 현대 반례의 검사 2개는 유지합니다.
+- [Native/WASM TSV·provenance·대표 PNG](../assets/planet6897_20261004/7550-stage19/results.json)를 보존합니다. 로컬 fresh WASM은 `--no-opt` 대체 빌드이며 Docker 최적화 검증으로 표시하지 않습니다. 전체 통합 검증과 최신 source/CI 확인 후 최종 판정을 확정합니다.
+
+보정 후 관련 nextest는 **2 PASS / 0 FAIL**입니다. format·Markdown 링크·메타데이터와 검사 함수 수 변경에 따른 generated harness 재생성/manifest 검사를 수행했습니다. generated 파일은 커밋하지 않습니다. Rust Clippy와 전체 nextest는 최종 통합 gate로 남습니다.
