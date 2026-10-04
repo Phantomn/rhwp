@@ -3421,8 +3421,8 @@ mod validate_linesegs_tests {
                     row_span: 1,
                     col_span: 1,
                     width: RAW_TRACK_WIDTH,
-                    // The saved cell padding remains a paint fallback only when
-                    // the table's stored padding is all zero.
+                    // 저장 칸 안 여백은 표의 저장 안 여백이 모두 0일 때만
+                    // 페인트 fallback으로 남으며 재조판 폭에서는 중복 차감하지 않는다.
                     padding: Padding {
                         left: 141,
                         right: 141,
@@ -3440,8 +3440,8 @@ mod validate_linesegs_tests {
             cells,
             ..Default::default()
         };
-        // Each raw row is 4 HWPUNIT short. The frame owner is the resolved
-        // table track, so the residual belongs to the last column.
+        // 원시 행의 합은 표 폭보다 4 HWPUNIT 작다. 마지막 열은
+        // 표의 나머지 폭을 소유하므로 원시 칸 폭만 사용해서는 안 된다.
         table.common.width = 10_000;
 
         Document {
@@ -3460,10 +3460,12 @@ mod validate_linesegs_tests {
         }
     }
 
-    /// [#7412] 셀 내용 상자는 한/글 저장본처럼 폭을 4 HWPUNIT 격자로 내려 발행한다.
-    /// 소유자 폭(5002)과 원시 트랙 폭(4998)은 격자 뒤에도 5000 대 4996 으로 갈린다.
-    fn snap_to_cell_width_quantum(width: i32) -> i32 {
-        width - width.rem_euclid(4)
+    /// 표 선언 폭에서 앞 열 원시 폭을 뺀 나머지가 마지막 칸 문단의 독립 폭이다.
+    fn short_table_frame_target_width(document: &Document) -> i32 {
+        let Control::Table(table) = &document.sections[0].paragraphs[0].controls[0] else {
+            panic!("표 제어");
+        };
+        i32::try_from(table.common.width - table.cells[0].width).expect("표 폭 범위")
     }
 
     fn short_table_frame_target_line(document: &Document) -> &LineSeg {
@@ -3475,8 +3477,8 @@ mod validate_linesegs_tests {
 
     #[test]
     fn eager_reflow_uses_table_frame_owner_width_and_padding() {
-        const RESOLVED_LAST_TRACK_WIDTH: i32 = 5_002;
         let mut document = short_table_frame_document();
+        let owner_width = short_table_frame_target_width(&document);
         let styles = resolve_styles_for_document(&document, DEFAULT_DPI);
 
         DocumentCore::reflow_zero_height_paragraphs(
@@ -3488,40 +3490,35 @@ mod validate_linesegs_tests {
         );
 
         let line = short_table_frame_target_line(&document);
-        assert_eq!(
-            line.segment_width,
-            snap_to_cell_width_quantum(crate::renderer::px_to_hwpunit(
-                crate::renderer::hwpunit_to_px(RESOLVED_LAST_TRACK_WIDTH, DEFAULT_DPI),
-                DEFAULT_DPI,
-            )),
-            "eager reflow must use the table-owned frame width and the table's zero padding"
+        // HWPUNIT↔실수 변환의 정수 절삭 한 단위만 허용한다. 원시 칸 폭이나
+        // 칸 안 여백을 중복 차감한 폭은 이 관계를 만족하지 못한다.
+        assert!(
+            (line.segment_width - owner_width).abs() <= 1,
+            "표가 소유한 폭과 저장 안 여백을 보존해야 한다: 줄 폭 {}, 원본 폭 {owner_width}",
+            line.segment_width
         );
     }
 
     #[test]
     fn on_demand_reflow_uses_table_frame_owner_width_and_padding() {
-        const RESOLVED_LAST_TRACK_WIDTH: i32 = 5_002;
         let document = short_table_frame_document();
+        let owner_width = short_table_frame_target_width(&document);
         let Control::Table(table) = &document.sections[0].paragraphs[0].controls[0] else {
             panic!("table control");
         };
-        assert_eq!(
-            table.paragraph_frame_owner_widths()[1],
-            RESOLVED_LAST_TRACK_WIDTH
-        );
+        assert_eq!(table.paragraph_frame_owner_widths()[1], owner_width);
         let mut core = DocumentCore::new_empty();
         core.set_document(document);
         core.validation_report = DocumentCore::validate_linesegs(core.document(), false);
 
         assert_eq!(core.reflow_linesegs_on_demand(), 1);
         let line = short_table_frame_target_line(core.document());
-        assert_eq!(
-            line.segment_width,
-            snap_to_cell_width_quantum(crate::renderer::px_to_hwpunit(
-                crate::renderer::hwpunit_to_px(RESOLVED_LAST_TRACK_WIDTH, core.dpi),
-                core.dpi,
-            )),
-            "on-demand reflow must use the table-owned frame width and the table's zero padding"
+        // HWPUNIT↔실수 변환의 정수 절삭 한 단위만 허용한다. 원시 칸 폭이나
+        // 칸 안 여백을 중복 차감한 폭은 이 관계를 만족하지 못한다.
+        assert!(
+            (line.segment_width - owner_width).abs() <= 1,
+            "표가 소유한 폭과 저장 안 여백을 보존해야 한다: 줄 폭 {}, 원본 폭 {owner_width}",
+            line.segment_width
         );
     }
 
