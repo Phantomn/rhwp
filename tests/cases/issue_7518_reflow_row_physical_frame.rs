@@ -173,6 +173,66 @@ fn trailing_empty_paragraphs_keep_their_continued_cell_outline() {
 }
 
 #[test]
+fn empty_reflow_table_hosts_consume_the_source_margins_once() {
+    let input = Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/76076_regulatory_analysis.hwp");
+    let source = rhwp::parser::parse_hwp(&std::fs::read(&input).unwrap()).unwrap();
+    let paras = &source.sections[0].paragraphs;
+    let source_table = |pi: usize| {
+        assert!(paras[pi].text.is_empty());
+        assert!(paras[pi].line_segs.is_empty());
+        assert_eq!(paras[pi].controls.len(), 1);
+        match &paras[pi].controls[0] {
+            rhwp::model::control::Control::Table(table) => table.as_ref(),
+            _ => panic!("empty table host"),
+        }
+    };
+    let pages = rendered_pages(&input);
+    let all = nodes(&pages[32]);
+    let placed = |pi: usize| {
+        all.iter()
+            .copied()
+            .find(|node| node["type"] == "Table" && node["pi"] == pi)
+            .expect("table belongs to page 33")
+    };
+    let preceding = all
+        .iter()
+        .copied()
+        .find(|node| node["type"] == "TextLine" && node["pi"] == 322)
+        .expect("preceding subtitle");
+    let subtitle = &paras[322];
+    let style = &source.doc_info.para_shapes[subtitle.para_shape_id as usize];
+    assert_eq!(
+        style.line_spacing_type,
+        rhwp::model::style::LineSpacingType::Percent
+    );
+    let em = f64::from(
+        source.doc_info.char_shapes[subtitle.char_shapes[0].char_shape_id as usize].base_size,
+    ) / 75.0;
+    // Independent Hancom p33 opens each table's outer box after the preceding
+    // flow, including the subtitle's percentage line slot. Check the ownership
+    // relationships from source properties rather than pinning absolute pixels.
+    let expected_first = coord(preceding, "y")
+        + em * f64::from(style.line_spacing) / 100.0
+        + f64::from(source_table(323).outer_margin_top) / 75.0;
+    assert!(
+        (coord(placed(323), "y") - expected_first).abs() < 0.2,
+        "the first empty host discarded its reserved top margin"
+    );
+    for (previous, next) in [(323, 324), (324, 325)] {
+        let gap = coord(placed(next), "y") - bottom(placed(previous));
+        let margins = f64::from(source_table(previous).outer_margin_bottom)
+            + f64::from(source_table(next).outer_margin_top);
+        assert!(
+            (gap - margins / 75.0).abs() < 0.2,
+            "empty hosts must consume adjacent source margins once: {previous} -> {next}"
+        );
+    }
+    assert!(!all
+        .iter()
+        .any(|node| node["type"] == "TextLine" && node["pi"] == 325));
+}
+
+#[test]
 fn continuation_at_a_reflow_paragraph_start_consumes_its_reserved_spacing() {
     let input = Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/76076_regulatory_analysis.hwp");
     let pages = rendered_pages(&input);
