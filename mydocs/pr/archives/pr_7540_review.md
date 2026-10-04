@@ -50,3 +50,11 @@ last_verified: 2026-10-04
 ## 다음 단계
 
 원 PR 단위로 실패 원인과 증적을 먼저 분석하고, 필요한 보정은 코드 수정·결과 보고·커밋을 완료한 뒤 다음 보정으로 진행합니다. 통합 code candidate의 최종 검증 뒤 수용 판정·contributor 후속 comment 계획을 확정합니다. 아직 원 PR 또는 통합 PR을 병합한 것으로 표시하지 않습니다.
+
+## 독립 기준 PDF 자산 검토 — 개별 범위 충족
+
+- 이 PR은 생산 코드·회귀 기대값 변경이 아니라 KoPub 설치 환경의 한컴 2024 기준 PDF 두 벌과 출처 기록을 추가합니다. 기존 #7009/#7445의 전체 피델리티가 해결된 것으로 확대 판단하지 않습니다.
+- HWP/HWPX 원문 SHA-256과 두 PDF SHA-256이 기여자 변환 원장의 값과 일치함을 파일에서 재계산했습니다. 각 PDF 4,692,840바이트, 383쪽, 555×754pt이며 creator/producer `Hancom PDF 1.3.0.550`입니다. 두 PDF에는 실제 KoPubBatang/KoPubDotum Light·Medium·Bold 6종이 모두 내장되어 있습니다. [실제 pdfinfo·pdffonts·hash 검증](../assets/planet6897_20261004/7540-provenance/results.json)을 보존했습니다.
+- 생성 원장은 한컴 2024 엔진 13.0.0.3901의 두 job·입력/결과 hash를 연결합니다. cairo 출력과는 별도이며 원문 font 환경이 다른 기존 384쪽 PDF와 섞지 않습니다. 입력/결과의 원장 연결은 확인했으나 과거 원격 변환을 이번 head에서 다시 수행한 것으로 쓰지 않습니다.
+- 자동 PDF 선택 규칙·기존 회귀 쪽수 원장 변경은 없습니다. Native/HWPX의 전체 383쪽 렌더 검증을 이번 자산 검토로 대체하지 않습니다. **PDF 자산/출처 기여는 개별 범위를 충족**, 통합 최종 검증은 대기입니다.
+- merge 후 contributor 설명에는 독립 PDF·KoPub 내장 환경 검증과 남은 #7009/#7445 범위를 구분하고 정확한 merge SHA를 기록합니다. 아직 issue 종료·원 PR comment/close를 수행하지 않았습니다.
