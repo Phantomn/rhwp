@@ -201,7 +201,8 @@ pub(super) fn fit_measured_for_host(
     // 가 과대 압축/팽창을 차단한다.
     if is_para_topbottom_float(&table.common) {
         mt.map(|measured| {
-            let fitted = fit_measured_table_to_declared_height(measured, table, dpi);
+            let (fitted, shrink_blocked_by_content) =
+                crate::renderer::height_measurer::fit_measured_table_to_declared_height_with_outcome(measured, table, dpi);
             // 빈 앵커는 **확대 방향만**: 한글 규칙 = max(선언, 콘텐츠) — 콘텐츠가
             // 선언보다 큰 표(pi=15 조문대비표 929.6>928.4)를 압축하면 분할 경계가
             // 당겨져 pi16 -1쪽. 압축(fit-down)은 종전대로 비공백 텍스트 앵커 한정.
@@ -224,7 +225,7 @@ pub(super) fn fit_measured_for_host(
             {
                 return measured.clone();
             }
-            if shrunk && !para_has_non_whitespace_text(para) {
+            if (shrunk || shrink_blocked_by_content) && !para_has_non_whitespace_text(para) {
                 // HWP5 빈 TopAndBottom host의 다행 RowBreak 표는 통상 콘텐츠가
                 // 선언높이를 넘으면 축소하지 않는다. 다만 마지막 행 하나가 비-TAC
                 // 1×1 자식 표이고, 그 parent viewport의 Center 정렬이 만든 작은

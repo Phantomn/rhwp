@@ -138,9 +138,32 @@ impl TypesetEngine {
                     && start_cut.iter().copied().eq([0])
                     && input.start.start_row_height_override == Some(frame.continuation_height)
             });
+        // A blank physical opening can belong to a later row too. Its deferred
+        // picture band starts in a new outer frame, before the cell top padding.
+        // Use the same owner cut as paint, and reserve the outer margin once.
+        let parallel_picture_opening_continuation = is_continuation
+            && !input.start.start_cut_is_block
+            && st.current_height <= 0.5
+            && input.start.start_row_height_override.is_some()
+            && prepared
+                .layout_engine
+                .parallel_picture_row_opening_height(
+                    table,
+                    cursor_row,
+                    &[],
+                    start_cut,
+                    input.source.styles,
+                )
+                .is_some();
         // 빈 시작 조각 뒤에서는 두 포맷 모두 같은 바깥 상자를 다시 연다.
         let host_before_overhead = host_before_overhead
-            + if empty_opening_continuation && !fragment_opens_outer_top {
+            + if (empty_opening_continuation
+                || (parallel_picture_opening_continuation
+                    && !terminal_fragment_opens_outer_top
+                    && !single_cell_page_fragment
+                    && !strict_following_plain_text_fit))
+                && !fragment_opens_outer_top
+            {
                 hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
             } else {
                 0.0

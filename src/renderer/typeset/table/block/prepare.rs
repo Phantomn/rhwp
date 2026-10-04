@@ -71,10 +71,12 @@ impl TypesetEngine {
         // 걸려 잘릴 수 있다.
         let mut table_available = (available - st.layout.pagination_tolerance_px).max(0.0);
 
-        // [Task #993] advance_row_cut 호출용 LayoutEngine — 컷 측정은 dpi 와
-        // 셀 패딩/중첩 표 높이 계산에만 의존하므로 ad hoc 인스턴스로 충분하다.
+        // Cut projection also depends on the document's full body height.
+        // Prime it before filling CellUnit caches, as actual paint does, so a
+        // small page cannot cache the 900px fallback's different child ledger.
         let layout_engine = crate::renderer::layout::LayoutEngine::new(self.dpi);
         layout_engine.set_layout_profile(st.profile);
+        layout_engine.prime_column_layout_env(&st.layout);
         // 행 컷 측정도 같은 렌더링의 일부이므로 조판기와 동일한 표 출처를 사용한다.
         layout_engine
             .set_render_normalization_overlay(std::sync::Arc::clone(&self.render_normalization));

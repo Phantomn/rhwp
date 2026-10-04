@@ -17,6 +17,117 @@ use super::layout::picture_flow_frame_size_hu;
 use super::layout_frame::{FrameExclusion, FrameExclusionPolicy, LayoutFrame};
 use super::page_layout::LayoutRect;
 
+/// Paragraph-relative floats whose signed vertical intervals overlap occupy
+/// one band. Negative offsets do not remove the object's flow height: when
+/// its owner moves to another fragment the paragraph origin moves with it.
+pub(crate) fn parallel_cell_float_band_height(controls: &[Control], dpi: f64) -> Option<f64> {
+    if controls.len() < 2 {
+        return None;
+    }
+    let mut latest_start = f64::NEG_INFINITY;
+    let mut earliest_end = f64::INFINITY;
+    let mut bottom = 0.0f64;
+    for control in controls {
+        let common = match control {
+            Control::Picture(picture) => &picture.common,
+            Control::Shape(shape) => shape.common(),
+            _ => return None,
+        };
+        if common.treat_as_char
+            || !matches!(
+                common.text_wrap,
+                TextWrap::Square | TextWrap::Tight | TextWrap::Through
+            )
+            || common.vert_rel_to != VertRelTo::Para
+        {
+            return None;
+        }
+        let start = hwpunit_to_px(signed_hwpunit(common.vertical_offset), dpi);
+        let height = hwpunit_to_px(signed_hwpunit(common.height), dpi)
+            + hwpunit_to_px(i32::from(common.margin.top), dpi)
+            + hwpunit_to_px(i32::from(common.margin.bottom), dpi);
+        if height <= 0.5 {
+            return None;
+        }
+        latest_start = latest_start.max(start);
+        earliest_end = earliest_end.min(start + height);
+        bottom = bottom.max(start.max(0.0) + height);
+    }
+    (latest_start + 0.5 < earliest_end).then_some(bottom)
+}
+
+/// A single whitespace host line and its parallel flow pictures share an
+/// origin, but the line and the picture band have separate fragment owners.
+/// Explicit newlines, visible text, inline objects and distinct bands keep
+/// their own line/anchor contracts.
+pub(crate) fn parallel_cell_picture_band_height(para: &Paragraph, dpi: f64) -> Option<f64> {
+    if !para.text.trim().is_empty()
+        || para.text.contains(['\r', '\n'])
+        || para.line_segs.len() > 1
+        || !para.controls.iter().all(|control| {
+            matches!(control,
+                Control::Picture(picture) if picture.common.flow_with_text
+                    && picture.common.text_wrap == TextWrap::Square
+                    && picture.common.vert_align == VertAlign::Top
+            )
+        })
+    {
+        return None;
+    }
+    parallel_cell_float_band_height(&para.controls, dpi)
+}
+
+/// A reflowed empty block-table host shares its line origin with its tables.
+/// Column definitions configure that flow; they do not create an extra line.
+/// A following empty paragraph remains a separate line, as do text, fields,
+/// TAC objects and stored line boxes.
+pub(crate) fn reflow_block_table_host_occupied_height(
+    para: &Paragraph,
+    line_height: f64,
+    table_height: f64,
+) -> Option<f64> {
+    if !crate::renderer::para_has_no_stored_line_segs(para) || !para.text.is_empty() {
+        return None;
+    }
+    let mut has_table = false;
+    for control in &para.controls {
+        match control {
+            Control::Table(table)
+                if !table.common.treat_as_char
+                    && table.common.flow_with_text
+                    && table.common.text_wrap == TextWrap::TopAndBottom
+                    && table.common.vert_rel_to == VertRelTo::Para
+                    && table.common.vert_align == VertAlign::Top
+                    && signed_hwpunit(table.common.vertical_offset) == 0 =>
+            {
+                has_table = true;
+            }
+            Control::ColumnDef(_) => {}
+            _ => return None,
+        }
+    }
+    has_table.then_some(line_height.max(table_height))
+}
+
+/// On reflow, an adjustable multi-row table is constrained by its physical
+/// row declarations and content, rather than by scaling every row to a cached
+/// object bounding height. A single row can consume the object-height minimum
+/// directly; protected/noAdjust and stored-line tables retain their frame.
+pub(crate) fn reflow_table_uses_row_height_constraints(table: &Table) -> bool {
+    !table.common.treat_as_char
+        && !table.common.size_protect
+        && table.raw_table_record_attr & 0x08 == 0
+        && table.row_count > 1
+        && !table.cells.is_empty()
+        && table.cells.iter().all(|cell| {
+            !cell.paragraphs.is_empty()
+                && cell
+                    .paragraphs
+                    .iter()
+                    .all(crate::renderer::para_has_no_stored_line_segs)
+        })
+}
+
 /// 자리차지 개체가 흐름에 추가하는 문단 기준 앞 공간.
 /// 음수 오프셋은 앞 공간을 만들지 않는다. 셀의 가운데 정렬도 이 점유 프레임을
 /// 소비하므로 음수 저장값을 별도의 정렬 이동으로 다시 적용하지 않는다.

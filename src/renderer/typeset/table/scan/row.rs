@@ -77,7 +77,13 @@ impl RowScanQuery<'_> {
             // 연속분 cursor_row — 시작 컷 적용. row_cut_content_height 가
             // 셀별 (content+pad) 행 max 를 반환(분할 행이므로 cell.height
             // 강제 없음).
-            layout_engine.row_cut_content_height(table, r, row_start_cut, &[], styles)
+            let content =
+                layout_engine.row_cut_content_height(table, r, row_start_cut, &[], styles);
+            if layout_engine.row_uses_reflow_physical_frame(table, r) {
+                content.max(self.start_row_height_override.unwrap_or(0.0))
+            } else {
+                content
+            }
         }
     }
 
