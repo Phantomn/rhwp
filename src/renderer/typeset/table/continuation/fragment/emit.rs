@@ -67,9 +67,47 @@ impl TypesetEngine {
             split_end_limit,
             mut end_row_height_override,
         } = scan;
+        // A cut consumes content; the declared cell minimum also owns blank
+        // physical space. Carry actual accepted boxes rather than estimating
+        // them from preceding content cuts.
+        let stored_row_frame = end_row.checked_sub(1).and_then(|row| {
+            if split_end_limit <= 0.0
+                || split_end_cut.is_empty()
+                || split_block_start.is_some()
+                || end_row_height_override.is_some()
+            {
+                return None;
+            }
+            // Frame ownership uses the same unreserved source body height as
+            // paint. Footnotes and zones constrain acceptance below, not the
+            // existence of the source-owned minimum.
+            let declared = layout_engine.stored_full_width_row_declared_height(
+                table,
+                row,
+                styles,
+                st.layout.body_area.height,
+            )?;
+            let used = continuation
+                .stored_row_box_sum
+                .filter(|(owner, _)| *owner == row)
+                .map_or(0.0, |(_, height)| height);
+            let before_row = (consumed - split_end_limit).max(0.0);
+            let available = (avail_for_rows - before_row).max(0.0);
+            let height = (declared - used)
+                .max(0.0)
+                .min(available)
+                .max(split_end_limit);
+            Some((row, used, height))
+        });
         // 행 컷이 소비한 내용과 header의 요구 높이. 저장 상자의 빈 밴드는
         // 아래에서 별도로 물리 점유에 포함하며 컷 유닛을 더 소비하지 않는다.
         let mut partial_height: f64 = consumed + header_overhead;
+        if let Some((_, _, height)) = stored_row_frame {
+            if height > split_end_limit + 0.5 {
+                end_row_height_override = Some(height);
+                partial_height += height - split_end_limit;
+            }
+        }
         // 원본 셀의 저장 쪽 0에서 재개하는 새 단은 실제 좌표축을 가진다.
         // 후속 TAC가 이 증거를 잃고 누적 좌표를 임의의 0 기준으로 읽지 않게 한다.
         let resumed_stored_page_frame = is_continuation
@@ -312,7 +350,7 @@ impl TypesetEngine {
         // 문단 내부 원점0만으로는 쪽 경계를 입증하지 못한다. 일반 저장 리셋이 없으면
         // 호스트 뒤 원문의 쪽 원점 되감김으로 닫힌 두 줄 프레임을 확인한다.
         let opening_frame_has_source_boundary =
-            layout_engine.row_cut_ends_at_plain_text_saved_reset(
+            layout_engine.row_cut_ends_at_original_plain_text_reset(
                 table,
                 end_row.saturating_sub(1),
                 start_cut,
@@ -872,6 +910,9 @@ impl TypesetEngine {
         if let Some(box_height) = single_cell_box_height {
             continuation.single_cell_box_sum_px += box_height;
         }
+        if let Some((row, used, height)) = stored_row_frame {
+            continuation.stored_row_box_sum = Some((row, used + height));
+        }
         // [#2238] 중간 fragment 가시높이 부기 — used_height(flush 시 current_height)
         // 표시용. advance 직후 current_height 가 리셋되므로 흐름/기하 불변.
         st.advance_flow_by(
@@ -953,6 +994,7 @@ impl TypesetEngine {
                 // 원시 행 잔여는 병합 공간을 보존한 문단 내부 저장 컷만 소유한다.
                 // 본문을 닫는 noAdjust 원본은 문단 간 저장 쪽 경계도 같은
                 // 첫 프레임에서 뺀 물리 잔여를 소유한다. 일반 내용 컷은 제외한다.
+                let base_remaining = (|| {
                 if !first_fragment_blank_band
                     || !layout_engine.row_cut_remaining_is_single_stored_frame(
                         table, end_row - 1, &next_cut, split_block_start, styles,
@@ -971,9 +1013,44 @@ impl TypesetEngine {
                 let raw = *table.get_raw_row_heights().get(end_row.checked_sub(1)?)?;
                 let remaining = hwpunit_to_px(raw as i32, self.dpi) - first;
                 (remaining > 0.0).then_some(remaining)
+                })();
+                base_remaining.or_else(|| {
+                // A stored opening frame owns blank space without consuming
+                // the next frame's units. Its source row minimum is shared
+                // with scan and paint through the continuation cursor.
+                if !first_fragment_blank_band || !st.profile.hwp5_stored_pagination_layout() {
+                    return None;
+                }
+                let row = end_row.checked_sub(1)?;
+                let cells: Vec<_> = table
+                    .cells
+                    .iter()
+                    .filter(|cell| {
+                        cell.row as usize <= row
+                            && row < cell.row as usize + cell.row_span as usize
+                    })
+                    .collect();
+                if cells.is_empty()
+                    || cells.iter().any(|cell| {
+                        cell.row as usize != row
+                            || cell.row_span != 1
+                            || cell.height >= 0x8000_0000
+                    })
+                {
+                    return None;
+                }
+                let minimum = cells
+                    .iter()
+                    .map(|cell| hwpunit_to_px(cell.height as i32, self.dpi))
+                    .fold(0.0, f64::max);
+                let remaining = minimum - end_row_height_override?;
+                let content =
+                    layout_engine.row_cut_content_height(table, row, &next_cut, &[], styles);
+                (remaining > content + 0.5).then_some(remaining)
+                })
             })
             .or_else(|| end_row_height_override
-            .filter(|_| !first_fragment_blank_band && !source_frame_trailing_trim_applied)
+            .filter(|_| !first_fragment_blank_band && !source_frame_trailing_trim_applied && stored_row_frame.is_none())
             .and_then(|limit| {
             let full = cut_row_h.get(end_row.saturating_sub(1)).copied()?;
             let tail = (full - limit).max(0.0);
