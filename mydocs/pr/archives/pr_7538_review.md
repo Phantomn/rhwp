@@ -90,3 +90,9 @@ Native/fresh WASM 전체228쪽씩 TSV 산출을 완료했습니다. 단독1쪽·
 원본 한글 HFT 슬롯 여부를 ASCII 반각 profile과 별개로 전달하고, 대체되지 않은 원본 HFT 선언과 해당 face의 폭 표가 확인되고 U+2024 폭만 결측인 갈래에서 전각 전진을 복원합니다. 기존 메트릭 hit는 바꾸지 않습니다. 명시적으로 선택한 TrueType 프로그램에는 적용하지 않습니다. 문서명·특정 좌표·페이지 번호로 분기하지 않습니다. `resolved_to_text_style → 공통 글자 폭 결정 → 줄 구성/최종 TextRun`이 같은 전진을 소비하며 실제 PDF·fresh Native/WASM과 기존 회귀로 최종 판정합니다.
 
 - 보정3 검증: Native Visual Sweep 전체 2쪽 완료, 1쪽 98.08627%·2쪽 95.07329%, 미달 0쪽입니다. 두 review PNG에서 표 행·문단 시작·후속 글자 배치와 누락 여부를 직접 확인했습니다. 기존 `issue_5906_float_stack_declared_tail` 1건을 원본 HFT 글자 전진·본문 경계·원본 마지막 행 높이 관계로 수정했고, Native Skia focused nextest 1 PASS입니다. 최종 전체 및 fresh WASM 검증은 이어서 수행합니다.
+
+### 보정4 사전 분석 — 폭 분류 golden 동기화
+
+첫 전체 nextest는 10,324건 중10,323 PASS/1 FAIL/50 skip,652.786초입니다. 실패는 픽셀/좌표 검사가 아닌 read-only 폭 분류 API의 golden입니다. HFT 결측 한점 리더26개가 반각에서 전각으로 바뀌어 `heuristicFullwidth`524→550, `heuristicHalfwidth`118→92와 aggregateHash만 달라졌습니다. 동일 API로 공개 입력3개를 다시 조회했으며 format parity HWP/HWPX는 모든 golden 필드가 동일합니다. 문제 입력의 문자 총량·coverage categories·legacyProjectionHash도 그대로입니다. 원래 분류 계약을 유지하고 해당 두 카운트와 aggregateHash만 동기화하며 focused 후 전체를 다시 실행합니다.
+
+- 보정4 결과:19쪽 전체 trace가 complete이며 원본 HFT26개만 전각, TrueType89개는 반각을 유지합니다. classification/parity·privacy·분류 총량·불변성·선형 보행을 포함한 기존 API 회귀8개가 **8 PASS/0 FAIL**입니다. golden은3필드만 변경했고 생산 소스·PDF·렌더링 기준은 추가로 바꾸지 않았습니다. 최종 전체 nextest와 Native Skia를 이어서 확인합니다.
