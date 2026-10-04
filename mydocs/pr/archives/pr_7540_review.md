@@ -9,7 +9,7 @@ last_verified: 2026-10-05
 
 ## 최종 판정
 
-**머지 보류** — 체리픽 적용 후 통합 head의 focused·전체 회귀와 필수 시각/구조 검증 진행 중. 원 source의 CI·PNG를 통합 검증 통과로 취급하지 않습니다.
+**승인** — KoPub 내장 독립 PDF 자산과 출처의 개별 범위와 통합 후보의 최종 로컬 검증을 완료했습니다. 원 PR 직접 병합이 아니라 이 문서에 기록한 체리픽 통합 후보를 대상으로 합니다. #7445 이관 문서의 전체 피델리티 수용을 주장하지 않습니다. 원격 통합 PR의 최신 head CI·보호 요건 통과 전에는 병합하지 않습니다.
 
 ## 접수·범위
 
@@ -58,3 +58,13 @@ last_verified: 2026-10-05
 - 생성 원장은 한컴 2024 엔진 13.0.0.3901의 두 job·입력/결과 hash를 연결합니다. cairo 출력과는 별도이며 원문 font 환경이 다른 기존 384쪽 PDF와 섞지 않습니다. 입력/결과의 원장 연결은 확인했으나 과거 원격 변환을 이번 head에서 다시 수행한 것으로 쓰지 않습니다.
 - 자동 PDF 선택 규칙·기존 회귀 쪽수 원장 변경은 없습니다. Native/HWPX의 전체 383쪽 렌더 검증을 이번 자산 검토로 대체하지 않습니다. **PDF 자산/출처 기여는 개별 범위를 충족**, 통합 최종 검증은 대기입니다.
 - merge 후 contributor 설명에는 독립 PDF·KoPub 내장 환경 검증과 남은 #7009/#7445 범위를 구분하고 정확한 merge SHA를 기록합니다. 아직 issue 종료·원 PR comment/close를 수행하지 않았습니다.
+
+## 최종 통합 로컬 검증 — 2026-10-05
+
+전체 회귀 head `aa10d4093f60c4e0c12aa186f2464861acbf89ea`, 최종 lint/build·fresh WASM·Skia head `42ef60c96`(테스트 모듈 순서만 정리), base `731de9e1b4bb946d76f35108ed7e186ebe4ebecb`입니다. 전체 nextest는 **10,318 PASS/0 FAIL/50 skip**,563.885초, threads=8로 완료했습니다. Format·Native/WASM32 Clippy·workspace build·workspace all-target Clippy·manifest/unit tier 정책을 통과했습니다. fresh WASM은 Mac 로컬 `--no-opt` 대체 빌드이며 Docker 최적화 검증으로 보고하지 않습니다. Skia lib·그림 placeholder·직접 PDF 출력 범위도 실제 실행했습니다. Studio 전체1,815 PASS/0 FAIL/2 skip와 TypeScript/Vite build도 완료했습니다.
+
+[정확한 head·명령·결과·원 source CI·개별 시각 범위](../assets/planet6897_20261004/final_validation.json)를 참고합니다. 시각 자료는 각 단계의 생산 code head와 입력/PDF hash로 고정되어 있으며, 이후 변경은 테스트·문서 범위입니다. 최종 fresh WASM hash와 기존 단계의 hash, 생산 본문 동일성 증적을 함께 기록합니다. 대용량 미달 문서는 #7445의 기존·추가 이관 기록으로 추적하고 그 문서 전체의 정확성을 승인하지 않습니다. 위의 “통합 검증 미완료/대기”는 해당 단계 작성 시점의 기록이며 최종 로컬 판정은 이 절을 따릅니다. 통합 CI는 아직 미실행입니다.
+
+## Merge 후 contributor PR comment 계획
+
+기여자의 KoPub 내장 독립 PDF 자산과 출처 결과와 이 문서에 적은 추가 보정의 원인·범위를 한국어 존댓말로 구분해 설명합니다. 실제 통합 merge SHA·CI URL·Visual Sweep 정본과 이관 잔여 범위를 안내하고, 통합 대체 병합으로 원 PR을 close합니다. UTF-8 `--body-file`로 게시 후 API로 본문·close 상태를 재확인하며 중복 댓글은 게시하지 않습니다. 배치 변경 없는 자산/파일 속성 기여로 시각 렌더 승인 주장은 하지 않습니다.

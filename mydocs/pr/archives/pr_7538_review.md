@@ -2,14 +2,14 @@
 kind: snapshot
 status: active
 canonical: mydocs/manual/pr_review_workflow.md
-last_verified: 2026-10-04
+last_verified: 2026-10-05
 ---
 
 # PR #7538 기여자 변경 검토
 
 ## 최종 판정
 
-**머지 보류** — source CI Impact Policy 대기; 이번 녹색 통합 대상에서 보류. 원 source의 CI·PNG를 통합 검증 통과로 취급하지 않습니다.
+**머지 보류** — 최신 원 head에서 CI Impact Policy가 PENDING 상태입니다. CI green 접수 조건을 충족하지 않아 이번 통합 branch에 적용하지 않았습니다. 다른16건의 통합 검증 통과를 이 원 PR의 검증으로 취급하지 않습니다.
 
 ## 접수·범위
 
@@ -50,3 +50,7 @@ last_verified: 2026-10-04
 ## 다음 단계
 
 원 PR 단위로 실패 원인과 증적을 먼저 분석하고, 필요한 보정은 코드 수정·결과 보고·커밋을 완료한 뒤 다음 보정으로 진행합니다. 통합 code candidate의 최종 검증 뒤 수용 판정·contributor 후속 comment 계획을 확정합니다. 아직 원 PR 또는 통합 PR을 병합한 것으로 표시하지 않습니다.
+
+## 최신 접수 재확인 — 2026-10-05
+
+원 head `e4abc99f2de1da071964bb3a86c22e4b3d0a4d64`는 접수 시점과 동일합니다. CI Impact Policy가 PENDING이므로 미적용으로 유지했습니다. 통합 branch의10,318 PASS는 이 원 head를 승인하는 근거가 아닙니다. 정확한 원 head와 CI 재실행이 조건을 충족하면 다음 접수에서 별도로 검토합니다. [원18개 CI 조회 기록](../assets/planet6897_20261004/final_validation.json).

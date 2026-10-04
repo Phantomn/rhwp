@@ -9,7 +9,7 @@ last_verified: 2026-10-05
 
 ## 최종 판정
 
-**메인터너 보정 후 수용 가능** — `8080b9adc`·`072048a8a` 보정 후 요청한 HWP/HWPX 120~121쪽의 줄 소속·Native/fresh WASM 시각 검증을 충족했습니다. 사용자 지시에 따라 전체 문서의 잔여 차이는 #7445로 분리합니다. 통합 branch의 최종 전체 회귀·lint 및 최신 CI는 아직 필요합니다.
+**메인터너 보정 후 수용 가능** — 셀 폭 격자·120~121쪽 보정·실패한 기존 검사 정리의 개별 범위와 통합 후보의 최종 로컬 검증을 완료했습니다. 원 PR 직접 병합이 아니라 이 문서에 기록한 체리픽 통합 후보를 대상으로 합니다. #7445 이관 문서의 전체 피델리티 수용을 주장하지 않습니다. 원격 통합 PR의 최신 head CI·보호 요건 통과 전에는 병합하지 않습니다.
 
 ## 접수·범위
 
@@ -133,3 +133,13 @@ last_verified: 2026-10-05
 ### Stage26 — 최종 all-target Clippy의 테스트 모듈 순서 보정
 
 전체 nextest10,318 PASS 후 all-target Clippy에서 HWPX 판본 helper가 테스트 모듈 뒤에 놓인 `items_after_test_module` 오류를 확인했습니다. 기존 `cfg(test)` 모듈을 파일 끝에 배치했습니다. 테스트 모듈 본문과 이를 제외한 생산 코드 본문이 전후 동일함을 확인했으며 동작·회귀 기대값은 바꾸지 않았습니다. HWPX 파서 기존4개는4/4 PASS, workspace all-target Clippy도 `-D warnings`로 통과했습니다. [본문 동일성 hash·실행 head와 결과](../assets/planet6897_20261004/7545-stage26/results.json). 전체10,318 실행 head와 이 순서 정리 후 검증 head를 최종 증적에서 구분합니다.
+
+## 최종 통합 로컬 검증 — 2026-10-05
+
+전체 회귀 head `aa10d4093f60c4e0c12aa186f2464861acbf89ea`, 최종 lint/build·fresh WASM·Skia head `42ef60c96`(테스트 모듈 순서만 정리), base `731de9e1b4bb946d76f35108ed7e186ebe4ebecb`입니다. 전체 nextest는 **10,318 PASS/0 FAIL/50 skip**,563.885초, threads=8로 완료했습니다. Format·Native/WASM32 Clippy·workspace build·workspace all-target Clippy·manifest/unit tier 정책을 통과했습니다. fresh WASM은 Mac 로컬 `--no-opt` 대체 빌드이며 Docker 최적화 검증으로 보고하지 않습니다. Skia lib·그림 placeholder·직접 PDF 출력 범위도 실제 실행했습니다. Studio 전체1,815 PASS/0 FAIL/2 skip와 TypeScript/Vite build도 완료했습니다.
+
+[정확한 head·명령·결과·원 source CI·개별 시각 범위](../assets/planet6897_20261004/final_validation.json)를 참고합니다. 시각 자료는 각 단계의 생산 code head와 입력/PDF hash로 고정되어 있으며, 이후 변경은 테스트·문서 범위입니다. 최종 fresh WASM hash와 기존 단계의 hash, 생산 본문 동일성 증적을 함께 기록합니다. 대용량 미달 문서는 #7445의 기존·추가 이관 기록으로 추적하고 그 문서 전체의 정확성을 승인하지 않습니다. 위의 “통합 검증 미완료/대기”는 해당 단계 작성 시점의 기록이며 최종 로컬 판정은 이 절을 따릅니다. 통합 CI는 아직 미실행입니다.
+
+## Merge 후 contributor PR comment 계획
+
+기여자의 셀 폭 격자·120~121쪽 보정·실패한 기존 검사 정리 결과와 이 문서에 적은 추가 보정의 원인·범위를 한국어 존댓말로 구분해 설명합니다. 실제 통합 merge SHA·CI URL·Visual Sweep 정본과 이관 잔여 범위를 안내하고, 통합 대체 병합으로 원 PR을 close합니다. UTF-8 `--body-file`로 게시 후 API로 본문·close 상태를 재확인하며 중복 댓글은 게시하지 않습니다. [대표 PNG](../assets/planet6897_20261004/7545-stage17/grid-hwpx-p121-native-review.png)는 실제 merge SHA에 고정한 raw URL로 표시합니다.
