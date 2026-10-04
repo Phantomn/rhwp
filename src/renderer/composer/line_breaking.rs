@@ -1455,9 +1455,27 @@ fn text_token_fits_line_hwp(
     effective_width_hwp: i32,
     new_word_natural_before_hwp: Option<i32>,
 ) -> bool {
+    text_token_fits_in_line_with_tolerance_hwp(
+        current_width_hwp,
+        token_width,
+        space_savings_hwp,
+        effective_width_hwp,
+        new_word_natural_before_hwp,
+        line_break_tolerance_hwp(effective_width_hwp),
+    )
+}
+
+fn text_token_fits_in_line_with_tolerance_hwp(
+    current_width_hwp: i32,
+    token_width: FitWidthHwp,
+    space_savings_hwp: i32,
+    effective_width_hwp: i32,
+    new_word_natural_before_hwp: Option<i32>,
+    tolerance_hwp: i32,
+) -> bool {
     let natural_candidate = current_width_hwp + token_width.0;
     let condensed_candidate = condensed_line_width_hwp(natural_candidate, space_savings_hwp);
-    let limit_hwp = effective_width_hwp + line_break_tolerance_hwp(effective_width_hwp);
+    let limit_hwp = effective_width_hwp + tolerance_hwp;
     if natural_candidate <= limit_hwp {
         return true;
     }
@@ -1493,6 +1511,8 @@ struct FillCursor {
     /// [#7418] 마지막으로 소비한 토큰이 이 줄의 공백이면, 그 공백 묶음 직전까지의 자연폭.
     /// 다음 글자 토큰이 새 낱말을 시작하는지와 그때 줄이 자연폭 안인지를 판정한다.
     word_gap_natural_hwp: Option<i32>,
+    /// 물리 프레임의 폭이 확정되면 추정 메트릭의 초과 허용을 얹지 않는다.
+    allow_metric_tolerance: bool,
     finished: bool,
     emitted_any: bool,
 }
@@ -1514,6 +1534,7 @@ impl FillCursor {
             space_savings_at_last_break: 0,
             fs_at_last_break: 0.0,
             word_gap_natural_hwp: None,
+            allow_metric_tolerance: true,
             finished: false,
             emitted_any: false,
         }
@@ -1584,6 +1605,21 @@ fn fill_one_interval(
     cursor: &mut FillCursor,
     mut kerning: Option<&mut crate::renderer::kerning::KerningParagraphBreakSession<'_, '_, '_>>,
 ) -> Option<FilledInterval> {
+    let allow_metric_tolerance = cursor.allow_metric_tolerance;
+    let fits_physical_line = |current, token, savings, width, word| {
+        text_token_fits_in_line_with_tolerance_hwp(
+            current,
+            token,
+            savings,
+            width,
+            word,
+            if allow_metric_tolerance {
+                line_break_tolerance_hwp(width)
+            } else {
+                0
+            },
+        )
+    };
     if cursor.finished {
         return None;
     }
@@ -1941,7 +1977,7 @@ fn fill_one_interval(
                 } else {
                     0
                 };
-                let token_fits = text_token_fits_line_hwp(
+                let token_fits = fits_physical_line(
                     cursor.lw,
                     w_hwp_fit.with_pair_adjustment(pair_adjustment_hwp),
                     cursor.line_space_savings,
@@ -2037,7 +2073,7 @@ fn fill_one_interval(
                             // 이 자리만 `w_hwp` 를 넘겨, 같은 토큰이 한 반복 안에서 두 방식으로
                             // 측정됐다 — 자간이 0 이 아닌 문단에서만 갈리므로 어떤 테스트도
                             // 이 차이를 잡지 못했다. 펜은 여기서도 전체 폭을 그대로 전진한다.
-                            if text_token_fits_line_hwp(
+                            if fits_physical_line(
                                 cursor.lw,
                                 w_hwp_fit.with_pair_adjustment(
                                     if let Some(session) = kerning.as_deref_mut() {
@@ -3191,6 +3227,9 @@ fn layout_paragraph_in_frame_impl(
     let first_row = frame.row_count();
     let frame_checkpoint = frame.clone();
     let mut cursor = FillCursor::replay_from_boundary(&tokens, start_char, start_char == 0);
+    // 확정된 물리 구간은 원본 격자 폭 자체가 경계다. 추정 여유를 더하면
+    // 4 HU 격자로 내린 칸에도 26 HU 초과 글자가 들어가 격자 계약이 무효화된다.
+    cursor.allow_metric_tolerance = false;
 
     let result = (|| {
         while !cursor.finished {
@@ -3264,7 +3303,11 @@ fn layout_paragraph_in_frame_impl(
                                 &letter_spacing_px,
                                 *end_idx,
                             );
-                            let fits = |width| text_token_fits_line_hwp(0, word, 0, width, None);
+                            let fits = |width| {
+                                text_token_fits_in_line_with_tolerance_hwp(
+                                    0, word, 0, width, None, 0,
+                                )
+                            };
                             let widest_available = to_hwp(widest_available_px);
                             if available_width_px < widest_available_px
                                 && !fits(to_hwp(available_width_px))
@@ -3287,6 +3330,7 @@ fn layout_paragraph_in_frame_impl(
                             cursor.line_start_idx,
                             cursor.is_first_line,
                         );
+                        replay.allow_metric_tolerance = false;
                         let filled = fill_one_interval(
                             terminal_tokens,
                             &text_chars,
