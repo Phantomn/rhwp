@@ -110,11 +110,12 @@
     "binary_identical_to_visual_candidate": true
   },
   "native_cli": {
-    "fresh_rebuild": "PASS",
-    "sha256": "0e496ec30b9a62c230e33b5ed0f4c18a02f148de40f48115275d65335bf75591",
+    "fresh_rebuild": "PASS: native-skia feature",
+    "sha256": "e9f0dd82d874679b205ce1e0fc89ace66d21217353308e7c6559870138eae936",
     "stage17_sha256": "b8c491de461cff4751a3d41cbf940b54ff8d434681bfb042c528bd3a70f20802",
     "binary_identical_to_visual_candidate": false,
-    "command": "cargo build --locked --profile release-test --target-dir target/pr-review --bin rhwp"
+    "command": "cargo build --locked --profile release-test --target-dir target/pr-review --features native-skia --bin rhwp",
+    "current_svg_verification": "final-visual/results.json; 104 approved scope pages, minimum90.80846%, below90=0"
   },
   "applied_prs": [
     7529,
@@ -6221,7 +6222,7 @@
     }
   ],
   "cherry_picked_unique_commits": 35,
-  "visual_reuse": "각 단계의 실제 backend·source/input/PDF hash를 보존하며 전체 문서 승인을 주장하지 않음; production072 이후 cfg(test)·회귀/문서만 변경. 최종 WASM은 byte-identical.",
+  "visual_reuse": "수용 범위104쪽을 최종 Native/fresh WASM에서 재출력. 동일 SVG의 기존 raster만 재사용하고 변화한 출력·font policy는 새 raster 후 전체 수용 범위 TSV 갱신. Canvas2D/CanvasKit3쪽은 동일 final WASM과 변경 없는 생산 Studio 코드의 실제 시각 증적을 유지. 대용량 #7445 문서 전체 승인 없음.",
   "deferred_issue": "https://github.com/edwardkim/rhwp/issues/7445",
   "new_test_functions_this_final_correction": 0,
   "removed_blocking_functions": 6,
@@ -6252,5 +6253,22 @@
       "path": "pdf/pr_5786/hancom2020/issue5780_flow_image_page_background_hancom2020.pdf",
       "sha256": "98447f3c11fc586cef42ba46f263d1f23406aa070d05d2a2d38b19b75665ae5d"
     }
-  ]
+  ],
+  "native_cli_default_variant": {
+    "fresh_rebuild": "PASS",
+    "sha256": "0e496ec30b9a62c230e33b5ed0f4c18a02f148de40f48115275d65335bf75591",
+    "stage17_sha256": "b8c491de461cff4751a3d41cbf940b54ff8d434681bfb042c528bd3a70f20802",
+    "binary_identical_to_visual_candidate": false,
+    "command": "cargo build --locked --profile release-test --target-dir target/pr-review --bin rhwp"
+  },
+  "final_visual": {
+    "evidence": "mydocs/pr/assets/planet6897_20261004/final-visual/results.json",
+    "export_head": "bea737c9ad8a75a9a2122d8e3f0c153b645811ec",
+    "approved_scope_pages_per_backend": 104,
+    "native_minimum": 90.80846,
+    "wasm_minimum": 90.80846,
+    "below90": 0,
+    "whole_deferred_documents_approved": false,
+    "raster_policy": "현재 Native와 실제 Chrome/fresh WASM에서 수용 범위 SVG를 모두 재출력. byte-identical SVG의 기존 raster만 재사용, 달라진 SVG/font policy는 새 raster. 같은 원본/독립 PDF hash로 Visual Sweep PNG-pair TSV 재산출. global #7445 문서 승인 아님."
+  }
 }
