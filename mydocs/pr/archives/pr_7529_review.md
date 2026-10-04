@@ -30,19 +30,19 @@ last_verified: 2026-10-05
 
 ## 조판 원칙과 검증 현황
 
-| 항목 | 현재 근거·해제 조건 | 판정 |
+| 항목 | 현재 근거와 범위 | 판정 |
 | --- | --- | --- |
-| 구현 근거와 일반성 | 원 PR·관련 issue의 독립 기준을 코드와 대조 중 | 미검증 |
-| 측정·배치 일관성 | source 공통 helper 이후 실제 원점/흐름 소비 지점 검토 중 | 미검증 |
-| 분할·이어받기 계약 | 적용되는 컷·내용 소유·예약/배치와 정상 반례 검증 필요 | 미검증 |
-| 줄 소속과 점유 높이 | 저장 LineSeg·재조판 경로의 실제 호출 및 반례 실행 필요 | 미검증 |
-| 사례와 증거의 독립성 | source 증적은 참고; 통합 head 직접 검증 진행 중 | 미검증 |
-| 기준값 변경 | changed baseline·새 회귀의 독립 PDF/사양 근거 검토 중 | 미검증 |
-| 주장과 검증 범위 | focused 검사 실행 중; 선택 범위 완료 후 갱신 | 미검증 |
+| 구현 근거와 일반성 | Studio 자르기 fallback의 축별 환산과 두 백엔드 실제 영상 | 개별 범위 확인 |
+| 측정·배치 일관성 | HWPUNIT 자르기 환산과 실제 Canvas2D/CanvasKit 대조 | 개별 범위 확인 |
+| 분할·이어받기 계약 | 자산/Studio crop 변경으로 일반 표 분할 경로 변경 없음 | 적용 안 됨 |
+| 줄 소속과 점유 높이 | 자산/Studio crop 변경으로 줄 배치 경로 변경 없음 | 적용 안 됨 |
+| 사례와 증거의 독립성 | 아래 통합 직접 실행·독립 한컴 PDF 또는 사양 및 입력 hash 참조 | 확인 |
+| 기준값 변경 | 아래 기존 회귀 보정·유지 이유 참조; 출력 좌표를 새 정답으로 고정하지 않음 | 확인 |
+| 주장과 검증 범위 | 개별 기여 범위 확인; 최종 전체 nextest·lint/build·통합 CI 완료 전 병합 불가 | 통합 보류 |
 
 ## 검증 입력 커밋 확인
 
-미검증. 실제 실행한 HWP/HWPX/PDF를 열거하고 최종 검증 commit과 내용 hash를 대조합니다. 기존 #7445 이관 자료와 제외 회귀를 자동 재등록하지 않습니다.
+아래 개별 단계의 실제 입력·독립 PDF·실행 head와 증적 JSON/manifest에 내용 hash를 기록했습니다. 기존 #7445 이관 자료는 해당 단계에 적은 범위만 유지하며 전체 피델리티 승인을 주장하지 않습니다. 최종 전체 검증 결과는 별도 완료 후 기록합니다.
 
 ## 시각 검증 계획
 
@@ -56,7 +56,7 @@ last_verified: 2026-10-05
 
 - 원 기여의 축별 fallback을 유지했습니다. `cropReferenceSize` 두 축 우선, 시작이 0인 축의 전체 범위 확인, 둘 다 잘린 경우 기본 HWPUNIT 환산 순서를 코드와 실제 영상으로 대조했습니다. 일반 page flow/분할 계약은 이 TS helper 변경 범위에 해당하지 않습니다.
 - 기존 회귀 1개의 고정 영상 좌표 기대값을 원본 자르기 HWPUNIT와 디코딩 크기의 관계로 보정했습니다. 같은 검사에서 잘못된 세로 축척을 잡으며 새 test 함수는 추가하지 않았습니다. 관련 `render-backend.test.ts` 65개 PASS/0 FAIL입니다.
-- 검증 입력: `samples/issue7015/30442-acrc-recommendation-business-burden.hwp`, `samples/issue6866/156627451-quantum-science-press-note.hwpx`; 독립 기준은 `pdf/30442-acrc-recommendation-business-burden-2020.pdf`, `pdf/156627451-quantum-science-press-note-2020.pdf`입니다. 내용 SHA와 실제 renderer diagnostics는 아래 증적에 보존합니다.
+- 검증 입력: `samples/issue7015/30442-acrc-recommendation-business-burden.hwp`, `samples/issue6866/156627451-quantum-science-press-note.hwpx`; 독립 기준은 `pdf/30442-acrc-recommendation-business-burden-2020.pdf`, `pdf/156627451-quantum-science-press-note-2020.pdf`입니다. 파일명과 별도로 두 PDF의 실제 Creator는 모두 `Hwp 2022`로 확인했고, 독립 기준 자료를 재사용했습니다. 내용 SHA와 실제 renderer diagnostics는 아래 증적에 보존합니다.
 - 통합 head `a9f4b0850`의 Studio + 생산 Rust/WASM `072048a8a`로 실제 Chrome headless/DPR 1/zoom 1/print profile에서 Canvas2D·CanvasKit software를 각각 요청했고 fallback 없이 해당 backend가 실행된 것을 기록했습니다.
 
 | Studio backend | 30442 3쪽 | 30442 14쪽 | 정상 대조군 1쪽 |
