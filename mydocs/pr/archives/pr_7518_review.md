@@ -52,6 +52,14 @@ p33/p34는 모두 85.78689%/86.67962%다. review와 standalone overlay를 직접
 게시할 통합 branch/PR은 `edwardkim/rhwp`의 `devel` 대상이며, contributor fork의 source history를 바꾸지 않는다.
 원 PR의 CI 성공은 보정된 통합 head의 CI를 대신하지 않는다. 원격 push·PR 생성·comment·close·merge는 각각 승인 범위를 확인한다.
 
+22쪽 후속 보정 source `28f4cbbe5799f76a28e3c22ada96b6ee54cea218`는 저장 LineSeg가 없는
+본문의 앞 간격을 flow에서 누락하던 가정을 삭제한다. 제목 다음 표의 y는 751.8→785.1px이며
+빈 문단과 표 뒤 문단을 보존한다. Native/fresh WASM PNG 일치, CDP 7/7 및 관련 기존 검사
+32개와 필수 lint 묶음이 통과했다. 22쪽 점수는 79.94394→86.84069%, 한컴 대비 원점 잔차 약
+3.13px이고 자동 gate는 재검토 상태다. 39쪽 겹침 2건과 기존 정식 실패는 남아 있다.
+이번 결과는 local 검증이며 공개 PR의 새 head CI 성공이나 merge 판정이 아니다.
+[수정 후 증거와 검증 범위](pr_7518_review_impl.md#22쪽-수정-후-검증--28f4cbbe5)에 연결한다.
+
 ## 접수 정보
 
 | 항목 | 값 |

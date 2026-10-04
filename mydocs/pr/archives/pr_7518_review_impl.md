@@ -605,3 +605,59 @@ format 결과에 포함한다. 저장 사다리의 별도 trim/column-top 처리
 저장 LineSeg, 간격 0, 빈 문단과 visible host의 기존 검사를 대조하고
 22쪽 Native/fresh WASM 직접 비교부터 진행한다. 38·39쪽에 별도 수정은
 추가하지 않으며 공통 원인의 파급 결과만 관찰한다.
+
+
+### 22쪽 수정 후 검증 — 28f4cbbe5
+
+업데이트로 `/tmp` 작업트리와 ignored 출력이 소실되었으나 branch와 커밋은 남았다.
+같은 경로에 `integration/pr7518-maintainer-20261004`를 복구했다. source는
+`28f4cbbe5799f76a28e3c22ada96b6ee54cea218`, 검증 base는 fetch 뒤 고정한
+`731de9e1b4bb946d76f35108ed7e186ebe4ebecb`다. 공유 target/pr-review와 주 작업공간을 보존했다.
+이전 immutable Native CLI는 SHA-256으로 확인해 회수했고 현재 Native와 WASM은 다시 빌드했다.
+글꼴 49개를 Windows Fonts에서 다시 공급했으므로 이전 환경의 점수와 섞지 않고
+같은 복구 환경에서 수정 전후를 새로 비교했다. 입력·PDF·글꼴·binary 해시는
+[이번 증적](../assets/pr7518_p22_spacing_20261004/validation.json)에 고정한다.
+
+| 22쪽 실제 배치 | 수정 전 Native | 수정 후 Native / portable WASM | 독립 기준·검사 |
+| --- | --- | --- | --- |
+| 제목 pi191 | y745.2 / h20.0 | 동일 | 한컴 PDF glyph baseline 766.24px |
+| 별도 빈 문단 pi192 | y775.2 / h5.3 | 동일 | 원본 4pt 빈 문단 보존 |
+| 뒤 표 pi193 | y751.8 / h231.9 | y785.1 / h231.9 | 한컴 상단 괘선 788.257px, 잔차 약 3.13px |
+| 표 뒤 빈 문단 pi194 | y985.6 / h5.3 | y1018.9 / h5.3 | 표 점유 끝 뒤에 배치 |
+
+최종 좌표의 `제목 → 빈 줄 → 표 → 뒤 문단` 검사는 수정 전 표가 빈 줄보다 앞서 FAIL,
+수정 후 PASS다. 이는 실제 최종 배치의 진단 실행이며 새 정식 회귀 추가와 구분한다.
+Native와 fresh WASM 22쪽 PNG의 SHA-256이 같고 48개 TextLine/Table의
+최종 bbox도 일치했다. Native CLI Visual Sweep과 CDP portable print SVG의
+canonical font-policy/raster/compare/overlay/review helper 경로를 각각 기록한다.
+WASM에서 Native의 내용을 복사하지 않으며 같은 embedded font 정책만 적용한다.
+82쪽 전체 WASM SVG를 내보낸 결과로 보고하지 않는다.
+
+22쪽 2px 관용 실루엣은 수정 전 79.94394%, 수정 후 Native/fresh WASM 모두 86.84069%다.
+review와 standalone overlay를 직접 확인하여 제목 겹침 해소·빈 줄·표 외곽과 뒤 문단을 확인했다.
+한컴과 약 3.13px 원점 차이 및 글꼴/괘선 차이는 남는다. 자동 `re_review_required`를 보존하고
+기존 33·34쪽 사용자 판정을 이번 22쪽의 새 시각 승인으로 확대하지 않았다.
+[새 회귀 추가 정책](../../manual/pr_review/visual_fixture_evidence.md#렌더링-회귀-테스트-신규-추가의-시각-검증-선행-조건)에
+따라 이번 점수에서 tests/cases·golden·baseline을 새로 추가하거나 변경하지 않았다.
+
+Studio CDP는 새 WASM 실제 응답 해시 = pkg = public, 제목/빈 줄/표/뒤 문단 순서,
+82쪽 유지, Native/portable WASM 좌표와 browser error 0을 확인해 7/7 PASS다.
+기존 간격·저장 host·문단 끝 표 anchor 대조 검사는 6267 2/2, 6950 28/28, 7196 2/2 PASS다.
+fmt, Native/WASM/전체 workspace all-targets Clippy, workspace build, base 고정 manifest와
+unit-tier 정책 검사는 모두 PASS다. Rust source는 빌드·검증 뒤 바뀌지 않았다.
+
+82쪽 Native 전수 진단은 text-overlap 4→2, 일반 overlap 3→1이다. 22·38쪽 text-overlap은
+각각 1→0이고 39쪽 2건은 유지된다. 82쪽·빈 쪽 0·off-canvas 0·overflow 12도 유지된다.
+33·34쪽의 모든 본문 표 bbox는 수정 전후 동일하며, 이는 전쪽 시각 무회귀 판정이 아닌 좌표 대조다.
+38·39쪽의 새 시각 판독과 남은 독립 문제를 해결 완료로 보고하지 않는다.
+
+![22쪽 Native 수정 후 한컴 비교](../assets/pr7518_p22_spacing_20261004/native_review_022.png)
+
+![22쪽 fresh WASM standalone overlay](../assets/pr7518_p22_spacing_20261004/wasm_overlay_022.png)
+
+기존 실패 검사도 source 28f4cbbe5에서 재실행했다: 7518은 13 PASS / 4 FAIL,
+2308은 4 PASS / 1 FAIL / 1 ignored로 이전과 같은 assertion에 실패한다.
+text-overlap partition 9는 76076 신규 2건으로 FAIL하며 39쪽의 실제 좌표 신호와 대응한다.
+검사 실패를 숨기기 위한 pin·baseline 변경은 하지 않았다. 전체 회귀와 Native Skia는
+이번 source에서 재실행하지 않았으며 공개 head의 CI 상태도 이번 로컬 검사로 대체하지 않는다.
+예제 PNG·manifest·진단 스크립트와 핵심 로그는 위 tracked asset에 보존한다.
