@@ -2324,7 +2324,8 @@ impl Renderer for WebCanvasRenderer {
                 // 기본 렌더링 (효과 없음)
                 self.ctx.set_fill_style_str(&color_to_css(style.color));
                 for (char_idx, cluster_str) in clusters.iter() {
-                    if cluster_str == " " || cluster_str == "\t" || cluster_str == "\u{2007}" {
+                    // 공백의 저장 전진폭·장식은 유지하되 글꼴의 잘못된 NBSP 윤곽선은 그리지 않는다.
+                    if cluster_str.chars().all(char::is_whitespace) {
                         continue;
                     }
                     if let Some((cx, cy, rx, ry)) =

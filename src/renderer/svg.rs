@@ -3503,7 +3503,8 @@ impl Renderer for SvgRenderer {
             let dx = style.shadow_offset_x;
             let dy = style.shadow_offset_y;
             for (char_idx, cluster_str) in clusters.iter() {
-                if cluster_str == " " || cluster_str == "\t" {
+                // 공백의 저장 전진폭·장식은 유지하되 글꼴의 잘못된 NBSP 윤곽선은 그리지 않는다.
+                if cluster_str.chars().all(char::is_whitespace) {
                     continue;
                 }
                 if is_middle_dot(cluster_str) {
@@ -3553,7 +3554,8 @@ impl Renderer for SvgRenderer {
         // positioning calculation below without repainting their TextRun mirror.
         if !self.suppress_text_glyphs {
             for (char_idx, cluster_str) in clusters.iter() {
-                if cluster_str == " " || cluster_str == "\t" {
+                // 공백의 저장 전진폭·장식은 유지하되 글꼴의 잘못된 NBSP 윤곽선은 그리지 않는다.
+                if cluster_str.chars().all(char::is_whitespace) {
                     continue;
                 }
                 if cluster_str == "-" {

@@ -1,0 +1,23 @@
+{
+  "status": "unit_pass_visual_and_backend_pending",
+  "unit_passed": 51,
+  "unit_failed": 0,
+  "log_path": "output/pr-review/planet6897-20261004/stage8-whitespace-nextest.log",
+  "log_sha256": "342a8d40ba6d1190a31f6278325f3e7dfd58be80e70a65b0d6e5b06f7deadbac",
+  "source_sha256": {
+    "src/renderer/svg.rs": "ad78d196f1e13bee38a78847ddbd3336da7cec9a0d23e736070726ccc9df8092",
+    "src/renderer/web_canvas.rs": "46425ff30c15e1f0aab0fa6d06badf9a96dfba67137cca4f49bc72bef8e2f76b",
+    "src/renderer/skia/text_replay.rs": "ea620ac9fcfec14909e6ca694e1bd85276e74d299b5b1ba38960a042c4f31cf7"
+  },
+  "font_evidence": {
+    "path": "/Users/tsjang/Library/Fonts/H2MJSM.TTF",
+    "sha256": "49dd1ef0caa6989a7dd95b484fdd052cbc846f6514c0c08421ed03a6cb1669cc",
+    "U+00A0_glyph": "uni0080",
+    "contours": 2
+  },
+  "remaining": [
+    "Native/fresh WASM 8-page TSV and representative image",
+    "Skia enabled build/tests",
+    "final integration gates"
+  ]
+}
