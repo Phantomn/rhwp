@@ -523,3 +523,54 @@ exit 0이었다. 별도 통합 절차에 따라 두 원 PR 문서를 archive로 
 함께 갱신했다. 현재 source의 대표 PNG 16개와 점수·실패 범위 JSON을
 `mydocs/pr/assets/pr7518_integration_20261004/`에 추가했다. 현재 PR 본문은 이 새 asset을
 정확한 head SHA의 raw URL로 고정한다. 과거 asset을 현재 출력처럼 사용하지 않는다.
+
+### PR #7570 CI 실패 확인
+
+2026-10-04 사용자 요청으로 [PR #7570](https://github.com/edwardkim/rhwp/pull/7570)의
+정확한 공개 head `d26a301d188dda000a23b59b6cb9adf155bef2fb`를 재조회했다.
+base는 여전히 `731de9e1b4bb946d76f35108ed7e186ebe4ebecb`다.
+최종 check는 27 success / 3 skipped / 3 failure이며 실행 중인 검사는 없다.
+lint·네 archive build·Archive A/B·Native Skia·frontend package는 통과했다.
+실패는 환경 설치나 빌드 오류가 아닌 실행된 Rust assertion이다.
+
+| 실패 job | 직접 원인 | 로컬 대조 |
+| --- | --- | --- |
+| [Archive C](https://github.com/edwardkim/rhwp/actions/runs/37199449976/job/111429147180) | `issue_2308_saved_nested_width_keeps_fragment_geometry`: p33 expected y=400.4 / h=636.8, actual y=402.3267 / h=636.9733. 허용 0.2px 중 높이는 통과하고 원점은 1.9267px 차이로 실패한다. | 현재 source를 새로 링크해 case 6개 실행: 4 PASS / 해당 1 FAIL / 기존 1 ignored. CI와 같은 실제 값이다. |
+| [Archive D](https://github.com/edwardkim/rhwp/actions/runs/37199449976/job/111429617130) | `text_overlaps_do_not_grow_partition_9`: 76076에 baseline 없는 글자 상자 겹침 4건. | 같은 partition의 정식 검사도 실제 신규 4건으로 FAIL했다. |
+| [Build & Test aggregate](https://github.com/edwardkim/rhwp/actions/runs/37199449976/job/111430787591) | Archive C/D 결과가 failure이므로 집계 실패. | 별도의 세 번째 조판 결함으로 세지 않는다. |
+
+겹침의 JSON `page`는 0-based다. 사용자에게 안내하는 쪽 번호는 여기에 1을 더했다.
+현재 immutable Native CLI의 `layout-anomaly`와 실제 render tree에서 다음을 대조했다.
+
+| 실제 쪽 | 소유 문단·내용 | 겹침 수 / 세로 상자 교차 |
+| --- | --- | --- |
+| 22 | 본문 pi191 `규제대안의 내용`과 pi193 표의 `대안명` | 1 / 7.3867px |
+| 38 | 본문 pi364 `규제대안의 내용`과 pi366 표의 `대안명` | 1 / 14.0533px |
+| 39 | 본문 pi373 `이해관계자 의견수렴`과 pi375 표의 `이해관계자명`, `일시 · 장소 · 방법` | 2 / 각각 17.1133px |
+
+세 문단의 표는 Para/Top, offset 0, TopAndBottom이다. 22쪽 본문 줄 y=745.2 / h=20.0인데
+뒤 표 문자는 y=757.8133으로 앞 제목의 줄 상자와 교차한다. 38쪽 본문 y=817.1467 / h=20.0,
+표 문자 y=823.0933, 39쪽 본문 y=224.1867 / h=20.0, 표 문자 y=227.0733이다.
+이는 실제 좌표 검사 재현이며 추가 페이지의 fresh Native/WASM Visual Sweep 판독을 대신하지 않는다.
+
+같은 원본에 보존한 immutable CLI를 대조했다. 원점 보정 전 source `3d2354584`는
+82쪽 / text-overlap 0건, 원점 보정 `3d9239eee`는 82쪽 / 5건,
+최신 통합 `d76cd8075`는 82쪽 / 4건이다. 따라서 최신 devel 통합만의 환경 실패가 아니라
+이번 빈 host 원점 보정 이후 생긴 앞 본문과 표 배치의 회귀로 범위를 좁혔다.
+정확한 생산·소비 분기의 원인 보정은 다음 단계이며, 값 clamp·baseline 허용치 갱신으로 숨기지 않는다.
+p33 원점 검사는 독립 PDF·source 관계와 대조할 대상이며 이번 직접 시각 수용만으로
+절대 좌표 assertion을 자동 이동하지 않았다. 기존 페이지 분할 검사 4건도 별도로 남아 있다.
+
+Archive C는 547/1986, Archive D는 37/2041 검사를 실행하고 fail-fast로 중단했다.
+따라서 이번 CI에서 보고된 독립 실패 2개가 모든 남은 실패의 전부라는 의미는 아니다.
+특히 앞서 로컬에서 확인한 페이지 분할 4 FAIL을 CI 전체 통과로 바꾸어 보고하지 않는다.
+
+로컬 명령·증거는 `output/pr-review/pr7518-20261004/`에 보존했다.
+
+- CI 로그: `logs/ci-7570-archive-{c,d}.log`, `logs/ci-7570-build-test-aggregate.log`.
+- 원점 정식 검사: `node scripts/run-rust-test.mjs --cargo-test issue_2308_render_normalized_derived_state -- --target-dir /home/edward/mygithub/rhwp/target/pr-review`; `logs/ci-7570-local-2308.log`.
+- 겹침 정식 검사: `RHWP_TEXT_OVERLAP_DUMP=<증적 TSV> cargo test --locked --target-dir /home/edward/mygithub/rhwp/target/pr-review --test regression_suite_010 text_overlap_baseline::text_overlaps_do_not_grow_partition_9`; `logs/ci-7570-local-text-overlap-partition9.log`.
+- 동일 원본 before/after: `ci-7570-regulatory-before-spacing-anomaly.json`, `ci-7570-regulatory-before-merge-anomaly.json`, `ci-7570-regulatory-anomaly.json`.
+- 실제 소유·좌표: `ci-7570-overlap-trees/render_tree_{022,038,039}.json`; source control은 `ci-7570-regulatory-source.txt`.
+
+이번 단계는 실패 조사 기록이며 code·assertion·baseline 변경이나 원격 재실행을 수행하지 않았다.

@@ -38,6 +38,14 @@ p33/p34는 모두 85.78689%/86.67962%다. review와 standalone overlay를 직접
 최신 제출 증거는 [Native/fresh WASM 측정과 미완료 검사](../assets/pr7518_integration_20261004/validation.json)에
 분리하여 기록했다. 이전 asset은 과거 source의 증거로 보존한다.
 
+메인터너 [PR #7570](https://github.com/edwardkim/rhwp/pull/7570)의 공개 head
+`d26a301d188dda000a23b59b6cb9adf155bef2fb` CI는 2026-10-04 종료되어
+27 success / 3 skipped / 3 failure다. 독립 실패는 76076 p33 중첩 표 원점 검사와
+같은 문서의 신규 text-overlap 4건이며, 나머지 실패 하나는 이 둘의 aggregate다.
+두 검사 모두 로컬에서 재현했다. 신규 글자 상자 겹침은 실제 22·38·39쪽에 있으며
+이번 p33/p34 시각 수용과 구분한다. 원점 검사와 겹침의 전후 source 증거는
+[CI 실패 확인](pr_7518_review_impl.md#pr-7570-ci-실패-확인)에 연결한다.
+
 원 contributor head `02845752f76d5539c74df135d950ba5757bd1792`에는 그림 띠 문서 2쪽의 행 높이·중첩 표 위치 결함이 남았다.
 사용자의 “메인테이너쪽에서 해당 문제도 해결해서 처리” 지시에 따라 원 기여를 유지하고 별도 보정했다.
 #7482/#7563의 과거 예외를 자동 확대하지 않았으며, 위 수용은 이번 사용자의 새 명시 지시에 따른다.
