@@ -91,12 +91,10 @@ pub(crate) fn transparent_table_wrapper_child(table: &Table) -> Option<&Table> {
     {
         return None;
     }
-    let Some(nested) = para.controls.iter().find_map(|c| match c {
+    let nested = para.controls.iter().find_map(|c| match c {
         Control::Table(t) => Some(t.as_ref()),
         _ => None,
-    }) else {
-        return None;
-    };
+    })?;
     if single_table_wrapper_has_vertical_alignment_space(table, nested) {
         return None;
     }
