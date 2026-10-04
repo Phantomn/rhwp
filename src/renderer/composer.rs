@@ -3529,10 +3529,13 @@ pub(crate) fn shrunk_cell_horizontal_padding(
         wrapped_height -= last_line_spacing.max(0.0);
         if std::env::var_os("RHWP_DIAG_SHRINK").is_some() {
             println!(
-                "D_SHRINK cell_w={cell_w:.1} avail={available:.1} inner_h={inner_height_px:.1} wrapped_h={wrapped_height:.1} max_line_w={max_line_w:.1}"
+                "D_SHRINK cell_w={cell_w:.1} avail={available:.1} inner_h={inner_height_px:.15} wrapped_h={wrapped_height:.15} max_line_w={max_line_w:.1}"
             );
         }
-        if wrapped_height <= inner_height_px && !stored_fits_fewer_lines {
+        // Adding line pitches and subtracting cell padding can round the same
+        // physical height to adjacent f64 values. That single representable
+        // step is arithmetic noise, not overflow that warrants shrinking pads.
+        if wrapped_height <= inner_height_px.next_up() && !stored_fits_fewer_lines {
             return (pad_left, pad_right);
         }
     }

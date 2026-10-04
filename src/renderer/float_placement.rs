@@ -2271,6 +2271,7 @@ impl ParagraphFloatPlacement {
         table_height: f64,
         before: f64,
         after: f64,
+        dpi: f64,
     ) -> Option<Self> {
         if !reflow_empty_table_host(para, table)
             || ![origin, table_height, before, after]
@@ -2280,7 +2281,10 @@ impl ParagraphFloatPlacement {
         {
             return None;
         }
-        let table_top = origin + before;
+        // A positive paragraph offset is physical space before the flow
+        // object even though it has no content unit or saved host line.
+        let table_top =
+            origin + before + hwpunit_to_px(signed_hwpunit(table.common.vertical_offset), dpi);
         Some(Self {
             flow: ParagraphFloatFlow::Exclusion,
             anchor_y: origin,
@@ -3108,7 +3112,7 @@ pub(crate) fn is_para_topbottom_float(common: &CommonObjAttr) -> bool {
 
 /// With no stored line anchor, an empty block host places its sole flow table
 /// inside the before/after space already reserved by table formatting. Text and
-/// whitespace hosts retain their own line boxes; explicitly positioned objects
+/// whitespace hosts retain their own line boxes; negative/absolute positions
 /// and saved frames have different origins.
 pub(crate) fn reflow_empty_table_host(para: &Paragraph, table: &Table) -> bool {
     para.text.is_empty()
@@ -3116,7 +3120,7 @@ pub(crate) fn reflow_empty_table_host(para: &Paragraph, table: &Table) -> bool {
         && matches!(para.controls.as_slice(), [Control::Table(_)])
         && is_para_topbottom_float(&table.common)
         && matches!(table.common.vert_align, VertAlign::Top)
-        && signed_hwpunit(table.common.vertical_offset) == 0
+        && signed_hwpunit(table.common.vertical_offset) >= 0
 }
 
 /// 쪽·종이 기준 표의 외곽 여백을 포함한 가시 원점과 흐름 하단.

@@ -1698,6 +1698,7 @@ impl TypesetEngine {
                 ft.effective_height,
                 ft.host_spacing.before,
                 ft.host_spacing.after,
+                self.dpi,
             )
         });
         let constrain_host_placement = HostPlacementConstraint {
