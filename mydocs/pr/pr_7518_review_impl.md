@@ -5,13 +5,17 @@
 90% 기준 자체의 예외를 #7518에 적용하지 않으며, 수정 뒤 같은 원본·PDF·DPI·글꼴로 다시 검증합니다.
 
 - 원 기여자 head: `02845752f76d5539c74df135d950ba5757bd1792` (`kidsnote/rhwp`, `fix/trailing-space-line`).
-- 현재 base: `8497729b4fb0e071c484fc5740f9bb2400bed437`. 원 PR의 선행 #7482 이력은 #7563에 포함됐습니다.
-- 코드 통합 후보: `55a2800aadc32fc85ed4aa3e8e17f6b169f3b0b0`, tree `40c2a2d91e2b2023c3110f5635ac95cca2e53820`.
+- 현재 통합 base: `1d6bc70767fad365b07afe4ef57972d23b140f2b` (`upstream/devel`, #7567 포함).
+  아래 이전 회차의 `8497729b4fb0e071c484fc5740f9bb2400bed437` 검증은 역사 기록입니다.
+- 현재 코드 통합 후보: `3d23545846942137256bc95afbdd8c6390fade42`.
+  최초 후보 `55a2800aadc32fc85ed4aa3e8e17f6b169f3b0b0`, tree `40c2a2d91e2b2023c3110f5635ac95cca2e53820`는 보존합니다.
 - 검토 PDF·진단 입력·대표 PNG 보존: `5eb671068d74e2757daf12925017f5f6cdbdd38a`, `d8b98bd325a8233b40430e36a5c3db10283e9889`.
-- 유지할 작업공간: `/tmp/rhwp-pr7518-review-20261004`, `review/pr7518-20261004`. 주 작업공간의 기존 #7494 branch와 #7353 worktree는 보존합니다.
-- 처리 경로: maintainer 일반 경로에서 독립 보정 commit을 검증합니다. 원 기여자 이력은 재작성하지 않습니다.
+- 유지할 작업공간: `/tmp/rhwp-pr7518-review-20261004`, 현재 `integration/pr7518-maintainer-20261004`.
+  이전 `review/pr7518-20261004`는 checkpoint `44ca6f0f9`로 보존합니다. 주 작업공간의 기존 #7494 branch와 #7353 worktree는 보존합니다.
+- 처리 경로: [`collaborator_external_pr.md` 9.1.1](../manual/pr_review/collaborator_external_pr.md#911-기본-작업공간-devel-기반-체리픽-통합-검토)의 별도 통합 PR입니다. 원 기여자 이력은 재작성하지 않습니다.
   현재 통합 후보에는 devel의 추가 보정과 독립 자료가 있으므로 이 이력을 기여자 fork에 그대로 push하지 않습니다.
-  공개 경로는 검증 뒤 별도 승인 단계에서 확정합니다. 지금은 local 수정·검증 단계입니다.
+  사용자가 명시한 경로에 따라 본 저장소에 통합 PR을 만들고, 그 PR이 merge된 뒤 원 PR #7518에
+  통합 링크를 남겨 close합니다. 지금은 local 수정·검증 단계이며 원 PR을 먼저 닫지 않습니다.
 
 ## 보정 전 증거와 가설
 
@@ -262,3 +266,81 @@ CDP 20/20 결과에 연결한다. p4/p5, 다른 fixture와 추가 focused 4 FAIL
 통과 판정으로 확대하지 않는다. 원 contributor head를 보존하고 최신 devel 기반
 통합 후보에서 필요한 제출 검증과 최종 PR 본문·head 고정 시각 asset을 준비한다.
 원격 push/PR 생성/원 PR close/merge는 아직 수행하지 않았다.
+
+### 별도 통합 경로 확정과 최신 base 재검증
+
+사용자는 권한 문제로 기존 PR에 메인터너 작업을 직접 반영하는 대신, **기여자 변경과
+메인터너 보정을 담은 별도 PR을 merge한 후 원 PR #7518을 닫는 방법**이라고 명시했다.
+통합 PR은 `edwardkim/rhwp`의 `devel`을 대상으로 한다. 원 PR은 통합 완료 전까지 열어 두고,
+완료 후 merge된 통합 PR·기여자 credit·merge SHA로 고정한 증적 링크를 남겨 close한다.
+원 #7518의 archive 검토 기록은 같은 통합 PR에 포함하고 통합 PR 번호용 중복 review 문서는 만들지 않는다.
+
+최신 base `1d6bc70767fad365b07afe4ef57972d23b140f2b`에는 #7567의 RowBreak 변경이 포함되어 있다.
+이 base에서 기여자 `b2bb249bcc00b0a8301075b62a8810d500f11de2`와
+`02845752f76d5539c74df135d950ba5757bd1792`를 순서대로 cherry-pick했다.
+각 결과는 `38fa6d211`, `ff732a5a6`이며 원 author를 보존했다.
+이전 checkpoint `44ca6f0f9`와 최신 base의 `git merge-tree --write-tree`는 충돌 없이
+tree `783c47a9cb7668b72f2e93821870ac88633cd225`를 만들었다. 같은 최종 tree의 추가 보정을
+별도 commit `3d23545846942137256bc95afbdd8c6390fade42`로 통합했다.
+
+해당 source의 Native 빌드·Native Clippy·WASM Clippy는 PASS다.
+immutable CLI `output/pr-review/pr7518-20261004/rhwp-integration-3d2354584`로
+`valid_generated/nested-split.hwp` 전쪽 Native 실루엣을 재실행했다.
+p2 99.72190%, p3 99.65660%로 승인된 영역의 결과는 유지되며, p5는 89.20899%다.
+focused probe는 12 PASS / 4 FAIL이고 최종 suite 재링크·전체 회귀·최신 source의 fresh WASM 검증은 남아 있다.
+따라서 통합 브랜치 생성 완료를 PR 제출 준비 완료로 판정하지 않는다.
+
+후속 진단에서 `nested-auto-row`와 `nested-mixed-cell`의 Native UNIT 소유는 p4 19개,
+p5/p6 각각 20개였다. 같은 입력의 독립 PDF는 p4 18개, p5/p6 각각 19개다.
+continuation 첫 UNIT의 Native 원점 60.5px과 PDF 66.24px도 다르다.
+내용 줄 간격보다 실제 조각의 프레임·여백 예약을 먼저 추적할 근거로 기록한다.
+`terminal-follower`는 자식 행 0–2와 행 3이 각각 다른 쪽에 있으므로 자식 fragment 수 2개만으로
+재방출을 단정하지 않는다. 다만 전쪽 Native 실루엣에서 p3 74.08920%가 남아 있어,
+기존 기대값 변경이나 전체 통과 판정의 근거로 사용하지 않는다.
+증적은 `output/pr-review/pr7518-20261004/integration-*-tree`,
+`integration-nested-split-native`, `integration-follower-native`와 `logs/integration-*.log`다.
+
+### 사용자 전쪽 판독 — nested-split 페이지 분리 수용
+
+2026-10-04 사용자가 현재 통합 후보 `3d23545846942137256bc95afbdd8c6390fade42`의
+`valid_generated/nested-split.hwp` 전체 1–6쪽 PNG를 확인한 뒤,
+“페이지 분리 처리는 한컴과 거의 동일하게 되어 있습니다. 앞쪽 페이지네이션 버그를 수정하면서
+자연스럽게 해결되었네요”라고 판정했다. 해당 샘플의 페이지 분리는 사용자 시각 판정으로 수용한다.
+앞선 브리핑의 4→5쪽 차이를 이 샘플의 페이지 분할 미해결 판정으로 계속 사용하지 않는다.
+
+대조한 출력은 `output/pr-review/pr7518-20261004/all-pages-user-review/nested-split`의
+`rhwp_png`, `pdf_png`, `review`, `overlay`이며 각각 6쪽을 새로 생성했다.
+source SHA·입력/PDF hash·실행 조건은 같은 디렉터리의 `run_manifest.json`에 고정되어 있다.
+사용자 판정은 페이지 분리의 수용이며 완전한 픽셀 일치 주장과 구분한다.
+p5 실루엣 89.20899% 및 자동 `re_review_required`는 원래 측정값으로 보존한다.
+자동 높이·단일 셀·terminal-follower 대조군의 결과 및 focused 4 FAIL을 이 판정으로
+통과 처리하지 않으며, 다른 샘플의 실제 분할 차이와 검사 가정의 오류를 별도로 확인한다.
+
+### 다음 보정: 76076 33쪽의 빈 host 표 원점
+
+사용자가 지정한 원본 `samples/76076_regulatory_analysis.hwp`와 동일 대응 PDF
+`samples/issue1891/76076_regulatory_analysis-2024.pdf`의 33·34쪽을 source `3d2354584`로
+다시 출력했다. `regulatory-spacing-current-native/regulatory-spacing-current`에 Native
+compare/overlay/review·render tree·입력/PDF hash를 보존했다. nested-split 1–4쪽도
+같은 source의 `all-pages-user-review`로 다시 직접 확인했다.
+
+원본 323·324번 문단은 저장 LineSeg가 없는 빈 host의 비-TAC TopAndBottom, Para/Top,
+offset 0 표다. 두 표의 위·아래 바깥여백은 각각 566HU, 선언 본체 높이는 1300HU다.
+325번 문단의 뒤 큰 표도 같은 host 계약이며 바깥 위 여백은 141HU다.
+앞 일반 문단의 baseline은 Native 158.6px / PDF 158.72px로 일치하지만,
+323·324 표 문자의 PDF baseline 196.00/228.48px에 비해 Native는 각각 약 7.55px 이르다.
+큰 표의 PDF 상단 괘선은 240.217px, Native 상단은 238.5px다.
+PDF font bbox의 yMin은 실제 glyph top과 다르므로 이 진단에는 PDF text origin과
+괘선 path를 96dpi 좌표로 변환해 사용했다.
+
+원인 경로는 `table/host_spacing.rs::resolve`가 outer-top을 before로 예약하고,
+`format_table`·block fit이 본체+before+after를 소비하지만 빈 NO_LS host에는 확정
+`ParagraphFloatPlacement`가 없어 full paint의 문단 기준 원점이 outer-top을 생략하는 것이다.
+partial 경로도 확정 원점이 없으면 다른 프레임 술어로 재해석한다.
+기존 `layout.rs`의 1×1 RowBreak 흐름 끝 보정은 표를 실제로 옮긴 뒤 top을 다시 더할 수 있다.
+
+보정 범위는 단일 표만 가진 빈 NO_LS host의 비-TAC, Para/Top, TopAndBottom, offset 0
+블록 표다. 예약된 before·본체·after로 하나의 확정 원점/점유 끝을 만들고 whole fit,
+첫 fragment, paint 및 뒤 흐름이 소비하게 한다. 일반 텍스트·공백 host, TAC, Square,
+Page/Paper 기준, 저장 LineSeg host는 이 경로로 승격하지 않는다.
+선행 입력 그대로 수정 전후 최종 원점·흐름 끝·뒤 표 소유 및 33·34쪽 직접 출력을 확인한다.
