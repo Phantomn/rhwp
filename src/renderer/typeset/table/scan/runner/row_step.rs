@@ -204,6 +204,12 @@ impl TypesetEngine {
                         && !rowspan_touched[r]
                         && row_start_cut.is_empty()
                         && ordinary_band_row_shape(table, r, row_total, self.dpi)
+                        // 닫힌 저장 프레임의 가운데·아래 정렬은 상자 높이를
+                        // 바꾸면 내용 원점도 움직인다. 위 정렬의 빈 밴드만
+                        // 전체 행 허용량보다 먼저 분할한다.
+                        && table.cells.iter().filter(|cell| cell.row as usize == r).all(
+                            |cell| cell.vertical_align == crate::model::table::VerticalAlign::Top,
+                        )
                         && {
                             // 초과 밴드를 자를 때에도 정렬된 전체 내용은 남은
                             // 예산 안에 있어야 한다. 가운데 정렬의 닫힌 저장

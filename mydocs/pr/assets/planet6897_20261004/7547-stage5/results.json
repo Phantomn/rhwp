@@ -1,0 +1,22 @@
+{
+  "status": "focused_pass_visual_pending",
+  "parent_head": "f2eb602754b7b5bdb39eace353c75b5ef3ba89c3",
+  "nextest": {
+    "passed": 39,
+    "failed": 0,
+    "skipped": 1717,
+    "exit_code": 0,
+    "log_path": "output/pr-review/planet6897-20261004/stage5-7547-nextest.log",
+    "log_sha256": "4532297e1fead4823b7e57ab62830460db967be43f522eb6f0e5091222d36dc3"
+  },
+  "source_sha256": {
+    "src/renderer/typeset/table/continuation/fragment/scan.rs": "29392e51e08f3bac33f8eb97df5729a974d21a31d3b54b0f1247865bcd07cd6d",
+    "src/renderer/typeset/table/scan/runner/row_step.rs": "efa6671abba7a52db54cf15e218deb0d7a4b112e4b3444e349db617de07933c1",
+    "src/renderer/typeset/table/scan/source_frame.rs": "7dd183ea3b131f1be5e6c5bbc78688c51f92eb79821efc2c1ba026df15ef5ed3"
+  },
+  "remaining": [
+    "Native/fresh WASM full17-page visual validation",
+    "Native/fresh WASM 3-page HWP/HWPX normal controls",
+    "final integration gates"
+  ]
+}
