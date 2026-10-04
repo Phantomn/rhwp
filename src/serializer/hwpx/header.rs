@@ -84,7 +84,14 @@ pub fn write_header(doc: &Document, ctx: &SerializeContext) -> Result<Vec<u8>, S
     write_tab_properties(&mut w, &doc.doc_info)?;
     write_numberings(&mut w, &doc.doc_info)?;
     write_bullets(&mut w, &doc.doc_info)?;
-    write_para_properties(&mut w, &doc.doc_info, ctx)?;
+    write_para_properties(
+        &mut w,
+        &doc.doc_info,
+        ctx,
+        doc.hwpx_aux_entry("version.xml")
+            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+            .is_none_or(crate::parser::hwpx::physical_para_margin_units_from_version),
+    )?;
     write_styles(&mut w, &doc.doc_info, ctx)?;
     // memoProperties(메모 모양 정의: 테두리/색상)는 refList 마지막 자식으로,
     // parse_memo_shape가 만드는 extra_records(HWPTAG_MEMO_SHAPE, hwpx→hwp5
@@ -957,6 +964,7 @@ fn write_para_properties<W: Write>(
     w: &mut Writer<W>,
     doc_info: &DocInfo,
     ctx: &SerializeContext,
+    physical_margin_units: bool,
 ) -> Result<(), SerializeError> {
     let _ = ctx;
     if doc_info.para_shapes.is_empty() {
@@ -968,7 +976,22 @@ fn write_para_properties<W: Write>(
         &[("itemCnt", &doc_info.para_shapes.len().to_string())],
     )?;
     for (idx, ps) in doc_info.para_shapes.iter().enumerate() {
-        write_para_pr(w, idx as u16, ps)?;
+        if !physical_margin_units && !ps.hwpx_plain_para_margin {
+            // 구판 case는 IR 값, default는 그 두 배다. 기존 switch 작성기의
+            // 반감 규칙에 역단위를 전달해 읽기·재저장 결과를 보존한다.
+            let mut stored = ps.clone();
+            stored.margin_left = stored.margin_left.saturating_mul(2);
+            stored.margin_right = stored.margin_right.saturating_mul(2);
+            stored.indent = stored.indent.saturating_mul(2);
+            stored.spacing_before = stored.spacing_before.saturating_mul(2);
+            stored.spacing_after = stored.spacing_after.saturating_mul(2);
+            if stored.line_spacing_type != LineSpacingType::Percent {
+                stored.line_spacing = stored.line_spacing.saturating_mul(2);
+            }
+            write_para_pr(w, idx as u16, &stored)?;
+        } else {
+            write_para_pr(w, idx as u16, ps)?;
+        }
     }
     end_tag(w, "hh:paraProperties")?;
     Ok(())

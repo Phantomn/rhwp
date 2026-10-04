@@ -31,13 +31,13 @@ use rhwp::document_core::DocumentCore;
 const PAGE: u32 = 120;
 
 /// 쪽의 글자를 기준선(y)별 줄로 모은다. 공백은 버린다(정본 텍스트 추출과 같은 비교 키).
-fn page_lines(sample: &str) -> Vec<(f64, String)> {
+fn page_lines(sample: &str, page: u32) -> Vec<(f64, String)> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(sample);
     let core =
         DocumentCore::from_bytes(&std::fs::read(&path).expect("정식 원본")).expect("문서 로드");
     let layout: serde_json::Value = serde_json::from_str(
         &core
-            .get_page_text_layout_native(PAGE)
+            .get_page_text_layout_native(page)
             .expect("공개 text-layout"),
     )
     .expect("text-layout JSON");
@@ -63,13 +63,15 @@ fn page_lines(sample: &str) -> Vec<(f64, String)> {
         .collect()
 }
 
-fn assert_hancom_break(sample: &str) {
-    let lines = page_lines(sample);
+fn assert_hancom_break(sample: &str, page: u32) {
+    let lines = page_lines(sample, page);
     let first = lines
         .iter()
         .position(|(_, line)| line.contains("100분의30이상100분의50이하의범위에서시ㆍ도"))
         .unwrap_or_else(|| {
-            panic!("{sample}: 「7.규제내용」 둘째 줄이 121쪽에 있어야 한다 — {lines:#?}")
+            panic!(
+                "{sample}: 「7.규제내용」 둘째 줄이 기준 PDF의 해당 쪽에 있어야 한다 — {lines:#?}"
+            )
         });
     let (left, line) = &lines[first];
     // 같은 기준선 사이에 왼쪽 열의 셀 제목(「7.규제내용」)이 끼므로, 같은 셀 왼쪽 끝에서
@@ -87,10 +89,11 @@ fn assert_hancom_break(sample: &str) {
 
 #[test]
 fn issue_7412_cell_reflow_breaks_on_the_4hu_grid_hwp() {
-    assert_hancom_break("samples/80168_regulatory_analysis.hwp");
+    assert_hancom_break("samples/80168_regulatory_analysis.hwp", PAGE);
 }
 
 #[test]
 fn issue_7412_cell_reflow_breaks_on_the_4hu_grid_hwpx() {
-    assert_hancom_break("samples/issue1891/80168_regulatory_analysis.hwpx");
+    // HWPX 한컴 2020 정본은 156쪽이며 같은 규제 개요가 120쪽에 있다.
+    assert_hancom_break("samples/issue1891/80168_regulatory_analysis.hwpx", 119);
 }
