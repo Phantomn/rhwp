@@ -1,5 +1,5 @@
 {
-  "status": "revalidation_required_after_upstream_7574",
+  "status": "local_required_gates_passed_remote_integration_ci_pending",
   "full_nextest_head": "aa10d4093f60c4e0c12aa186f2464861acbf89ea",
   "final_code_head": "42ef60c96132e20a6c8056371d191f492bebdd4e",
   "base": "731de9e1b4bb946d76f35108ed7e186ebe4ebecb",
@@ -6270,14 +6270,5 @@
     "below90": 0,
     "whole_deferred_documents_approved": false,
     "raster_policy": "현재 Native와 실제 Chrome/fresh WASM에서 수용 범위 SVG를 모두 재출력. byte-identical SVG의 기존 raster만 재사용, 달라진 SVG/font policy는 새 raster. 같은 원본/독립 PDF hash로 Visual Sweep PNG-pair TSV 재산출. global #7445 문서 승인 아님."
-  },
-  "rebase": {
-    "base": "732047aa253e92772fd7625e4a5d7f6a9897fd73",
-    "rebased_head": "2fae901137a3d20662ce203fc4f5fb1ea7cd68ec",
-    "commits": 69,
-    "conflicts": 0,
-    "prior_ref": "refs/pr-review/planet6897-20261004-before-7574",
-    "prior_validation_record": "mydocs/pr/assets/planet6897_20261004/final_validation_before_7574.json",
-    "reason": "upstream/devel에 표 프레임·쪽 소유의 생산 변경 #7574가 병합되어 이전 전체/시각 통과를 현재 후보에 적용하지 않음"
   }
 }

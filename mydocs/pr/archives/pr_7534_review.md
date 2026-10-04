@@ -9,14 +9,14 @@ last_verified: 2026-10-05
 
 ## 최종 판정
 
-**메인터너 보정 후 수용 가능** — 글리프/줄 상자 분리·저장 줄 소유·공백 잉크의 개별 범위와 통합 후보의 최종 로컬 검증을 완료했습니다. 원 PR 직접 병합이 아니라 이 문서에 기록한 체리픽 통합 후보를 대상으로 합니다. #7445 이관 문서의 전체 피델리티 수용을 주장하지 않습니다. 원격 통합 PR의 최신 head CI·보호 요건 통과 전에는 병합하지 않습니다.
+**머지 보류 — 최신 base 재검증 중.** push 직전 `devel`에 #7574의 표 프레임·쪽 소유 변경이 병합되어 최신 base로 리베이스했습니다. 이전 base의 개별 수용 범위·로컬 검증 증적은 보존하고, 현재 후보의 전체·시각·lint/build 재검증이 끝날 때 최종 판정을 갱신합니다.
 
 ## 접수·범위
 
 - 원 PR: https://github.com/edwardkim/rhwp/pull/7534
 - 기여자: planet6897. 제목: fix: relSz 는 글리프에만·줄 상자는 선언 크기로, 글뒤 그림 뒤 TAC host 다음 문단의 저장 top 을 지킨다 (#7398 #7431)
 - 원 head: `032c778f47e8742f00a6cd91ab436e6abedb4191`. base: devel.
-- 검토 branch: `review/planet6897-20261004`. 통합 base: `731de9e1b4bb946d76f35108ed7e186ebe4ebecb`. 적용 단계 head: `fe0e6b9a772bd783d8c5b09bf05721d973e9e7d4`.
+- 검토 branch: `review/planet6897-20261004`. 통합 base: `731de9e1b4bb946d76f35108ed7e186ebe4ebecb`. 적용 단계 head: `caa9d67d3f5171dae027798a8248218343ef5696`.
 - 원 PR reviewer: jangster77 지정
 - 경로: collaborator_external_pr 9.1.1; intake_and_review, local_validation, visual_fixture_evidence, multi_pr_update_branch, post_merge.
 - 작성 시점 CI/mergeability는 참고값이며 수용·push 전에 최신 source head를 다시 확인합니다.
@@ -25,11 +25,11 @@ last_verified: 2026-10-05
 
 | 원 commit | 통합 commit/처리 | 비고 |
 | --- | --- | --- |
-| `685c82b12f58976c16bf4b6f9326cae6b0401a37` | `02a3982fe14a64c3e4f1aed6be50f55beae2421c` | applied |
-| `07dca362e40e34d0cb17734a027ccd3742a472d7` | `4c5372e94fa9ab2e1d54f82360bd7e77b16d0d24` | applied |
-| `bcc058a312a6a78bdf56adb2b4b5e7627b4d48e1` | `6a2377e21965cdb549d9dfce04439382bb554da5` | applied |
-| `6a1aeab5b7e241bce9aecc53889d8432fc52f8fc` | `d466b468463ab8615f03268d521550521b47009e` | applied |
-| `032c778f47e8742f00a6cd91ab436e6abedb4191` | `e6d71387606a38b9b91d1b63ebf31ab0cfe2b948` | applied |
+| `685c82b12f58976c16bf4b6f9326cae6b0401a37` | `86b06ded3fd1cced7cac308080a2b3c3dcf0836a` | applied |
+| `07dca362e40e34d0cb17734a027ccd3742a472d7` | `eee69daa9f76747ee839bc50d9e6c9426ea3b7ec` | applied |
+| `bcc058a312a6a78bdf56adb2b4b5e7627b4d48e1` | `af8caf5e8525579f661d9f058a57abe1e697623c` | applied |
+| `6a1aeab5b7e241bce9aecc53889d8432fc52f8fc` | `caad632172f2570ebc5972cc39a057f7661ee3b9` | applied |
+| `032c778f47e8742f00a6cd91ab436e6abedb4191` | `889b6636b803c83047e46b7ace87ebda529119fa` | applied |
 
 ## 조판 원칙과 검증 현황
 
@@ -90,3 +90,7 @@ NBSP를 포함해 Unicode 공백만으로 구성된 클러스터는 SVG의 본�
 ### 최종 출력 provenance 재확인
 
 최종 Native CLI(`native-skia`)와 실제 Chrome/fresh WASM으로 수용 범위20개 target·104쪽씩을 다시 내보냈습니다. **두 경로 최저90.80846%,90% 미만0쪽**입니다. SVG가 byte-identical인 쪽의 raster만 재사용하고, 달라진 SVG·글꼴 정책 블록은 새 raster로 비교했습니다. [전쪽 수용 범위 TSV·입력/PDF hash·현재 SVG hash와 재사용/재출력 구분](../assets/planet6897_20261004/final-visual/results.json). #7445 이관 문서의 전체 수용 주장은 아닙니다. 자산/속성 기여는 원래의 제한된 검토 범위를 유지하며 Studio crop은 동일한 최종 WASM의 실제 Canvas2D/CanvasKit 증적을 유지합니다.
+
+## 최신 base 동기화 — #7574
+
+base `732047aa253e92772fd7625e4a5d7f6a9897fd73` 위로69개 commit을 충돌 없이 리베이스했습니다. 후보 `2fae901137a3d20662ce203fc4f5fb1ea7cd68ec`입니다. 이전 문서에 기록한 실행 head와 결과는 리베이스 전 실제 실행 기록이며 최신 후보의 통과로 재사용하지 않습니다. [이전 검증 보존](../assets/planet6897_20261004/final_validation_before_7574.json), [현재 재검증 상태](../assets/planet6897_20261004/final_validation.json). 원 contributor head/history는 변경하지 않았습니다.

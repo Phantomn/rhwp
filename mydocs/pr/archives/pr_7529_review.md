@@ -9,14 +9,14 @@ last_verified: 2026-10-05
 
 ## 최종 판정
 
-**메인터너 보정 후 수용 가능** — 그림 자르기 축별 fallback·실제 Canvas2D/CanvasKit의 개별 범위와 통합 후보의 최종 로컬 검증을 완료했습니다. 원 PR 직접 병합이 아니라 이 문서에 기록한 체리픽 통합 후보를 대상으로 합니다. #7445 이관 문서의 전체 피델리티 수용을 주장하지 않습니다. 원격 통합 PR의 최신 head CI·보호 요건 통과 전에는 병합하지 않습니다.
+**머지 보류 — 최신 base 재검증 중.** push 직전 `devel`에 #7574의 표 프레임·쪽 소유 변경이 병합되어 최신 base로 리베이스했습니다. 이전 base의 개별 수용 범위·로컬 검증 증적은 보존하고, 현재 후보의 전체·시각·lint/build 재검증이 끝날 때 최종 판정을 갱신합니다.
 
 ## 접수·범위
 
 - 원 PR: https://github.com/edwardkim/rhwp/pull/7529
 - 기여자: planet6897. 제목: 수정(studio): 그림 자르기 적응 배율을 #7015 와 같이 축별로 판정한다 (#7525)
 - 원 head: `1f71898331bb26978cf5bfe91899815e74de7e4d`. base: devel.
-- 검토 branch: `review/planet6897-20261004`. 통합 base: `731de9e1b4bb946d76f35108ed7e186ebe4ebecb`. 적용 단계 head: `fe0e6b9a772bd783d8c5b09bf05721d973e9e7d4`.
+- 검토 branch: `review/planet6897-20261004`. 통합 base: `731de9e1b4bb946d76f35108ed7e186ebe4ebecb`. 적용 단계 head: `caa9d67d3f5171dae027798a8248218343ef5696`.
 - 원 PR reviewer: jangster77 지정
 - 경로: collaborator_external_pr 9.1.1; intake_and_review, local_validation, visual_fixture_evidence, multi_pr_update_branch, post_merge.
 - 작성 시점 CI/mergeability는 참고값이며 수용·push 전에 최신 source head를 다시 확인합니다.
@@ -25,8 +25,8 @@ last_verified: 2026-10-05
 
 | 원 commit | 통합 commit/처리 | 비고 |
 | --- | --- | --- |
-| `7416b14bccd8520bea37a2c9946db6a768ba94d6` | `d4886808036b53a8cc26e2d43a8c3855c3d87200` | applied |
-| `1f71898331bb26978cf5bfe91899815e74de7e4d` | `2b21d2474796b28fb36dcc1ab541dd35a0432fa7` | applied |
+| `7416b14bccd8520bea37a2c9946db6a768ba94d6` | `dc5cb8234ff41831fc25b96d2ed8cb886f174d3c` | applied |
+| `1f71898331bb26978cf5bfe91899815e74de7e4d` | `77cc672c3a2ea5b613570aedb31a948095b2b5e8` | applied |
 
 ## 조판 원칙과 검증 현황
 
@@ -81,3 +81,7 @@ last_verified: 2026-10-05
 ### 최종 출력 provenance 재확인
 
 최종 Native CLI(`native-skia`)와 실제 Chrome/fresh WASM으로 수용 범위20개 target·104쪽씩을 다시 내보냈습니다. **두 경로 최저90.80846%,90% 미만0쪽**입니다. SVG가 byte-identical인 쪽의 raster만 재사용하고, 달라진 SVG·글꼴 정책 블록은 새 raster로 비교했습니다. [전쪽 수용 범위 TSV·입력/PDF hash·현재 SVG hash와 재사용/재출력 구분](../assets/planet6897_20261004/final-visual/results.json). #7445 이관 문서의 전체 수용 주장은 아닙니다. 자산/속성 기여는 원래의 제한된 검토 범위를 유지하며 Studio crop은 동일한 최종 WASM의 실제 Canvas2D/CanvasKit 증적을 유지합니다.
+
+## 최신 base 동기화 — #7574
+
+base `732047aa253e92772fd7625e4a5d7f6a9897fd73` 위로69개 commit을 충돌 없이 리베이스했습니다. 후보 `2fae901137a3d20662ce203fc4f5fb1ea7cd68ec`입니다. 이전 문서에 기록한 실행 head와 결과는 리베이스 전 실제 실행 기록이며 최신 후보의 통과로 재사용하지 않습니다. [이전 검증 보존](../assets/planet6897_20261004/final_validation_before_7574.json), [현재 재검증 상태](../assets/planet6897_20261004/final_validation.json). 원 contributor head/history는 변경하지 않았습니다.
