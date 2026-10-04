@@ -7,7 +7,8 @@
 - 원 기여자 head: `02845752f76d5539c74df135d950ba5757bd1792` (`kidsnote/rhwp`, `fix/trailing-space-line`).
 - 현재 통합 base: `1d6bc70767fad365b07afe4ef57972d23b140f2b` (`upstream/devel`, #7567 포함).
   아래 이전 회차의 `8497729b4fb0e071c484fc5740f9bb2400bed437` 검증은 역사 기록입니다.
-- 현재 코드 통합 후보: `3d23545846942137256bc95afbdd8c6390fade42`.
+- 현재 코드 통합 후보: `3d9239eeec32fc60ee188c3f3bc0d9ec5094ec3a`.
+  이전 통합 코드 `3d23545846942137256bc95afbdd8c6390fade42`의 결과는 아래 회차별로 구분한다.
   최초 후보 `55a2800aadc32fc85ed4aa3e8e17f6b169f3b0b0`, tree `40c2a2d91e2b2023c3110f5635ac95cca2e53820`는 보존합니다.
 - 검토 PDF·진단 입력·대표 PNG 보존: `5eb671068d74e2757daf12925017f5f6cdbdd38a`, `d8b98bd325a8233b40430e36a5c3db10283e9889`.
 - 유지할 작업공간: `/tmp/rhwp-pr7518-review-20261004`, 현재 `integration/pr7518-maintainer-20261004`.
@@ -344,3 +345,77 @@ partial 경로도 확정 원점이 없으면 다른 프레임 술어로 재해�
 첫 fragment, paint 및 뒤 흐름이 소비하게 한다. 일반 텍스트·공백 host, TAC, Square,
 Page/Paper 기준, 저장 LineSeg host는 이 경로로 승격하지 않는다.
 선행 입력 그대로 수정 전후 최종 원점·흐름 끝·뒤 표 소유 및 33·34쪽 직접 출력을 확인한다.
+
+### 76076 빈 host 표 원점 보정 — 3d9239eee
+
+입력은 위 실제 원본과 기존 한컴 2024 PDF 그대로이며 수동 LineSeg나 좌표를 추가하지 않았다.
+보정 코드 SHA는 `3d9239eeec32fc60ee188c3f3bc0d9ec5094ec3a`다.
+`from_empty_reflow_host`가 기존 `host_spacing`의 before·측정 본체·after로 표 원점과
+점유 끝을 만든다. text가 빈 sole-table host의 재조판, Para/Top, 자리차지, offset 0에 적용한다.
+공백을 가진 host는 빈 host로 합치지 않고, 저장 앵커·TAC·어울림·절대 기준·명시 offset의
+기존 계약도 이 분기에 포함하지 않는다.
+
+| 실제 경로 | 확정 결과의 소비와 후속 분기 |
+| --- | --- |
+| whole fit | `block/entry.rs`는 formatted before/body/after의 placement를 fit 하단과 함께 기록하고 `typeset.rs::place_table_with_text`는 그 occupied_bottom을 전진시킨다. |
+| 첫 RowBreak 조각 | `block/prepare.rs`는 빈 host의 원점을 텍스트 줄 앵커로 다시 환산하지 않고 첫 top을 중복 열지 않는다. 별도 host 글줄도 예약하지 않는다. |
+| 이월·이어받기 | `continuation/fragment/budget.rs`는 같은 frame에서는 확정 top을 소비하고 새 frame에서는 현재 높이와 해당 조각 overhead로 옮긴다. 같은 첫 조각의 1×1 top을 다시 더하지 않는다. `fragment/emit.rs`가 실제 수용한 조각 높이로 점유 끝을 확정한다. |
+| 전체·부분 paint | `layout_table`/`layout_partial_table`에 확정 원점을 전달한다. `layout.rs`의 이전 빈 1×1 RowBreak 끝점 공식 대신 확정 occupied_bottom을 소비하여 top을 재가산하지 않는다. 위 캡션은 확정 외곽 상자의 내부로 배치한다. |
+
+다음 값은 96dpi 좌표다. PDF의 text origin과 괘선 path를 기준으로 사용했으며,
+font bbox yMin을 글자 기준선으로 대신하지 않았다.
+
+| 실제 출력 검사 | 수정 전 Native | 수정 후 Native | 독립 PDF |
+| --- | ---: | ---: | ---: |
+| 323 표 문자 baseline | 188.360 | 195.907 | 196.000 |
+| 324 표 문자 baseline | 220.787 | 228.333 | 228.480 |
+| 325 큰 표 시작 괘선 | 238.5 | 240.4 | 240.217 |
+
+두 작은 표의 baseline은 PDF 대비 0.25px 이내 검사를 수정 전 FAIL / 수정 후 PASS했다.
+실제 표 사이 진행량은 `(566 + 1300 + 566) / 75`px로 유지하며,
+빈 325번 host의 별도 TextLine은 생성하지 않는다. 일반 앞 문단 원점은 바뀌지 않았다.
+이는 `output/pr-review/pr7518-20261004/regulatory-spacing-diagnosis.json`의 실제 출력 진단이며
+정식 회귀 테스트 통과나 전체 한컴 일치 증거로 승격하지 않는다.
+
+immutable Native CLI `rhwp-regulatory-empty-host-probe2`의 SHA-256은
+`8827ee3867e3b5c0cb7aaada30321ed5dce89e298f56139e9f28416c098c4220`다.
+`regulatory-spacing-fixed-native/regulatory-spacing-fixed`에 33·34쪽의
+compare/standalone overlay/review와 exact-source `run_manifest.json`을 새로 산출했다.
+33쪽 review와 overlay를 직접 확인했다. Native p33 85.07562%, p34 84.06333%로
+자동 gate는 아직 `re_review_required`다. 아래 긴 셀의 글꼴·가로폭·줄바꿈과 표 하단 차이는 남아 있다.
+90% 예외·golden/래칫 갱신을 적용하지 않으며 새 정식 렌더링 회귀도 추가하지 않는다.
+
+`nested-split-spacing-control-native/nested-split-fixed`의 1–4쪽 review를 모두 직접 확인했다.
+2쪽 빈 셀 윤곽, 3쪽 그림 패딩·그림 뒤의 다음 행 소유, 4쪽 이어받기 위치가 유지되며
+gate는 PASS다. Native 1–6쪽 render tree는 앞서 사용자 수용한 `3d2354584` 출력과 모두 동일하다.
+현재 CLI를 소비하는 기존 focused 실제 출력 probe는 12 PASS / 4 FAIL로 이전과 동일하다.
+이 실행은 library를 새로 링크한 정식 전체 회귀로 대신하지 않는다.
+
+같은 source의 fresh WASM wrapper는 성공했고, 루트 pkg/Studio public/실제 CDP 응답 WASM의
+SHA-256은 모두 `ad03963e38cd85939f14eaa9c80099f5060d8642a77c4359ee582487b0091f40`이다.
+`regulatory-spacing-fixed-wasm/regulatory-spacing-fixed`의 33·34쪽 review와 33쪽 overlay를
+직접 확인했다. Native와 같은 85.07562%/84.06333%이며 90% gate는 미충족으로 보존한다.
+`nested-split-spacing-control-wasm/nested-split-fixed`의 1–4쪽 review와 3쪽 overlay도
+직접 확인했다. 두 backend 모두 각 쪽 97.84546%, 99.72190%, 99.65660%, 97.68812%로 PASS다.
+CDP는 캐시를 끈 새 탭에서 실제 새 WASM을 받은 해시와 33·34쪽 표 좌표, source 여백과
+한 번의 흐름 전진, 빈 split-host 글줄 비생성을 확인해 8/8 PASS했다.
+명령과 출력은 `logs/regulatory-spacing-fixed-{native,wasm}.log`,
+`logs/nested-split-spacing-control-{native,wasm}.log`, `cdp-regulatory-spacing/result.json`에 연결한다.
+
+원 기여의 `issue_7500_no_lineseg_trailing_whitespace_line`을 현재 source로 새로 링크해 4/4 PASS했다.
+`logs/regulatory-spacing-7500-current.log`에 원 TAC 표의 쪽 소속·앞 공백 뒤 위치·다음 큰 표와의
+앞뒤 관계 및 그림 세 장의 첫 쪽 소속을 보존한 결과가 있다.
+기존 `issue_7518_reflow_row_physical_frame`도 현재 source로 새로 링크해 실행했다.
+`logs/regulatory-spacing-7518-current.log`의 결과는 12 PASS / 4 FAIL이며,
+자동 높이·단일 셀·terminal-follower의 앞선 실패 네 가지가 그대로 남아 있다.
+이번 76076 원점 보정으로 이 대조군까지 해결했다고 보고하지 않는다. 전체 회귀는 아직 재실행하지 않았다.
+fmt, Native/WASM/workspace-all-targets 세 Clippy, workspace build는 순차로 PASS다.
+policy는 현재 통합 base `1d6bc70767fad365b07afe4ef57972d23b140f2b` 대비 PASS다.
+
+검증 중 fetch에서 최신 devel이 `731de9e1b4bb946d76f35108ed7e186ebe4ebecb`(#7568)로
+전진한 것을 확인했다. 최신 base 대비 manifest check는 이 base가 옮긴 옛 integration source
+네 파일을 새 루트 source로 판단해 FAIL했다. 파일을 삭제하거나 정책을 완화하지 않았다.
+`git merge-tree --write-tree upstream/devel HEAD`의 read-only 시험은 height_measurer,
+table_layout, table_partial, block/prepare, fragment/emit의 다섯 content conflict를 검출했다.
+이 base는 아직 작업 branch에 통합하지 않았으며 현재 출력 증거는 기존 base 위의 위 SHA에 한정된다.
+최신 base 통합·충돌 해결·필수 재검증을 PR 제출 준비 완료와 혼동하지 않는다.
