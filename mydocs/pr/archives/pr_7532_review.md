@@ -50,3 +50,13 @@ last_verified: 2026-10-04
 ## 다음 단계
 
 원 PR 단위로 실패 원인과 증적을 먼저 분석하고, 필요한 보정은 코드 수정·결과 보고·커밋을 완료한 뒤 다음 보정으로 진행합니다. 통합 code candidate의 최종 검증 뒤 수용 판정·contributor 후속 comment 계획을 확정합니다. 아직 원 PR 또는 통합 PR을 병합한 것으로 표시하지 않습니다.
+
+## 20쪽 직접 시각 검증 및 기존 관계 회귀 보완 — 개별 범위 충족
+
+- 원 기여는 이미 devel에서 해결된 #7428 쪽번호 표시 문자열/말미 공백 계약을 독립 한컴 기준과 회귀로 보존합니다. 절대 위치 대신 바탕쪽 표 칸 좌측·우측 경계와 숫자 run 경계의 관계를 검사합니다.
+- 메인터너는 숫자 run을 찾는 `font_size > 35px` 조건을 자동 쪽번호의 `display_text` 존재 여부로 바꿨습니다. 숫자 표시값, 바탕쪽·표 칸 소속, 좌우 경계 관계는 유지했습니다. 테스트 2개를 그대로 수정했으며 새 검사를 추가하지 않았습니다.
+- 현재 코드에서 기존 두 관계 회귀 2/2 PASS입니다. [실행·test source hash](../assets/planet6897_20261004/7532-stage9/results.json)를 보존했습니다.
+- 입력 `samples/exam_kor.hwp`와 독립 `pdf/exam_kor-2022.pdf` 전체 20쪽을 직접 비교했습니다. Native/fresh WASM TSV의 페이지별 수치가 같고 최저 **90.80846%(17쪽)**, 미달·누락 0, 원문/PDF/출력 20쪽 일치입니다. [Native TSV](../assets/planet6897_20261004/7532-stage9/native_silhouette.tsv), [WASM TSV](../assets/planet6897_20261004/7532-stage9/wasm_silhouette.tsv). source/build/font 출처는 같은 디렉터리 manifest에 연결합니다.
+- [2쪽](../assets/planet6897_20261004/7532-stage9/native_review_p002.png)·[3쪽](../assets/planet6897_20261004/7532-stage9/native_review_p003.png)·[11쪽](../assets/planet6897_20261004/7532-stage9/native_review_p011.png)·[17쪽](../assets/planet6897_20261004/7532-stage9/native_review_p017.png) PNG를 직접 열었습니다. 짝수쪽의 좌측 정렬, 홀수쪽 및 두 자리 11쪽의 우측 정렬과 실제 숫자 표시가 유지됩니다. 본문·문항·그림 소속 누락은 없습니다.
+- 최저 17쪽에는 제목과 홀수형 상자의 글꼴 크기·잉크 차이가 남습니다. 쪽번호 회귀의 칸 정렬 계약과 구분하며 문서 전체가 픽셀 완전 일치한다고 쓰지 않습니다. 17쪽 엄격 픽셀 16.05%와 관용 실루엣 90.81%를 구분합니다. 도구 라벨·수치는 판독 가능합니다.
+- 원 기여와 메인터너의 의미 기반 대상 선택 보완으로 **개별 회귀 범위 충족**입니다. 최종 전체 검증 전 통합 머지 보류를 유지합니다. merge 후에는 원 기여·보완 이유와 정확한 CI/merge SHA, 위 대표 PNG·정본 링크를 설명하며 아직 comment/close를 수행하지 않았습니다.

@@ -28,8 +28,8 @@
 //! 반례: 두 자리 번호(11쪽), 좌측 정렬 번호(짝수쪽), 같은 머리말의 우측 정렬 리터럴은
 //! 글상자 안이라 이 검사의 대상이 아니다(#7428 실측에서 제자리).
 //!
-//! `exam_eng` 를 쓰지 않는 것은 그 문서의 Native Visual Sweep 이 90% 미만 쪽을 가지기
-//! 때문이다(세로 축의 별개 결함). `exam_kor` 는 20쪽 전부 90% 이상이다.
+//! 국어 시험지의 독립 기준 20쪽으로 바탕쪽 정렬을 검증한다. 영어 시험지의 상대 크기와
+//! TAC host 줄 진행은 #7398·#7431의 별도 관계 회귀 및 8쪽 시각 검증에서 확인한다.
 use rhwp::renderer::render_tree::{BoundingBox, RenderNode, RenderNodeType};
 use rhwp::DocumentCore;
 
@@ -54,7 +54,7 @@ fn collect(node: &RenderNode, in_master: bool, cell: Option<&BoundingBox>, out: 
         if in_master
             && !shown.is_empty()
             && shown.chars().all(|c| c.is_ascii_digit())
-            && run.style.font_size > 35.0
+            && run.display_text.is_some()
         {
             if let Some(cell) = cell {
                 out.push(Number {
