@@ -35,4 +35,3 @@ test issue_6950_paragraph_end_topbottom_anchor::stored_band_origin_requires_meas
 test issue_6950_paragraph_end_topbottom_anchor::stored_tail_table_paints_border_and_cell_content_from_the_same_origin ... ok
 
 test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 179 filtered out; finished in 1.98s
-

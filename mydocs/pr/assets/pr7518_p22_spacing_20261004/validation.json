@@ -264,9 +264,9 @@
     "logs/p22-existing-2308.log": "6170281eaf9fe7611c852c43e6812ca4a6f779c5b6f75fbe583aab0f5ff959bf",
     "logs/p22-existing-7518.log": "2b60fc2ebb4e691649bc33b9e65685e453af46eda86ab808ca11973f162e6319",
     "logs/p22-existing-overlap-partition9.log": "007b959170b3243fc255fb0c45024fb94b54101281454e8e54e995b368d65185",
-    "logs/p22-focused-issue_6267_para_float_table_overlap.log": "6e599e50fe2f507421c31431cf4b8ba44bb40ee20e6f65f9cba6b41479ef4846",
-    "logs/p22-focused-issue_6950_paragraph_end_topbottom_anchor.log": "db7b2e0b9bad082cd51a8f20cf48a997742562b6512f8bc0cc116a7b070b7b4d",
-    "logs/p22-focused-issue_7196_page_top_spacing_trim_restore.log": "0c4b582e16fbdaad283259142e3083d2d0500af2c2ad3dfaee21bfa57e92bb7b",
+    "logs/p22-focused-issue_6267_para_float_table_overlap.log": "fc8be4cc0d0045d7dd72ae0f4463b69028833ea62173560d502ad19dde255c91",
+    "logs/p22-focused-issue_6950_paragraph_end_topbottom_anchor.log": "cef1da25547d4143a22364d7b0b8acc405f01fa35f3f885b9203b4ed23c184ba",
+    "logs/p22-focused-issue_7196_page_top_spacing_trim_restore.log": "bc913291ab1072858a22d66d2205dfad5efebdcb47e9b819e2935bed13f57a41",
     "logs/p22-selected-wasm-sweep.log": "fc6dff876df44aaac915572d227374583f8dc6fe3b95cfcd504374494321239f",
     "logs/p22-spacing-cdp.log": "94e393212dcc34818b91bf91c906be91f390c356dc18e533db6e3780930ecdff",
     "native_overlay_022.png": "2da15200814d7aa90405d30a9e0a1ef6c5d6549b9b9b29572c2da26eb98ca922",
@@ -280,5 +280,6 @@
     "wasm_overlay_022.png": "8bd873934b0e1be585007dade7f39cdf90a6a537a9f73580878de2a7ba171acc",
     "wasm_review_022.png": "afe53e617d0097549e2e3e8d667553a628205c78e8011cacf648a4cdd58f7677",
     "wasm_run_manifest.json": "3339c6c5c804e1574ab124f36cb54e45d67ca4b80f03372ae4938b833a6be950"
-  }
+  },
+  "archived_log_normalization": "terminal empty lines removed; stdout content preserved; original output logs unchanged"
 }

@@ -11,4 +11,3 @@ test issue_6267_para_float_table_overlap::para_float_table_does_not_overlap_host
 test issue_6267_para_float_table_overlap::host_paragraph_spacing_before_is_not_double_charged ... ok
 
 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 218 filtered out; finished in 0.07s
-

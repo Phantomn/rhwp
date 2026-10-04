@@ -9,4 +9,3 @@ test issue_7196_page_top_spacing_trim_restore::negative_percent_tac_hosts_preser
 test issue_7196_page_top_spacing_trim_restore::issue_7196_attachment_table_starts_next_page_without_body_overflow ... ok
 
 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 195 filtered out; finished in 0.32s
-
