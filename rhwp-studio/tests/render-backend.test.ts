@@ -917,26 +917,31 @@ test('image crop scale follows the rust fallback chain for both studio backends'
   assert.ok(Math.abs(rect.height - (crop.bottom - crop.top) / scale.scaleY) < 1e-9);
 });
 
-// [#7525] 30442 권익위 권고문 — studio 의 자르기 창이 rust `compute_image_crop_src`(#7015)와
-// 같아야 한다. 값은 같은 문서의 Native SVG viewBox 이며, 한컴 2020 PDF 와 대조해 3쪽 로고
-// 전체·14쪽 사진 두 장이 같은 것을 확인했다. 수정 전 studio 는 3쪽 `y 431.30 / h 513.70`
-// (로고 아래 절반), 14쪽 `x 967.46 / y 599.38`(화면 캡처의 작업 표시줄)을 잘라 왔다.
+// [#7525] 저장 HWPUNIT 자르기 범위와 원본 영상 크기의 관계를 검사한다.
+// 화면 배치 좌표를 고정하지 않으며, 한컴 PDF와 두 Studio 백엔드의 실제 그림도 대조한다.
 test('image crop source matches rust per-axis fallback for issue7525 pictures', () => {
-  const logo = imageCropSourceRect(1181, 945, { left: 0, top: 20745, right: 88560, bottom: 45453 });
+  const crop = { left: 0, top: 20745, right: 88560, bottom: 45453 };
+  const imageWidth = 1181;
+  const logo = imageCropSourceRect(imageWidth, 945, crop);
   assert.ok(logo);
+  const confirmedScale = crop.right / imageWidth;
   assert.equal(logo.x, 0);
-  assert.ok(Math.abs(logo.y - 276.6468) < 1e-3, `y=${logo.y}`);
-  assert.equal(logo.width, 1181);
-  assert.ok(Math.abs(logo.height - 329.4958) < 1e-3, `height=${logo.height}`);
-  // 원본 JPEG 의 로고 잉크 행 y 324..562 를 창이 감싼다(#7015 실측).
-  assert.ok(logo.y < 324 && logo.y + logo.height > 562);
+  assert.equal(logo.width, imageWidth);
+  assert.ok(Math.abs(logo.y * confirmedScale - crop.top) < 1e-6, '확인된 가로 축척으로 세로 시작을 환산한다');
+  assert.ok(Math.abs(logo.height * confirmedScale - (crop.bottom - crop.top)) < 1e-6,
+    '확인된 가로 축척으로 세로 자르기 범위를 보존한다');
 
-  const photo = imageCropSourceRect(1920, 1080, { left: 48247, top: 30284, right: 95750, bottom: 54568 });
+  // 두 축 모두 시작이 잘린 경우 전체 크기를 추정하지 않고 명세의 기본 환산을 쓴다.
+  const photoCrop = { left: 48247, top: 30284, right: 95750, bottom: 54568 };
+  const photo = imageCropSourceRect(1920, 1080, photoCrop);
   assert.ok(photo);
-  assert.ok(Math.abs(photo.x - 643.2933) < 1e-3, `x=${photo.x}`);
-  assert.ok(Math.abs(photo.y - 403.7867) < 1e-3, `y=${photo.y}`);
-  assert.ok(Math.abs(photo.width - 633.3733) < 1e-3, `width=${photo.width}`);
-  assert.ok(Math.abs(photo.height - 323.7867) < 1e-3, `height=${photo.height}`);
+  for (const [actual, stored] of [
+    [photo.x, photoCrop.left], [photo.y, photoCrop.top],
+    [photo.width, photoCrop.right - photoCrop.left],
+    [photo.height, photoCrop.bottom - photoCrop.top],
+  ]) {
+    assert.ok(Math.abs(actual * HWPUNIT_PER_PIXEL - stored) < 1e-6, '저장 자르기 범위의 단위 환산을 보존한다');
+  }
 });
 
 test('CanvasKit image crop source honors issue2817 imgDim coordinates', () => {

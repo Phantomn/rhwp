@@ -2,14 +2,14 @@
 kind: snapshot
 status: active
 canonical: mydocs/manual/pr_review_workflow.md
-last_verified: 2026-10-04
+last_verified: 2026-10-05
 ---
 
 # PR #7529 기여자 변경 검토
 
 ## 최종 판정
 
-**머지 보류** — 체리픽 적용 후 통합 head의 focused·전체 회귀와 필수 시각/구조 검증 진행 중. 원 source의 CI·PNG를 통합 검증 통과로 취급하지 않습니다.
+**메인터너 보정 후 수용 가능** — 그림 자르기 범위는 두 실제 Studio 백엔드와 독립 PDF로 확인했습니다. 최종 전체 회귀·lint/build·통합 CI는 아직 대기합니다.
 
 ## 접수·범위
 
@@ -51,3 +51,23 @@ last_verified: 2026-10-04
 ## 다음 단계
 
 원 PR 단위로 실패 원인과 증적을 먼저 분석하고, 필요한 보정은 코드 수정·결과 보고·커밋을 완료한 뒤 다음 보정으로 진행합니다. 통합 code candidate의 최종 검증 뒤 수용 판정·contributor 후속 comment 계획을 확정합니다. 아직 원 PR 또는 통합 PR을 병합한 것으로 표시하지 않습니다.
+
+## Stage21 — Studio 그림 자르기 직접 검증 (2026-10-05)
+
+- 원 기여의 축별 fallback을 유지했습니다. `cropReferenceSize` 두 축 우선, 시작이 0인 축의 전체 범위 확인, 둘 다 잘린 경우 기본 HWPUNIT 환산 순서를 코드와 실제 영상으로 대조했습니다. 일반 page flow/분할 계약은 이 TS helper 변경 범위에 해당하지 않습니다.
+- 기존 회귀 1개의 고정 영상 좌표 기대값을 원본 자르기 HWPUNIT와 디코딩 크기의 관계로 보정했습니다. 같은 검사에서 잘못된 세로 축척을 잡으며 새 test 함수는 추가하지 않았습니다. 관련 `render-backend.test.ts` 65개 PASS/0 FAIL입니다.
+- 검증 입력: `samples/issue7015/30442-acrc-recommendation-business-burden.hwp`, `samples/issue6866/156627451-quantum-science-press-note.hwpx`; 독립 기준은 `pdf/30442-acrc-recommendation-business-burden-2020.pdf`, `pdf/156627451-quantum-science-press-note-2020.pdf`입니다. 내용 SHA와 실제 renderer diagnostics는 아래 증적에 보존합니다.
+- 통합 head `a9f4b0850`의 Studio + 생산 Rust/WASM `072048a8a`로 실제 Chrome headless/DPR 1/zoom 1/print profile에서 Canvas2D·CanvasKit software를 각각 요청했고 fallback 없이 해당 backend가 실행된 것을 기록했습니다.
+
+| Studio backend | 30442 3쪽 | 30442 14쪽 | 정상 대조군 1쪽 |
+| --- | ---: | ---: | ---: |
+| Canvas2D | 99.11316% | 99.22282% | 98.90923% |
+| CanvasKit | 95.73803% | 98.61356% | 97.90132% |
+
+전체 페이지 레이어를 합성한 review PNG를 직접 확인했습니다. 3쪽 기관 로고 전체, 14쪽 유리 사진 두 장, 정상 대조군 오른쪽 로고가 PDF와 같은 영상입니다. 초기 주 canvas만 `toDataURL`로 저장한 것은 Canvas2D 별도 레이어를 누락하므로 검증 자료에서 제외하고 재캡처했습니다. CanvasKit의 일부 목록 번호·글꼴 굵기 차이는 crop 변경 밖의 기존 잔여이며 문서 전체 렌더링 승인을 주장하지 않습니다.
+
+[검증 결과·입력 SHA](../assets/planet6897_20261004/7529-stage21/results.json) · [실제 backend diagnostics](../assets/planet6897_20261004/7529-stage21/capture.json) · [Canvas2D 14쪽 review](../assets/planet6897_20261004/7529-stage21/canvas2d/acrc/review/review_014.png) · [CanvasKit 14쪽 review](../assets/planet6897_20261004/7529-stage21/canvaskit/acrc/review/review_014.png).
+
+### Merge 후 contributor PR comment 계획
+
+최종 통합 merge SHA/CI와 merge SHA에 고정한 위 PNG 링크로 원 기여의 자르기 수정 결과와 메인터너의 고정 좌표 회귀 보정 이유를 한국어 존댓말로 설명합니다. 이 단계에서는 contributor PR을 close하거나 merge했다고 기록하지 않습니다.
