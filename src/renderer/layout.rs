@@ -1503,8 +1503,8 @@ fn repeats_native_empty_host_rowbreak_fragment_margin(
 /// 첫 줄 vpos 가 앞 문단 마지막 줄보다 위로 되감긴다(쪽·단 경계).
 ///
 /// 앞 쪽 끝에 앵커된 표가 자리가 모자라 이 단 맨 위로 넘어온 경우(되감김 없음)는
-/// 한/글도 테두리를 본문 윗변에 붙인다 — `정책연구용역사업 중간진도보고서` 24쪽 표
-/// (`pi=344`, 저장 vpos 52230 = 앞 쪽 좌표)는 바깥 여백을 넣으면 정본에서 멀어진다.
+/// 저장 세로 오프셋은 이전 단에 속한다. 새 단에서는 그 오프셋을 버리고 바깥 위 여백을
+/// 적용한다. `정책연구용역사업 중간진도보고서` 24쪽 표(`pi=344`)가 해당한다.
 fn stored_anchor_starts_column(paragraphs: &[Paragraph], para_index: usize) -> bool {
     let stored_seg = |paragraph: &Paragraph, last: bool| {
         let mut segs = paragraph.line_segs.iter().filter(|seg| {

@@ -54,3 +54,18 @@ last_verified: 2026-10-05
 ## 최신 접수 재확인 — 2026-10-05
 
 원 head `e4abc99f2de1da071964bb3a86c22e4b3d0a4d64`는 접수 시점과 동일합니다. CI Impact Policy가 PENDING이므로 미적용으로 유지했습니다. 통합 branch의10,318 PASS는 이 원 head를 승인하는 근거가 아닙니다. 정확한 원 head와 CI 재실행이 조건을 충족하면 다음 접수에서 별도로 검토합니다. [원18개 CI 조회 기록](../assets/planet6897_20261004/final_validation.json).
+
+## 2026-10-05 보류 해소 착수
+
+- 검토 branch `review/planet6897-7538-20261005`, base `1e488ac370ec715a5b97c765542e16fc9bf65714`에서 원 head `e4abc99f2de1da071964bb3a86c22e4b3d0a4d64`의 두 commit을 `-x` 체리픽했습니다. 통합 commit은 `2743e2788`·`8d9fc8bd0`입니다.
+- 충돌은 `issue_7062_tac_object_host_line_height`에서 발생했습니다. #7575의 기존 관계 기반 검사(제목·책임자의 셀 소속·내용 순서)를 유지해 해결했으며 원 PR의 절대141.37px·269.58px 고정값을 복원하지 않았습니다.
+- 최초 focused 컴파일에서 새 devel 호출부 `paragraph_layout.rs`의 bool 인자가 원 PR의 f64 paint inset 계약과 충돌했습니다(E0308). 삽입 없는 호출의 인자를0.0으로 바꿨습니다. 저장 앵커 판정 helper의 오래된 주석도 실제 규칙(이월 시 이전 단 vOff 제거·새 단 outMargin 적용)에 맞췄습니다. 이는 문서별 위치 보정이나 공유 흐름 조건 확대가 아닙니다.
+- 원 CI는 모두 green이나 Controller37012662838이 `missing-workflow:CI|CodeQL|Render Diff`로 pending을 발행했습니다. 현재 동일 branch/repository/head의 실행5개가 API에 조회되고 trusted selector가 CI37010657364를 선택합니다. Controller만 attempt2로 재실행했습니다. 회귀·시각 검증과 정책 최종 결과는 아직 확인 중입니다.
+
+### 정책 보류 해소 결과
+
+Controller [37012662838](https://github.com/edwardkim/rhwp/actions/runs/37012662838)의 attempt2가 success이며 정확한 원 head의 CI Impact Policy가 SUCCESS로 갱신됐습니다. 현재 API·trusted selector에서 같은 repository/branch/SHA의 CI를 정상 선택했습니다. 당시 수집 누락의 내부 원인은 재현되지 않았으므로 정책 구현 결함으로 단정하지 않습니다. 정책 코드를 바꾸거나 성공 status를 수동 발행하지 않았습니다. [현재 판정 증적](../assets/planet6897_7538_20261005/policy_resolution.json).
+
+### 보정1 결과 — 새 devel 호출 계약 정합
+
+`8d9fc8bd0` 이후 호출 인자·주석 보정에서 기존 #7538 focused3개가 **3 PASS/0 FAIL**입니다. 새 devel의 기존 관계 기반 #7062 검사는 충돌에서 보존했습니다. 전체·fresh WASM·시각 gate는 다음 단계이며 현재 최종 수용 판정은 보류입니다.
