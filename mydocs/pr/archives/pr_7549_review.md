@@ -9,7 +9,7 @@ last_verified: 2026-10-04
 
 ## 최종 판정
 
-**머지 보류** — 체리픽 적용 후 통합 head의 focused·전체 회귀와 필수 시각/구조 검증 진행 중. 원 source의 CI·PNG를 통합 검증 통과로 취급하지 않습니다.
+**개별 변경 범위 검증 통과·통합 머지 보류** — 저장 줄 구조 검사와 공개 합성 문서 Native/fresh WASM 검토를 완료했습니다. 나머지 원 PR와 통합 최종 검증은 진행 중입니다.
 
 ## 접수·범위
 
@@ -51,3 +51,16 @@ last_verified: 2026-10-04
 ## 다음 단계
 
 원 PR 단위로 실패 원인과 증적을 먼저 분석하고, 필요한 보정은 코드 수정·결과 보고·커밋을 완료한 뒤 다음 보정으로 진행합니다. 통합 code candidate의 최종 검증 뒤 수용 판정·contributor 후속 comment 계획을 확정합니다. 아직 원 PR 또는 통합 PR을 병합한 것으로 표시하지 않습니다.
+
+## 2026-10-04 통합 후보 직접 검토
+
+- 생산 후보 `4cfe96e52`, 실행 head `44cc13c2c`. Native/fresh WASM은 같은 생산 코드이며 각 manifest에 입력·실행 산출물 해시를 보존했습니다. stage8 로컬 WASM 대체 빌드를 사용했고 Docker 최적화 검증으로 보고하지 않습니다.
+- `samples/anchor_char_line_height/anchor_char_height.hwpx`와 독립 한컴 PDF `pdf/anchor_char_line_height/anchor_char_height-2020.pdf`: 전체 **1쪽**, Native/WASM **99.79652%**, 미달·누락 0. review PNG에서 두 표, 작은 host 글줄과 뒤 문단의 위치·내용을 직접 확인했습니다. 본문 경계에 작은 래스터 차이가 남으며 엄격 화소 동일성을 주장하지 않습니다.
+- 합성 입력·독립 PDF의 출처·결정적 생성기는 기존 [자료 설명](../assets/anchor_char_line_height/README.md)을 대조했습니다. 비공개 `36428535` 전체 문서 일치율이나 기여자의 코퍼스 11/11·71건을 이번 실행으로 확인했다고 기록하지 않습니다.
+- `regression_suite_025`의 `floating_anchor_char_line_height` 기존 **2/2 PASS**. 큰 기준 문자를 가진 실물 4건(교육과정, 음수 간격 host, 각주 꼬리, 수형조절 서식)과 작은 기준 문자의 국어시험 대조 1건은 한컴이 저장한 첫 줄 `text_height`를 문단 끝 편집 후 값과 대조합니다. 이 값은 HWPUNIT의 문서 글자모양 의미값이며 렌더 좌표를 고정하지 않습니다. 실물 문서 전체 시각 품질을 이 구조 검사로 주장하지 않습니다.
+- 코드에서 개체의 텍스트 위치와 UTF-16 글자모양 위치를 각각 추출하며, 줄 범위 안의 비-글자취급 표·그림·도형 기준 문자 글꼴 크기를 텍스트 크기와 함께 최댓값으로 사용합니다. 문단 끝 기준 문자는 마지막 줄에만 속합니다. TreatAsChar 개체 높이는 기존 전용 경로가 유지합니다. 줄 폭이나 개체 흐름 예약 높이를 바꾸는 수정은 아닙니다.
+- 추가 검사나 기대값 변경 없이 기존 검사를 유지했습니다. [직접 결과](../assets/planet6897_20261004/7549-stage11/results.json), [검토 PNG](../assets/planet6897_20261004/7549-stage11/native_review_p001.png). 로그는 ignored `output/pr-review/planet6897-20261004/stage11-7549-nextest.log`입니다.
+
+### 병합 후 기여자 설명 계획
+
+기여자께 기준 문자가 줄 글자모양을 소유하는 근거와 작은 기준 문자 대조군의 보존 결과를 설명드립니다. 통합 merge SHA·최신 CI·정본 링크·merge SHA 고정 합성 PNG를 안내하며 비공개 전체 문서 검증으로 확대하지 않습니다. related #7330은 미완료 작업이 있으면 유지합니다.
