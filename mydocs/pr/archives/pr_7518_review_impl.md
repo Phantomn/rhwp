@@ -846,3 +846,56 @@ merge·원PR close는 이번39쪽 구현 실행에서 수행하지 않았다.
 ![33쪽 Native 한컴 비교](../assets/pr7518_p33_acceptance_20261005/review_033.png)
 
 ![33쪽 Native standalone overlay](../assets/pr7518_p33_acceptance_20261005/overlay_033.png)
+
+### 실패한 검사 조건의 재검토 — 2026-10-05
+
+사용자가 기존 검사 조건의 적절성을 검증하도록 지시했다. 검토 범위는 남은 분할 검사 4개와
+33쪽 좌표 검사 1개다. 입력·독립 PDF를 유지하고 renderer는 변경하지 않았다.
+Native와 WASM은 검증된 source `2869859ee38461645235978f6c05604013c05430`의
+동일 바이너리·web package를 재사용해 새로 캡처했다. 이번 변경은 아래 두 Rust test source다.
+실행 당시 checkout은 `cb2e1b076`이며 최종 test 파일의 SHA-256, 고정 base
+`731de9e1b4bb946d76f35108ed7e186ebe4ebecb`, 입력·PDF·산출물 해시는
+[검증 manifest](../assets/pr7518_test_oracle_audit_20261005/validation.json)에 연결한다.
+
+| 검사 | 독립 근거·관측 | 판정·조치 |
+| --- | --- | --- |
+| `terminal_physical_tail_is_drawn_after_the_last_content_unit` | 같은 입력의 한컴 PDF도 자식 표를 p1/p2로 나눈다. Native의 Table 노드 2개는 4×5 원본 셀을 나누어 소유하며 내용 중복이 아니다. 마지막 p3에는 빈 셀 외곽과 후속 문단이 있다. | **기대값 오류**: Table 개수 1 조건을 원본 셀 `(row,col)`별 내용의 완전 보존으로 교정. 3쪽·최소 물리 높이·후속 문단 1회·빈 마지막 셀 검사는 유지하고, 마지막 셀의 Table 부재도 검사한다. 같은 CLI에서 기존 FAIL / 교정 후 PASS. |
+| `auto_height_nested_row_shares_its_reserved_origin_and_child_cut` | 마지막 바깥 행의 조각 수 2 자체는 내용 중복을 뜻하지 않는다. UNIT 000–064는 각 1회다. 그러나 rhwp p4/p5/p6/p7의 시작 UNIT은 000/019/039/059, PDF는 000/018/037/056이다. p8의 rhwp 조각에는 빈 줄만 있고 PDF에는 후속 행의 내용이 있다. | **조건의 가정 오류와 실제 배치 결함이 공존**: 정상 분할을 단일 행 노드로 제한하는 조건은 재설계 대상이나, 낮은 일치율·내용의 쪽 소속 차이가 남아 이번에는 수정하지 않는다. |
+| `one_cell_nested_fragments_reuse_the_child_unit_ledger` | rhwp p8에는 Column·Table·TextRun이 없지만 PDF p8에는 후속 행 내용이 있다. UNIT 총량 보존만으로 마지막 쪽의 정확성을 증명할 수 없다. | **실제 배치 결함**: 빈 p8을 건너뛰거나 `unwrap` 실패를 통과로 바꾸지 않는다. |
+| `independently_regenerated_reflow_context_preserves_units_and_following_rows` | 해시로 대응한 `valid_generated/nested-auto-row.hwp`의 독립 PDF는 8쪽, Native/WASM은 7쪽. 두 sweep 모두 SVG/tree 7 vs PDF 8로 실패한다. | **유효한 기대값**: 8→7로 변경하지 않는다. 원본 주변 저장 프레임·자식 재조판 입력과 실패 출력은 보존한다. |
+| `issue_2308_saved_nested_width_keeps_fragment_geometry` | 원본 row6/col1의 세로 정렬은 Center. p33 owner y=400.840000/h=639.946667, child y=402.326667/h=636.973333로 중심은 모두 720.813333이다. 기존 y=400.4는 앞 host 간격 보정 이전의 배치 핀이다. | **기대값 오류**: p33 절대 y를 원본 Center 관계로 교정. PDF 높이 636.8/388.3, p34 y=79.0과 0.2px 허용치는 유지한다. 저장 너비와 source owner의 왼쪽 여백 보존을 추가하며 해당 셀의 자식 표를 지정해 검사한다. 기존 FAIL / 교정 후 PASS. |
+
+두 조건을 현재 관측 좌표·조각 개수로 바꾸지 않았다. terminal 검사는 실제 출력에서 내용 있는
+셀을 제거·복제한 부정 대조를 정식 `terminal_cell_ownership_rejects_replayed_or_missing_content`로
+실행해 둘 다 검출했다. 합성 fixture의 계약 검증과 원본 실물 문서의 시각 수용은 구분한다.
+`tests/cases/issue_7518_reflow_row_physical_frame.rs`와
+`tests/issue_2308_render_normalized_derived_state.rs`만 수정했으며 baseline·golden·공통 gate는 유지한다.
+
+| 새 Native/WASM 대조 범위 | 2px 관용 실루엣 | 직접 확인·한계 |
+| --- | --- | --- |
+| terminal-follower 1–3쪽 | 양쪽 최저 95.62887% | 전쪽 review와 마지막 빈 셀 overlay 확인. 표가 p1/p2로 나뉘고 p3 외곽·후속 문단을 보존한다. 세부 행 컷·글꼴·그림 위치 차이는 남으며 완전 일치로 보고하지 않는다. |
+| valid_orientation auto 1–8쪽 | p7 73.02188%, p8 26.35442% | p7/p8 review에서 UNIT 소속과 후속 행의 분리 차이를 직접 확인. 이번 85% 수용 기준에도 미달한다. |
+| valid_orientation mixed 1–8쪽 | p7 72.98104%, p8 0% | 실제 빈 마지막 쪽과 PDF의 내용 차이 확인. |
+| valid_generated auto 전쪽 | 7 vs 8, 비교 완료 불가 | Native/WASM 모두 페이지 수 불일치. 실패 로그·PDF를 보존한다. |
+| 76076 33·34쪽 | 양쪽 85.78689% / 86.67962% | backend별 PNG 동일, review와 standalone overlay 직접 확인. 사용자의 이번 PR 85% 이상 수용 지시를 적용하며 raw 90% gate 결과는 보존한다. |
+
+원 증적은 `output/pr-review/pr7518-20261004/test-oracle-audit-20261005/`다.
+WASM 33·34쪽의 첫 래스터 실행은 30초 navigation timeout으로 실패했으며 이를 조판 실패로 세지 않는다.
+같은 SVG·글꼴·DPI와 canonical raster/compare/overlay/review helper를 120초 timeout으로 재실행해
+위 측정값과 PNG를 산출했다. 새 엔진 빌드를 했다고 보고하지 않는다.
+
+필수 fmt, Native Clippy, WASM32 lib Clippy, workspace build, workspace all-targets Clippy,
+고정 base manifest check가 모두 통과했다. 첫 lint 묶음 프로세스가 exit143으로 끝나 all-targets를
+명시적으로 재실행하고 exit0을 확인했다. helper 변경에 따른 shard 재배정 중 2308 검사 0건 실행은
+통과 증거에서 제외했고, 파생 suite를 다시 준비한 실제 실행에서 수정 전 4 PASS / 1 FAIL / 1 ignored,
+수정 후 5 PASS / 0 FAIL / 1 ignored를 확인했다. 최종 7518은 18 PASS / 기존 3 FAIL이다.
+파생 harness는 stage하지 않는다. renderer/source-side unit test를 바꾸지 않아 새 WASM 빌드·unit-tier
+검사는 비해당이며 전체 PR CI 성공·merge 완료는 주장하지 않는다.
+
+![terminal Native review](../assets/pr7518_test_oracle_audit_20261005/native_terminal-audit_review_002.png)
+
+![terminal WASM 마지막 빈 셀 overlay](../assets/pr7518_test_oracle_audit_20261005/wasm_terminal-audit_overlay_003.png)
+
+![남은 auto p8 차이](../assets/pr7518_test_oracle_audit_20261005/native_auto-audit_review_008.png)
+
+![33쪽 fresh-build WASM 비교](../assets/pr7518_test_oracle_audit_20261005/wasm_regulatory_review_033.png)

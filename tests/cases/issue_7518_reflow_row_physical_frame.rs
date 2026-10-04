@@ -772,14 +772,12 @@ fn terminal_physical_tail_is_drawn_after_the_last_content_unit() {
         .join("tests/fixtures/pr7518_review_page_budget/valid_generated/terminal-follower.hwp");
     let pages = rendered_pages(&input);
     let mut height = 0.0;
-    let mut nested_count = 0;
     for page in &pages {
         // An exhausted content cursor must not leave an empty final page.
         let table = outer(page);
         for owner in table["children"].as_array().unwrap() {
             if owner["type"] == "Cell" && owner["row"] == 5 && owner["col"] == 1 {
                 height += coord(owner, "h");
-                nested_count += nodes(owner).iter().filter(|n| n["type"] == "Table").count();
             }
         }
     }
@@ -793,9 +791,13 @@ fn terminal_physical_tail_is_drawn_after_the_last_content_unit() {
         coord(last, "h") > 0.5 && coord(last, "h") < 25.0,
         "exercise the old sliver guard"
     );
-    assert_eq!(nested_count, 1, "no content replay in the physical tail");
+    // Hancom's PDF splits the nested table across p1/p2. Multiple table
+    // fragments are legal; replay means duplicated source cell content.
+    assert_terminal_nested_contents(&input, &pages);
     assert!(
-        nodes(last).iter().all(|n| n["type"] != "TextRun"),
+        nodes(last)
+            .iter()
+            .all(|n| n["type"] != "TextRun" && n["type"] != "Table"),
         "the last frame owns space, not content"
     );
     let last_page = pages.last().unwrap();
@@ -816,6 +818,109 @@ fn terminal_physical_tail_is_drawn_after_the_last_content_unit() {
         follower_count, 1,
         "following text must survive exactly once"
     );
+}
+
+fn assert_terminal_nested_contents(input: &Path, pages: &[Value]) {
+    use std::collections::BTreeMap;
+    let source = rhwp::parser::parse_hwp(&std::fs::read(input).unwrap()).unwrap();
+    let table = source_table(&source.sections[0].paragraphs[3]);
+    let owner = table
+        .cells
+        .iter()
+        .find(|cell| cell.row == 5 && cell.col == 1)
+        .expect("source owner cell");
+    let child = owner
+        .paragraphs
+        .iter()
+        .flat_map(|para| &para.controls)
+        .find_map(|control| match control {
+            rhwp::model::control::Control::Table(table) => Some(table),
+            _ => None,
+        })
+        .expect("source nested table");
+    let normalize = |text: String| {
+        text.chars()
+            .filter(|c| !c.is_whitespace())
+            .collect::<String>()
+    };
+    let expected: BTreeMap<_, _> = child
+        .cells
+        .iter()
+        .map(|cell| {
+            let text = cell
+                .paragraphs
+                .iter()
+                .map(|para| para.text.as_str())
+                .collect();
+            ((u64::from(cell.row), u64::from(cell.col)), normalize(text))
+        })
+        .collect();
+    let mut actual = BTreeMap::<(u64, u64), String>::new();
+    for page in pages {
+        let owner = cell(outer(page), 5, 1);
+        for table in nodes(owner).into_iter().filter(|n| n["type"] == "Table") {
+            for cell in table["children"].as_array().unwrap() {
+                if cell["type"] != "Cell" {
+                    continue;
+                }
+                let id = (cell["row"].as_u64().unwrap(), cell["col"].as_u64().unwrap());
+                let text = actual.entry(id).or_default();
+                for run in nodes(cell).into_iter().filter(|n| n["type"] == "TextRun") {
+                    text.push_str(run["text"].as_str().unwrap());
+                }
+            }
+        }
+    }
+    let actual: BTreeMap<_, _> = actual
+        .into_iter()
+        .map(|(id, text)| (id, normalize(text)))
+        .collect();
+    assert_eq!(
+        actual, expected,
+        "nested cell ownership/content must survive exactly once"
+    );
+}
+
+#[test]
+fn terminal_cell_ownership_rejects_replayed_or_missing_content() {
+    fn first_child_table(node: &mut Value) -> Option<&mut Value> {
+        if node["type"] == "Table" && node["pi"] == 10 {
+            return Some(node);
+        }
+        node["children"]
+            .as_array_mut()?
+            .iter_mut()
+            .find_map(first_child_table)
+    }
+    let input = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pr7518_review_page_budget/valid_generated/terminal-follower.hwp");
+    let pages = rendered_pages(&input);
+    assert_terminal_nested_contents(&input, &pages);
+    for replay in [false, true] {
+        let mut changed = pages.clone();
+        let children = first_child_table(&mut changed[0]).expect("first nested fragment")
+            ["children"]
+            .as_array_mut()
+            .unwrap();
+        let first_cell = children
+            .iter()
+            .position(|n| {
+                n["type"] == "Cell"
+                    && nodes(n).iter().any(|run| {
+                        run["type"] == "TextRun" && !run["text"].as_str().unwrap().trim().is_empty()
+                    })
+            })
+            .expect("a source cell with nonempty content");
+        if replay {
+            children.push(children[first_cell].clone());
+        } else {
+            children.remove(first_cell);
+        }
+        assert!(
+            std::panic::catch_unwind(|| assert_terminal_nested_contents(&input, &changed)).is_err(),
+            "source content check must reject replay={replay}"
+        );
+    }
 }
 
 #[test]
