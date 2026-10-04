@@ -706,6 +706,12 @@ pi375 안쪽 표의 제시의견 셀은 원본 좌우 안여백 510HU(각 6.8px)
 
 복구한 글꼴 목록의 맑은 고딕·휴먼명조 누락도 발견했다. SVG의 실제 font name은
 각각 Noto Sans KR ExtraLight/HCR Batang으로 fallback했고 PDF의 실제 face와 달랐다.
-Windows의 실제 Malgun Gothic/Human MyeongJo 등 9파일을 보충한 58파일 환경에서
+Windows의 Malgun Gothic과 한컴 private TTF의 실제 Human MyeongJo 등을 보충한
+59파일 환경에서
 수정 전후를 다시 캡처한다. 글꼴은 로컬 검증 전용으로 커밋하지 않으며 기존 49파일
 환경의 점수와 구분한다. 글꼴 예외로 배치 결함이나 gate를 면제하지 않는다.
+
+실제 font name 재검사로 HMFMMUEX.TTC는 휴먼모음T/휴먼엑스포임을 확인했다.
+한컴 설치 폴더 `Shared/TTF/Hwp/HMKMM.TTF`의 name table이 휴먼명조인 것을 확인해
+공급했다. 맑은 고딕과 일반 휴먼명조는 실제 face로 출력되고 휴먼명조 bold의
+HCR Batang fallback은 아직 남는다. 이 차이를 숨기거나 글꼴 예외로 처리하지 않는다.
