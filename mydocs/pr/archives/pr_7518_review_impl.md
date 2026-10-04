@@ -820,3 +820,29 @@ merge·원PR close는 이번39쪽 구현 실행에서 수행하지 않았다.
 ![39쪽 Native 한컴 비교](../assets/pr7518_p39_wrapper_flow_20261005/native_review_039.png)
 
 ![39쪽 fresh WASM standalone overlay](../assets/pr7518_p39_wrapper_flow_20261005/wasm_overlay_039.png)
+
+### 33쪽 사용자 시각 판정 — 2026-10-05
+
+사용자는 새로 내보낸 76076 문서 33쪽을 직접 확인한 뒤
+“33쪽도 시각적 판정 통과로 처리합니다. 85% 이상이면 통과로 처리합니다.”라고 지시했다.
+이번 PR 검토의 수용 기준은 85% 이상이며, 이번 Native 33쪽의 2px 관용 내용
+실루엣 일치율 85.78689%와 사용자 직접 판독을 근거로 시각 판정 통과를 기록한다.
+기존 34쪽 등의 과거 판정을 이번 33쪽 재출력의 검증 결과로 대신하지 않는다.
+
+실행 시 checkout은 `6128274f9`이고, 사용한 Native 바이너리의 검증된 source는
+`2869859ee38461645235978f6c05604013c05430`이다. 두 head 사이의 Rust·테스트·
+스크립트 변경은 없다. 입력은 `samples/76076_regulatory_analysis.hwp`, 기준은
+`samples/issue1891/76076_regulatory_analysis-2024.pdf`이며 print 프로필·96dpi·
+`/tmp/rhwp-pr7518-font-cache`의 동일 글꼴 공급으로 새로 실행했다.
+해시·명령·측정값은 [실행 manifest](../assets/pr7518_p33_acceptance_20261005/run_manifest.json)와
+[summary](../assets/pr7518_p33_acceptance_20261005/summary.json)에 보존한다.
+
+원 실행은 `output/pr-review/pr7518-20261004/p33-current-native-20261005/`에 있다.
+기존 자동 gate의 90% 기준과 `re_review_required` 원 결과는 보존하며, 이번 사용자
+지시에 따른 시각 통과를 별도로 기록한다. 공통 gate·baseline·golden은 변경하지 않았다.
+33쪽 좌표 검사 1개와 분할 검사 4개의 실패 및 미실행 제출 검증은 별도 항목으로 유지한다.
+이번 기록은 Native 33쪽의 승인으로, 새 33쪽 WASM 시각 실행이나 전체 PR 검증 완료를 주장하지 않는다.
+
+![33쪽 Native 한컴 비교](../assets/pr7518_p33_acceptance_20261005/review_033.png)
+
+![33쪽 Native standalone overlay](../assets/pr7518_p33_acceptance_20261005/overlay_033.png)
