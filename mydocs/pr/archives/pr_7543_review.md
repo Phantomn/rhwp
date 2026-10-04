@@ -52,3 +52,14 @@ last_verified: 2026-10-04
 ## 다음 단계
 
 원 PR 단위로 실패 원인과 증적을 먼저 분석하고, 필요한 보정은 코드 수정·결과 보고·커밋을 완료한 뒤 다음 보정으로 진행합니다. 통합 code candidate의 최종 검증 뒤 수용 판정·contributor 후속 comment 계획을 확정합니다. 아직 원 PR 또는 통합 PR을 병합한 것으로 표시하지 않습니다.
+
+## 직접 통합 검증 — 개별 범위 충족 / 통합 전체 검증 대기
+
+code candidate `c8c5f535cd3ebf331cadc2714c68af9fdc663a4d`와 생산 코드가 동일한 현재 head에서 기존 관계 회귀 2/2 PASS를 확인했습니다. 새 회귀를 추가하거나 절대 좌표로 기대값을 낮추지 않았습니다.
+
+- 입력은 기여자가 제공한 1쪽 최소 재현 `samples/issue4599/156714641_wrap_tail_min.hwpx`입니다. 원본 5쪽 문서 전체의 시각 검증으로 확대 주장하지 않습니다. 최소 재현 그림은 source 자체가 작은 대체 그림이며 비교 도구가 원본 그림을 가린 것이 아닙니다.
+- 기준은 이번에 한컴 2020 MCP로 독립 변환한 [최종 PDF](../../../pdf/issue4599/156714641_wrap_tail_min-2020.pdf)입니다. [변환 provenance](../assets/planet6897_20261004/7543-stage6/hancom_conversion.json)와 [입력 hash·검사 결과](../assets/planet6897_20261004/7543-stage6/results.json)를 보존했습니다. 한컴 11.0.0.9136 / PDF 드라이버 one-up / 1쪽, job `7d093cec-89d7-4483-8bd0-1114cfe468af`, PDF SHA-256 `d6fff0fcf4c1aa2d72b71f10f5996781e8fda077e3c608f4d4f52b3a647bd0b1`입니다.
+- 전체 1쪽 Native/fresh WASM TSV는 둘 다 **99.41288%**, 미달·누락 0입니다. 원문·PDF·두 출력 쪽수가 모두 1쪽입니다. Mac 로컬 대체 WASM이며 Docker 최적화 검증은 아닙니다. [Native TSV](../assets/planet6897_20261004/7543-stage6/native_silhouette.tsv), [WASM TSV](../assets/planet6897_20261004/7543-stage6/wasm_silhouette.tsv).
+- [review PNG](../assets/planet6897_20261004/7543-stage6/native_review_p001.png)와 fresh WASM raster를 직접 열었습니다. 머리 표 뒤 본문 위치, 어울림 표 오른쪽 접두 7줄과 전폭 꼬리 2줄, 다음 문단 순서가 유지되고 겹침·누락이 없습니다. 엄격 픽셀 값 37.13%와 관용 실루엣 99.41%를 구분합니다. 원본 임베딩 그림의 보간과 글꼴 잉크 차이는 남지만 줄 소유·흐름 결함은 재현되지 않습니다. 라벨·수치도 판독 가능합니다.
+- 기여자의 옆 띠/전폭 꼬리 분리와 음수 줄간격 TAC host 수정은 독립 PDF 및 관계 회귀로 **개별 범위를 충족**합니다. 별도 메인터너 생산 코드 보정은 하지 않았으며 최종 통합 검사 전 머지 보류를 유지합니다.
+- merge 후 설명에는 원 기여의 두 축과 정확한 CI/merge SHA, 위 1쪽 PNG·정본 링크를 기록합니다. 아직 원 PR에 게시·close하지 않았습니다.
