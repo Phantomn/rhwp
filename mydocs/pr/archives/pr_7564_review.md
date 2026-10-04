@@ -9,7 +9,7 @@ last_verified: 2026-10-04
 
 ## 최종 판정
 
-**머지 보류** — 체리픽 적용 후 통합 head의 focused·전체 회귀와 필수 시각/구조 검증 진행 중. 원 source의 CI·PNG를 통합 검증 통과로 취급하지 않습니다.
+**개별 변경 범위 검증 통과·통합 머지 보류** — 공개 한컴 저장 합성 입력의 기존 관계 검사 3개와 Native/fresh WASM 1쪽을 직접 검토했습니다. 나머지 원 PR 및 통합 최종 검증은 진행 중입니다.
 
 ## 접수·범위
 
@@ -52,3 +52,17 @@ last_verified: 2026-10-04
 ## 다음 단계
 
 원 PR 단위로 실패 원인과 증적을 먼저 분석하고, 필요한 보정은 코드 수정·결과 보고·커밋을 완료한 뒤 다음 보정으로 진행합니다. 통합 code candidate의 최종 검증 뒤 수용 판정·contributor 후속 comment 계획을 확정합니다. 아직 원 PR 또는 통합 PR을 병합한 것으로 표시하지 않습니다.
+
+## 2026-10-04 통합 후보 직접 검토
+
+- 생산 후보 `4cfe96e52`, 실행 head `c393aa1f4`. 각 manifest에 실행 바이너리·입력·PDF·글꼴·스크립트 해시를 보존했습니다. stage8 로컬 WASM 대체 빌드이며 Docker 최적화·실제 Studio Canvas 검증은 아닙니다.
+- `samples/page_anchored_square/page_anchored_square.hwp`와 독립 한컴 PDF `pdf/page_anchored_square/page_anchored_square-2020.pdf` 전체 1쪽: Native/fresh WASM 모두 **99.87139%**, 미달·누락 0입니다. 합성 입력을 한컴으로 저장해 얻은 LineSeg·PDF 근거는 [기존 자료](../assets/issue_7548_page_anchored_square/README.md)와 대조했습니다.
+- review PNG를 직접 열어 host 뒤 문단 4~7이 표 위에 있고, 표 띠와 겹치는 문단 8 이후는 아래에 있는지 확인했습니다. 표 괘선의 작은 차이는 남지만 본문 순서·개수와 표 내용의 누락·중복은 보이지 않습니다. 엄격 화소 동일성을 주장하지 않습니다.
+- `regression_suite_006`의 `issue_7548_page_anchored_square` 기존 **3/3 PASS**. 표 상단은 본문 상단 + 입력의 PAGE vertOffset(13000HU), 다음 문단은 host와의 저장 vpos 간격, 표 띠 위/아래 소속을 검사합니다. 절대 렌더 좌표를 고정하지 않아 검사나 기대값 변경 없이 유지했습니다.
+- 코드 대조에서 저장 줄 없는 Square host의 기존 공통 flow plan이 먼저 실행되는 조건을 보존했습니다. 저장 Page/Paper 기준 표는 layout에서 절대 위치를 사용하고 typeset에서는 host 본문 높이만 전진하며 표 높이를 재예약하지 않습니다. 문단 기준 저장 차선 분기는 뒤에 유지됩니다. 빈 host 전용이던 경로의 visible host 확장이며 소스 사례 식별자로 갈라지지 않습니다.
+- 선행 #7557의 source 4개는 한 번만 적용했으며 #7564 고유 source 3개만 추가했습니다. 비공개 `36295751` 1·2쪽과 `156617659` 12쪽의 기여자 점수를 이번 공개 입력 직접 검증으로 확대하지 않습니다. 선행 #7557 실제 차선 문서 검토는 별도 진행합니다.
+- [결과](../assets/planet6897_20261004/7564-stage12/results.json), [검토 PNG](../assets/planet6897_20261004/7564-stage12/native_review_p001.png). 로그는 ignored `output/pr-review/planet6897-20261004/stage12-7564-nextest.log`입니다.
+
+### 병합 후 기여자 설명 계획
+
+기여자께 쪽 기준 표의 절대 배치와 본문 흐름 비예약 관계, 선행 PR 중복 적용을 피한 출처를 설명드립니다. 통합 merge SHA·최신 CI·정본 링크·merge SHA 고정 합성 PNG를 안내합니다. 현 단계는 실제 원 PR 병합·close가 아닙니다.
