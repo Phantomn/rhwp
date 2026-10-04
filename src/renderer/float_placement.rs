@@ -371,6 +371,14 @@ pub(crate) fn column_rowbreak_fragment_opens_outer_top(
     });
     // 저장 앵커가 첫 글줄 안에서 시작하면 그 글줄이 표 위 여백을 이미 소유한다.
     // 독립된 본문 밴드 뒤에서 시작하는 앵커만 첫 조각과 다음 쪽에 여백을 연다.
+    // [#5585] 이어받은 조각의 이 계약은 저장 HWPX 와 저장 쪽 나눔을 쓰는 HWP5 에 같다 —
+    // 한글 2020 PDF 는 HWP5 문단 기준 표(148776468 pi=169·pi=121)의 이어받은 조각도 쪽
+    // 머리에서 바깥 위 여백(140HU)만큼 내려 그리고, 다음 문단은 저장 vpos 그대로 그 아래에
+    // 둔다. HWP5 의 첫 조각은 호스트 간격이 이미 위 여백을 소유하므로 넓히지 않는다
+    // (넓히면 hwpspec 178→180쪽). 위 행에서 내려온 병합 칸 한가운데서 이어지는 조각은
+    // 앞 조각의 칸 상자가 계속되는 것이라 여백을 다시 열지 않는다 — 한글 2020 PDF 는
+    // 1371000-201200057 8·10·14·15쪽(지역 열 병합 칸 안에서 이어짐)의 조각을 본문 위에
+    // 붙여 그린다.
     let para_anchor_below_first_line = native_host.is_some_and(|host| {
         object_only_saved_table_anchor(host, table)
             && host
@@ -382,7 +390,7 @@ pub(crate) fn column_rowbreak_fragment_opens_outer_top(
         && !table.common.treat_as_char
         && is_para_topbottom_float(&table.common)
         && (table.common.horz_rel_to == HorzRelTo::Column
-            || (hwpx_stored
+            || ((hwpx_stored || (is_continuation && !rowspan_straddles_row(table, start_row)))
                 && table.common.horz_rel_to == HorzRelTo::Para
                 && table.common.vert_rel_to == VertRelTo::Para
                 && para_anchor_below_first_line))
@@ -392,12 +400,19 @@ pub(crate) fn column_rowbreak_fragment_opens_outer_top(
             || (is_continuation
                 && starts_at_column_top
                 && (table.common.horz_rel_to == HorzRelTo::Column
-                    || (hwpx_stored
-                        && native_host.is_some_and(|host| {
-                            !host.stored_text_partition_is_dirty()
-                                && !host.cell_format_vpos_dirty
-                                && !host.line_segs.is_empty()
-                        })))))
+                    || (native_host.is_some_and(|host| {
+                        !host.stored_text_partition_is_dirty()
+                            && !host.cell_format_vpos_dirty
+                            && !host.line_segs.is_empty()
+                    })))))
+}
+
+/// 위 행에서 시작한 병합 칸이 `row` 를 걸쳐 내려오는가 (`row` 가 그 칸의 첫 행이 아님).
+fn rowspan_straddles_row(table: &Table, row: usize) -> bool {
+    table.cells.iter().any(|cell| {
+        let top = cell.row as usize;
+        top < row && top + (cell.row_span as usize).max(1) > row
+    })
 }
 
 pub(crate) fn column_rowbreak_caption_outer_spacing_px(
@@ -1309,16 +1324,19 @@ pub fn stored_picture_successor_placement(
     )
 }
 
-/// 빈 그림 호스트의 저장 프레임 끝과 빈 후속 줄이 같은 흐름을 소유하는지 확인한다.
-/// 양수 앞 간격이 없는 후속 줄은 다음 저장 줄까지의 전진과 실제 앞 커서도
-/// 일치해야 한다. 그림과 줄이 기하적으로 닿는다는 사실만으로 흐름을 되감지 않는다.
+/// 빈 그림 호스트의 저장 프레임 끝과 후속 줄이 같은 흐름을 소유하는지 확인한다.
+/// 양수 앞 간격이 없거나 글자를 가진 후속 줄은 다음 저장 줄까지의 전진(그 줄의 앞 간격
+/// 포함)과 실제 앞 커서도 일치해야 한다. 그림과 줄이 기하적으로 닿는다는 사실만으로
+/// 흐름을 되감지 않는다 — 글자 있는 후속 줄은 세 독립 기록(그림 하단 = 후속 저장 줄,
+/// 후속 줄 끝 + 다음 앞 간격 = 다음 저장 줄, 스냅된 실제 커서 = 그림 앵커)이 모두 맞을 때만
+/// 이 프레임을 따른다.
 /// 호스트의 0폭 줄은 그림이 소유하며, 후속 빈 줄은 자신의 음수 간격도 보존한다.
 /// 편집/합성·명시 경계는 호출자와 이 함수의 저장 계약에서 제외한다.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn stored_picture_successor_with_following_placement(
     para: &Paragraph,
     successor: &Paragraph,
-    following: Option<&Paragraph>,
+    following: Option<(&Paragraph, f64)>,
     spacing_before: f64,
     successor_spacing_before: f64,
     frame_vpos: i32,
@@ -1334,7 +1352,6 @@ pub(crate) fn stored_picture_successor_with_following_placement(
     let next = successor.line_segs.first()?;
     let common = &picture.common;
     if para.text.chars().any(|c| c > '\u{001f}' && c != '\u{fffc}')
-        || !successor.text.is_empty()
         || !successor.controls.is_empty()
         || successor.column_type != crate::model::paragraph::ColumnBreakType::None
         || host.tag & 0x8000_0000 != 0
@@ -1363,15 +1380,21 @@ pub(crate) fn stored_picture_successor_with_following_placement(
     let bottom =
         top + hwpunit_to_px(height, dpi) + hwpunit_to_px(i32::from(common.margin.bottom), dpi);
     let next_y = hwpunit_to_px(next.vertical_pos.checked_sub(frame_vpos)?, dpi);
-    if successor_spacing_before == 0.0 {
-        let following = following?;
+    let successor_has_text = !successor.text.is_empty();
+    if successor_spacing_before == 0.0 || successor_has_text {
+        let (following, following_spacing_before) = following?;
         let after = following.line_segs.first()?;
         let advance = next.line_height.checked_add(next.line_spacing)?;
+        let advance_px = hwpunit_to_px(advance, dpi) + following_spacing_before;
+        let after_px = hwpunit_to_px(after.vertical_pos.checked_sub(next.vertical_pos)?, dpi);
         if successor.line_segs.len() != 1
             || following.column_type != crate::model::paragraph::ColumnBreakType::None
             || after.tag & 0x8000_0000 != 0
             || advance <= 0
-            || after.vertical_pos.checked_sub(next.vertical_pos)? != advance
+            || !following_spacing_before.is_finite()
+            || following_spacing_before < 0.0
+            || (successor_has_text && successor_spacing_before != 0.0)
+            || (after_px - advance_px).abs() > dpi / 7200.0
             || !actual_host_flow_y.is_finite()
             || (actual_host_flow_y - anchor_y).abs() > dpi / 7200.0
         {
@@ -4650,4 +4673,68 @@ mod tests {
             Some(&next),
         ));
     }
+}
+
+/// [#7548] 다음 문단 저장 첫 줄의 차선 증거 — 측정(typeset)과 배치(layout)가 같은 값을 쓴다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct StoredLineLaneProbe {
+    pub(crate) vertical_pos: i32,
+    pub(crate) column_start: i32,
+    pub(crate) segment_width: i32,
+    /// 같은 문단 원본 저장 줄 중 가장 넓은 폭(전폭 줄 상자).
+    pub(crate) full_width: i32,
+}
+
+/// 원본 저장 줄(구현 속성 bit31 이 아닌 줄)에서 첫 줄 차선 증거를 뽑는다.
+pub(crate) fn stored_line_lane_probe(para: &Paragraph) -> Option<StoredLineLaneProbe> {
+    use crate::model::paragraph::LineSeg;
+    let original = |seg: &&LineSeg| seg.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0;
+    let first = para.line_segs.first().filter(original)?;
+    let full_width = para
+        .line_segs
+        .iter()
+        .filter(original)
+        .map(|seg| seg.segment_width as i32)
+        .max()?;
+    Some(StoredLineLaneProbe {
+        vertical_pos: first.vertical_pos,
+        column_start: first.column_start,
+        segment_width: first.segment_width as i32,
+        full_width,
+    })
+}
+
+/// [#7548] 어울림(Square) 표 host 다음 문단의 저장 첫 줄이 표 옆 차선에서 시작하는가.
+///
+/// 한/글은 어울림 표로 흐름을 밀지 않는다. 표 띠와 겹치는 줄은 옆 공간이 있으면
+/// 좁혀서 그 자리에 두고, 없으면 띠 아래로 넘긴다. 저장 LineSeg 가 그 결과다.
+/// host 의 저장 첫 줄이 표 옆 차선(전폭보다 좁은 cs/sw)을 증언하고, 다음 문단의
+/// 첫 줄이 그 차선 안에 있으면 그 줄은 표 옆에 놓인 것이다(21_언어 14쪽 pi=300:
+/// host·다음 첫 줄 모두 cs=3455 sw=27581, 둘째 줄부터 전폭 cs=852 sw=30184).
+/// host 차선이 없거나(빈 host sw=0) 다음 줄이 표와 가로로 겹치면 표 하단에서 잇는다.
+pub(crate) fn square_successor_starts_beside_table(
+    host: &Paragraph,
+    next: Option<StoredLineLaneProbe>,
+    table: &Table,
+) -> bool {
+    use crate::model::paragraph::LineSeg;
+    if table.common.treat_as_char || !matches!(table.common.text_wrap, TextWrap::Square) {
+        return false;
+    }
+    let (Some(host_first), Some(next)) = (
+        host.line_segs
+            .first()
+            .filter(|seg| seg.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0),
+        next,
+    ) else {
+        return false;
+    };
+    let host_start = host_first.column_start;
+    let host_end = host_start + host_first.segment_width as i32;
+    host_first.segment_width > 0
+        && (host_first.segment_width as i32) < next.full_width
+        && next.vertical_pos >= host_first.vertical_pos
+        && next.segment_width > 0
+        && next.column_start >= host_start
+        && next.column_start + next.segment_width <= host_end
 }

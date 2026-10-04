@@ -235,8 +235,13 @@ fn stored_empty_full_band_tac_table_top(
 ///
 /// `text_height`는 표의 선언 outer-box와 같고 다음 문단의 `vertical_pos`가
 /// `vertical_pos + text_height + line_spacing`과 일치해야 한다. 따라서 일반 TAC의
-/// 추정 spacing이 아니라 한컴이 저장한 다음 문단 top만 사용한다. 앞 장식 도형 때문에
+/// 추정 spacing이 아니라 한컴이 저장한 다음 문단 top만 사용한다. 앞 장식 개체 때문에
 /// 일반 TAC 후가산 경로가 소유 줄을 찾지 못하는 HWP5 full-band carrier에만 적용한다.
+///
+/// 앞 개체 판정은 "보이는가"가 아니라 "흐름을 전진시키는가"다. 글앞·글뒤 개체(그림·
+/// 도형)는 줄을 점유하지 않으므로 소유 줄의 줄간격이 그대로 다음 문단 top에 남는다
+/// (#7431 exam_eng p2 pi104: 글뒤 그림 2개 + TAC 표, 한컴 2020·2022 PDF 모두 저장
+/// top을 따른다). 자리차지·어울림 개체는 별도 띠로 흐름을 밀기 때문에(#4622) 제외한다.
 fn stored_empty_full_band_tac_table_flow_end(
     para: &Paragraph,
     control_index: usize,
@@ -249,7 +254,7 @@ fn stored_empty_full_band_tac_table_flow_end(
         || !table.common.treat_as_char
         || !matches!(table.common.text_wrap, TextWrap::TopAndBottom)
         || para.stored_text_partition_dirty
-        || !tac_has_only_in_front_decoration_shapes_before(para, control_index)
+        || !tac_has_only_non_flow_decorations_before(para, control_index)
     {
         return None;
     }
@@ -1099,6 +1104,14 @@ fn page_item_para_index(item: &PageItem) -> Option<usize> {
     }
 }
 
+/// 항목이 그리는 첫 줄 서수 — 문단 중간에서 시작하는 조각만 0 이 아니다.
+fn page_item_first_line(item: &PageItem) -> usize {
+    match item {
+        PageItem::PartialParagraph { start_line, .. } => *start_line,
+        _ => 0,
+    }
+}
+
 /// [#6778] 저장 사다리가 이 문단을 **개체 오른쪽 레인**에 두었는가.
 ///
 /// 두 조건을 **모두** 요구한다. 둘 다 개체 상자와 직접 대조하므로, 폭만 우연히 맞는
@@ -1114,8 +1127,14 @@ fn page_item_para_index(item: &PageItem) -> Option<usize> {
 /// 놓이고 글이 왼쪽으로 흐르는 형상(`#4090` 156492236: `horz=문단(26319)`, 후속
 /// 문단 `cs=0`)이 여기 해당한다 — 렌더가 이미 제자리에 놓으므로 손대지 않는다.
 /// 이 축이 고치는 것은 **오른쪽 레인**뿐이다.
+///
+/// 판정 대상은 항목이 **실제로 그리는 첫 줄**이다(`first_line`). 접두 줄만 개체 옆
+/// 레인에 두고 나머지를 전폭 `PartialParagraph` 로 내보낸 문단(#4599, 156714641
+/// p1 pi13 lines 7..9)에서 문단 첫 줄을 보면 전폭 꼬리를 레인으로 오판해, 흐름이
+/// host 줄 높이로 되감기고 꼬리가 표·접두 줄 위에 겹쳐 그려진다.
 fn stored_seg_is_side_lane(
     para: Option<&Paragraph>,
+    first_line: usize,
     col_w_hu: i32,
     object_left_hu: i32,
     object_right_hu: i32,
@@ -1123,7 +1142,12 @@ fn stored_seg_is_side_lane(
     let Some(para) = para else {
         return false;
     };
-    let Some(seg) = para.line_segs.iter().find(|s| s.tag & 0x8000_0000 == 0) else {
+    let Some(seg) = para
+        .line_segs
+        .iter()
+        .skip(first_line)
+        .find(|s| s.tag & 0x8000_0000 == 0)
+    else {
         return false;
     };
     let cs = seg.column_start as i64;
@@ -3193,6 +3217,27 @@ fn tac_has_only_in_front_decoration_shapes_before(para: &Paragraph, control_inde
                     shape.common().text_wrap,
                     crate::model::shape::TextWrap::InFrontOfText
                 ))
+        })
+}
+
+/// TAC 표 앞 컨트롤이 모두 흐름을 전진시키지 않는 장식 개체(글앞·글뒤의 비-TAC
+/// 그림·도형)인지 판정한다. 가시성은 기준이 아니다 — 글뒤 그림은 보이지만 줄을
+/// 점유하지 않는다. 자리차지·어울림 개체와 글자처럼 개체는 흐름 참여자라 제외한다.
+fn tac_has_only_non_flow_decorations_before(para: &Paragraph, control_index: usize) -> bool {
+    let before = &para.controls[..control_index.min(para.controls.len())];
+    !before.is_empty()
+        && before.iter().all(|control| {
+            let common = match control {
+                Control::Shape(shape) => shape.common(),
+                Control::Picture(picture) => &picture.common,
+                _ => return false,
+            };
+            !common.treat_as_char
+                && matches!(
+                    common.text_wrap,
+                    crate::model::shape::TextWrap::InFrontOfText
+                        | crate::model::shape::TextWrap::BehindText
+                )
         })
 }
 
@@ -8157,7 +8202,11 @@ impl LayoutEngine {
                 // [Task #1027 Stage C] inter-item VPOS_CORR 보정을 HeightCursor 에 위임 (동작 동일).
                 // 이전 문단 overlay-shape/분할표 bypass, page/lazy base 산출, sb 차감,
                 // ≤8px 백워드 클램프를 모두 캡슐화 (Stage A/B 함수 결합). 렌더러·페이지네이터 공유.
+                // [#7351] 표 조각은 host 문단의 앞 간격을 그리지 않으므로
+                // 스냅의 `sb_N` 사전 차감에서 뺀다.
+                hcursor.curr_item_is_table_fragment = matches!(item, PageItem::PartialTable { .. });
                 y_offset = hcursor.vpos_adjust(y_offset, item_para, paragraphs, styles);
+                hcursor.curr_item_is_table_fragment = false;
             } // !shape_jumped
               // [#5699 H1] 밴드-바닥 활성 단(사다리-미계상 표를 이 단에서 교정): 저장
               // vpos 는 표 밴드를 모르는 좌표계다. 후방 스냅은 순차 흐름과 바닥 중
@@ -9008,6 +9057,7 @@ impl LayoutEngine {
             if let Some((bottom, lane_left_hu, lane_right_hu)) = square_beside_band {
                 if !stored_seg_is_side_lane(
                     paragraphs.get(item_para),
+                    page_item_first_line(item),
                     col_w_hu,
                     lane_left_hu,
                     lane_right_hu,
@@ -9477,14 +9527,14 @@ impl LayoutEngine {
                     // 왼쪽 레인이라 술어를 통과하지 못한다(실측: 해당 문서의 Square
                     // 표 15곳 전부 `next_is_lane=false`). 이 겹을 빼면 그 문서의
                     // 레인과 표 아래 꼬리가 함께 위로 밀려 글자겹침이 4 → 64건이 된다.
-                    let next_is_lane = col_content
-                        .items
-                        .get(item_ordinal + 1)
+                    let next_item = col_content.items.get(item_ordinal + 1);
+                    let next_is_lane = next_item
                         .and_then(page_item_para_index)
                         .and_then(|next_pi| paragraphs.get(next_pi))
                         .is_some_and(|next| {
                             stored_seg_is_side_lane(
                                 Some(next),
+                                next_item.map_or(0, page_item_first_line),
                                 col_w_hu,
                                 lane_left_hu,
                                 lane_right_hu,
@@ -11694,9 +11744,11 @@ impl LayoutEngine {
             // [#2019 v3] 빈 앵커에 매달린 Paper/Page 기준 Square 표는 본문 flow 표가
             // 아니라 페이지 절대좌표 부동 표다. 표 자체는 선언 y 에 그리되, 뒤따르는
             // 문단을 표 아래로 밀지 않는다.
+            // [#7548] 쪽·종이 기준 어울림 표는 host 문단에 본문이 있어도 절대 위치다.
+            // 한/글 36295751: 표 상단 = 본문 상단 + vertOffset(PAGE = 본문 영역),
+            // host·뒤 문단은 표 위로 흐르고 표는 흐름을 밀지 않는다.
             let paper_page_square_empty_top = if !is_tac
                 && tbl_is_square
-                && !para_has_visible_text(para)
                 && matches!(
                     t.common.vert_rel_to,
                     crate::model::shape::VertRelTo::Paper | crate::model::shape::VertRelTo::Page
@@ -12494,6 +12546,17 @@ impl LayoutEngine {
                 } else if square_reserved_above_gap.is_some() {
                     // [#4533 ⑥] 표는 예약 공간(앵커 위)에 이미 놓였다 — 흐름은
                     // 전진하지 않는다(앵커·후속 문단이 사다리 위치 유지).
+                    table_y_before
+                } else if crate::renderer::float_placement::square_successor_starts_beside_table(
+                    para,
+                    paragraphs
+                        .get(para_index + 1)
+                        .and_then(crate::renderer::float_placement::stored_line_lane_probe),
+                    t,
+                ) {
+                    // [#7548] 어울림 표는 흐름을 표 하단까지 밀지 않는다. 다음 문단의
+                    // 저장 첫 줄이 표 옆 차선에 놓여 있으면 한/글은 그 줄을 표 띠 옆에
+                    // 그린다. 커서는 host 본문 끝(아래 #1218 보정)에서 이어진다.
                     table_y_before
                 } else {
                     empty_rowbreak_flow_end.unwrap_or(table_flow_end)
@@ -16336,14 +16399,7 @@ impl LayoutEngine {
             let max_fs = line
                 .runs
                 .iter()
-                .map(|r| {
-                    let ts = r.text_style(styles);
-                    if ts.font_size > 0.0 {
-                        ts.font_size
-                    } else {
-                        12.0
-                    }
-                })
+                .map(|r| r.line_box_font_size(styles))
                 .fold(0.0f64, f64::max);
             if (raw_lh - shape_height_px).abs() <= 4.0 && raw_lh > max_fs * 2.0 {
                 let runs_all_whitespace = line.runs.iter().all(|r| r.text.trim().is_empty());

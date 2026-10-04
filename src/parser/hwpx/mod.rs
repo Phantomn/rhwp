@@ -438,26 +438,7 @@ pub fn parse_hwpx(data: &[u8]) -> Result<Document, HwpxError> {
         .iter()
         .find(|(path, _)| path == "version.xml")
         .and_then(|(_, bytes)| std::str::from_utf8(bytes).ok())
-        .and_then(|xml| {
-            let mut version_reader = quick_xml::Reader::from_str(xml);
-            loop {
-                match version_reader.read_event() {
-                    Ok(quick_xml::events::Event::Start(e) | quick_xml::events::Event::Empty(e)) => {
-                        if let Some(value) = e.attributes().flatten().find_map(|attr| {
-                            (attr.key.as_ref() == "xmlVersion").then(|| attr.value.to_string())
-                        }) {
-                            let (major, minor) = value.split_once('.')?;
-                            return Some(
-                                (major.parse::<u32>().ok()?, minor.parse::<u32>().ok()?) >= (1, 4),
-                            );
-                        }
-                    }
-                    Ok(quick_xml::events::Event::Eof) | Err(_) => return None,
-                    _ => {}
-                }
-            }
-        })
-        .unwrap_or(false);
+        .is_some_and(physical_para_margin_units_from_version);
     let (mut doc_info, doc_properties) =
         header::parse_hwpx_header_with_plain_margin_units(&header_xml, physical_plain_margin)?;
     resolve_embedded_font_references(&mut doc_info, &package_info.bin_data_items);
@@ -685,6 +666,7 @@ pub fn parse_hwpx(data: &[u8]) -> Result<Document, HwpxError> {
             format: crate::model::provenance::SourceFormat::Hwpx,
             hwp3_lineage: false,
             hwpx_lineage: false,
+            hft_ascii_halfwidth_witnessed: false,
         },
     };
     // HWP3-origin 마커가 있으면 계보를 복원한다 — 직파싱 HWP3 와 같은
@@ -745,6 +727,30 @@ fn resolve_embedded_font_references(
                 .is_embedded
                 .then(|| item_ids.get(substitute.bin_item_id_ref.as_str()).copied())
                 .flatten();
+        }
+    }
+}
+
+/// 패키지 판본이 문단 여백의 물리 단위를 사용하는지 판별한다.
+/// 구버전 입력의 저장 단위와 직렬화의 역변환이 같은 판본 규칙을 소비한다.
+pub(crate) fn physical_para_margin_units_from_version(xml: &str) -> bool {
+    let mut reader = quick_xml::Reader::from_str(xml);
+    loop {
+        match reader.read_event() {
+            Ok(quick_xml::events::Event::Start(e) | quick_xml::events::Event::Empty(e)) => {
+                if let Some(value) = e.attributes().flatten().find_map(|attr| {
+                    (attr.key.as_ref() == "xmlVersion").then(|| attr.value.to_string())
+                }) {
+                    return value
+                        .split_once('.')
+                        .and_then(|(major, minor)| {
+                            Some((major.parse::<u32>().ok()?, minor.parse::<u32>().ok()?))
+                        })
+                        .is_some_and(|version| version >= (1, 4));
+                }
+            }
+            Ok(quick_xml::events::Event::Eof) | Err(_) => return false,
+            _ => {}
         }
     }
 }

@@ -341,19 +341,16 @@ impl SpaceMetric {
 
 /// `space_metric` 은 공백 advance 규칙이다. 일반 HWP/HWPX tokenization 은 저장
 /// `LINE_SEG` 호환성을 위해 [`SpaceMetric::Stored`] 를 쓴다.
-/// 상대 크기는 글리프 폭과 표시 크기이며 기본 줄 상자를 줄이지 않는다.
-/// 원본 LineSeg도 상대 크기95%에서 기준 크기의 textheight를 보존한다.
-fn token_line_font_size(
-    styles: &ResolvedStyleSet,
-    style_id: u32,
-    style: &crate::renderer::TextStyle,
-) -> f64 {
-    let base = styles
+/// 상대 크기는 글리프 폭과 표시 크기이며 기본 줄 상자를 바꾸지 않는다.
+/// 원본 LineSeg도 상대 크기 95%(줄이기)·106%(키우기, #7398 `exam_eng.hwp`
+/// 라틴 문단 `lh = th = 1150`) 모두 기준 크기의 textheight를 보존한다.
+fn token_line_font_size(styles: &ResolvedStyleSet, style_id: u32) -> f64 {
+    styles
         .char_styles
         .get(style_id as usize)
         .map(|s| s.font_size)
-        .unwrap_or(12.0);
-    base.max(style.font_size).max(0.0)
+        .filter(|size| *size > 0.0)
+        .unwrap_or(12.0)
 }
 
 /// Lexical text units shared with physical TAC row placement. Inline control
@@ -421,7 +418,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
             };
             let style_id = find_active_char_shape(char_shapes, utf16_pos);
             let ts = metric_scope.style(styles, style_id, current_lang, i);
-            let font_size = token_line_font_size(styles, style_id, &ts);
+            let font_size = token_line_font_size(styles, style_id);
             tokens.push(BreakToken::Tab {
                 idx: i,
                 max_font_size: font_size,
@@ -439,7 +436,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
             };
             let style_id = find_active_char_shape(char_shapes, utf16_pos);
             let ts = metric_scope.style(styles, style_id, current_lang, i);
-            let font_size = token_line_font_size(styles, style_id, &ts);
+            let font_size = token_line_font_size(styles, style_id);
             let inline_width = inline_width_px_at(inline_controls, i);
             let unspaced = crate::renderer::TextStyle {
                 letter_spacing: 0.0,
@@ -498,7 +495,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
                         detected
                     };
                     let ts = metric_scope.style(styles, style_id, lang, i);
-                    let fs = token_line_font_size(styles, style_id, &ts);
+                    let fs = token_line_font_size(styles, style_id);
                     if fs > max_fs {
                         max_fs = fs;
                     }
@@ -527,7 +524,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
                         detected
                     };
                     let ts = metric_scope.style(styles, style_id, lang, i);
-                    let fs = token_line_font_size(styles, style_id, &ts);
+                    let fs = token_line_font_size(styles, style_id);
                     if fs > max_fs {
                         max_fs = fs;
                     }
@@ -577,7 +574,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
                 let style_id = find_active_char_shape(char_shapes, utf16_pos);
                 current_lang = detect_lang_category(ch);
                 let ts = metric_scope.style(styles, style_id, current_lang, i);
-                let fs = token_line_font_size(styles, style_id, &ts);
+                let fs = token_line_font_size(styles, style_id);
                 let mut w = estimate_text_width_unrounded(&ch.to_string(), &ts)
                     + inline_width_px_at(inline_controls, i);
                 // 글자 모드에서도 **줄 머리 금칙**을 지킨다.
@@ -652,7 +649,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
                         let style_id = find_active_char_shape(char_shapes, utf16_pos);
                         let lang = 1usize; // English
                         let ts = metric_scope.style(styles, style_id, lang, i);
-                        let fs = token_line_font_size(styles, style_id, &ts);
+                        let fs = token_line_font_size(styles, style_id);
                         if fs > max_fs {
                             max_fs = fs;
                         }
@@ -674,7 +671,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
                         1
                     };
                     let ts = metric_scope.style(styles, style_id, lang, i);
-                    let fs = token_line_font_size(styles, style_id, &ts);
+                    let fs = token_line_font_size(styles, style_id);
                     if fs > max_fs {
                         max_fs = fs;
                     }
@@ -730,7 +727,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
                 let style_id = find_active_char_shape(char_shapes, utf16_pos);
                 current_lang = 1;
                 let ts = metric_scope.style(styles, style_id, current_lang, i);
-                let fs = token_line_font_size(styles, style_id, &ts);
+                let fs = token_line_font_size(styles, style_id);
                 let w = estimate_text_width_unrounded(&ch.to_string(), &ts)
                     + inline_width_px_at(inline_controls, i);
                 tokens.push(BreakToken::Text {
@@ -757,7 +754,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
             let style_id = find_active_char_shape(char_shapes, utf16_pos);
             current_lang = detect_lang_category(ch);
             let ts = metric_scope.style(styles, style_id, current_lang, i);
-            let fs = token_line_font_size(styles, style_id, &ts);
+            let fs = token_line_font_size(styles, style_id);
             let w = estimate_text_width_unrounded(&ch.to_string(), &ts)
                 + inline_width_px_at(inline_controls, i);
             tokens.push(BreakToken::Text {
@@ -789,7 +786,7 @@ fn tokenize_paragraph_with_regenerated_space_metric(
                 detected
             };
             let ts = metric_scope.style(styles, style_id, lang, i);
-            let fs = token_line_font_size(styles, style_id, &ts);
+            let fs = token_line_font_size(styles, style_id);
             let w = estimate_text_width_unrounded(&ch.to_string(), &ts)
                 + inline_width_px_at(inline_controls, i);
             tokens.push(BreakToken::Text {
@@ -1458,9 +1455,27 @@ fn text_token_fits_line_hwp(
     effective_width_hwp: i32,
     new_word_natural_before_hwp: Option<i32>,
 ) -> bool {
+    text_token_fits_in_line_with_tolerance_hwp(
+        current_width_hwp,
+        token_width,
+        space_savings_hwp,
+        effective_width_hwp,
+        new_word_natural_before_hwp,
+        line_break_tolerance_hwp(effective_width_hwp),
+    )
+}
+
+fn text_token_fits_in_line_with_tolerance_hwp(
+    current_width_hwp: i32,
+    token_width: FitWidthHwp,
+    space_savings_hwp: i32,
+    effective_width_hwp: i32,
+    new_word_natural_before_hwp: Option<i32>,
+    tolerance_hwp: i32,
+) -> bool {
     let natural_candidate = current_width_hwp + token_width.0;
     let condensed_candidate = condensed_line_width_hwp(natural_candidate, space_savings_hwp);
-    let limit_hwp = effective_width_hwp + line_break_tolerance_hwp(effective_width_hwp);
+    let limit_hwp = effective_width_hwp + tolerance_hwp;
     if natural_candidate <= limit_hwp {
         return true;
     }
@@ -1496,6 +1511,8 @@ struct FillCursor {
     /// [#7418] 마지막으로 소비한 토큰이 이 줄의 공백이면, 그 공백 묶음 직전까지의 자연폭.
     /// 다음 글자 토큰이 새 낱말을 시작하는지와 그때 줄이 자연폭 안인지를 판정한다.
     word_gap_natural_hwp: Option<i32>,
+    /// 물리 프레임의 폭이 확정되면 추정 메트릭의 초과 허용을 얹지 않는다.
+    allow_metric_tolerance: bool,
     finished: bool,
     emitted_any: bool,
 }
@@ -1517,6 +1534,7 @@ impl FillCursor {
             space_savings_at_last_break: 0,
             fs_at_last_break: 0.0,
             word_gap_natural_hwp: None,
+            allow_metric_tolerance: true,
             finished: false,
             emitted_any: false,
         }
@@ -1587,6 +1605,21 @@ fn fill_one_interval(
     cursor: &mut FillCursor,
     mut kerning: Option<&mut crate::renderer::kerning::KerningParagraphBreakSession<'_, '_, '_>>,
 ) -> Option<FilledInterval> {
+    let allow_metric_tolerance = cursor.allow_metric_tolerance;
+    let fits_physical_line = |current, token, savings, width, word| {
+        text_token_fits_in_line_with_tolerance_hwp(
+            current,
+            token,
+            savings,
+            width,
+            word,
+            if allow_metric_tolerance {
+                line_break_tolerance_hwp(width)
+            } else {
+                0
+            },
+        )
+    };
     if cursor.finished {
         return None;
     }
@@ -1944,7 +1977,7 @@ fn fill_one_interval(
                 } else {
                     0
                 };
-                let token_fits = text_token_fits_line_hwp(
+                let token_fits = fits_physical_line(
                     cursor.lw,
                     w_hwp_fit.with_pair_adjustment(pair_adjustment_hwp),
                     cursor.line_space_savings,
@@ -2040,7 +2073,7 @@ fn fill_one_interval(
                             // 이 자리만 `w_hwp` 를 넘겨, 같은 토큰이 한 반복 안에서 두 방식으로
                             // 측정됐다 — 자간이 0 이 아닌 문단에서만 갈리므로 어떤 테스트도
                             // 이 차이를 잡지 못했다. 펜은 여기서도 전체 폭을 그대로 전진한다.
-                            if text_token_fits_line_hwp(
+                            if fits_physical_line(
                                 cursor.lw,
                                 w_hwp_fit.with_pair_adjustment(
                                     if let Some(session) = kerning.as_deref_mut() {
@@ -2527,6 +2560,59 @@ fn paragraph_font_size_px(para: &Paragraph, styles: &ResolvedStyleSet) -> Option
         .fold(None, |acc: Option<f64>, fs| {
             Some(acc.map_or(fs, |a| a.max(fs)))
         })
+}
+
+/// 비-글자취급 개체(표·그림·도형)의 기준 문자 위치(텍스트 문자 인덱스)와 그 문자의 글꼴 크기(px).
+///
+/// 개체가 글자처럼 흐르지 않아도 기준 문자는 문단 텍스트의 한 글자이고, 한컴은 그 글자의
+/// 글자모양을 줄 높이에 넣는다. 한컴 저장본에서 첫 줄의 개체 기준 문자 글자모양이 그 줄의
+/// 다른 글자보다 클 때 저장 줄 높이는 언제나 기준 문자 쪽 크기다(`samples/`·10k 코퍼스 HWP
+/// 표본 스캔 11/11, 반례 0 — 예: 1600/1200 → 1600, 2000/1400 → 2000). 기준 문자가 더 작으면
+/// 텍스트 크기가 남는다(71건). 글자처럼 취급하는 개체는 개체 높이로 줄을 만드는 별도 경로가
+/// 소유한다.
+fn floating_anchor_char_font_sizes(
+    para: &Paragraph,
+    styles: &ResolvedStyleSet,
+) -> Vec<(usize, f64)> {
+    if para.controls.is_empty() || para.char_shapes.is_empty() {
+        return Vec::new();
+    }
+    let text_positions = para.control_text_positions();
+    let utf16_positions = para.control_utf16_positions();
+    para.controls
+        .iter()
+        .zip(text_positions)
+        .zip(utf16_positions)
+        .filter(|((ctrl, _), _)| match ctrl {
+            Control::Table(table) => !table.common.treat_as_char,
+            Control::Picture(pic) => !pic.common.treat_as_char,
+            Control::Shape(shape) => !shape.common().treat_as_char,
+            _ => false,
+        })
+        .filter_map(|((_, text_pos), utf16_pos)| {
+            let id = find_active_char_shape(&para.char_shapes, utf16_pos);
+            styles
+                .char_styles
+                .get(id as usize)
+                .map(|style| style.font_size)
+                .filter(|fs| *fs > 0.0)
+                .map(|fs| (text_pos, fs))
+        })
+        .collect()
+}
+
+/// `range` 줄에 놓인 개체 기준 문자의 가장 큰 글꼴 크기(px). 문단 끝 기준 문자는 마지막 줄 소속이다.
+fn floating_anchor_font_size_px(
+    anchors: &[(usize, f64)],
+    range: Range<usize>,
+    is_last_line: bool,
+    text_len: usize,
+) -> f64 {
+    anchors
+        .iter()
+        .filter(|(pos, _)| range.contains(pos) || (is_last_line && *pos == text_len))
+        .map(|(_, fs)| *fs)
+        .fold(0.0, f64::max)
 }
 
 fn inline_control_line_height_hwp(para: &Paragraph) -> Option<i32> {
@@ -3141,6 +3227,9 @@ fn layout_paragraph_in_frame_impl(
     let first_row = frame.row_count();
     let frame_checkpoint = frame.clone();
     let mut cursor = FillCursor::replay_from_boundary(&tokens, start_char, start_char == 0);
+    // 확정된 물리 구간은 원본 격자 폭 자체가 경계다. 추정 여유를 더하면
+    // 4 HU 격자로 내린 칸에도 26 HU 초과 글자가 들어가 격자 계약이 무효화된다.
+    cursor.allow_metric_tolerance = false;
 
     let result = (|| {
         while !cursor.finished {
@@ -3214,7 +3303,11 @@ fn layout_paragraph_in_frame_impl(
                                 &letter_spacing_px,
                                 *end_idx,
                             );
-                            let fits = |width| text_token_fits_line_hwp(0, word, 0, width, None);
+                            let fits = |width| {
+                                text_token_fits_in_line_with_tolerance_hwp(
+                                    0, word, 0, width, None, 0,
+                                )
+                            };
                             let widest_available = to_hwp(widest_available_px);
                             if available_width_px < widest_available_px
                                 && !fits(to_hwp(available_width_px))
@@ -3237,6 +3330,7 @@ fn layout_paragraph_in_frame_impl(
                             cursor.line_start_idx,
                             cursor.is_first_line,
                         );
+                        replay.allow_metric_tolerance = false;
                         let filled = fill_one_interval(
                             terminal_tokens,
                             &text_chars,
@@ -4417,6 +4511,7 @@ fn reflow_line_segs_impl(
             )
         })
         .flatten();
+    let floating_anchors = floating_anchor_char_font_sizes(para, styles);
     let preserved_prefix_len = preserved_prefix.len();
     let mut new_line_segs: Vec<LineSeg> = preserved_prefix;
     for (line_idx, lb) in line_breaks.iter().enumerate() {
@@ -4430,6 +4525,13 @@ fn reflow_line_segs_impl(
         } else {
             paragraph_font_size_px(para, styles).unwrap_or(12.0)
         };
+        // 줄 안에 놓인 비-글자취급 개체의 기준 문자도 그 줄의 글자다.
+        let fs = fs.max(floating_anchor_font_size_px(
+            &floating_anchors,
+            lb.start_idx..lb.end_idx,
+            lb.end_idx == text_len,
+            text_len,
+        ));
         let mut text_seg = make_line_seg(utf16_start, fs);
         if forced_inline_line.is_some_and(|(position, _)| position == lb.start_idx) {
             let (_, height_hwp) = forced_inline_line.expect("checked inline control");
@@ -5788,8 +5890,13 @@ mod frame_reflow_tests {
             tag: LineSeg::TAG_SINGLE_SEGMENT_LINE | LineSeg::TAG_IMPLEMENTATION_PROPERTY,
             ..Default::default()
         }];
-        let expected = frozen_scalar_projection(&para, 50.0, &styles, 96.0);
+        let mut expected = frozen_scalar_projection(&para, 50.0, &styles, 96.0);
         assert!(expected.len() > 1, "fixture must exercise row recurrence");
+        // [#7412] 셀 내용 상자는 한/글 저장본처럼 4 HWPUNIT 격자로 내린 폭(3750 → 3748)을
+        // 발행한다. 줄 나눔은 동결 오라클과 같아야 하므로 폭 필드만 격자 값으로 맞춘다.
+        for line in &mut expected {
+            line.segment_width -= line.segment_width.rem_euclid(4);
+        }
 
         reflow_line_segs(
             &mut para,
@@ -5802,7 +5909,7 @@ mod frame_reflow_tests {
         assert!(para
             .line_segs
             .iter()
-            .all(|line| line.segment_width == 3_750 && line.column_start == 0));
+            .all(|line| line.segment_width == 3_748 && line.column_start == 0));
         assert_eq!(para.line_segs[0].vertical_pos, 321);
     }
 

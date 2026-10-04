@@ -6007,8 +6007,27 @@ impl LayoutEngine {
                         seg.vertical_pos == 0 && (prior_para_idx > 0 || line_idx > 0)
                     })
                 });
-            let has_stored_para_anchor =
-                !local_vpos_restart_seen && crate::renderer::first_seg_vpos_is_anchor(para, cp_idx);
+            // [#7416] 앞 문단의 저장 줄 사다리를 버리고 다시 조판해 **줄 수가 달라졌으면**,
+            // 뒤 문단들의 저장 vpos 는 버린 사다리의 줄 수를 전제로 적힌 값이다. 그 값을
+            // 앵커로 쓰면 다시 조판한 줄 수와 무관하게 옛 자리로 되돌아가 빈 띠나 겹침이
+            // 생긴다(issue6639 원본: 칸 31 이 저장 28 줄 → 재조판 25 줄인데 문단 3~10 이
+            // 28 줄 자리에 그려져 칸 아래로 밀렸다). 한/글은 이 사다리를 통째로 무시한다.
+            // 위 reset 과 같이, 그 뒤로는 누적 흐름을 쓴다.
+            let prior_row_count_changed = composed_paras
+                .iter()
+                .zip(cell.paragraphs.iter())
+                .take(cp_idx)
+                .any(|(prior_composed, prior)| {
+                    !prior.line_segs.is_empty()
+                        && prior.line_segs.iter().all(|seg| {
+                            seg.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY
+                                == 0
+                        })
+                        && prior_composed.lines.len() != prior.line_segs.len()
+                });
+            let has_stored_para_anchor = !local_vpos_restart_seen
+                && !prior_row_count_changed
+                && crate::renderer::first_seg_vpos_is_anchor(para, cp_idx);
             let use_saved_cell_para_vpos = use_top_vpos_anchor
                 || trust_stored_cell_flow
                 || has_initial_tac_shape_host(&cell.paragraphs);
@@ -12895,8 +12914,33 @@ impl LayoutEngine {
                         let om_top = hwpunit_to_px(nt.outer_margin_top as i32, self.dpi);
                         let om_bot = hwpunit_to_px(nt.outer_margin_bottom as i32, self.dpi);
                         let n = frags.len();
+                        // [Refs #7387] 조각은 칸 글줄로만 나뉘어, 옆 칸의 **쪼갤 수 없는
+                        // 개체**(Square·글 앞/뒤 그림 — 저장 줄이 담지 않는다)가 정하는 행
+                        // 높이를 모른다. 그 개체 바닥 + 칸 상하 안 여백보다 조각 합이 작으면
+                        // 모자란 몫을 끝 조각에 싣는다. 선언 표 높이(`common.height`)는 낡은
+                        // 뷰포트일 수 있어(위 `native_short_parent` 주석) 기준으로 쓰지 않는다.
+                        // hwpx_sample2.hwp 19쪽 pi=182 p[30] 1×2 표: 글줄 조각 합 97.9px,
+                        // 그림 칸 103.95 + 안 여백 3.76 = 107.7px(한/글 PDF 표 965.8~1073.4 =
+                        // 107.6px). 종전에는 조각 상자가 표를 101.6px 로 잘라 그렸다.
+                        let object_row_floor = nt
+                            .cells
+                            .iter()
+                            .map(|c| {
+                                let obj = self.calc_cell_wrap_objects_bottom_height(&c.paragraphs);
+                                if obj <= 0.0 {
+                                    return 0.0;
+                                }
+                                let pad = c.effective_padding(&nt.padding);
+                                obj + hwpunit_to_px(i32::from(pad.top), self.dpi)
+                                    + hwpunit_to_px(i32::from(pad.bottom), self.dpi)
+                            })
+                            .fold(0.0f64, f64::max);
+                        let row_deficit = (object_row_floor - total_frag_h).max(0.0);
                         for (fi, fragment) in frags.into_iter().enumerate() {
                             let mut uh = fragment.height;
+                            if fi + 1 == n {
+                                uh += row_deficit;
+                            }
                             let hard_break_before =
                                 fragment.hard_break_before || (reset_before && fi == 0);
                             let mut vpos_gap_before = vpos_gap_before_para && fi == 0;
@@ -20137,6 +20181,59 @@ impl LayoutEngine {
             max_padding = max_padding.max(pad_top + pad_bottom);
         }
         max_padding
+    }
+
+    /// [#5585] 행을 처음부터 그리는 조각의 위 안 여백 — 보이는 내용이 있는 `row_span == 1`
+    /// 칸 중 최댓값. 행을 쪽 경계에서 자르면 위 안 여백과 자른 지점까지의 내용 영역만
+    /// 이 쪽에 남고, 아래 안 여백은 행의 나머지와 함께 다음 쪽으로 간다.
+    pub(crate) fn row_visible_top_padding_height(
+        &self,
+        table: &crate::model::table::Table,
+        row: usize,
+        styles: &ResolvedStyleSet,
+    ) -> f64 {
+        table
+            .cells
+            .iter()
+            .filter(|c| c.row as usize == row && c.row_span == 1)
+            .filter(|cell| {
+                self.cell_units(cell, table, styles)
+                    .iter()
+                    .any(|unit| Self::cell_unit_has_visible_content(cell, unit))
+            })
+            .map(|cell| self.resolve_cell_padding(cell, table).2)
+            .fold(0.0f64, f64::max)
+    }
+
+    /// [#5585] 행을 선언 높이(`row_total`)로 그릴 때 보이는 내용이 있는 칸의 내용이 행 위에서
+    /// 어디까지 내려오는가. `need` 는 행의 내용+안 여백 높이(칸 중 최댓값)다. 가운데·아래
+    /// 정렬 칸은 남는 높이만큼 내용이 내려가므로 위 정렬보다 아래에서 끝난다. 칸별 내용이
+    /// `need` 이하라 이 값은 보수적인 상한이다.
+    pub(crate) fn row_aligned_content_bottom(
+        &self,
+        table: &crate::model::table::Table,
+        row: usize,
+        need: f64,
+        row_total: f64,
+        styles: &ResolvedStyleSet,
+    ) -> f64 {
+        use crate::model::table::VerticalAlign;
+        let slack = (row_total - need).max(0.0);
+        table
+            .cells
+            .iter()
+            .filter(|c| c.row as usize == row && c.row_span == 1)
+            .filter(|cell| {
+                self.cell_units(cell, table, styles)
+                    .iter()
+                    .any(|unit| Self::cell_unit_has_visible_content(cell, unit))
+            })
+            .map(|cell| match cell.vertical_align {
+                VerticalAlign::Top => need,
+                VerticalAlign::Center => need + slack / 2.0,
+                VerticalAlign::Bottom => need + slack,
+            })
+            .fold(need, f64::max)
     }
 
     /// 실제 선택한 중첩 표 구간의 추가 점유 공간을 구한다. 종결 컷은 비종결 컷과
