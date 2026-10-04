@@ -731,6 +731,30 @@ fn resolve_embedded_font_references(
     }
 }
 
+/// 패키지 판본이 문단 여백의 물리 단위를 사용하는지 판별한다.
+/// 구버전 입력의 저장 단위와 직렬화의 역변환이 같은 판본 규칙을 소비한다.
+pub(crate) fn physical_para_margin_units_from_version(xml: &str) -> bool {
+    let mut reader = quick_xml::Reader::from_str(xml);
+    loop {
+        match reader.read_event() {
+            Ok(quick_xml::events::Event::Start(e) | quick_xml::events::Event::Empty(e)) => {
+                if let Some(value) = e.attributes().flatten().find_map(|attr| {
+                    (attr.key.as_ref() == "xmlVersion").then(|| attr.value.to_string())
+                }) {
+                    return value
+                        .split_once('.')
+                        .and_then(|(major, minor)| {
+                            Some((major.parse::<u32>().ok()?, minor.parse::<u32>().ok()?))
+                        })
+                        .is_some_and(|version| version >= (1, 4));
+                }
+            }
+            Ok(quick_xml::events::Event::Eof) | Err(_) => return false,
+            _ => {}
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -822,29 +846,5 @@ mod tests {
             Some(1)
         );
         assert_eq!(font.bin_item_id_ref, "font-resource-alpha");
-    }
-}
-
-/// 패키지 판본이 문단 여백의 물리 단위를 사용하는지 판별한다.
-/// 구버전 입력의 저장 단위와 직렬화의 역변환이 같은 판본 규칙을 소비한다.
-pub(crate) fn physical_para_margin_units_from_version(xml: &str) -> bool {
-    let mut reader = quick_xml::Reader::from_str(xml);
-    loop {
-        match reader.read_event() {
-            Ok(quick_xml::events::Event::Start(e) | quick_xml::events::Event::Empty(e)) => {
-                if let Some(value) = e.attributes().flatten().find_map(|attr| {
-                    (attr.key.as_ref() == "xmlVersion").then(|| attr.value.to_string())
-                }) {
-                    return value
-                        .split_once('.')
-                        .and_then(|(major, minor)| {
-                            Some((major.parse::<u32>().ok()?, minor.parse::<u32>().ok()?))
-                        })
-                        .is_some_and(|version| version >= (1, 4));
-                }
-            }
-            Ok(quick_xml::events::Event::Eof) | Err(_) => return false,
-            _ => {}
-        }
     }
 }

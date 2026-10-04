@@ -129,3 +129,7 @@ last_verified: 2026-10-05
 `hy_ladder3`은 독립 PDF와 Native/fresh WASM 모두2쪽이며93.11280%·100%입니다. 첫 쪽 하단 clipping은 PDF에서도 동일하고 뒤 문단은 둘째 쪽에만 있습니다. 원시 `LAYOUT_OVERFLOW_CELL`12→13줄 증가를 소실 회귀로 단정한 고정 개수 검사에서 해당 입력만 분리했습니다. 수집·partition·관측 dump는 유지하고 기존 #7418의2쪽 표 소속·후속 문단 누락/중복 검사를 계속 적용합니다. 새 테스트를 추가하거나 이 문서를 #7445로 이관하지 않았습니다.
 
 원장 partition3은1/1 PASS(run `1a55c4bc-f769-46d9-a0ee-fb109986fbff`), 기존 소속 검사는 직전 stage24의 host 모듈5/5 PASS에 포함됩니다. [두 출력의 전쪽 TSV·PNG·판정](../assets/planet6897_20261004/7545-stage25/results.json). 이제 첫 전체 실행의11개 실패를 모두 개별 처리했으며 최종 전체 재실행은 별도 확인합니다.
+
+### Stage26 — 최종 all-target Clippy의 테스트 모듈 순서 보정
+
+전체 nextest10,318 PASS 후 all-target Clippy에서 HWPX 판본 helper가 테스트 모듈 뒤에 놓인 `items_after_test_module` 오류를 확인했습니다. 기존 `cfg(test)` 모듈을 파일 끝에 배치했습니다. 테스트 모듈 본문과 이를 제외한 생산 코드 본문이 전후 동일함을 확인했으며 동작·회귀 기대값은 바꾸지 않았습니다. HWPX 파서 기존4개는4/4 PASS, workspace all-target Clippy도 `-D warnings`로 통과했습니다. [본문 동일성 hash·실행 head와 결과](../assets/planet6897_20261004/7545-stage26/results.json). 전체10,318 실행 head와 이 순서 정리 후 검증 head를 최종 증적에서 구분합니다.
