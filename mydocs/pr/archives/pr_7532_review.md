@@ -9,7 +9,7 @@ last_verified: 2026-10-05
 
 ## 최종 판정
 
-**머지 보류 — 최신 base 재검증 중.** push 직전 `devel`에 #7574의 표 프레임·쪽 소유 변경이 병합되어 최신 base로 리베이스했습니다. 이전 base의 개별 수용 범위·로컬 검증 증적은 보존하고, 현재 후보의 전체·시각·lint/build 재검증이 끝날 때 최종 판정을 갱신합니다.
+**메인터너 보정 후 수용 가능** — 기울임 공백 메트릭·쪽번호 정렬 관계의 개별 수용 범위와 최신 base 통합 후보의 최종 로컬 검증을 완료했습니다. 원 PR을 직접 병합하지 않고 기록한 체리픽 통합 후보를 대상으로 합니다. #7445 문서 전체의 피델리티 승인은 아닙니다. 최신 통합 PR CI·보호 요건 통과 후 병합합니다.
 
 ## 접수·범위
 
@@ -61,11 +61,11 @@ last_verified: 2026-10-05
 - 최저 17쪽에는 제목과 홀수형 상자의 글꼴 크기·잉크 차이가 남습니다. 쪽번호 회귀의 칸 정렬 계약과 구분하며 문서 전체가 픽셀 완전 일치한다고 쓰지 않습니다. 17쪽 엄격 픽셀 16.05%와 관용 실루엣 90.81%를 구분합니다. 도구 라벨·수치는 판독 가능합니다.
 - 원 기여와 메인터너의 의미 기반 대상 선택 보완으로 **개별 회귀 범위 충족**입니다. 최종 전체 검증 전 통합 머지 보류를 유지합니다. merge 후에는 원 기여·보완 이유와 정확한 CI/merge SHA, 위 대표 PNG·정본 링크를 설명하며 아직 comment/close를 수행하지 않았습니다.
 
-## 최종 통합 로컬 검증 — 2026-10-05
+## 리베이스 전 통합 로컬 검증 — 2026-10-05
 
 전체 회귀 head `aa10d4093f60c4e0c12aa186f2464861acbf89ea`, 최종 lint/build·fresh WASM·Skia head `42ef60c96`(테스트 모듈 순서만 정리), base `731de9e1b4bb946d76f35108ed7e186ebe4ebecb`입니다. 전체 nextest는 **10,318 PASS/0 FAIL/50 skip**,563.885초, threads=8로 완료했습니다. Format·Native/WASM32 Clippy·workspace build·workspace all-target Clippy·manifest/unit tier 정책을 통과했습니다. fresh WASM은 Mac 로컬 `--no-opt` 대체 빌드이며 Docker 최적화 검증으로 보고하지 않습니다. Skia lib·그림 placeholder·직접 PDF 출력 범위도 실제 실행했습니다. Studio 전체1,815 PASS/0 FAIL/2 skip와 TypeScript/Vite build도 완료했습니다.
 
-[정확한 head·명령·결과·원 source CI·개별 시각 범위](../assets/planet6897_20261004/final_validation.json)를 참고합니다. 시각 자료는 각 단계의 생산 code head와 입력/PDF hash로 고정되어 있으며, 이후 변경은 테스트·문서 범위입니다. 최종 fresh WASM hash와 기존 단계의 hash, 생산 본문 동일성 증적을 함께 기록합니다. 대용량 미달 문서는 #7445의 기존·추가 이관 기록으로 추적하고 그 문서 전체의 정확성을 승인하지 않습니다. 위의 “통합 검증 미완료/대기”는 해당 단계 작성 시점의 기록이며 최종 로컬 판정은 이 절을 따릅니다. 통합 CI는 아직 미실행입니다.
+[정확한 head·명령·결과·원 source CI·개별 시각 범위](../assets/planet6897_20261004/final_validation_before_7574.json)를 참고합니다. 시각 자료는 각 단계의 생산 code head와 입력/PDF hash로 고정되어 있으며, 이후 변경은 테스트·문서 범위입니다. 최종 fresh WASM hash와 기존 단계의 hash, 생산 본문 동일성 증적을 함께 기록합니다. 대용량 미달 문서는 #7445의 기존·추가 이관 기록으로 추적하고 그 문서 전체의 정확성을 승인하지 않습니다. 위의 “통합 검증 미완료/대기”는 해당 단계 작성 시점의 기록이며 최종 로컬 판정은 이 절을 따릅니다. 통합 CI는 아직 미실행입니다.
 
 ## Merge 후 contributor PR comment 계획
 
@@ -82,4 +82,13 @@ base `732047aa253e92772fd7625e4a5d7f6a9897fd73` 위로69개 commit을 충돌 없
 ## #7574 리베이스 후 전체 회귀 완료
 
 - 최신 base `732047aa253e92772fd7625e4a5d7f6a9897fd73`, 실행 head `9e5f0c3fda484f756c8aca819c87d0578b428141`에서 전체 nextest **10,321 PASS / 0 FAIL / 50 skip**, 495.993초(threads=8, slow8)를 확인했습니다. upstream의 기존3개 검사가 포함되었으며 이번 보정으로 새 검사를 추가하지 않았습니다.
-- 필수 lint/build·fresh WASM·Skia·현재 후보 시각 비교는 진행 중입니다. 이전 base의 시각 통과를 현재 후보의 결과로 바꾸어 기록하지 않습니다.
+- 전체 회귀 완료 시점에는 나머지 검사가 진행 중이었습니다. 아래 최종 검증 절에 실제 완료 결과를 기록합니다.
+
+## #7574 리베이스 후 최종 검증
+
+- 최신 base `732047aa253e92772fd7625e4a5d7f6a9897fd73`, 전체 회귀 head `9e5f0c3fda484f756c8aca819c87d0578b428141`에서 **10,321 PASS / 0 FAIL / 50 skip**, 495.993초(threads=8)입니다. 필수 Format·Native/WASM32/전체 target Clippy·workspace build·manifest·unit tier·fresh WASM·Skia 검사를 순차 실행하여 통과했습니다. Skia lib **4,109 PASS / 0 FAIL / 13 skip**, placeholder2·직접 PDF4 PASS입니다.
+- 현재 후보의 Native/fresh WASM 수용 범위 **104쪽씩, 최저 90.80846% / 90.80846%, 90% 미만 0쪽**입니다. 실제 Chrome에서 현재 pkg를 로드했으며 모든 대상 SVG를 재출력했습니다. byte-identical SVG의 기존 raster만 재사용하고 달라진 쪽은 다시 raster했습니다. #7445 이관 문서의 전체 수용을 주장하지 않습니다.
+- Studio 그림 자르기도 현재 fresh WASM의 실제 Canvas2D/CanvasKit에서 3쪽씩 재캡처했습니다. backend fallback 없이 각각 최저 **98.90923% / 95.73803%**이며 기관 로고·사진·대조군을 직접 확인했습니다. Studio 소스와 테스트는 리베이스 전 전체1,815 PASS/0 FAIL/2 skip 및 TypeScript/Vite/PWA build 이후 변경이 없습니다.
+- [최신 검증 head·명령·결과](../assets/planet6897_20261004/final_validation.json), [전체 수용 범위 TSV·source/PDF/SVG hash](../assets/planet6897_20261004/final-visual-rebased/results.json), [Studio 재캡처 증적](../assets/planet6897_20261004/7529-final-rebased/results.json). 이전 base의 실제 실행 기록은 보존했고 현재 판정은 이 절을 따릅니다. 최신 통합 PR CI·보호 요건·merge는 아직 완료 전입니다.
+
+최신 [대표 review PNG](../assets/planet6897_20261004/final-visual-rebased/7532/native/review_002.png)와 [overlay PNG](../assets/planet6897_20261004/final-visual-rebased/7532/native/overlay_002.png)는 merge 후 실제 merge SHA에 고정한 raw URL로 contributor comment에 표시합니다.
