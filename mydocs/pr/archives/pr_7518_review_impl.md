@@ -574,3 +574,34 @@ Archive C는 547/1986, Archive D는 37/2041 검사를 실행하고 fail-fast로 
 - 실제 소유·좌표: `ci-7570-overlap-trees/render_tree_{022,038,039}.json`; source control은 `ci-7570-regulatory-source.txt`.
 
 이번 단계는 실패 조사 기록이며 code·assertion·baseline 변경이나 원격 재실행을 수행하지 않았다.
+
+
+### 22쪽 보정 착수 — 재조판 본문 앞 간격의 흐름 누락
+
+사용자는 22쪽 `o 규제대안의 내용` 다음 표의 위치부터 수정하도록 지시했다.
+기존 integration branch에서 진행한다. 기본 경로는 collaborator self-merge이며
+`pr_review_workflow`, 선택표, `collaborator_self_merge`, `intake_and_review`,
+`local_validation`, `visual_fixture_evidence`, 개발 환경과 시각 검증 정본을 적용했다.
+원본과 독립 PDF는 기존 tracked 76076 HWP/2024 PDF 그대로 사용한다.
+
+수정 전 `98b9ac359`의 renderer는 `d76cd8075`와 동일하다. Native 출력에서
+pi191 줄 상단은 745.2px, 다음 별도 빈 문단 pi192는 775.2px이지만
+pi193 표 상단은 751.8px이었다. `RHWP_DIAG_FLOW`와 `RHWP_TABLE_DRIFT`로
+표 진입 흐름은 본문 기준 674.3px임을 확인했다. 출력 흐름과의 차이는
+앞의 NO_LS 문단 다섯 개에 지정된 앞 간격 6.6667px씩, 합계 33.3333px이다.
+
+`paragraph/format.rs::format_paragraph_for_flow`는 텍스트가 있는 NO_LS 문단의
+`spacing_before`를 0으로 바꾸는 과거 실험 조건을 가지고 있었다. 반면
+`paragraph_layout.rs::layout_composed_paragraph`는 실제 ParaShape 간격을 적용한다.
+따라서 입력 간격 → formatted total/fit/flow → `st.current_height` →
+`block/entry.rs::from_empty_reflow_host`의 `table_top`/`occupied_bottom` →
+`layout.rs`의 확정 원점 소비에서 표만 앞선 본문 내부로 돌아왔다.
+독립 PDF의 제목 기준선은 766.24px, 표 상단 괘선은 788.257px이다.
+
+본문 앞 간격을 제거하는 가정을 삭제하고 resolved style의 간격을 그대로
+format 결과에 포함한다. 저장 사다리의 별도 trim/column-top 처리는 유지한다.
+특정 쪽·문단·문서 ID나 픽셀 상수로 표를 밀지 않는다. pi192의 독립 빈 줄,
+표 자체의 위·아래 여백과 pi194 이후 문단을 각각 확인한다.
+저장 LineSeg, 간격 0, 빈 문단과 visible host의 기존 검사를 대조하고
+22쪽 Native/fresh WASM 직접 비교부터 진행한다. 38·39쪽에 별도 수정은
+추가하지 않으며 공통 원인의 파급 결과만 관찰한다.
