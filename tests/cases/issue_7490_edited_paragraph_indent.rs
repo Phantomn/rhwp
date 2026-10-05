@@ -447,7 +447,7 @@ fn saved_tac_tail_uses_the_same_local_line_origin_as_its_prefix() {
 fn default_column_rebuild_preserves_content_and_object_geometry() {
     // The complete IR sweep identified these no-column body sections. A
     // default single-column record may change control-stream offsets, but
-    // cannot change paragraph content, paper geometry or painted table boxes.
+    // cannot change paragraph content, paper geometry or painted text and object boxes.
     let samples = [
         "samples/issue5701/1530000-200800002_slice_p139_tac_reset_tail.hwp",
         "samples/issue5715/float_chart_ghost_ladder_gap.hwp",
@@ -461,12 +461,27 @@ fn default_column_rebuild_preserves_content_and_object_geometry() {
         "samples/issue6196/cell_char_spacing_fit.hwp",
         "samples/issue6204/square_picture_band_host.hwp",
     ];
-    fn table_boxes(node: &RenderNode, out: &mut Vec<(f64, f64, f64, f64)>) {
-        if matches!(node.node_type, RenderNodeType::Table(_)) {
+    fn painted_boxes(node: &RenderNode, out: &mut Vec<(f64, f64, f64, f64)>) {
+        if matches!(
+            node.node_type,
+            RenderNodeType::Table(_)
+                | RenderNodeType::TextRun(_)
+                | RenderNodeType::Image(_)
+                | RenderNodeType::Line(_)
+                | RenderNodeType::Rectangle(_)
+                | RenderNodeType::Ellipse(_)
+                | RenderNodeType::Path(_)
+                | RenderNodeType::Group(_)
+                | RenderNodeType::TextBox
+                | RenderNodeType::Equation(_)
+                | RenderNodeType::FormObject(_)
+                | RenderNodeType::Placeholder(_)
+                | RenderNodeType::RawSvg(_)
+        ) {
             out.push((node.bbox.x, node.bbox.y, node.bbox.width, node.bbox.height));
         }
         for child in &node.children {
-            table_boxes(child, out);
+            painted_boxes(child, out);
         }
     }
     for input in samples {
@@ -506,21 +521,21 @@ fn default_column_rebuild_preserves_content_and_object_geometry() {
         for page in 0..before.page_count() {
             let mut old_boxes = Vec::new();
             let mut new_boxes = Vec::new();
-            table_boxes(
+            painted_boxes(
                 &before
                     .build_page_render_tree(page)
                     .expect("source tree")
                     .root,
                 &mut old_boxes,
             );
-            table_boxes(
+            painted_boxes(
                 &after.build_page_render_tree(page).expect("saved tree").root,
                 &mut new_boxes,
             );
             assert_eq!(
                 old_boxes.len(),
                 new_boxes.len(),
-                "{input} page {page}: table ownership"
+                "{input} page {page}: painted node ownership"
             );
             for (a, b) in old_boxes.iter().zip(&new_boxes) {
                 assert!(
