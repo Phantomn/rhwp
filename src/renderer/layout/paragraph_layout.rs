@@ -2569,6 +2569,36 @@ fn collect_shape_marker_labels(show_ctrl: bool, para: Option<&Paragraph>) -> Vec
 /// 있어 정확 일치를 요구하지 않는다. 진짜 어울림 배제는 이보다 훨씬 크게 벌어진다.
 const EMPTY_LINE_OWN_MARGIN_TOLERANCE_HU: i32 = 200;
 
+/// [#6761] 글자처럼 취급하는 개체가 공유 기준선 위에 두는 높이 비율(표 #7049 과 같다).
+const TAC_OBJECT_ASCENT_RATIO: f64 = 0.85;
+
+/// [#7548] 문단의 전폭 저장 줄(가장 넓은 원본 줄)의 시작 cs 와 끝(cs+sw).
+/// 모든 줄이 같은 폭이면(좁혀진 줄이 없으면) None — 기준으로 쓸 대비가 없다.
+fn stored_full_width_line_box(para: &Paragraph) -> Option<(i32, i32)> {
+    // 같은 vpos 를 공유하는 세그먼트(개체 양옆으로 갈린 한 줄)는 전폭 기준이 될 수 없다.
+    let original: Vec<_> = para
+        .line_segs
+        .iter()
+        .filter(|seg| seg.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0 && seg.segment_width > 0)
+        .filter(|seg| {
+            para.line_segs
+                .iter()
+                .filter(|other| other.vertical_pos == seg.vertical_pos)
+                .count()
+                == 1
+        })
+        .collect();
+    let widest = original.iter().map(|seg| seg.segment_width).max()?;
+    if original.iter().all(|seg| seg.segment_width == widest) {
+        return None;
+    }
+    let full = original
+        .iter()
+        .filter(|seg| seg.segment_width == widest)
+        .min_by_key(|seg| seg.column_start)?;
+    Some((full.column_start, full.column_start + full.segment_width))
+}
+
 impl LayoutEngine {
     /// [#5729] 저장 줄 밴드가 정확히 `om_top + 선언높이 + om_bottom` 인 TAC 표는
     /// 한글이 표 상단을 **줄 상단 + om_top** 에 앉힌다 (156505870 4표 실측:
@@ -2827,7 +2857,7 @@ impl LayoutEngine {
                         None,
                         false,
                         false,
-                        false,
+                        0.0,
                         Some((Some(left), top)),
                         Self::standalone_table_char_border_fill(Some(para), table, styles),
                     );
@@ -2867,7 +2897,7 @@ impl LayoutEngine {
                         None,
                         false,
                         false,
-                        false,
+                        0.0,
                         None,
                         Self::standalone_table_char_border_fill(Some(para), table, styles),
                     );
@@ -3756,7 +3786,7 @@ impl LayoutEngine {
                     None,
                     false,
                     false,
-                    false,
+                    0.0,
                     None,
                     Self::standalone_table_char_border_fill(Some(para), tbl, styles),
                 );
@@ -3814,7 +3844,7 @@ impl LayoutEngine {
                 None,
                 false,
                 false,
-                false,
+                0.0,
                 None,
                 Self::standalone_table_char_border_fill(Some(para), tbl, styles),
             );
@@ -3833,6 +3863,22 @@ impl LayoutEngine {
         } else {
             current_y + line_height + line_spacing
         };
+        // [#4599] 저장 줄 하나가 문단 전체이고 표가 그 줄 상자(`lh`) 안에 들어가면,
+        // 흐름 전진은 저장 줄 전진(`lh + ls`)이다 — 조판(`FullParagraph h`)이 이미 그
+        // 값을 쓴다. 음수 줄간격이면 표 바닥이 다음 줄 위쪽과 겹치는 것이 저장 사다리
+        // (`다음 vpos = vpos + lh + ls`)와 한/글 배치이며, 표 바닥까지 전진하면 뒤 본문
+        // 전체가 `-ls` 만큼 내려간다(156714641 1쪽 pi1: lh 3448 = 표 2882 + 바깥여백
+        // 566, ls -600 → +4.2px). 표가 줄 상자를 넘으면(낡은 저장 줄) 종전대로 표 바닥.
+        let stored_single_line_owns_tables = !wrapped_below_table
+            && line_spacing < 0.0
+            && para.line_segs.len() == 1
+            && table_seg.is_some_and(|seg| {
+                seg.tag & crate::model::paragraph::LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0
+            })
+            && max_table_bottom <= y + line_height + 0.5;
+        if stored_single_line_owns_tables {
+            return text_bottom.max(y + line_height + line_spacing) + spacing_after;
+        }
         // 표와 텍스트 중 더 큰 하단을 사용
         let effective_line_bottom = max_table_bottom
             .max(text_bottom)
@@ -5210,18 +5256,14 @@ impl LayoutEngine {
             };
 
             // 최대 폰트 크기 계산 (line_height 최솟값 보정에도 사용)
+            // [#7398] 줄 상자는 선언 크기다. 상대 크기(`relSz`)를 곱한 그리는 크기를
+            // 쓰면 106% 문단의 줄 간격이 6% 늘어 조판(`composed_line_max_font_size`)과
+            // 갈라진다.
             let mut max_fs = comp_line
                 .runs
                 .iter()
                 .filter(|run| crate::renderer::composed_run_reserves_font_height(run))
-                .map(|r| {
-                    let ts = r.text_style(styles);
-                    if ts.font_size > 0.0 {
-                        ts.font_size
-                    } else {
-                        12.0
-                    }
-                })
+                .map(|r| r.line_box_font_size(styles))
                 .fold(0.0f64, f64::max);
             if let Some((_, _, font_size)) = empty_no_lineseg_metrics {
                 max_fs = font_size;
@@ -5870,6 +5912,25 @@ impl LayoutEngine {
                         None
                     };
                     (absorbed_cs, sw_px)
+                } else if let Some((base_cs, base_end)) = para
+                    .and_then(stored_full_width_line_box)
+                    .filter(|_| seg.is_some())
+                {
+                    // [#7548] 같은 문단의 전폭 저장 줄을 기준으로 이 줄이 얼마나 좁혀졌는지만
+                    // 반영한다. 전폭 줄은 일반 경로(단 + 여백)와 같은 자리에 놓이므로, 좁혀진
+                    // 줄은 그 자리에서 cs 차이만큼 들어가고 줄 끝 차이만큼 짧아진다.
+                    // cs 에 여백을 다시 더하면 여백이 있는 문단에서 줄이 여백만큼 밀린다
+                    // (21_언어 14쪽 pi=300: 전폭 cs=852=왼 여백, 좁힌 첫 줄 cs=3455 →
+                    // +11.4px 오른쪽, 폭 −22.8px).
+                    // 전폭 줄 상자는 단 + base_cs 에서 시작하고, 일반 경로는 그 줄을 단 +
+                    // effective_margin_left 에 둔다. 좁힌 줄은 같은 상대 위치를 cs 만큼 옮긴
+                    // 자리에서 시작해 저장 줄 상자 끝(cs + sw)에서 끝난다.
+                    let _ = base_end;
+                    let shift = crate::renderer::hwpunit_to_px(cs + mr - base_cs, self.dpi);
+                    let avail =
+                        crate::renderer::hwpunit_to_px((sw - mr + base_cs).max(0), self.dpi)
+                            - effective_margin_left;
+                    (shift, Some(avail.max(0.0)))
                 } else {
                     let sw_px = if sw > 0 {
                         Some(
@@ -8640,7 +8701,7 @@ impl LayoutEngine {
                                     None,
                                     false,
                                     false,
-                                    false,
+                                    0.0,
                                     None,
                                     Self::standalone_table_char_border_fill(Some(p), t, styles),
                                 );
@@ -9729,7 +9790,7 @@ impl LayoutEngine {
                                         None,
                                         false,
                                         false,
-                                        false,
+                                        0.0,
                                         None,
                                         Self::standalone_table_char_border_fill(Some(p), t, styles),
                                     );
@@ -9810,7 +9871,40 @@ impl LayoutEngine {
                                 let box_h = tac_object_box_height_px(pic_h, &pic.caption, self.dpi)
                                     + margin_top
                                     + margin_bottom;
-                                (vars.y + vars.baseline - box_h).max(vars.y)
+                                // [#6761] 같은 줄에 더 높은 글자처럼 그림이 있으면 그 줄의 기준선은
+                                // 가장 높은 상자가 정한다(저장 줄 bl = 0.85 × lh, 1480000-201900042
+                                // 문단 4.195: lh 11206 · bl 9525). 낮은 상자는 글자처럼 그 기준선에
+                                // 85/15 로 앉는다 — 정본 그림 위 끝 226.7 / 216.9px(차 9.8 =
+                                // 0.85 × 11.3). 하단을 기준선에 붙이면 줄 상단으로 clamp 되어
+                                // 가장 높은 상자와 위 끝이 같아진다. 표의 같은 줄 공유 기준선
+                                // 규칙(#7049·#7150)과 같은 비율이다. 줄에 그림이 하나뿐이거나 이
+                                // 상자가 가장 높으면 종전 식이다.
+                                let tallest_box_h = line_tac_offsets
+                                    .iter()
+                                    .filter_map(|&(_, _, ci)| match p.controls.get(ci) {
+                                        Some(Control::Picture(other)) => {
+                                            let (_, other_h) =
+                                                self.resolve_inline_picture_size(other, col_area);
+                                            let (_, _, other_top, other_bottom) =
+                                                tac_picture_outer_margins_px(other, self.dpi);
+                                            Some(
+                                                tac_object_box_height_px(
+                                                    other_h,
+                                                    &other.caption,
+                                                    self.dpi,
+                                                ) + other_top
+                                                    + other_bottom,
+                                            )
+                                        }
+                                        _ => None,
+                                    })
+                                    .fold(box_h, f64::max);
+                                if tallest_box_h > box_h + 0.5 {
+                                    (vars.y + vars.baseline - tallest_box_h).max(vars.y)
+                                        + (tallest_box_h - box_h) * TAC_OBJECT_ASCENT_RATIO
+                                } else {
+                                    (vars.y + vars.baseline - box_h).max(vars.y)
+                                }
                             };
                             let img_y = base_img_y + sibling_reserved_px + margin_top;
                             let bin_data_id = pic.image_attr.bin_data_id;

@@ -672,6 +672,32 @@ impl TypesetEngine {
                     }
                 })
         });
+        // 저장 줄 없는 표 전용 호스트는 계산 흐름 원점을 소유한다.
+        // 첫 조각 예산이 예약한 앞 여백과 오프셋을 paint에도 같은 원점으로 전달한다.
+        // 그렇지 않으면 컷은 여백을 빼고 정해지지만 괘선은 여백만큼 위에 그려진다.
+        fragment_placement = fragment_placement.or_else(|| {
+            (!is_continuation
+                && cursor_row == 0
+                && start_cut.is_empty()
+                && para.line_segs.is_empty()
+                && !para_has_non_whitespace_text(para)
+                && para.controls.len() == 1
+                && !table.common.treat_as_char
+                && crate::renderer::typeset::is_para_topbottom_float(&table.common)
+                && table.caption.is_none())
+            .then(|| {
+                let top = st.current_height + host_before_overhead + vert_offset_overhead;
+                crate::renderer::float_placement::ParagraphFloatPlacement {
+                    flow: crate::renderer::float_placement::ParagraphFloatFlow::NextLine,
+                    anchor_y: st.current_height,
+                    stored_host_origin: None,
+                    stored_successor_line_origin: None,
+                    table_left: None,
+                    table_top: top,
+                    occupied_bottom: top,
+                }
+            })
+        });
         // 이미 소비한 후속 첫 조각 뒤의 줄이 종료 표의 아래 바깥여백을 소유한다.
         // 현재 실제 행 높이로 닫히는 경우만 마지막 행 수용 예산에 포함한다.
         if is_continuation

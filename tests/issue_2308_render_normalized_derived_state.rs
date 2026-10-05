@@ -1,11 +1,8 @@
-//! Issue #2308 functional regression for nested-table derived geometry.
+//! [#2308] 중첩 표의 파생 폭·내용 상자 소유 회귀.
 //!
-//! Page-count pins do not catch a nested 1×1 table whose width normalization
-//! drifts only the split height. The two continuation fragments are pinned after
-//! direct comparison with the HWP 2024/Hancom PDF fixture: the second fragment
-//! begins at the page's content top while retaining the stored table width.
-//! #3128 additionally pins its PDF-owned 10-line continuation height and table
-//! content-box padding semantics.
+//! `issue_2308_saved_nested_width_keeps_fragment_geometry`의 33·34쪽 고정 픽셀 기대는
+//! 정확한 입력의 한컴2024 재출력과 전82쪽 비교 후 #7445로 분리했다.
+//! 다른 정상 파생 폭·내용 소유 검사는 유지하며 원본 문서와 PDF도 보존한다.
 
 use rhwp::document_core::DocumentCore;
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};

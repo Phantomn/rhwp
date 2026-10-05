@@ -4795,6 +4795,11 @@ impl TypesetEngine {
                 == 2
             && para.line_segs.iter().any(|seg| !is_synthetic_line_seg(seg));
 
+        let page_anchored_square = is_wrap_around_table
+            && matches!(
+                table.common.vert_rel_to,
+                crate::model::shape::VertRelTo::Page | crate::model::shape::VertRelTo::Paper
+            );
         // 저장 줄이 없는 host 의 Square 표는 host 글자가 표 옆 띠로 흐른다 — 띠는 표
         // 기하로 도출한다(layout 이 같은 helper 로 글자를 그린다). 표 앞 글자로 분류되지
         // 않는 음수·0 세로 오프셋에서도 흐름은 [Task #439] 와 같이 max(글자, 표) 한 번만
@@ -4821,6 +4826,22 @@ impl TypesetEngine {
                 plan.relative_to(0.0, -host_origin);
                 st.record_square_host_flow(para_idx, plan);
             }
+        } else if page_anchored_square {
+            // [#7548] 쪽·종이 기준 어울림 표는 앵커 흐름 밖(절대 위치)에 놓인다 — 흐름에는
+            // host 본문만 전진하고 표 높이를 예약하지 않는다(layout 의 절대 배치와 짝).
+            // 뒤 문단이 표 띠를 피하는 것은 저장 vpos 가 증언한다(36295751 pi=9).
+            st.advance_flow_by(pre_height);
+        } else if is_wrap_around_table
+            && pre_height > 0.0
+            && crate::renderer::float_placement::square_successor_starts_beside_table(
+                para,
+                st.next_para_lane_probe,
+                table,
+            )
+        {
+            // [#7548] 다음 문단이 표 옆 차선에서 시작하면 표 높이를 흐름에 예약하지
+            // 않는다 — layout 의 같은 판정과 짝(host 본문 끝에서 잇는다).
+            st.advance_flow_by(pre_height);
         } else if is_wrap_around_table && pre_height > 0.0 {
             let v_off_px = crate::renderer::hwpunit_to_px(vertical_offset as i32, self.dpi);
             let table_bottom = v_off_px + table_total_height;

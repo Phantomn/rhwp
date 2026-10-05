@@ -79,11 +79,10 @@ impl RowScanQuery<'_> {
             // 강제 없음).
             let content =
                 layout_engine.row_cut_content_height(table, r, row_start_cut, &[], styles);
-            if layout_engine.row_uses_reflow_physical_frame(table, r) {
-                content.max(self.start_row_height_override.unwrap_or(0.0))
-            } else {
-                content
-            }
+            // The continuation cursor carries space already accepted by the
+            // previous fragment, independently of its consumed content units.
+            self.start_row_height_override
+                .map_or(content, |physical| content.max(physical))
         }
     }
 

@@ -946,3 +946,14 @@ outer-top 가산은 기존 resolved-origin guard가 막는다.
 Native auto/mixed 전쪽 최저 실루엣은 모두 96.81315%이며 최종 source의
 Native/fresh WASM 전쪽·기존 영향 페이지·전체 회귀·lint 증적은 아래에 이어 기록한다.
 진단 경로: `output/pr-review/pr7518-20261004/nested-fix-20261005/`.
+
+
+최신 base `df7d0076ad01a36c8fa1a0226727653904b67dd9`에 실제 조판 변경이 들어와
+merge simulation에서 5개 파일의 충돌을 확인했다. 양쪽 코드를 대조해 최신
+full-width 저장 프레임 정렬과 reflow의 완료 내용 컷 정렬을 함께 보존했고,
+`layout_table`의 physical paint inset 인자 변경(`bool` → `f64`)을 반영했다.
+continuation은 최신 공통 물리 높이 예약을 사용하며, 별도 reflow 물리 tail과
+stored-row frame을 중복 이월하지 않게 emit의 두 소유 조건을 함께 유지했다.
+2308의 원본 정렬 검사는 보존했다. 통합 뒤 #7518 **21/21 PASS**를 확인했다.
+base 전진에서 제거된 source를 가리키는 예전 generated harness의 fmt 실패는
+prepare 후 재실행으로 해소했으며 조판 결함 재현으로 세지 않는다.
