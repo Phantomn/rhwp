@@ -121,6 +121,26 @@
       "path": "tests/fixtures/pr7491_edited_indent/prefix-spaces.hwp",
       "sha256": "f5a560d90982cb821a07534d2235a40569e7d9389417dfe6419110296895febc",
       "bytes": 10752
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/growth-20-2020.pdf",
+      "sha256": "788a3dfec9a473d53c3a842d4ad19be31b37592a664eeef2590a9dc8553166ef",
+      "bytes": 280233
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/growth-20.hwp",
+      "sha256": "6a845c5f3d647e785578509aae027d5e999154de41048a9518eb8d448fb01b09",
+      "bytes": 80384
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/growth-8-2020.pdf",
+      "sha256": "df58485d1b11aff182b55692ce42edb708d31df825e24d7b38f8bdaa4cc515d6",
+      "bytes": 279743
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/growth-8.hwp",
+      "sha256": "15269a53212f76d69d51ff4937bca6937dd7078e9d285c1582cf7aeda442011a",
+      "bytes": 79872
     }
   ],
   "before_column_source_sha": "4060db2d9d46b3ccd2987538286a11f836348056",
@@ -134,5 +154,14 @@
     "blank-break": "919cb58d-6a1b-4281-a588-ec04e54d3cce",
     "spaces": "86a0a866-fcef-4dc3-85ea-d6d0b9643780",
     "punctuation-break": "2f1a7ea4-d8da-48a7-b320-940da50f2848"
+  },
+  "growth_reference": {
+    "generation": "samples/issue6882/synth_cell_enter_table_growth.hwp, cell 31, last paragraph end, actual split_paragraph_in_cell_native repeated 8/20 times",
+    "engine": "2020",
+    "jobs": {
+      "8": "025d03be-a896-42fc-bf81-a17f79d82d69",
+      "20": "f12a426f-750b-4ef1-a6ac-d1d78c998078"
+    },
+    "scope": "Independent live table origin/body contract at 8; 20-height and saved-cell reopen remain unresolved. Not a full-page visual pass."
   }
 }

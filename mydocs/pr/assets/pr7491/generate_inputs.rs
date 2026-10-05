@@ -67,4 +67,29 @@ fn main() {
     let mut d = open("samples/biz_plan.hwp");
     d.insert_text_native(0, 51, 67, "가").unwrap();
     save(&d, "biz-edited", out);
+    // Independent cell-growth page-boundary references. These saved inputs
+    // are for Hancom comparison; rhwp saved-cell height fidelity is not claimed.
+    for count in [8, 20] {
+        let mut d = open("samples/issue6882/synth_cell_enter_table_growth.hwp");
+        let rhwp::model::control::Control::Table(table) =
+            &d.document().sections[0].paragraphs[1].controls[0]
+        else {
+            panic!("table input");
+        };
+        let last = table.cells[31].paragraphs.len() - 1;
+        let len = table.cells[31].paragraphs[last].char_offsets.len();
+        for i in 0..count {
+            d.split_paragraph_in_cell_native(
+                0,
+                1,
+                0,
+                31,
+                last + i,
+                if i == 0 { len } else { 0 },
+                None,
+            )
+            .unwrap();
+        }
+        save(&d, &format!("growth-{count}"), out);
+    }
 }

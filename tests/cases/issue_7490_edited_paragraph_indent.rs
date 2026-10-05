@@ -7,6 +7,7 @@
 
 use std::path::Path;
 
+use rhwp::document_core::DocumentCore;
 use rhwp::model::control::Control;
 use rhwp::model::paragraph::{LineSeg, ParaMeta};
 use rhwp::renderer::render_tree::{RenderNode, RenderNodeType};
@@ -739,6 +740,88 @@ fn find_owned_table(node: &RenderNode, para: usize) -> Option<&RenderNode> {
     node.children
         .iter()
         .find_map(|child| find_owned_table(child, para))
+}
+
+#[test]
+fn grown_tac_keeps_prefix_before_page_break_and_object_inside_next_body() {
+    // Real cell Enter commands, not manually patched LineSeg. The independent
+    // Hancom 2020 output of growth-8.hwp has 3 pages and starts this table on
+    // p2 at 52.383pt (=69.844px). Its page body ends at 1052.64px.
+    // This checks the live handoff; saving grown-cell heights is another contract.
+    let mut doc = DocumentCore::from_bytes(
+        &std::fs::read("samples/issue6882/synth_cell_enter_table_growth.hwp").expect("sample"),
+    )
+    .expect("open");
+    let Control::Table(table) = &doc.document().sections[0].paragraphs[1].controls[0] else {
+        panic!("table input");
+    };
+    let last = table.cells[31].paragraphs.len() - 1;
+    let len = table.cells[31].paragraphs[last].char_offsets.len();
+    for i in 0..8 {
+        doc.split_paragraph_in_cell_native(
+            0,
+            1,
+            0,
+            31,
+            last + i,
+            if i == 0 { len } else { 0 },
+            None,
+        )
+        .expect("actual Enter");
+    }
+    fn prefix_rows(node: &RenderNode, inside_table: bool) -> usize {
+        // Auxiliary paragraphs use their own local paragraph indices.
+        if matches!(
+            node.node_type,
+            RenderNodeType::Header
+                | RenderNodeType::Footer
+                | RenderNodeType::MasterPage
+                | RenderNodeType::FootnoteArea
+                | RenderNodeType::TextBox
+        ) {
+            return 0;
+        }
+        let inside_table = inside_table || matches!(node.node_type, RenderNodeType::Table(_));
+        let own = usize::from(
+            !inside_table
+                && matches!(&node.node_type,
+            RenderNodeType::TextLine(line) if line.section_index == Some(0)
+                && line.para_index == Some(1) && line.line_index == Some(0)),
+        );
+        own + node
+            .children
+            .iter()
+            .map(|n| prefix_rows(n, inside_table))
+            .sum::<usize>()
+    }
+    assert_eq!(doc.page_count(), 3, "independent Hancom pagination");
+    let first = doc.build_page_render_tree(0).expect("p1");
+    assert!(
+        find_owned_table(&first.root, 1).is_none(),
+        "only the prefix fits on p1"
+    );
+    assert_eq!(
+        prefix_rows(&first.root, false),
+        1,
+        "prefix consumed exactly once on p1"
+    );
+    let next = doc.build_page_render_tree(1).expect("p2");
+    assert_eq!(
+        prefix_rows(&next.root, false),
+        0,
+        "no duplicated prefix after handoff"
+    );
+    let table = find_owned_table(&next.root, 1).expect("grown table on p2");
+    assert!(
+        (table.bbox.y - 69.844).abs() < 0.5,
+        "independent Hancom table top: {:?}",
+        table.bbox
+    );
+    assert!(
+        table.bbox.y + table.bbox.height <= 1052.64 + 0.5,
+        "actual painted table stays in body: {:?}",
+        table.bbox
+    );
 }
 
 fn collect_cell_line_starts(node: &RenderNode, out: &mut Vec<f64>) {
