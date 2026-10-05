@@ -9,13 +9,17 @@ last_verified: 2026-10-05
 ## 현재 판정
 
 메인터너 보정 후 수용 가능 — #7490 해결 범위의 로컬 검증 완료. #7490 들여쓰기 문제와 그 편집 경로의 TAC prefix 처리에
-해결 범위를 한정한 별도 integration PR 후보다. 원 PR 승인·merge·close와 remote push는 미실행이다.
+해결 범위를 한정한 별도 integration [PR #7599](https://github.com/edwardkim/rhwp/pull/7599)를
+사용자 승인 후 push·등록했다. 원 PR 승인·merge·close와 통합 PR merge는 미실행이다.
 작업지시자의 #7491 인계 지시에 따라 semanticist21의 네 commit을 author와 원 SHA를
 보존해 cherry-pick했다. 기여자 보류를 일반 reviewer가 임의로 해제한 경로가 아니다.
 
 - 기준 devel: `cdba77b609c399fdef26a6c9e637716aa32c2177` (최종 fetch에서도 동일).
 - 원 PR head: `c4367ec03a28369cc6f26b17eca46553ac61514c`, OPEN / DIRTY / mergeable=false.
 - 작업 branch: `integration/pr7491-maintainer-20261005`.
+- 통합 PR: [#7599](https://github.com/edwardkim/rhwp/pull/7599), OPEN / devel / 작성자 edwardkim.
+  최초 등록 head `e97473e7f34a771dc6716963d5f44d62a5fd2b2a`;
+  [통합 PR 검토 기록](pr_7599_review.md)의 후행 문서 commit을 포함한 최신 원격 head CI는 별도로 확인한다.
 - 최종 production: `c3e99c204133f661534e837aa8bb00b16e4bb99a`.
 - Rust 21개 계약: `183db042f8a2e81735d6a03b8566f76763dfd052`; E2E 등록·명명은 이후 `dbe8431cb`.
 - 전체 회귀: 10,379 PASS / 0 FAIL / 50 SKIP. Native Skia 3단계 PASS. 원 PR CI와 로컬 integration 검증은 별개다.
