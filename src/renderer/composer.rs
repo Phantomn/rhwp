@@ -758,6 +758,24 @@ pub(crate) fn stored_first_tac_line(para: &Paragraph) -> Option<&LineSeg> {
         .then_some(first)
 }
 
+/// Ordinary whitespace rows before an object in the same stored fragment.
+/// A vpos reset has a different continuation owner; its prefix cannot be
+/// emitted again beside the object after that owner advances the page.
+pub(crate) fn ordinary_tac_prefix_rows(para: &Paragraph, owner: usize) -> bool {
+    !para.text.is_empty()
+        && para.text.chars().all(char::is_whitespace)
+        && owner > 0
+        && para.line_segs.get(owner).is_some_and(|row| {
+            row.vertical_pos >= para.line_segs[0].vertical_pos
+                && para.line_segs[..=owner]
+                    .windows(2)
+                    .all(|pair| pair[1].vertical_pos >= pair[0].vertical_pos)
+                && para.line_segs[..owner]
+                    .iter()
+                    .all(|prefix| prefix.line_height == prefix.text_height)
+        })
+}
+
 pub(crate) fn stored_tac_lines(para: &Paragraph) -> Option<Vec<StoredTacLine>> {
     // 공백도 자기 저장 줄을 가질 수 있다. 표 앞 공백 줄의 line_height에는
     // 문단의 최대 개체 높이가 반복 저장되므로 text_height와 다음 원점을 확인한다.
@@ -806,12 +824,7 @@ pub(crate) fn stored_tac_lines(para: &Paragraph) -> Option<Vec<StoredTacLine>> {
         // offset. Let the common composed paragraph route emit and measure them.
         // Carriers whose lh repeats the object maximum still need this band's
         // th-based physical-space contract.
-        if whitespace_carrier
-            && owner > 0
-            && para.line_segs[..owner]
-                .iter()
-                .all(|prefix| prefix.line_height == prefix.text_height)
-        {
+        if ordinary_tac_prefix_rows(para, owner) {
             return None;
         }
         // 빈 컨트롤 캐리어도 표 앞에 짧은 저장 줄을 가질 수 있다.
