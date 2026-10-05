@@ -5,7 +5,7 @@
 **승인 — 로컬 통합 코드 후보 `24748e4b1c658643f5ada26519488b9a534166e9`.**
 다섯 원 PR의 변경을 번호 순으로 체리픽했고, 통합 상태의 설치·빌드·타입 검사·단위 테스트·브라우저 검사와 Actions 계약 검사가 통과했다. 원 PR별 판정도 아래 표와 같이 모두 `승인`이다.
 
-이 판정은 GitHub review event나 원격 병합이 아니다. 통합 PR의 원격 head가 생기면 그 정확한 head의 required checks와 mergeability를 확인하고, 작업지시자의 별도 승인 뒤 병합한다. 원 PR은 현재 OPEN이며 닫거나 직접 병합하지 않았다.
+이 판정은 GitHub review event나 원격 병합이 아니다. 통합 PR의 원격 head가 생기면 그 정확한 head의 required checks와 mergeability를 확인하고, 이미 받은 작업지시자 승인에 따라 병합한다. 원 PR은 현재 OPEN이며 닫거나 직접 병합하지 않았다.
 
 ## 접수와 범위
 
@@ -65,7 +65,7 @@
 
 ## 통합과 후속 조건
 
-한 통합 PR에 위 다섯 체리픽과 이 검토 기록을 포함한다. 코드 후보 뒤 review 기록만 후행하므로 GitHub CI에서 최신 통합 head의 frontend package gate, Actions/nextest archive jobs, required checks를 확인한다. 원 PR의 녹색 CI를 통합 head의 CI 완료로 간주하지 않는다. 통합 [PR #7584](https://github.com/edwardkim/rhwp/pull/7584)를 Open으로 생성했다. 작업지시자가 오늘할일 포함·CI 모니터링·성공 뒤 merge와 후속 처리를 승인했다. 현재 병합은 CI 완료 전이며 원 PR close는 통합 병합 이후 수행한다.
+한 통합 PR에 위 다섯 체리픽과 이 검토 기록을 포함한다. 코드 후보 뒤 review 기록만 후행하므로 GitHub CI에서 최신 통합 head의 frontend package gate, Actions/nextest archive jobs, required checks를 확인한다. 원 PR의 녹색 CI를 통합 head의 CI 완료로 간주하지 않는다. 통합 [PR #7584](https://github.com/edwardkim/rhwp/pull/7584)를 Open으로 생성했다. 작업지시자가 오늘할일 포함·CI 모니터링·성공 뒤 merge와 후속 처리를 승인했다. 검증 후보의 Full CI는 아래와 같이 완료됐으며 원 PR close는 통합 병합 이후 수행한다.
 
 제안 PR 제목: `chore: Dependabot 프런트엔드와 nextest Action 갱신 통합`.
 원 PR은 통합 PR 병합 및 `devel` 포함을 확인한 뒤 각 원본 SHA·체리픽 SHA·통합 merge SHA와 검증 결과를 남기고 superseded로 정리한다. 관련 closing issue는 없다. Dependabot 원격 branch는 이번 작업에서 만든 브랜치가 아니므로 삭제하지 않는다.
@@ -73,5 +73,11 @@
 ## 통합 PR 접수와 승인 범위
 
 - 통합 PR 작성자 `jangster77`의 self-review이며 통합 PR에는 reviewer를 지정하지 않는다. 기본 경로 `collaborator_self_merge`, 보조 `intake_and_review`, `local_validation`, `multi_pr_update_branch`, `rework_and_exceptions`, `review_only_fast_pass`, `post_merge`를 적용한다. 원 Dependabot PR의 접수 기록은 위에 보존했다.
-- 원격 head는 `integration/dependabot-7579-7583-20261005`이며 이 archive 기록과 오늘할일을 동일 PR에 포함한다. 현재 CI 결과를 미래 완료로 적지 않는다. 최신 head의 required check가 모두 성공하고 mergeability를 확인하면 승인된 일반 merge를 수행한다.
+- 원격 head는 `integration/dependabot-7579-7583-20261005`이며 이 archive 기록과 오늘할일을 동일 PR에 포함한다. 검증 후보의 CI 완료를 아래에 기록했다. 이 문서 후행 commit의 최신 required check와 mergeability를 확인하면 승인된 일반 merge를 수행한다.
 - merge 뒤 문서·오늘할일·5개 갱신의 devel 포함과 duration 갱신 결과를 확인한다. 통합 PR 및 원 PR에 merge SHA·실제 CI·로컬 검증을 게시하고 원 5건을 superseded로 닫는다. 이번 검토의 임시 원격/로컬 branch·fetch refs·ignored 로그만 정리하며 공유 target은 보존한다.
+
+## 통합 후보 Full CI 완료
+
+- exact 후보 `5d0e8cdb32d395309fe7a76e3cef80b09d897c5b`의 [CI 37265915618](https://github.com/edwardkim/rhwp/actions/runs/37265915618), [CodeQL 37265915563](https://github.com/edwardkim/rhwp/actions/runs/37265915563), [Render Diff 37265915335](https://github.com/edwardkim/rhwp/actions/runs/37265915335), [Adapter 37265915480](https://github.com/edwardkim/rhwp/actions/runs/37265915480), [Proptest 37265915519](https://github.com/edwardkim/rhwp/actions/runs/37265915519)가 모두 success로 완료됐다. 32 SUCCESS, 실패·대기 0, `MERGEABLE/CLEAN`을 확인했다.
+- Lint, Frontend package gates, Native Skia, archive 빌드 A–D와 테스트 A–D, Build & Test가 모두 성공했다. 이번 통합 후보에서 새 install-action의 실제 설치·빌드·테스트 경로를 확인했다.
+- 이 후행 commit은 archive review와 오늘할일만 갱신한다. 원 PR head·제품 코드·package lock·workflow는 변경하지 않았다. 최신 후행 head의 trusted 정책·preflight·required checks를 확인한 뒤 정확한 head SHA를 `--match-head-commit`으로 지정해 병합한다.
