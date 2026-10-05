@@ -957,3 +957,10 @@ stored-row frame을 중복 이월하지 않게 emit의 두 소유 조건을 함�
 2308의 원본 정렬 검사는 보존했다. 통합 뒤 #7518 **21/21 PASS**를 확인했다.
 base 전진에서 제거된 source를 가리키는 예전 generated harness의 fmt 실패는
 prepare 후 재실행으로 해소했으며 조판 결함 재현으로 세지 않는다.
+
+
+최종 예약 분기도 다시 대조해 기존 source-cut / picture-opening 의 위쪽
+여백 예약과 새 recursive overlay frame 을 중복하지 않도록 했다. paint도
+같은 열린 프레임을 사용하며 뒤 opening 분기에서 다시 가산하지 않는다.
+이 변경 뒤에도 #7518 21/21 PASS다. 중간에 중단한 lint 로그를 보존하고
+다음 source SHA에서 최종 필수 검증을 처음부터 실행한다.

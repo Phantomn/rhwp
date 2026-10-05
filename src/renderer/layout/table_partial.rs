@@ -4516,9 +4516,10 @@ impl LayoutEngine {
         } else {
             None
         };
+        let recursive_overlay_frame = self.reflow_recursive_overlay_frame(table, styles);
         let y_start = if let Some(top) = resolved_table_top {
             top
-        } else if self.reflow_recursive_overlay_frame(table, styles) {
+        } else if recursive_overlay_frame {
             y_start
                 + effective_vertical_offset
                 + hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
@@ -4730,6 +4731,7 @@ impl LayoutEngine {
             || empty_opening_first_fragment)
             && stored_reset_paint_geometry.is_none()
             && resolved_table_top.is_none()
+            && !recursive_overlay_frame
         {
             y_start + hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
         } else {
