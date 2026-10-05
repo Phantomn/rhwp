@@ -550,6 +550,104 @@ fn default_column_rebuild_preserves_content_and_object_geometry() {
     }
 }
 
+fn starts_in_area(doc: &HwpDocument, area: &str) -> Vec<f64> {
+    fn visit(node: &RenderNode, area: &str, inside: bool, out: &mut Vec<f64>) {
+        let inside = inside
+            || matches!(
+                (&node.node_type, area),
+                (RenderNodeType::Header, "header")
+                    | (RenderNodeType::Footer, "footer")
+                    | (RenderNodeType::FootnoteArea, "footnote")
+            );
+        if inside && matches!(node.node_type, RenderNodeType::TextLine(_)) {
+            if let Some(x) = first_run_x(node) {
+                out.push(x);
+            }
+            return;
+        }
+        for child in &node.children {
+            visit(child, area, inside, out);
+        }
+    }
+    let mut starts = Vec::new();
+    visit(
+        &doc.build_page_render_tree(0).expect("area tree").root,
+        area,
+        false,
+        &mut starts,
+    );
+    assert!(
+        starts.len() >= 2,
+        "{area}: two physical lines required: {starts:?}"
+    );
+    starts
+}
+
+fn assert_area_indent(flat: &[f64], shifted: &[f64], indent: i32, area: &str) {
+    // HWP ParaShape indent uses half-HWPUNIT: 3000 = 15pt = 20px.
+    let first_shift = if indent > 0 { 20.0 } else { 0.0 };
+    let later_shift = if indent < 0 { 20.0 } else { 0.0 };
+    assert!(
+        ((shifted[0] - flat[0]) - first_shift).abs() < 0.5,
+        "{area}: first line {flat:?} -> {shifted:?}"
+    );
+    assert!(
+        ((shifted[1] - flat[1]) - later_shift).abs() < 0.5,
+        "{area}: following line {flat:?} -> {shifted:?}"
+    );
+}
+
+#[test]
+fn header_and_footer_format_commands_place_first_and_following_lines() {
+    for is_header in [true, false] {
+        let area = if is_header { "header" } else { "footer" };
+        let mut doc = HwpDocument::create_empty();
+        doc.create_blank_document_native().expect("blank");
+        doc.create_header_footer_native(0, is_header, 0)
+            .expect("create area");
+        doc.insert_text_in_header_footer_native(0, is_header, 0, 0, 0, TEXT)
+            .expect("area text");
+        let flat = starts_in_area(&doc, area);
+        for indent in [3000, -3000] {
+            doc.apply_para_format_in_hf_native(
+                0,
+                is_header,
+                0,
+                0,
+                &format!("{{\"indent\":{indent}}}"),
+            )
+            .expect("area format");
+            assert_area_indent(&flat, &starts_in_area(&doc, area), indent, area);
+        }
+    }
+}
+
+#[test]
+fn footnote_format_command_places_first_and_following_lines() {
+    let mut doc = HwpDocument::create_empty();
+    doc.create_blank_document_native().expect("blank");
+    doc.insert_footnote_native(0, 0, 0).expect("footnote");
+    let control = doc.document().sections[0].paragraphs[0]
+        .controls
+        .iter()
+        .position(|control| matches!(control, Control::Footnote(_)))
+        .expect("footnote control");
+    doc.insert_text_in_footnote_native(0, 0, control, 0, 2, TEXT)
+        .expect("footnote text");
+    let flat = starts_in_area(&doc, "footnote");
+    for indent in [3000, -3000] {
+        doc.apply_para_format_in_footnote_native(
+            0,
+            0,
+            control,
+            0,
+            &format!("{{\"indent\":{indent}}}"),
+        )
+        .expect("footnote format");
+        assert_area_indent(&flat, &starts_in_area(&doc, "footnote"), indent, "footnote");
+    }
+}
+
 fn find_host_text_run(node: &RenderNode, para: usize) -> Option<&RenderNode> {
     if matches!(&node.node_type, RenderNodeType::TextRun(run)
         if run.para_index == Some(para) && run.cell_context.is_none() && !run.text.trim().is_empty())
