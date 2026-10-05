@@ -1040,3 +1040,82 @@ glyph의 사용 증거로 삼을 수 없다. 업데이트한 기존 검사에서
 face와 0.25em을 검사하고, 같은 PDF의 Haansoft Batang 0.3331em·맑은 고딕
 0.2181em을 정상 대조군으로 추가한다. HFT 자체 메트릭 검사는 유지하며
 baseline·golden·래칫은 변경하지 않는다.
+
+
+### 실패 전수 처리와 최종 검증 — 1871ba72a (2026-10-05)
+
+검증 source는 `1871ba72a7b3c2dbd84d354343fdf20d6a1bc387`, 고정 base는 `df7d0076ad01a36c8fa1a0226727653904b67dd9`다. 공개 CI가 보고한
+2308 원점·76076 text-overlap 실패, 최초 전체 실행의 7 FAIL 및 후속2 FAIL을
+실제 경로/독립 기대값으로 대조하고 수정했다. 종전 분할 실패도 최신23개 검사에서
+통과한다. 검사 건수 baseline·golden·래칫·전역90% gate는 완화하지 않았다.
+검사 조건을 교정한 spec/6797/7092의 근거와 실제 glyph PDF 실측은 위 원인 기록과
+[최종 manifest](../assets/pr7518_recursive_fragment_fix_20261005/validation.json)에 연결한다.
+
+최종 source의 실제 생산·소비 연결은 다음과 같다. 공통 helper 뒤 실제 높이 선택도 대조했다.
+
+| 값 | 생산 → 측정/예약 → 예산 실패·이월 → 배치 |
+| --- | --- |
+| 빈 host의 줄 상자 소유 | `float_placement.rs:3164` 실제 LineSeg 부재 → `:2323` float 원점 / `block/prepare.rs:433,476` host 점유 → `fragment/budget.rs:495` 같은 소유 → 실제 문단/표 흐름 원점; synthetic 줄 존재를 저장 anchor 부재로 삭제하지 않음 |
+| 원본 NO_LS whole-row 프레임 | `table_layout.rs:4922,4937` 공유 owner → `block/prepare.rs:202` cut와 measured row 높이 max / `whole_fit.rs:492` → row scanner가 실제 높이를 수용한 뒤 carry → `table_partial.rs:4932` 같은 owner이면 다시 content 높이로 덮지 않고 `:1322` 실제 Cell 높이로 padding을 결정 |
+| complete recursive child 물리 높이 | `table_layout.rs:19604,19673` 현재 컷/유닛 소유의 complete child RowCut → `:19703,19706` content와 실제 `resolve_row_heights` frame max → `:19829` 같은 mixed-run 추가 예약 / `:20691,20725` 예산에서 extra를 빼 컷 재시도 → `row_step.rs:457,1136` 수용 컷 / `:1231` 실제 consumed override → `fragment/emit.rs:1020,1033` 남은 물리 밴드 carry → `table_partial.rs:3687,3726,4932` 동일 child 컷·측정 프레임으로 실제 Cell/Table 표시 |
+| neutral 구두점의 실제 슬롯 | `composer.rs:1801` 공유 슬롯 → `line_breaking.rs:399,2972` token/prefix 폭 / `supplemental_clusters.rs:68` 실제 scalar style → `composer.rs:401` 같은 슬롯의 composed run → `line_breaking.rs:903,1068` 저장/재조판 actual run을 읽은 shaping projection → 표시 TextRun의 face/size/width; `text_measurement.rs:1364`의 Unicode 폭-only 덮어쓰기 없음 |
+
+원본/일반 재조판 singlespan complete row에 새 measured-frame 판정을 적용한다.
+유효 저장 프레임·partial scalar viewport 및 rowspan 전용 분기는 같은 것으로 추정해 바꾸지 않았다.
+작은 예산에서 원래 cut만 fit하는 반례와 실제 follower·종료를23개 formal 검사에 연결한다.
+
+최종 순차 실행의19단계가 모두 PASS다. Native/WASM/전체타깃 세 Clippy,
+workspace build, base 고정 manifest·unit-tier 검사, fresh WASM wrapper 및 다음 검사를 포함한다.
+공유 Cargo target은 `/home/edward/mygithub/rhwp/target/pr-review`다.
+
+- full-release-test:      Summary [ 506.141s] 10353 tests run: 10353 passed (8 slow), 50 skipped
+- skia-lib: test result: ok. 3927 passed; 0 failed; 13 ignored; 0 measured; 0 filtered out; finished in 50.14s / test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s / test result: ok. 165 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s / test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+- skia-placeholder:      Summary [   0.143s] 2 tests run: 2 passed, 209 skipped
+- skia-p37:      Summary [   0.058s] 4 tests run: 4 passed, 213 skipped
+- focused-7518: test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 193 filtered out; finished in 6.51s
+- focused-spec: test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 211 filtered out; finished in 4.68s
+- focused-5906: test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 199 filtered out; finished in 0.10s
+- focused-7092: test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 237 filtered out; finished in 8.75s
+- focused-6797: test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 214 filtered out; finished in 1.43s
+- focused-2308: test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 211 filtered out; finished in 2.11s
+
+전체 nextest는 `cargo nextest run --locked --cargo-profile release-test --target-dir
+/home/edward/mygithub/rhwp/target/pr-review --tests --test-threads 8 --no-fail-fast`로 실행했다.
+실행 명령/소요시간/exit/source/base SHA와 로그 해시는 manifest에 보존한다.
+새 원본 NO_LS 본문·후속 빈 문단 검사와22쪽 source 단어 경계 검사는 수정 전
+`191b18d4f`의 실제 해시 고정 CLI에서 각각1 FAIL, 최종 source에서 PASS다.
+U+2018/U+2019 단어 경계도 `a9dfc4e66`에서 의도한 FAIL / 최종PASS다.
+기존 oracle 교정 자체를 새 결함 검출 증거로 계산하지 않는다.
+
+| 시각 입력/범위 | Native/fresh WASM 최저2px 관용 실루엣 | 실제 확인 |
+| --- | --- | --- |
+| 두 정상 생성 계열 auto/mixed 전쪽32페이지 |96.81315%|UNIT000..064의 정확한 쪽 소속·마지막 child 행·p8 후속 본문 보존|
+| 두 정상 생성 계열 nested-split 전쪽12페이지 |89.20899%|p2 빈 셀 외곽·p3 그림 top padding·뒤 행·p6 잔여 셀 보존; p5 선/텍스트 잔차 남음|
+| terminal 전3페이지 |95.62887%|마지막 물리 밴드와 뒤 문단, 내용 중복/누락 없음|
+| 원 그림 띠2페이지 / TAC1페이지 |92.96635% /98.65641%|원 기여의 개선과 표 윤곽·다음 내용 보존|
+|76076 p22/33/34/38/39|86.45382/92.94738/96.22204/93.41579/96.33024%|표 원점·제목/빈 문단·그림·의견 셀4줄, 직접 review/standalone overlay 판독|
+
+주요 대조는55페이지씩 새로 캡처했다. fresh portable WASM의 실제 Studio/CDP
+103/103 검사도 PASS이며, 별도 진단3페이지까지 총58페이지의 Table/Cell/TextLine/
+TextRun/Image 좌표를 Native와0.2px 이내로 대조했다. 브라우저 cache를 끄고
+pkg/public/실제 응답 WASM SHA-256 `203dcae5e9737a73bd6223ec78fa7330150dc55368db8f11a133efa9a0744672`의 일치를 확인했다.
+Native/fresh WASM review와 standalone overlay를 직접 확인했으며 대표 PNG48개를
+[증적 폴더](../assets/pr7518_recursive_fragment_fix_20261005/)에 보존한다.
+사용자가 이번 PR에 지정한85% 기준을 적용한다. raw90% gate의
+`re_review_required`와 원 점수는 유지하며 전역 정책/폰트 예외로 바꾸지 않는다.
+
+76076은82쪽·text-overlap0·새 수직 넘침0이다. 기존 수평 넘침12건을 해결했다고
+주장하지 않는다. 별도80168 HWPX는156쪽·overflow48건이며 p137의 새 Table
+본문 넘침은 해소되고 원본5행/뒤 빈 문단 보존 계약이 PASS다. 그러나 p102의
+기존 TextLine 넘침은 base13.44→20.9867px로 증가했고, 기준 PDF의 페이지 대응과
+p137/138 조판 차이가 남는다. 진단3쪽의2.01375/69.96947/52.80205%를 주요55쪽
+통과 수치와 섞지 않으며 문서 전체 PDF 일치나 해당 기존 차이 해결을 주장하지 않는다.
+기준 PDF/원본과 실패 증적은 보존했고 baseline 건수로 증가 크기를 숨기지 않았다.
+이 문서 전체는 기존[#7445](https://github.com/edwardkim/rhwp/issues/7445)의 코퍼스
+피델리티 범위다. 이번 새 차이를 기존과 같다고 간주하지 않고 실제 증가량을 공개한다.
+공식 spec의 source/roundtrip70쪽 대 한컴71쪽 전체 조판과 caption/footnote/
+rowspan 특수 경계의 새 개선도 미검증으로 남긴다.
+
+[검토 최종 범위](pr_7518_review.md#최신-검증-결과--2026-10-05)에 연결한다.
+통합 PR#7570의 원격 head/CI는 승인된 push 후 별도로 조회한다. 로컬 PASS를 원격CI
+성공이나 merge 완료로 대체하지 않는다. 원#7518과 이슈 전체를 먼저 종료하지 않는다.

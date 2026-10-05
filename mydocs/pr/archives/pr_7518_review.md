@@ -2,6 +2,30 @@
 
 ## 최종 판정
 
+### 최신 검증 결과 — 2026-10-05
+
+메인터너 통합 PR [#7570](https://github.com/edwardkim/rhwp/pull/7570)의 source
+`1871ba72a7b3c2dbd84d354343fdf20d6a1bc387` / base `df7d0076ad01a36c8fa1a0226727653904b67dd9`에서 이전 공개 CI·분할 실패와 후속 전체 검사
+실패를 처리했다. 최신#7518 검사는23 PASS /0 FAIL, 전체10,353 PASS /0 FAIL /
+기존50 skipped다. 세 Clippy·정책 검사·workspace build·fresh WASM·Native Skia까지
+순차19단계가 통과했고 CDP103/103도 PASS다.
+
+주요55페이지씩의 Native/fresh WASM 대조 최저86.45382%에 이번 사용자의85%
+수용 기준을 적용한다. 자동90% raw gate와 잔차는 그대로 보존한다.
+[실제 호출 경로·최종 검사와 범위](pr_7518_review_impl.md#실패-전수-처리와-최종-검증--1871ba72a-2026-10-05),
+[SHA/명령/독립 glyph·수정 전후·PNG manifest](../assets/pr7518_recursive_fragment_fix_20261005/validation.json)에 연결한다.
+
+원본 NO_LS의 본문/후속 빈 줄 계약은 통과하지만 별도80168 HWPX의 전체 PDF 일치는
+미검증이다. p102의 기존 넘침은13.44→20.9867px로 증가한 차이를 공개하며,
+기준 PDF 대응과p137/138의 조판 잔차를 완료 주장에 포함하지 않는다.
+공식 spec 전체71쪽 일치와 특수 caption/footnote/rowspan 개선도 미검증이다.
+원격 최신 head CI/merge 결과는 push 뒤 별도로 확인한다.
+
+## 이전 판정 기록
+
+아래 source와 실행 결과는 각 당시 기록이다. 최신 source의 통과 증거로 대체하지 않는다.
+
+
 2026-10-05 추가 보정 source `2869859ee38461645235978f6c05604013c05430`에서
 39쪽 제목·빈 문단·표의 겹침 및 제시의견 셀의 안여백/줄바꿈을 수정했다.
 Native/fresh WASM2px 관용 실루엣은96.33024%, PNG 동일, CDP10/10 및
