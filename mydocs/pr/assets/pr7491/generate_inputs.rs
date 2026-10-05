@@ -45,6 +45,16 @@ fn main() {
     d.insert_text_native(0, 4, 7, "가").unwrap();
     d.insert_text_native(0, 7, 0, "가").unwrap();
     save(&d, "6190-edited", out);
+    // The original has no ColumnDef: Hancom opens that HWP with default
+    // 30mm margins rather than its stored 25mm. Preserve the raw case above;
+    // generate a separate contrast through the actual one-column command.
+    // No LineSeg, page margin, paragraph style or object geometry is patched.
+    d.set_column_def_native(0, 1, 0, true, 0).unwrap();
+    save(&d, "6190-edited-one-column", out);
+    let mut d = open("samples/issue6190/center_align_first_line_indent.hwp");
+    d.insert_text_native(0, 7, 0, "가\n").unwrap();
+    d.set_column_def_native(0, 1, 0, true, 0).unwrap();
+    save(&d, "6190-explicit-break-one-column", out);
     let mut d = open("samples/biz_plan.hwp");
     d.insert_text_native(0, 51, 67, "가").unwrap();
     save(&d, "biz-edited", out);

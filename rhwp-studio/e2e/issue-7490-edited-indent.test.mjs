@@ -1,5 +1,5 @@
 /** Actual paragraph dialog, edit keys, undo/redo and saved final coordinates (#7490). */
-import {runTest, createNewDocument, screenshot} from './helpers.mjs';
+import {runTest, createNewDocument, loadHwpFile, moveCursorTo, screenshot} from './helpers.mjs';
 import assert from 'node:assert/strict';
 const TEXT='1) 가나다라마바사아자차카타파하 가나다라마바사아자차카타파하 가나다라마바사아자차카타파하 가나다라마바사아자차카타파하 가나다라마바사아자차카타파하';
 const pause=page=>page.evaluate(()=>new Promise(resolve=>setTimeout(resolve,250)));
@@ -33,6 +33,15 @@ await runTest('edited indent final coordinates through Studio history',async({pa
  await page.keyboard.press('Home');await page.keyboard.press('Backspace');await pause(page);assert.equal((await state(page)).paragraphs,1);
  await keys(page,'Control','KeyZ');const restored=await state(page,1);assert.equal(restored.paragraphs,2);near(restored.starts[0].x,beforeMerge.starts[0].x,'real Backspace merge undo restores indent');
  await keys(page,'Control','KeyY');assert.equal((await state(page)).paragraphs,1);await keys(page,'Control','KeyZ');assert.equal((await state(page)).paragraphs,2);
+ const beforeSave=await state(page);
  const roundtrip=await page.evaluate(()=>{const w=window.__wasm;const bytes=w.exportHwp();w.loadDocument(bytes,'edited-indent-saved.hwp');return JSON.parse(w.doc.getPageTextLayout(0));});assert.ok(roundtrip.runs.some(r=>r.paraIdx===1&&r.text.includes('다음')),'saved text remains');
- await screenshot(page,'issue-7490-merge-undo-saved');console.log('PASS: dialog first/hanging + edit + repeated undo/redo + merge undo + saved final coordinates');
+ const savedFirst=await state(page);const savedSecond=await state(page,1);near(savedFirst.starts[0].x,beforeSave.starts[0].x,'saved first line');near(savedFirst.starts[1].x,beforeSave.starts[1].x,'saved hanging continuation');near(savedSecond.starts[0].x,beforeMerge.starts[0].x,'saved restored first-line indent');
+ await screenshot(page,'issue-7490-merge-undo-saved');
+ await loadHwpFile(page,'issue6190/center_align_first_line_indent.hwp');await moveCursorTo(page,0,7,0);await page.evaluate(()=>window.__inputHandler.textarea.focus());
+ assert.equal(await page.evaluate(()=>JSON.parse(window.__wasm.doc.getColumnDef(0)).columnCount),0,'real source has no column definition');
+ await page.keyboard.type('가');await pause(page);
+ const tacSave=await page.evaluate(async()=>{const w=window.__wasm;const prefix=()=>JSON.parse(w.doc.getPageTextLayout(0)).runs.find(r=>r.paraIdx===7&&r.parentParaIdx===undefined&&r.text==='가');const before=prefix();const paper=w.doc.getPageDef(0);const bytes=w.exportHwp();const modelColumns=JSON.parse(w.doc.getColumnDef(0)).columnCount;w.loadDocument(bytes,'issue7490-tac-saved.hwp');await window.__canvasView.loadDocument();return {before,after:prefix(),paper,savedPaper:w.doc.getPageDef(0),modelColumns,savedColumns:JSON.parse(w.doc.getColumnDef(0)).columnCount};});
+ assert.ok(tacSave.before&&tacSave.after,'actual keyboard prefix remains visible before/after save');assert.equal(tacSave.modelColumns,0,'save leaves model unchanged');assert.equal(tacSave.savedColumns,1,'saved WASM HWP carries default column');assert.equal(tacSave.savedPaper,tacSave.paper,'paper geometry is preserved');near(tacSave.after.x,tacSave.before.x,'saved TAC prefix x');near(tacSave.after.y,tacSave.before.y,'saved TAC prefix y');
+ await screenshot(page,'issue-7490-tac-save');
+ console.log('PASS: dialog first/hanging + edit + repeated undo/redo + merge undo + saved final coordinates + real TAC typing/default-column save');
 });

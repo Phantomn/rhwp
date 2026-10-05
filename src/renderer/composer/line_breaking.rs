@@ -2935,14 +2935,7 @@ fn inline_control_requires_own_line(
         .iter()
         .zip(positions)
         .filter_map(|(control, position)| {
-            let (mut width, mut height) = inline_control_size_hwp(control)?;
-            // A stored TAC row occupies the body plus its outside margins.
-            // Publish that same box here so typesetting can identify the object
-            // row without reinterpreting unrelated saved stream boundaries.
-            if let Control::Table(table) = control {
-                width += i32::from(table.outer_margin_left) + i32::from(table.outer_margin_right);
-                height += i32::from(table.outer_margin_top) + i32::from(table.outer_margin_bottom);
-            }
+            let (width, height) = inline_control_occupied_size_hwp(control)?;
             (position > 0 && position <= text_len).then_some((position, width, height))
         });
     let (position, control_width, height) = candidates.next()?;
@@ -2991,6 +2984,22 @@ fn inline_control_requires_own_line(
     (control_width > available_hwp + tolerance_hwp
         || prefix_width + control_width > available_hwp + tolerance_hwp)
         .then_some((position, height))
+}
+
+/// Physical box published by legacy edit reflow for an inline object row.
+/// TAC ownership in typesetting uses the table body plus outside margins, both
+/// for a width-driven break and for an explicit break. Keep those producers
+/// together so the preceding text is preserved without changing saved owners.
+fn inline_control_occupied_size_hwp(control: &Control) -> Option<(i32, i32)> {
+    let (width, height) = inline_control_size_hwp(control)?;
+    if let Control::Table(table) = control {
+        Some((
+            width + i32::from(table.outer_margin_left) + i32::from(table.outer_margin_right),
+            height + i32::from(table.outer_margin_top) + i32::from(table.outer_margin_bottom),
+        ))
+    } else {
+        Some((width, height))
+    }
 }
 
 fn char_index_to_utf16_offset(para: &Paragraph, char_index: usize) -> u32 {
@@ -4695,7 +4704,7 @@ fn reflow_line_segs_impl(
 
     if forced_inline_line.is_none() && inline_controls.is_empty() {
         for (control, position) in para.controls.iter().zip(para.control_text_positions()) {
-            let Some((_, height_hwp)) = inline_control_size_hwp(control) else {
+            let Some((_, height_hwp)) = inline_control_occupied_size_hwp(control) else {
                 continue;
             };
             // 명시적 개행으로 정해진 개체 줄에 높이를 싣는다. 최초 줄에 일괄

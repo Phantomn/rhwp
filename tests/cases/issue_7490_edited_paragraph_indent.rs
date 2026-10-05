@@ -294,10 +294,87 @@ fn edited_tac_table_that_fits_stays_on_the_text_line() {
     );
     let tree = doc.build_page_render_tree(0).expect("tree");
     let table = find_owned_table(&tree.root, 7).expect("owned table");
+    let prefix = find_host_text_run(&tree.root, 7).expect("visible prefix");
+    assert!(
+        table.bbox.x >= prefix.bbox.x + prefix.bbox.width - 0.5,
+        "fitting table must follow the actual painted prefix: {:?} / {:?}",
+        prefix.bbox,
+        table.bbox
+    );
     assert!(
         table.bbox.x > 98.3 && table.bbox.x + table.bbox.width < 699.2,
         "same-line table is after its prefix and inside body: {:?}",
         table.bbox
+    );
+}
+
+/// The edited HWP must carry the same default column and paper geometry as IR.
+/// Hancom independently printed the original secd-only save with 30mm margins;
+/// an actual one-column command preserved the stored 25mm. Do not repair the
+/// live model or alter a raw unmodified stream just to make export agree.
+#[test]
+fn edited_template_save_declares_default_column_and_preserves_raw_control() {
+    fn columns(doc: &HwpDocument) -> Vec<u16> {
+        doc.document().sections[0]
+            .paragraphs
+            .iter()
+            .flat_map(|p| &p.controls)
+            .filter_map(|c| {
+                if let Control::ColumnDef(cd) = c {
+                    Some(cd.column_count)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+    let mut doc = open("samples/issue6190/center_align_first_line_indent.hwp");
+    assert!(
+        columns(&doc).is_empty(),
+        "real source has no body ColumnDef"
+    );
+    let source_raw = doc.document().sections[0]
+        .raw_stream
+        .clone()
+        .expect("source raw");
+    let raw_saved = doc.export_hwp_native().expect("raw save");
+    let raw_reopened = HwpDocument::from_bytes(&raw_saved).expect("raw reopen");
+    assert_eq!(
+        raw_reopened.document().sections[0].raw_stream.as_ref(),
+        Some(&source_raw)
+    );
+    assert!(
+        columns(&raw_reopened).is_empty(),
+        "unedited raw input stays intact"
+    );
+    let page = doc.get_page_def_native(0).expect("source paper");
+    doc.insert_text_native(0, 7, 0, "가").expect("edit");
+    let saved = doc.export_hwp_native().expect("edited save");
+    assert!(columns(&doc).is_empty(), "save must not mutate IR");
+    let reopened = HwpDocument::from_bytes(&saved).expect("edited reopen");
+    assert_eq!(
+        columns(&reopened),
+        vec![1],
+        "publish the default single column"
+    );
+    assert_eq!(reopened.get_page_def_native(0).expect("saved paper"), page);
+    assert_eq!(
+        line_starts(&reopened, 7).len(),
+        1,
+        "saved prefix remains visible"
+    );
+    // Create an explicit column definition on a real source that has none.
+    // Saving must preserve its 2 columns instead of adding a default 1-column.
+    let mut two_columns = open("samples/issue6190/center_align_first_line_indent.hwp");
+    two_columns
+        .set_column_def_native(0, 2, 0, true, 600)
+        .expect("actual two-column command");
+    let saved = two_columns.export_hwp_native().expect("two-column save");
+    let reopened = HwpDocument::from_bytes(&saved).expect("two-column reopen");
+    assert_eq!(
+        columns(&reopened),
+        vec![2],
+        "existing body column definition is preserved"
     );
 }
 
@@ -306,6 +383,18 @@ fn edited_tac_table_after_explicit_break_has_its_own_line() {
     let mut doc = open("samples/issue6190/center_align_first_line_indent.hwp");
     doc.insert_text_native(0, 7, 0, "가\n")
         .expect("insert prefix and break");
+    assert_eq!(
+        line_starts(&doc, 7).len(),
+        1,
+        "explicit-break prefix stays visible"
+    );
+    let saved = doc.export_hwp_native().expect("save explicit break");
+    let reopened = HwpDocument::from_bytes(&saved).expect("reopen explicit break");
+    assert_eq!(
+        line_starts(&reopened, 7).len(),
+        1,
+        "explicit-break prefix survives save/reopen"
+    );
     let tree = doc.build_page_render_tree(0).expect("tree");
     let table = find_owned_table(&tree.root, 7).expect("owned table");
     assert!(
@@ -313,6 +402,17 @@ fn edited_tac_table_after_explicit_break_has_its_own_line() {
         "explicit break starts table at its original body origin: {:?}",
         table.bbox
     );
+}
+
+fn find_host_text_run(node: &RenderNode, para: usize) -> Option<&RenderNode> {
+    if matches!(&node.node_type, RenderNodeType::TextRun(run)
+        if run.para_index == Some(para) && run.cell_context.is_none() && !run.text.trim().is_empty())
+    {
+        return Some(node);
+    }
+    node.children
+        .iter()
+        .find_map(|child| find_host_text_run(child, para))
 }
 
 fn find_owned_table(node: &RenderNode, para: usize) -> Option<&RenderNode> {
