@@ -1,4 +1,4 @@
-# Dependabot PR #7579–#7583 통합 체리픽 검토
+# PR #7584 통합 검토 — Dependabot #7579–#7583
 
 ## 최종 판정
 
@@ -65,7 +65,13 @@
 
 ## 통합과 후속 조건
 
-한 통합 PR에 위 다섯 체리픽과 이 검토 기록을 포함한다. 코드 후보 뒤 review 기록만 후행하므로 GitHub CI에서 최신 통합 head의 frontend package gate, Actions/nextest archive jobs, required checks를 확인한다. 원 PR의 녹색 CI를 통합 head의 CI 완료로 간주하지 않는다. 이 단계에서는 remote push, 통합 PR 생성, GitHub approve/comment, 원 PR close, merge를 수행하지 않았다.
+한 통합 PR에 위 다섯 체리픽과 이 검토 기록을 포함한다. 코드 후보 뒤 review 기록만 후행하므로 GitHub CI에서 최신 통합 head의 frontend package gate, Actions/nextest archive jobs, required checks를 확인한다. 원 PR의 녹색 CI를 통합 head의 CI 완료로 간주하지 않는다. 통합 [PR #7584](https://github.com/edwardkim/rhwp/pull/7584)를 Open으로 생성했다. 작업지시자가 오늘할일 포함·CI 모니터링·성공 뒤 merge와 후속 처리를 승인했다. 현재 병합은 CI 완료 전이며 원 PR close는 통합 병합 이후 수행한다.
 
 제안 PR 제목: `chore: Dependabot 프런트엔드와 nextest Action 갱신 통합`.
 원 PR은 통합 PR 병합 및 `devel` 포함을 확인한 뒤 각 원본 SHA·체리픽 SHA·통합 merge SHA와 검증 결과를 남기고 superseded로 정리한다. 관련 closing issue는 없다. Dependabot 원격 branch는 이번 작업에서 만든 브랜치가 아니므로 삭제하지 않는다.
+
+## 통합 PR 접수와 승인 범위
+
+- 통합 PR 작성자 `jangster77`의 self-review이며 통합 PR에는 reviewer를 지정하지 않는다. 기본 경로 `collaborator_self_merge`, 보조 `intake_and_review`, `local_validation`, `multi_pr_update_branch`, `rework_and_exceptions`, `review_only_fast_pass`, `post_merge`를 적용한다. 원 Dependabot PR의 접수 기록은 위에 보존했다.
+- 원격 head는 `integration/dependabot-7579-7583-20261005`이며 이 archive 기록과 오늘할일을 동일 PR에 포함한다. 현재 CI 결과를 미래 완료로 적지 않는다. 최신 head의 required check가 모두 성공하고 mergeability를 확인하면 승인된 일반 merge를 수행한다.
+- merge 뒤 문서·오늘할일·5개 갱신의 devel 포함과 duration 갱신 결과를 확인한다. 통합 PR 및 원 PR에 merge SHA·실제 CI·로컬 검증을 게시하고 원 5건을 superseded로 닫는다. 이번 검토의 임시 원격/로컬 branch·fetch refs·ignored 로그만 정리하며 공유 target은 보존한다.
