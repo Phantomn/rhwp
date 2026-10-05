@@ -98,6 +98,18 @@ fn editing_keeps_hancom_record_of_unindented_line() {
 
     doc.insert_text_native(0, TABLE_HOST, 0, "가")
         .expect("insert table host");
+    assert_eq!(
+        line_starts(&doc, TABLE_HOST).len(),
+        1,
+        "the inserted prefix remains in the final render tree before the wrapped table"
+    );
+    let saved = doc.export_hwp_native().expect("save edited document");
+    let reopened = HwpDocument::from_bytes(&saved).expect("reopen edited document");
+    assert_eq!(
+        line_starts(&reopened, TABLE_HOST).len(),
+        1,
+        "the inserted prefix also survives save/reopen"
+    );
     let mut tables = Vec::new();
     for page in 0..doc.page_count() {
         let tree = doc.build_page_render_tree(page).expect("render tree");
