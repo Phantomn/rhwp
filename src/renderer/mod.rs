@@ -1554,6 +1554,21 @@ pub(crate) fn cell_first_para_stored_lead(
     spacing_before_px.min(vpos)
 }
 
+/// Stored cell starts already express their lead in the saved frame. Reflow
+/// starts have no such frame and own the paragraph's declared before-space.
+/// Later paragraphs own that space in both paths.
+pub(crate) fn cell_paragraph_spacing_before(
+    para: &crate::model::paragraph::Paragraph,
+    para_index: usize,
+    spacing_before: f64,
+) -> f64 {
+    if para_index > 0 || para_has_no_stored_line_segs(para) {
+        spacing_before
+    } else {
+        0.0
+    }
+}
+
 /// [#2169] 저장 LINE_SEG 부재 판별 — 원본 NO_LS 와 자기-export HWPX 재파싱본
 /// (전부 synthetic, tag 0x8000_0000)을 동일 취급해 왕복 시멘틱을 정합한다
 /// (#1770 계열: 국소 문맥 판별).

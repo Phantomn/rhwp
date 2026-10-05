@@ -1690,6 +1690,17 @@ impl TypesetEngine {
                     _ => placement,
                 }
             });
+        let unconstrained_host_placement = unconstrained_host_placement.or_else(|| {
+            crate::renderer::float_placement::ParagraphFloatPlacement::from_empty_reflow_host(
+                para,
+                table,
+                st.current_height,
+                ft.effective_height,
+                ft.host_spacing.before,
+                ft.host_spacing.after,
+                self.dpi,
+            )
+        });
         let constrain_host_placement = HostPlacementConstraint {
             table,
             has_preceding_coanchored_float,
