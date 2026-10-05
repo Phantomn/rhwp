@@ -443,6 +443,78 @@ fn saved_tac_tail_uses_the_same_local_line_origin_as_its_prefix() {
     }
 }
 
+fn assert_tac_prefix_row(prefix: &str) {
+    let mut doc = open("samples/issue6190/center_align_first_line_indent.hwp");
+    let original = doc.build_page_render_tree(0).expect("original tree");
+    let original_x = find_owned_table(&original.root, 7)
+        .expect("original table")
+        .bbox
+        .x;
+    doc.insert_text_native(0, 7, 0, prefix)
+        .expect("prefix input");
+    for saved in [false, true] {
+        if saved {
+            doc = HwpDocument::from_bytes(&doc.export_hwp_native().expect("save")).expect("reopen");
+        }
+        let para = &doc.document().sections[0].paragraphs[7];
+        assert_eq!(
+            para.line_segs.len(),
+            2,
+            "prefix and object own separate rows"
+        );
+        assert_eq!(para.line_segs[0].line_height, 1400);
+        assert_eq!(para.line_segs[0].line_spacing, 672);
+        let tree = doc.build_page_render_tree(0).expect("final tree");
+        fn host_line(node: &RenderNode) -> Option<&RenderNode> {
+            if matches!(&node.node_type, RenderNodeType::TextLine(line)
+                if line.para_index == Some(7))
+            {
+                return Some(node);
+            }
+            node.children.iter().find_map(host_line)
+        }
+        let line = host_line(&tree.root).expect("even a blank prefix owns a line box");
+        let table = find_owned_table(&tree.root, 7).expect("table");
+        assert!(
+            (line.bbox.height - 1400.0 / 75.0).abs() < 0.5,
+            "prefix occupancy"
+        );
+        assert!(
+            (table.bbox.x - original_x).abs() < 0.5,
+            "following row must preserve stored unindented X: {prefix:?} {saved}: {:?}",
+            table.bbox
+        );
+        let expected_y = line.bbox.y + (1400.0 + 672.0 + 141.0) / 75.0;
+        assert!((table.bbox.y - expected_y).abs() < 0.5, "prefix line, spacing and object outside margin: {prefix:?} {saved}: {:?}, expected {expected_y}", table.bbox);
+        if prefix.starts_with('.') {
+            let run = find_host_text_run(&tree.root, 7).expect("punctuation is visible text");
+            assert!(
+                matches!(&run.node_type, RenderNodeType::TextRun(text) if text.text.contains('.'))
+            );
+        }
+        assert_eq!(doc.page_count(), 1, "no empty continuation page");
+        assert!(
+            table.bbox.y + table.bbox.height < 740.0,
+            "complete object stays in body"
+        );
+    }
+}
+
+#[test]
+fn positive_width_spaces_before_tac_occupy_a_prefix_row() {
+    assert_tac_prefix_row("  ");
+}
+
+#[test]
+fn explicit_empty_line_before_tac_occupies_a_prefix_row() {
+    assert_tac_prefix_row("\n");
+}
+
+#[test]
+fn punctuation_before_tac_remains_visible_in_its_prefix_row() {
+    assert_tac_prefix_row(".\n");
+}
+
 #[test]
 fn default_column_rebuild_preserves_content_and_object_geometry() {
     // The complete IR sweep identified these no-column body sections. A
