@@ -1,0 +1,56 @@
+{
+  "generation": "Actual DocumentCore edits and export_hwp_native; no manual LineSeg changes",
+  "reference": "Hancom MCP engine 2020 conversion of the matching generated HWP bytes",
+  "inputs": [
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/6190-edited-2020.pdf",
+      "sha256": "95b3808031478596006177ae22770af850bcd79c44e5eba2565512279df65f7c",
+      "bytes": 33902
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/6190-edited.hwp",
+      "sha256": "89a46f24e5fee5cf5798b774ee5f58497361afc46bce7524c028d3d34882bcc3",
+      "bytes": 10240
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/biz-edited-2020.pdf",
+      "sha256": "b9c469665d4f67803045f9dbda00273068b162020c1da95d7e82536d65a586c9",
+      "bytes": 112827
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/biz-edited.hwp",
+      "sha256": "742bfbf9665961cf575c9a79961d61aba4649bcd6dcc2f8b8ff22e815fbd7873",
+      "bytes": 28160
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/typed-first-2020.pdf",
+      "sha256": "b59ead985707c0512caf78c0abced2e0a5a7916363d2e360feb5a3f4c8c06685",
+      "bytes": 11162
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/typed-first.hwp",
+      "sha256": "733f3c25212180a4decf500b0917d9deaadba9f08c359e441c0663399290184f",
+      "bytes": 13312
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/typed-flat-2020.pdf",
+      "sha256": "e630224b4da785099fc77a40a9583034325ea2ea3450b4e4cbf9648d79da0199",
+      "bytes": 11172
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/typed-flat.hwp",
+      "sha256": "60236e2d2614190c6f336566c694af5304eca17f647c402a250f1b878ede4b96",
+      "bytes": 13312
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/typed-hanging-2020.pdf",
+      "sha256": "6a9f979d64d669ba79fed9db993fba68a73acc643e9ef2342c83e3511583766d",
+      "bytes": 11161
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/typed-hanging.hwp",
+      "sha256": "be75a13f7070a2e198c09e9f547993db16849d798486759652bfb33e9eace303",
+      "bytes": 13312
+    }
+  ]
+}
