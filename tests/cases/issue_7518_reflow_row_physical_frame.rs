@@ -178,6 +178,24 @@ fn regulatory_22_legacy_latin_dot_preserves_the_source_word_boundary() {
         lines[2].starts_with("울"),
         "independent PDF line membership: {lines:?}"
     );
+    let quoted_lines: Vec<_> = nodes(page)
+        .into_iter()
+        .filter(|node| node["type"] == "TextLine" && node["pi"] == 181)
+        .map(|line| {
+            nodes(line)
+                .into_iter()
+                .filter(|node| node["type"] == "TextRun")
+                .map(|node| node["text"].as_str().unwrap())
+                .collect::<String>()
+        })
+        .collect();
+    assert_eq!(quoted_lines.len(), 3);
+    assert!(
+        quoted_lines[0].ends_with("사고"),
+        "legacy Latin quotes preserve the PDF word boundary: {quoted_lines:?}"
+    );
+    assert!(quoted_lines[1].trim_end().ends_with("하다가"));
+    assert!(quoted_lines[2].starts_with("회전날"));
 }
 
 fn regulatory_page39() -> (rhwp::model::document::Document, Value) {

@@ -10147,20 +10147,8 @@ impl LayoutEngine {
                                     })
                         })
                 });
-            // Reflow has no saved viewport to project through the legacy
-            // scalar estimator. Keep the actual child units/cuts, so the
-            // physical fragment query and paint share the same child frame.
-            let reflow_child = cell
-                .paragraphs
-                .iter()
-                .all(crate::renderer::para_has_no_stored_line_segs)
-                || self
-                    .render_normalization
-                    .borrow()
-                    .table_text_reflowed(table);
-            if (canonical_stored_frame_profile || reflow_child)
-                && (reflow_child
-                    || stored_inline_child_frame
+            if canonical_stored_frame_profile
+                && (stored_inline_child_frame
                     || stored_page_frame_boundaries >= 2
                     || has_authoritative_frame_boundary
                     || preserve_single_multi_page_boundary
@@ -19682,6 +19670,21 @@ impl LayoutEngine {
                 is_block_split: false,
                 start_cut_is_block: false,
             }
+        } else if start == run_start
+            && end == run_end
+            && selected.iter().all(|unit| unit.mixed_nested_fragment)
+        {
+            // A complete scalar projection owns the whole child frame. Partial
+            // scalar cuts keep their existing viewport contract; they cannot
+            // be reinterpreted as source-unit RowCuts.
+            NestedTableCut {
+                start_row: 0,
+                end_row: usize::from(child.row_count),
+                start_cut: Vec::new(),
+                end_cut: Vec::new(),
+                is_block_split: false,
+                start_cut_is_block: false,
+            }
         } else {
             return None;
         };
@@ -19814,7 +19817,7 @@ impl LayoutEngine {
                 .paragraphs
                 .get(units[u].para_idx)
                 .is_some_and(crate::renderer::para_has_no_stored_line_segs)
-                && (units[u].mixed_nested_recursive || units[u].nested_row.is_some())
+                && (units[u].mixed_nested_fragment || units[u].nested_row.is_some())
             {
                 let run_start = u;
                 let pi = units[u].para_idx;

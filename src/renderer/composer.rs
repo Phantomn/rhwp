@@ -1744,10 +1744,10 @@ pub(crate) fn split_runs_by_lang(runs: Vec<ComposedTextRun>) -> Vec<ComposedText
 
 /// Legacy Latin 구두점인가 — [`crate::renderer::TextStyle::ascii_punct_latin`] 가
 /// 있는 run 에서 한/글은 이 글자를 영문 슬롯 글꼴로 잰다.
-/// `76076` 한컴 2024 PDF의 가운뎃점도 Palatino Linotype의 0.25em이다.
+/// `76076` 한컴 2024 PDF의 가운뎃점·작은따옴표도 Palatino Linotype 슬롯이다.
 /// 한글 face 자체의 가운뎃점 폭과 HFT 한점 리더는 이 슬롯 조건 밖이다.
 pub(crate) fn is_latin_slot_punct(ch: char) -> bool {
-    ch.is_ascii_punctuation() || ch == '\u{00B7}'
+    ch.is_ascii_punctuation() || matches!(ch, '\u{00B7}' | '\u{2018}' | '\u{2019}')
 }
 
 /// 글자의 언어 슬롯. 중립 문자는 앞 글자 언어(`carry`)를 따른다. `punct_latin` 인 글자
