@@ -19,7 +19,7 @@
 미검증이다. p102의 기존 넘침은13.44→20.9867px로 증가한 차이를 공개하며,
 기준 PDF 대응과p137/138의 조판 잔차를 완료 주장에 포함하지 않는다.
 공식 spec 전체71쪽 일치와 특수 caption/footnote/rowspan 개선도 미검증이다.
-원격 최신 head CI/merge 결과는 push 뒤 별도로 확인한다.
+공개 code candidate `2d3ddade935f25e56bad404a5dd1d8f113c34b39`의 Full CI·CodeQL·Render Diff·Adapter·Proptest·CI Impact Policy와 필수 Build & Test가 모두 성공했다. tested merge/tree와 종전 실패 검사의 실제 PASS를 [공개 Full CI 증적](../assets/pr7518_recursive_fragment_fix_20261005/ci_candidate_2d3ddade9.json)에 보존했다. 후행 기록의 최신 head CI를 재확인하며 merge 완료를 뜻하지 않는다.
 
 ## 이전 판정 기록
 

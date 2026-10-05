@@ -1119,3 +1119,12 @@ rowspan 특수 경계의 새 개선도 미검증으로 남긴다.
 [검토 최종 범위](pr_7518_review.md#최신-검증-결과--2026-10-05)에 연결한다.
 통합 PR#7570의 원격 head/CI는 승인된 push 후 별도로 조회한다. 로컬 PASS를 원격CI
 성공이나 merge 완료로 대체하지 않는다. 원#7518과 이슈 전체를 먼저 종료하지 않는다.
+
+
+### 공개 CI 완료 — 2d3ddade9 (2026-10-05)
+
+code candidate `2d3ddade935f25e56bad404a5dd1d8f113c34b39`에서 CI37259603454·CodeQL37259603453·Render Diff37259603333·Adapter37259603476·Proptest37259603520와 CI Impact Policy가 모두 success다. Full 실행(rfp=0)이며 같은 repository·branch·PR event·exact SHA를 확인했다. Archive A/B/C/D는 합계10,159 PASS /0 FAIL이고 필수 Build & Test도 success다.
+
+종전2308 좌표5검사는 C1에서 PASS, `text_overlaps_do_not_grow_partition_9`는 현재 B1에서 PASS다. 최신 manifest의 worker 재배분을 옛D1과 혼동하지 않았다. 실제 tested merge `0977f5b6d8a0cc1ff976dab94b6b5a36016f8465`의 parents는 candidate/base와 일치하고 tree `7025dc9c3238e1be5e20c6f3da038a74f8cc776b`는 candidate tree와 같다. [공개 Full CI 증적](../assets/pr7518_recursive_fragment_fix_20261005/ci_candidate_2d3ddade9.json)에 job/run·로그 해시·실제 PASS 줄을 연결한다.
+
+후행 변경은 이 CI 증적·검토 기록뿐이며 renderer/test/Cargo는 바꾸지 않는다. 공개 PNG는 동일 asset을 후행 head의 SHA 고정 URL로 연결한다. 후행 head의 required check/fast-pass·mergeability는 다시 확인한다. 이 기록은 실제 merge 완료나 원#7518/이슈 종료를 의미하지 않는다.
