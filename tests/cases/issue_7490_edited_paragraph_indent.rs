@@ -404,6 +404,45 @@ fn edited_tac_table_after_explicit_break_has_its_own_line() {
     );
 }
 
+#[test]
+fn saved_tac_tail_uses_the_same_local_line_origin_as_its_prefix() {
+    // These are actual command-generated HWP inputs with paired Hancom 2020
+    // PDFs. Both references put the prefix and following table on adjacent
+    // lines; an absolute saved section vpos is not a second placement origin.
+    for input in ["6190-edited.hwp", "6190-explicit-break-one-column.hwp"] {
+        let doc = open(&format!("tests/fixtures/pr7491_edited_indent/{input}"));
+        let para = &doc.document().sections[0].paragraphs[7];
+        let table_model = para
+            .controls
+            .iter()
+            .find_map(|control| match control {
+                Control::Table(table) => Some(table),
+                _ => None,
+            })
+            .expect("table input");
+        // Independent stored metrics: 14pt text + 6.72pt line spacing and
+        // 1.41pt object top outside margin, all in 1/100pt HWP units.
+        assert_eq!(para.line_segs[0].line_height, 1400);
+        assert_eq!(para.line_segs[0].line_spacing, 672);
+        assert_eq!(table_model.outer_margin_top, 141);
+        assert_eq!(
+            para.line_segs[1].vertical_pos - para.line_segs[0].vertical_pos,
+            2072
+        );
+        let tree = doc.build_page_render_tree(0).expect("final tree");
+        let prefix = find_host_text_run(&tree.root, 7).expect("prefix");
+        let table = find_owned_table(&tree.root, 7).expect("table");
+        let expected_top = prefix.bbox.y + (1400.0 + 672.0 + 141.0) / 75.0;
+        assert!((table.bbox.y - expected_top).abs() < 0.5,
+            "{input}: table must consume the prefix's local line origin: {:?}, prefix {:?}, expected {expected_top}", table.bbox, prefix.bbox);
+        assert_eq!(doc.page_count(), 1, "no empty continuation page");
+        assert!(
+            table.bbox.y + table.bbox.height < 740.0,
+            "paired Hancom output keeps the complete table beneath the prefix"
+        );
+    }
+}
+
 fn find_host_text_run(node: &RenderNode, para: usize) -> Option<&RenderNode> {
     if matches!(&node.node_type, RenderNodeType::TextRun(run)
         if run.para_index == Some(para) && run.cell_context.is_none() && !run.text.trim().is_empty())
