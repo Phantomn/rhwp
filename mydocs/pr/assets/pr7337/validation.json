@@ -81,7 +81,8 @@
         4,
         5,
         6
-      ]
+      ],
+      "capture_head_sha": "154a2314d7269d298963b7d22ad1edc535dcd973"
     },
     "wasm": {
       "metrics": {
@@ -118,11 +119,12 @@
         4,
         5,
         6
-      ]
+      ],
+      "capture_head_sha": "154a2314d7269d298963b7d22ad1edc535dcd973"
     }
   },
   "cdp": {
-    "sourceSha": "64b3d366c3d6563b2d9ed1eba1eb869d99c0eb7a",
+    "sourceSha": "154a2314d7269d298963b7d22ad1edc535dcd973",
     "wasmSha256": "03dc07efa2618604327866b5c36319bf24ab7c0ddb85212d8cc1980a41710eac",
     "checks": [
       {
@@ -382,5 +384,20 @@
     "partitions_passed": 16,
     "source": "samples/pr7337/nested_tac_table_wrap-2020.pdf",
     "minimum_native_wasm_full_document_silhouette_percent": 99.30154
+  },
+  "latest_base_verification": {
+    "base_sha": "ea5ef5f6a8e405f5109407e46acb4e9a0455c24a",
+    "merged_head_sha": "154a2314d7269d298963b7d22ad1edc535dcd973",
+    "rust_source_identical_to": "64b3d366c3d6563b2d9ed1eba1eb869d99c0eb7a",
+    "production_objects": {
+      "src": "01647c670af31b55730bcd9393ab15be9d6bd237",
+      "crates": "154a15328d097d97dd3898ed913874632bae054f",
+      "Cargo.toml": "0e5c32a9822fd1ce89ba2b20dcab7ff2f6652f4e",
+      "Cargo.lock": "b8a89f5b10538b9ba2127dae9e369ee06c5588ee"
+    },
+    "npm_ci": "passed",
+    "vite_version": "8.3.2",
+    "typescript": "passed",
+    "manifest_fixed_base": "passed"
   }
 }
