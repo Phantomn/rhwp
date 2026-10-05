@@ -433,7 +433,14 @@ pub fn parse_hwpx(data: &[u8]) -> Result<Document, HwpxError> {
 
     // 3. header.xml → DocInfo, DocProperties
     let header_xml = reader.read_file("Contents/header.xml")?;
-    let (mut doc_info, doc_properties) = header::parse_hwpx_header(&header_xml)?;
+    // 평문 여백의 단위 전환은 header.xml이 아닌 패키지 xmlVersion에 따른다.
+    let physical_plain_margin = hwpx_aux_entries
+        .iter()
+        .find(|(path, _)| path == "version.xml")
+        .and_then(|(_, bytes)| std::str::from_utf8(bytes).ok())
+        .is_some_and(physical_para_margin_units_from_version);
+    let (mut doc_info, doc_properties) =
+        header::parse_hwpx_header_with_plain_margin_units(&header_xml, physical_plain_margin)?;
     resolve_embedded_font_references(&mut doc_info, &package_info.bin_data_items);
 
     // [Task #1608] head version("1.4")은 HWPML **스키마 버전**일 뿐 HWP3→HWPX 변환 지표가
@@ -659,6 +666,7 @@ pub fn parse_hwpx(data: &[u8]) -> Result<Document, HwpxError> {
             format: crate::model::provenance::SourceFormat::Hwpx,
             hwp3_lineage: false,
             hwpx_lineage: false,
+            hft_ascii_halfwidth_witnessed: false,
         },
     };
     // HWP3-origin 마커가 있으면 계보를 복원한다 — 직파싱 HWP3 와 같은
@@ -719,6 +727,30 @@ fn resolve_embedded_font_references(
                 .is_embedded
                 .then(|| item_ids.get(substitute.bin_item_id_ref.as_str()).copied())
                 .flatten();
+        }
+    }
+}
+
+/// 패키지 판본이 문단 여백의 물리 단위를 사용하는지 판별한다.
+/// 구버전 입력의 저장 단위와 직렬화의 역변환이 같은 판본 규칙을 소비한다.
+pub(crate) fn physical_para_margin_units_from_version(xml: &str) -> bool {
+    let mut reader = quick_xml::Reader::from_str(xml);
+    loop {
+        match reader.read_event() {
+            Ok(quick_xml::events::Event::Start(e) | quick_xml::events::Event::Empty(e)) => {
+                if let Some(value) = e.attributes().flatten().find_map(|attr| {
+                    (attr.key.as_ref() == "xmlVersion").then(|| attr.value.to_string())
+                }) {
+                    return value
+                        .split_once('.')
+                        .and_then(|(major, minor)| {
+                            Some((major.parse::<u32>().ok()?, minor.parse::<u32>().ok()?))
+                        })
+                        .is_some_and(|version| version >= (1, 4));
+                }
+            }
+            Ok(quick_xml::events::Event::Eof) | Err(_) => return false,
+            _ => {}
         }
     }
 }

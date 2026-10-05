@@ -761,11 +761,11 @@ impl DocumentCore {
             )));
         }
 
-        for (paragraph, line_segs) in staged_paragraphs[new_range.clone()]
+        for (paragraph, (line_segs, space_metrics)) in staged_paragraphs[new_range.clone()]
             .iter_mut()
-            .zip(new_band.line_segs)
+            .zip(new_band.line_segs.into_iter().zip(new_band.space_metrics))
         {
-            paragraph.replace_line_segs(line_segs);
+            paragraph.replace_line_segs_with_space_metrics(line_segs, space_metrics);
         }
 
         // When an edited paragraph clears the exclusion earlier than before,
@@ -6831,11 +6831,14 @@ mod tests {
         (core, vec![(0, 0, 0), (0, 1, 0)])
     }
 
+    /// [#7412] 셀 내용 상자는 한/글 저장본처럼 폭을 4 HWPUNIT 격자로 내려 발행한다.
+    /// 소유자 폭(5002)과 원시 폭(4998)은 격자 뒤에도 5000 대 4996 으로 갈린다.
     fn resolved_table_frame_segment_width(dpi: f64) -> i32 {
-        crate::renderer::px_to_hwpunit(
+        let width = crate::renderer::px_to_hwpunit(
             crate::renderer::hwpunit_to_px(RESOLVED_TABLE_FRAME_WIDTH, dpi),
             dpi,
-        )
+        );
+        width - width.rem_euclid(4)
     }
 
     #[test]
