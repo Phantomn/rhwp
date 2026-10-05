@@ -1,12 +1,126 @@
 ---
 kind: report
 status: active
-last_verified: 2026-10-02
+last_verified: 2026-10-05
 ---
 
-# PR #7491 리뷰 — 편집 문단 들여쓰기
+# PR #7491 리뷰 — 메인터너 인계 보정
 
-## 최종 판정
+## 현재 판정
+
+메인터너 보정 후 수용 가능 — #7490 해결 범위의 로컬 검증 완료. #7490 들여쓰기 문제와 그 편집 경로의 TAC prefix 처리에
+해결 범위를 한정한 별도 integration PR 후보다. 원 PR 승인·merge·close와 remote push는 미실행이다.
+작업지시자의 #7491 인계 지시에 따라 semanticist21의 네 commit을 author와 원 SHA를
+보존해 cherry-pick했다. 기여자 보류를 일반 reviewer가 임의로 해제한 경로가 아니다.
+
+- 기준 devel: `cdba77b609c399fdef26a6c9e637716aa32c2177` (최종 fetch에서도 동일).
+- 원 PR head: `c4367ec03a28369cc6f26b17eca46553ac61514c`, OPEN / DIRTY / mergeable=false.
+- 작업 branch: `integration/pr7491-maintainer-20261005`.
+- 최종 production: `c3e99c204133f661534e837aa8bb00b16e4bb99a`.
+- Rust 21개 계약: `183db042f8a2e81735d6a03b8566f76763dfd052`; E2E 등록·명명은 이후 `dbe8431cb`.
+- 전체 회귀: 10,379 PASS / 0 FAIL / 50 SKIP. Native Skia 3단계 PASS. 원 PR CI와 로컬 integration 검증은 별개다.
+
+## 해결 범위와 독립 근거
+
+편집 재조판의 첫 줄/후속 줄에 들여쓰기 bit20을 유지하며, 명시적 문단 모양 변경은 기록을
+새로 단다. 한컴 원본의 bit20이 모두 꺼진 줄과 번호 문단의 후속 줄 기록은 보존한다.
+본문·셀·머리말/꼬리말·각주·외부 붙여넣기·문단 병합 undo를 실제 명령과 최종 X 좌표로 검사한다.
+보조 영역은 Native 좌표 계약이며 실제 Studio UI/한컴 PDF 통과로 확대하지 않는다.
+
+#6190 표 앞 입력은 텍스트+표 바깥 여백을 남은 폭으로 검사한다. 들어가는 작은 표는 같은 줄,
+너비 부족/명시적 개행 뒤 표는 다음 줄이다. 표 줄 높이는 본체+위/아래 바깥 여백이다.
+공백 두 칸·빈 개행·`.\n`도 실제 입력으로 생성했으며, 빈 줄의 점유 상자를 공통 ComposedLine에
+보존한다. 표 앞줄의 국소 원점과 저장 줄 사이 거리로 표 Y를 정하고 절대 vpos로 덮어쓰지 않는다.
+
+일반 prefix는 `lh==th`인 앞줄들과 같은 저장 fragment의 단조 vpos로 구분한다. 최대 개체 높이를
+반복 저장한 빈 밴드, vpos reset continuation, PUA 필러는 다른 소유 계약을 유지한다.
+원점 이월은 이미 소비한 prefix 높이를 다음 쪽에 다시 예약하지 않고 실제 새 단의
+InlineBoxPlacement를 paint에 전달한다. 컷/rowspan 내부 알고리즘 변경은 없다.
+
+원 #6190에는 본문 ColumnDef가 없다. 저장 25mm 여백과 달리 한컴은 30mm로 열었다.
+원본·보정 전 실패 자료를 보존한다. 실제 1단 명령 대조군은 25mm를 유지하므로 재구성 저장은
+기본 1단을 명시한다. raw 스트림 재사용과 live 모델은 보존하고, 실제 1단 명령 저장본과
+보정 저장본의 바이트도 같다. 11개 public input의 모든 painted box/내용/용지 보존을 검사했다.
+
+[생성기](assets/pr7491/generate_inputs.rs), [입력/PDF 해시와 변환 출처](assets/pr7491/input-provenance.json),
+[fixture 설명](../../tests/fixtures/pr7491_edited_indent/README.md)에 실제 명령과 한컴 2020 기준을
+연결한다. 수동 LineSeg로 수용 조건을 완화하지 않았다.
+
+## 값의 생산과 최종 소비
+
+| 값/경로 | 생산 → 측정 → 실제 배치·최종 소비 |
+| --- | --- |
+| 들여쓰기와 개체 폭 | `composer/line_breaking.rs:2993` 점유 크기 → `inline_control_requires_own_line` / `mark_indented_lines:3098` → 실제 paragraph_layout의 bit20과 줄 원점 |
+| 점유 높이·빈 prefix | 폭 줄바꿈/명시적 개행이 같은 점유 helper 소비; `composer.rs:764` 일반 prefix 판별 → format/HeightMeasurer의 ComposedLine → prefix PartialParagraph + Table |
+| TAC 같은 쪽 Y | `layout.rs` pre-text 원점 → `host_text_content_bottom`/`para_start_y` → `tac_paragraph_tail_stored_line_top:2205`; 확정 inline placement에는 저장 vpos를 덮어쓰지 않음 |
+| 페이지 경계 | `tac_fit.rs:203` prefix fit이면 전체 pre-flush 연기 → `typeset.rs:4393` 실제 성장 band+prefix로 fit → `4478` 앞줄 수용·예약 높이 소비 → 새 단 이월 → `4532` 새 단 기준 metadata → layout의 최종 table 원점 |
+| 이월 중복 방지 | pre-emitted host 기록 → `typeset.rs:4746` prefix 재발행/재예약 제외; inline flow bottom에서도 소비 prefix 제외 → 앞쪽 1개/다음 쪽 0개 최종 줄 검사 |
+| 저장 구조 | `serializer/body_text.rs` raw 재사용 이후 재구성 구역 기본 1단 → 8-unit control offset 구조 이동 → 재개방 geometry/모든 painted box 대조 |
+
+source-owner만 바꾸었던 중간 보정은 32건 회귀를 만들어 제거했다. 최종 구현은 기존 소유
+조회에 점유 메트릭을 공급한다. 문서 ID 분기, 좌표 clamp, 출력 은폐, 렌더 golden 완화는 없다.
+
+## 회귀·기준값과 실행 증거
+
+원 devel은 기존 focused 10건 모두 FAIL, 원 PR 네 commit만 적용하면 9 PASS / 1 FAIL이었다.
+최종 계약 21건 모두 PASS다. 앞의 세 prefix 반례는 `41e1be0cf`에서 0 PASS / 3 FAIL, 보정 뒤 3 PASS다.
+추가 페이지 경계 계약은 정확한 `41e1be0cf` checkout을 다시 빌드해 실제 이전 쪽 표 배치로
+FAIL을 재확인했다. 수정 후에는 앞줄 1/0개, 표 2쪽 y=69.92px, 본문 끝 내부가 PASS다.
+한컴 2020의 독립 표 상단 69.844px와 대조했으며 fresh WASM CDP도 69.9px로 PASS다.
+[경계의 전후 값·로그·제한](assets/pr7491/tac-page-handoff-evidence.json)을 참조한다.
+
+이전 최종 whole(final4)는 10,378건 중 4건 FAIL이었다. 최종 보정의 구분은 아래와 같다.
+
+| 실패 | 원인과 처리 | 테스트 조건 |
+| --- | --- | --- |
+| #7408 TAC stored cuts | 실제 blank prefix가 추가되어 visible-text collector에 빈 줄이 섞임. 공백뿐인 문단 제외 | 기존 24/25/75 cuts·최소 74 기준 유지; 빈 점유는 별도 최종 좌표 검사 |
+| #2164 Enter 8 / 20 | 기존 저장 높이만 fit하던 wide TAC 성장 경로를 실제 band 높이로 검사하고 object row만 이월 | 독립 한컴 3/4쪽 확인; 기존 assertions 그대로 |
+| overflow partition 3 | vpos-reset fragment를 일반 prefix로 재발행해 2→3건 증가 | 공통 monotonic-fragment 소유 구분 수정; baseline 그대로 |
+
+IR sweep의 51행 추가는 기본 ColumnDef의 정확한 8-unit 구조 이동이며 기존 583행은 그대로다.
+[개별 노드와 해시 대조](assets/pr7491/serializer-default-column-normalization.json)에 근거를 남겼다.
+렌더링 baseline/overflow 허용치 변경이 아니며, 11개 public input의 모든 painted box 보존도 PASS다.
+
+- fmt / Native·WASM·workspace all-targets Clippy / workspace build / 고정 base manifest: PASS.
+  case 편집 후 파생 harness drift가 발생해 `--prepare`를 다시 실행하고 전체 lint 묶음을 재실행했다.
+  최종 로그는 `output/pr-review/pr7491-20261005/logs/final8-*.log`다. 파생 파일은 PR에 넣지 않는다.
+- source-side unit policy, E2E manifest 149개, TypeScript: PASS.
+- Native/fresh WASM: 9개 입력 14쪽씩, **28쪽 모두 gate PASS**, 최저 **93.42616%**(biz 4쪽).
+  새 prefix 세 사례는 약 99.9042%. [수치·source/산출 SHA·대표 이미지 해시](assets/pr7491/visual-validation.json).
+  최종 review/standalone overlay를 직접 확인했다. biz 4쪽에는 작은 글자·괘선 차이가 남지만
+  검사한 영역에 큰 외곽선/문단/뒤 내용 이동이나 누락은 관측하지 않았다. 글꼴 예외는 쓰지 않았다.
+- root wrapper fresh WASM exit 0; root pkg와 Studio public SHA 동일한 상태로 CDP 실행 PASS.
+  실제 대화상자·입력·반복 undo/redo·병합 undo·저장 재개방·TAC page/top/body 검사다.
+  generated public JS는 검증 후 원상복원했으며 PR에 stage하지 않는다.
+- 생성기 재실행: 현재 12개 HWP 모두 commit fixture와 바이트 동일.
+- 전체 nextest: **10,379 PASS / 0 FAIL / 50 SKIP**(425.186초). focused 21건과 이전 4개 실패 모두 PASS. Native Skia: lib/workspace 4,109 PASS / 13 IGNORE, placeholder 2 PASS, direct PDF 4 PASS. 최종 source가 다른 이전 통과를 대체 증거로 쓰지 않는다.
+
+## 미해결 범위
+
+추가 성장 표본의 전체 출력 일치를 주장하지 않는다. Enter 20의 표 높이 997.48px는
+이전 `41e1be0cf`에서도 동일했고, 최종 원점 개선 뒤에도 본문을 약 14.8px 넘는다.
+Enter 8/20 저장본의 rhwp 재개방은 이전/이후 모두 2쪽이며 한컴의 3/4쪽과 다르다.
+Enter 8의 첫 표 원점·본문 안 배치는 개선됐으나 뒤 각주/rowbreak 표에는 한컴과 차이가 남는다.
+이 범위는 **미충족(실행으로 확인한 기존 결함)**이며 full-page visual PASS로 보고하지 않는다.
+#6882 전체 해결이나 저장 셀 높이 보존으로 이슈를 닫는 표현을 쓰지 않는다.
+
+## 조판 원칙 판정
+
+| 항목 | 판정 | 근거/제한 |
+| --- | --- | --- |
+| 근거·일반성 / 줄 소속 | 충족 | 실제 생성 명령, 저장 메트릭, 같은 바이트 한컴 출력, 작은 표/개행/빈 줄/필러 대조 |
+| 측정·배치 공통 결과 | 충족(해결 범위) | 공통 점유 helper와 실제 prefix 원점, 성장 band fit→새 단 metadata→paint 좌표 |
+| 분할·이어받기 | 충족(단일 TAC prefix 이월) | 앞줄 단독 fit/표 fit 실패, 실제 새 쪽 원점과 prefix 중복/누락 검사; 내부 컷/rowspan 알고리즘은 비해당 |
+| 성장 셀 저장·전체 출력 | 미충족 | 위 실행 결함. Enter 20 높이와 후속 내용까지 해결했다는 주장 제외 |
+| 증거 독립성 / 기준값 | 충족 | 독립 PDF/저장 메트릭, 구조 51행만 추가, 기존 렌더 기준 유지 |
+| 원 PR 그대로 수용 | 미충족 | 원 head의 보류와 충돌 상태는 유지; 메인터너 integration 보정과 분리 |
+| 최종 전체 회귀·Skia | 충족 | 최종 code/test head 전체 10,379 PASS와 Native Skia 3단계 PASS |
+| remote CI / approve·merge | 미검증 | 새 PR 미등록; exact-head CI와 별도 승인 필요 |
+
+1000줄 초과 PR이므로 즉시 admin merge 경로를 사용하지 않는다. 별도 code review·simulation·
+시각 증거·작업지시자 판단 cycle을 거치며, integration merge 뒤에만 원 #7491 종료를 제안한다.
+
+## 2026-10-02 최초 보류 기록
 
 머지 보류 — 실패 assertion의 독립 기대값 및 편집 후 시각 증거를 확인해야 한다. 새 코드 회귀로 단정하지 않는다.
 
