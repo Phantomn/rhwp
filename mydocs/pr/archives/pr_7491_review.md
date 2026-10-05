@@ -10,7 +10,8 @@ last_verified: 2026-10-05
 
 메인터너 보정 후 수용 가능 — #7490 해결 범위의 로컬 검증 완료. #7490 들여쓰기 문제와 그 편집 경로의 TAC prefix 처리에
 해결 범위를 한정한 별도 integration [PR #7599](https://github.com/edwardkim/rhwp/pull/7599)를
-사용자 승인 후 push·등록했다. 원 PR 승인·merge·close와 통합 PR merge는 미실행이다.
+사용자 승인 후 push·등록했다. 통합 PR은 최종 head CI 성공을 확인하고 사용자 승인으로 병합했다.
+실제 merge SHA는 `bdda980b7e266d821171ed08b7604e21e6f3b7fa`다. 원 PR 자체를 merge하지 않으며, 원 PR 종료는 영구 기록 반영 뒤 진행한다.
 작업지시자의 #7491 인계 지시에 따라 semanticist21의 네 commit을 author와 원 SHA를
 보존해 cherry-pick했다. 기여자 보류를 일반 reviewer가 임의로 해제한 경로가 아니다.
 
@@ -19,7 +20,7 @@ last_verified: 2026-10-05
 - 작업 branch: `integration/pr7491-maintainer-20261005`.
 - 통합 PR: [#7599](https://github.com/edwardkim/rhwp/pull/7599), OPEN / devel / 작성자 edwardkim.
   최초 등록 head `e97473e7f34a771dc6716963d5f44d62a5fd2b2a`;
-  [통합 PR 검토 기록](pr_7599_review.md)의 후행 문서 commit을 포함한 최신 원격 head CI는 별도로 확인한다.
+  [통합 PR 검토 기록](pr_7599_review.md)의 후행 문서 commit을 포함한 최신 원격 head CI도 아래 기록처럼 완료했다.
 - 최종 production: `c3e99c204133f661534e837aa8bb00b16e4bb99a`.
 - Rust 21개 계약: `183db042f8a2e81735d6a03b8566f76763dfd052`; E2E 등록·명명은 이후 `dbe8431cb`.
 - 전체 회귀: 10,379 PASS / 0 FAIL / 50 SKIP. Native Skia 3단계 PASS. 원 PR CI와 로컬 integration 검증은 별개다.
@@ -46,8 +47,8 @@ InlineBoxPlacement를 paint에 전달한다. 컷/rowspan 내부 알고리즘 변
 기본 1단을 명시한다. raw 스트림 재사용과 live 모델은 보존하고, 실제 1단 명령 저장본과
 보정 저장본의 바이트도 같다. 11개 public input의 모든 painted box/내용/용지 보존을 검사했다.
 
-[생성기](assets/pr7491/generate_inputs.rs), [입력/PDF 해시와 변환 출처](assets/pr7491/input-provenance.json),
-[fixture 설명](../../tests/fixtures/pr7491_edited_indent/README.md)에 실제 명령과 한컴 2020 기준을
+[생성기](../assets/pr7491/generate_inputs.rs), [입력/PDF 해시와 변환 출처](../assets/pr7491/input-provenance.json),
+[fixture 설명](../../../tests/fixtures/pr7491_edited_indent/README.md)에 실제 명령과 한컴 2020 기준을
 연결한다. 수동 LineSeg로 수용 조건을 완화하지 않았다.
 
 ## 값의 생산과 최종 소비
@@ -71,7 +72,7 @@ source-owner만 바꾸었던 중간 보정은 32건 회귀를 만들어 제거�
 추가 페이지 경계 계약은 정확한 `41e1be0cf` checkout을 다시 빌드해 실제 이전 쪽 표 배치로
 FAIL을 재확인했다. 수정 후에는 앞줄 1/0개, 표 2쪽 y=69.92px, 본문 끝 내부가 PASS다.
 한컴 2020의 독립 표 상단 69.844px와 대조했으며 fresh WASM CDP도 69.9px로 PASS다.
-[경계의 전후 값·로그·제한](assets/pr7491/tac-page-handoff-evidence.json)을 참조한다.
+[경계의 전후 값·로그·제한](../assets/pr7491/tac-page-handoff-evidence.json)을 참조한다.
 
 이전 최종 whole(final4)는 10,378건 중 4건 FAIL이었다. 최종 보정의 구분은 아래와 같다.
 
@@ -82,7 +83,7 @@ FAIL을 재확인했다. 수정 후에는 앞줄 1/0개, 표 2쪽 y=69.92px, 본
 | overflow partition 3 | vpos-reset fragment를 일반 prefix로 재발행해 2→3건 증가 | 공통 monotonic-fragment 소유 구분 수정; baseline 그대로 |
 
 IR sweep의 51행 추가는 기본 ColumnDef의 정확한 8-unit 구조 이동이며 기존 583행은 그대로다.
-[개별 노드와 해시 대조](assets/pr7491/serializer-default-column-normalization.json)에 근거를 남겼다.
+[개별 노드와 해시 대조](../assets/pr7491/serializer-default-column-normalization.json)에 근거를 남겼다.
 렌더링 baseline/overflow 허용치 변경이 아니며, 11개 public input의 모든 painted box 보존도 PASS다.
 
 - fmt / Native·WASM·workspace all-targets Clippy / workspace build / 고정 base manifest: PASS.
@@ -90,7 +91,7 @@ IR sweep의 51행 추가는 기본 ColumnDef의 정확한 8-unit 구조 이동�
   최종 로그는 `output/pr-review/pr7491-20261005/logs/final8-*.log`다. 파생 파일은 PR에 넣지 않는다.
 - source-side unit policy, E2E manifest 149개, TypeScript: PASS.
 - Native/fresh WASM: 9개 입력 14쪽씩, **28쪽 모두 gate PASS**, 최저 **93.42616%**(biz 4쪽).
-  새 prefix 세 사례는 약 99.9042%. [수치·source/산출 SHA·대표 이미지 해시](assets/pr7491/visual-validation.json).
+  새 prefix 세 사례는 약 99.9042%. [수치·source/산출 SHA·대표 이미지 해시](../assets/pr7491/visual-validation.json).
   최종 review/standalone overlay를 직접 확인했다. biz 4쪽에는 작은 글자·괘선 차이가 남지만
   검사한 영역에 큰 외곽선/문단/뒤 내용 이동이나 누락은 관측하지 않았다. 글꼴 예외는 쓰지 않았다.
 - root wrapper fresh WASM exit 0; root pkg와 Studio public SHA 동일한 상태로 CDP 실행 PASS.
@@ -132,7 +133,7 @@ Enter 8의 첫 표 원점·본문 안 배치는 개선됐으나 뒤 각주/rowbr
 기준 devel: `e5098bc91be44a49367a7f2895a14fcd4f4c2c7f`.
 누적 진단 head: `c6ef30ea943308c37e5d68c8304dfdabdd7b8f74`.
 
-누적 실행 명령·로그·제한은 [일괄 검토 기록](pr_semanticist21_20261002_review_impl.md#누적-검증-결과)에 연결한다.
+누적 실행 명령·로그·제한은 [일괄 검토 기록](../pr_semanticist21_20261002_review_impl.md#누적-검증-결과)에 연결한다.
 원 PR의 exact-head 녹색 CI와 누적 진단 head의 결과는 별개다. 누적 head는 7건을 포함하며
 원 PR 또는 최종 수용 그룹의 전체 CI 통과로 간주하지 않는다. 메인터너 source/test 보정은 없다.
 
@@ -177,3 +178,14 @@ Native/fresh WASM 시각 게이트는 미검증이다. 기여자가 이를 마�
 2026-10-02 작업지시자의 댓글 게시 승인 후 [보류 사유 comment](https://github.com/edwardkim/rhwp/pull/7491#issuecomment-5944041501)를 게시했다.
 게시 직전 원 head가 그대로 OPEN임을 확인하고 API 재조회로 한글 본문·BOM/치환 없음 및
 작성 문안과의 일치를 확인했다(파일 끝 개행만 정규화). 코드 변경·push·GitHub 승인·merge 없음.
+
+## 최신 원격 CI와 병합 확인 — 2026-10-05
+
+- 검증한 원격 head `6f7cfcc50c94baf196095e9e3d968d055374c84c`, base `cdba77b609c399fdef26a6c9e637716aa32c2177`입니다.
+- [Full CI37307314810](https://github.com/edwardkim/rhwp/actions/runs/37307314810), [CodeQL37307314712](https://github.com/edwardkim/rhwp/actions/runs/37307314712), [Render Diff37307314551](https://github.com/edwardkim/rhwp/actions/runs/37307314551), [Proptest37307314777](https://github.com/edwardkim/rhwp/actions/runs/37307314777), Adapter 및 CI Impact Policy workflow가 success입니다. required Build & Test success이며35개 check가 모두 완료했습니다.
+- preflight는 취소된 최초 등록 head를 재사용하지 않고 `fast_pass=false / workflow-not-success:cancelled`로 Full을 실행했습니다. Archive A/B/C/D의3,870/2,140/2,292/1,883건, 총 **10,185 PASS /0 FAIL /50 SKIP**을 실제 로그에서 확인했습니다. 로컬10,379 PASS와 별개입니다. Adapter worker는 정책상 skipped로 신규 worker 실행을 주장하지 않습니다.
+- CI tested merge `0a37718110218ddd4bbcda9d9a501551dd646342`, tree `a8e76fba3acababf13045f342d1858a58e3b83b7`의 parent를 확인하고 최신 base의 자동 merge tree와 일치함을 대조했습니다. source diff·실제 restamp/측정/예약/이월/paint 호출과21개 독립 좌표 계약도 다시 읽었습니다.
+- [영구 CI 증거와 로그 해시](../assets/pr7491/ci_candidate_6f7cfcc50.json). 사용자 승인 후 exact head를 지정해 [#7599](https://github.com/edwardkim/rhwp/pull/7599)를 merge commit 방식으로 병합했습니다: `bdda980b7e266d821171ed08b7604e21e6f3b7fa`.
+- #7490은 자동 종료를 실제 조회로 확인했습니다. 검토 기록은 maintainer 운영 문서로 archive·직접 반영하며, 최종 merge SHA 고정 PNG를 포함한 한국어 PR/이슈 후속 안내를 준비했습니다. 이미 공개한 셀 성장 잔여와 보조 영역 미검증 범위는 유지합니다.
+
+- 병합 후 [duration 갱신37311340327](https://github.com/edwardkim/rhwp/actions/runs/37311340327)은 completed/success입니다. `ready=true / successful-pr-worker-measurements`와 metrics branch 반영을 확인했고 로그 해시는 CI 증거 JSON에 보존하며 검증 CI를 재실행하지 않았습니다.
