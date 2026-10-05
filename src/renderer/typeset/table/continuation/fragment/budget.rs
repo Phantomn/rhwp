@@ -107,10 +107,10 @@ impl TypesetEngine {
                 ),
                 self.dpi,
             );
-        let (host_before_overhead, fragment_outer_bottom_overhead) = if prepared
+        let recursive_overlay_frame = prepared
             .layout_engine
-            .reflow_recursive_overlay_frame(table, input.source.styles)
-        {
+            .reflow_recursive_overlay_frame(table, input.source.styles);
+        let (host_before_overhead, fragment_outer_bottom_overhead) = if recursive_overlay_frame {
             (
                 host_before_overhead + hwpunit_to_px(table.outer_margin_top as i32, self.dpi),
                 fragment_outer_bottom_overhead
@@ -175,6 +175,7 @@ impl TypesetEngine {
                     || source_cut_opens_outer_top)
                 && !strict_following_plain_text_fit
                 && !single_cell_page_fragment
+                && !recursive_overlay_frame
             {
                 hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
             } else {
@@ -218,6 +219,7 @@ impl TypesetEngine {
                     && !single_cell_page_fragment
                     && !strict_following_plain_text_fit))
                 && !fragment_opens_outer_top
+                && !recursive_overlay_frame
             {
                 hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
             } else {
