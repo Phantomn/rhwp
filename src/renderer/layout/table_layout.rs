@@ -6141,11 +6141,20 @@ impl LayoutEngine {
             let para_y_before_compose = para_y;
             let paragraph_children_start = cell_node.children.len();
 
+            // 측정의 nested_table_groups와 같은 저장 UTF-16 줄 소속을 소비한다.
+            // 빈 텍스트에도 여러 control의 서로 다른 저장 줄이 있을 수 있다.
+            let stored_control_lines =
+                crate::renderer::float_placement::stored_control_line_indices(para);
             // 줄별 TAC 컨트롤 너비 합산: 각 TAC가 속한 줄을 판별하여 줄별 최대 너비 계산
             let tac_line_widths: Vec<f64> = {
                 // 줄별 너비 합산 벡터
-                let mut line_widths = vec![0.0f64; composed.lines.len().max(1)];
-                for ctrl in &para.controls {
+                let stored_line_count = stored_control_lines
+                    .as_ref()
+                    .and_then(|lines| lines.iter().max())
+                    .map_or(0, |line| line + 1);
+                let mut line_widths =
+                    vec![0.0f64; composed.lines.len().max(stored_line_count).max(1)];
+                for (ctrl_idx, ctrl) in para.controls.iter().enumerate() {
                     let (is_tac, w) = match ctrl {
                         Control::Picture(pic) if pic.common.treat_as_char => {
                             (true, hwpunit_to_px(pic.common.width as i32, self.dpi))
@@ -6178,8 +6187,10 @@ impl LayoutEngine {
                     if !is_tac {
                         continue;
                     }
+                    if let Some(line) = stored_control_lines.as_ref().map(|lines| lines[ctrl_idx]) {
+                        line_widths[line] += w;
                     // 줄이 1개이면 무조건 0번 줄
-                    if composed.lines.len() <= 1 {
+                    } else if composed.lines.len() <= 1 {
                         line_widths[0] += w;
                     } else {
                         // 아직 줄 분배 전이므로 순서대로 채워넣기:
@@ -6422,8 +6433,6 @@ impl LayoutEngine {
                 para,
                 self.profile.get().hwpx_stored_layout(),
             );
-            let stored_control_lines =
-                crate::renderer::float_placement::stored_control_line_indices(para);
             let mut cell_float_lanes = vec![None; nested_groups.len()];
 
             for (ctrl_idx, ctrl) in para.controls.iter().enumerate() {
@@ -7726,38 +7735,37 @@ impl LayoutEngine {
                                 hwpunit_to_px(nested_table.outer_margin_left as i32, self.dpi);
                             let tac_om_r =
                                 hwpunit_to_px(nested_table.outer_margin_right as i32, self.dpi);
-                            // [#6122 계열] 같은 칸 문단의 인라인 TAC **표** 가 둘 이상일
-                            // 때 폭 합이 칸 내폭을 넘으면 한글은 다음 줄로 내린다. 그림
-                            // 분기(위 `width_overflows_line`)는 이미 이 접기를 하지만 표
-                            // 분기는 `inline_x` 를 계속 오른쪽으로만 밀어, 둘째 표가 칸·
-                            // 용지 밖(x=718px, 용지폭 793.7px)으로 나가 통째로 소실됐다
-                            // (bizbc_11060 (양식)사업계획서 6쪽 '수행기관 주요 업무실적'
-                            // 12×6 표 — 괘선도 글자도 없이 사라짐).
-                            //
-                            // y 는 이미 아래 `table_seg` 가 표 자신의 저장 줄(`line_segs`)
-                            // 에서 읽으므로, 여기서는 줄머리 x 만 되돌리면 된다.
-                            let tac_table_advance = tac_om_l + tac_w + tac_om_r;
-                            if inline_x > inner_area.x + INLINE_WRAP_WIDTH_EPSILON_PX
-                                && inline_x + tac_table_advance
-                                    > inner_area.x + inner_area.width + INLINE_WRAP_WIDTH_EPSILON_PX
-                            {
-                                let line_w = tac_w.min(inner_area.width);
-                                let line_margin = effective_margin_left_line(
-                                    para_margin_left_px,
-                                    para_indent_px,
-                                    current_tac_line + 1,
-                                );
-                                inline_x = match para_alignment {
-                                    Alignment::Center | Alignment::Distribute => {
-                                        inner_area.x + (inner_area.width - line_w).max(0.0) / 2.0
-                                    }
-                                    Alignment::Right => {
-                                        inner_area.x + (inner_area.width - line_w).max(0.0)
-                                    }
-                                    _ => inner_area.x + line_margin,
-                                };
-                                current_tac_line = (current_tac_line + 1)
-                                    .min(para.line_segs.len().saturating_sub(1));
+                            let own_line =
+                                stored_control_lines.as_ref().map(|lines| lines[ctrl_idx]);
+                            if !already_rendered_inline {
+                                if let Some(target_line) =
+                                    own_line.filter(|&line| line > current_tac_line)
+                                {
+                                    current_tac_line = target_line;
+                                    let line_w = tac_line_widths[target_line];
+                                    let line_margin = effective_margin_left_line(
+                                        para_margin_left_px,
+                                        para_indent_px,
+                                        target_line,
+                                    );
+                                    let right_box_w = header_cell_tac_right_box_w(
+                                        para,
+                                        target_line,
+                                        inner_area.width,
+                                        self.dpi,
+                                        header_or_master_cell,
+                                    );
+                                    inline_x = match para_alignment {
+                                        Alignment::Center | Alignment::Distribute => {
+                                            inner_area.x
+                                                + (inner_area.width - line_w).max(0.0) / 2.0
+                                        }
+                                        Alignment::Right => {
+                                            inner_area.x + (right_box_w - line_w).max(0.0)
+                                        }
+                                        _ => inner_area.x + line_margin,
+                                    };
+                                }
                             }
                             if already_rendered_inline {
                                 inline_x += tac_om_l + tac_w + tac_om_r;
@@ -7792,12 +7800,16 @@ impl LayoutEngine {
                                         (i64::from(s.line_height) - table_band_hu).abs() <= 10
                                     })
                                 };
-                                let table_seg = (table_band_hu > 0 && band_segs().count() == 1)
-                                    .then(|| band_segs().next())
-                                    .flatten()
+                                let table_seg = own_line
+                                    .and_then(|line| para.line_segs.get(line))
+                                    .or_else(|| {
+                                        (table_band_hu > 0 && band_segs().count() == 1)
+                                            .then(|| band_segs().next())
+                                            .flatten()
+                                    })
                                     .or_else(|| para.line_segs.last());
-                                let table_anchor_y = if has_preceding_text
-                                    && para.line_segs.len() > 1
+                                let table_anchor_y = if own_line.is_some()
+                                    || (has_preceding_text && para.line_segs.len() > 1)
                                 {
                                     let first_vpos =
                                         para.line_segs.first().map(|f| f.vertical_pos).unwrap_or(0);
@@ -7819,7 +7831,11 @@ impl LayoutEngine {
                                             .iter()
                                             .find_map(|node| match &node.node_type {
                                                 RenderNodeType::TextLine(line)
-                                                    if line.para_index == Some(cp_idx) =>
+                                                    if line.para_index == Some(cp_idx)
+                                                        && line.line_index
+                                                            == Some(
+                                                                own_line.unwrap_or(0) as u32
+                                                            ) =>
                                                 {
                                                     Some(node.bbox.y)
                                                 }
@@ -7833,7 +7849,8 @@ impl LayoutEngine {
                                 // 은 표 상단 = 줄 상단 + om_top 이 한글 실좌표다
                                 // (156678235 p5: 저장 vpos+om_top == 한글 PDF 상단
                                 // 536.7px, 종전 anchor 는 om_top 소실로 3.8px 상향).
-                                let host_seg_lh = if has_preceding_text && para.line_segs.len() > 1
+                                let host_seg_lh = if own_line.is_some()
+                                    || (has_preceding_text && para.line_segs.len() > 1)
                                 {
                                     table_seg.map(|s| s.line_height).unwrap_or(0)
                                 } else {
@@ -7854,8 +7871,6 @@ impl LayoutEngine {
                                 // 컨트롤의 문자 위치를 `LineSeg.text_start` 구간에 넣어
                                 // 소속 줄을 구하고, **같은 줄**의 TAC 표만 센다. 문단 단위로
                                 // 세면 다른 줄의 표까지 끌어들여 이 줄의 사실을 왜곡한다.
-                                let own_line =
-                                    stored_control_lines.as_ref().map(|lines| lines[ctrl_idx]);
                                 let line_tac_table_count =
                                     stored_control_lines.as_ref().map(|lines| {
                                         para.controls.iter().enumerate().filter(|(ci, c)| {

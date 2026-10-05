@@ -8,10 +8,10 @@
 //! 수정 전: `table_layout` 의 인라인 표 분기가 `inline_x` 를 오른쪽으로만 밀어
 //! 둘째 표가 x≈718px(용지 폭 793.7px) 에서 시작했고, 칸 clip 밖이라 괘선도
 //! 글자도 남지 않았다 — PDF 에서 12×6 표가 통째로 사라진다(한/글 2024 는
-//! 정상 출력). 그림 분기는 이미 같은 접기를 한다(#6122).
+//! 정상 출력이라는 원 PR의 보고). 이번 검증은 engine 2020으로 생성한 독립 PDF를 사용한다.
 //!
-//! 수정 후: 남은 칸 너비에 들어가지 않는 인라인 표는 줄머리로 접혀 칸 안에
-//! 머문다.
+//! 메인터너 보정: 저장 UTF-16 줄 소속을 폭·가로 정렬·vpos·여백에서 함께
+//! 소비한다. 둘째 표의 전체 프레임과 내용이 첫 표 아래 부모 셀 안에 남는지 검사한다.
 
 #![cfg(not(target_arch = "wasm32"))]
 
@@ -48,6 +48,27 @@ fn body_right(node: &RenderNode) -> Option<f64> {
     node.children.iter().find_map(body_right)
 }
 
+fn host_cell(node: &RenderNode) -> Option<&RenderNode> {
+    if matches!(node.node_type, RenderNodeType::TableCell(_))
+        && node
+            .children
+            .iter()
+            .filter(|child| matches!(child.node_type, RenderNodeType::Table(_)))
+            .count()
+            == 2
+    {
+        return Some(node);
+    }
+    node.children.iter().find_map(host_cell)
+}
+
+fn direct_tables(cell: &RenderNode) -> Vec<&RenderNode> {
+    cell.children
+        .iter()
+        .filter(|child| matches!(child.node_type, RenderNodeType::Table(_)))
+        .collect()
+}
+
 #[test]
 fn second_inline_nested_table_stays_inside_the_body_column() {
     let doc = load_doc();
@@ -55,6 +76,17 @@ fn second_inline_nested_table_stays_inside_the_body_column() {
         .build_page_render_tree(PAGE_INDEX)
         .expect("page 6 render tree");
     let right_edge = body_right(&page.root).expect("본문 영역 노드가 없다");
+    let host = host_cell(&page.root).expect("두 중첩 표를 소유한 셀");
+    let tables = direct_tables(host);
+    assert_eq!(tables.len(), 2);
+    for table in tables {
+        let bbox = table.bbox;
+        assert!(bbox.width > 0.0 && bbox.height > 0.0);
+        assert!(bbox.x >= host.bbox.x && bbox.y >= host.bbox.y);
+        assert!(bbox.x + bbox.width <= host.bbox.x + host.bbox.width);
+        assert!(bbox.x + bbox.width <= right_edge);
+        assert!(bbox.y + bbox.height <= host.bbox.y + host.bbox.height);
+    }
     let mut runs = Vec::new();
     collect_text_runs(&page.root, &mut runs);
 
@@ -79,6 +111,13 @@ fn second_inline_nested_table_is_below_the_first() {
     let page = doc
         .build_page_render_tree(PAGE_INDEX)
         .expect("page 6 render tree");
+    let host = host_cell(&page.root).expect("두 중첩 표를 소유한 셀");
+    let tables = direct_tables(host);
+    assert_eq!(tables.len(), 2);
+    assert!(
+        tables[1].bbox.y >= tables[0].bbox.y + tables[0].bbox.height,
+        "독립 한컴 PDF와 저장 줄 순서: 둘째 표 전체 프레임은 안내 상자 아래에 있어야 한다"
+    );
     let mut runs = Vec::new();
     collect_text_runs(&page.root, &mut runs);
 
@@ -88,6 +127,10 @@ fn second_inline_nested_table_is_below_the_first() {
         .filter(|(_, _, text)| text.contains("제안과제와"))
         .map(|(_, y, _)| *y)
         .fold(f64::MIN, f64::max);
+    assert!(
+        guide_bottom > f64::MIN,
+        "안내 상자 마지막 내용이 있어야 한다"
+    );
     let header_y = runs
         .iter()
         .find(|(_, _, text)| text.contains("사업명칭"))
