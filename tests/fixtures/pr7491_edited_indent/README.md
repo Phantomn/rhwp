@@ -8,6 +8,7 @@ LineSeg·문단 속성을 수동 작성하지 않는다. 생성기는
 - 6190-edited: 원본 문단 4 끝과 문단 7 앞에 각각 `가` 입력 후 저장. 저장 보정이 기본 1단 정의를 발행한다.
 - 6190-edited-one-column: 같은 편집 뒤 실제 `set_column_def_native(0, 1, 0, true, 0)`를 적용한 독립 대조군.
 - 6190-explicit-break-one-column: 원본 문단 7 앞에 `가\n` 입력, 실제 1단 명령 적용 후 저장.
+- prefix-spaces/blank-break/punctuation-break: 원본 문단 7 앞에 각각 공백 두 칸/명시적 개행/`.\n`을 실제 입력 후 저장.
 - biz-edited: samples/biz_plan.hwp 문단 51 끝(67)에 `가` 입력.
 
 원본 #6190은 [기존 sample](../../../samples/issue6190/center_align_first_line_indent.hwp)을 사용한다.

@@ -2217,7 +2217,7 @@ fn tac_paragraph_tail_stored_line_top(
     if !stored_layout
         || has_receipt_filler
         || !table.common.treat_as_char
-        || !para_has_visible_text(para)
+        || (!para_has_visible_text(para) && rendered_host_origin.is_none())
     {
         return None;
     }

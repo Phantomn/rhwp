@@ -91,6 +91,36 @@
       "path": "tests/fixtures/pr7491_edited_indent/typed-hanging.hwp",
       "sha256": "be75a13f7070a2e198c09e9f547993db16849d798486759652bfb33e9eace303",
       "bytes": 13312
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/prefix-blank-break-2020.pdf",
+      "sha256": "43ff7e975116a19cd25d2fd0855c4f8bd87f3fae601a3bd9d2e8e74a4cccb470",
+      "bytes": 33805
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/prefix-blank-break.hwp",
+      "sha256": "cd82006863a506574c8911d14b58c05a7a5450fde1fc0779f9a3d7ce5fa78bb1",
+      "bytes": 10752
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/prefix-punctuation-break-2020.pdf",
+      "sha256": "caff964345047b2f8c1313560bed5ee8d5e00a9e4c970c445ba1bcc562e606fb",
+      "bytes": 33842
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/prefix-punctuation-break.hwp",
+      "sha256": "d65abc20fcc9963c1d4b8fc90d6b8d1f4aec94c0a1030a6ab9a6e9dc9a71238b",
+      "bytes": 10752
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/prefix-spaces-2020.pdf",
+      "sha256": "54b26896bc5034a2384e5357fead820bef9a58d942b153fedc63344a3bf658d3",
+      "bytes": 33830
+    },
+    {
+      "path": "tests/fixtures/pr7491_edited_indent/prefix-spaces.hwp",
+      "sha256": "f5a560d90982cb821a07534d2235a40569e7d9389417dfe6419110296895febc",
+      "bytes": 10752
     }
   ],
   "before_column_source_sha": "4060db2d9d46b3ccd2987538286a11f836348056",
@@ -99,5 +129,10 @@
     "sha256": "ba8a7c83c345b1e2a6eca33e7af8be93197291648c635044083387183656c454",
     "stored_margin_hwpunit": 7086,
     "observed_hancom_margin_without_column_hwpunit": 8504
+  },
+  "prefix_reference_jobs": {
+    "blank-break": "919cb58d-6a1b-4281-a588-ec04e54d3cce",
+    "spaces": "86a0a866-fcef-4dc3-85ea-d6d0b9643780",
+    "punctuation-break": "2f1a7ea4-d8da-48a7-b320-940da50f2848"
   }
 }

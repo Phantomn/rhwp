@@ -4634,6 +4634,17 @@ impl TypesetEngine {
         let no_lineseg_host_flows_below = no_lineseg_square_host
             && no_lineseg_square_band.is_none()
             && fmt.square_host_plan.is_none();
+        // Corroborate the existing table-height row with the control's stored
+        // stream position. Whitespace-only hosts can own real prefix rows;
+        // PUA carriers retain their specialized filler placement owner.
+        let tac_table_line_idx = self.tac_table_line_index(para, table, fmt);
+        let has_owned_tac_prefix = !para.text.is_empty()
+            && para.text.chars().all(char::is_whitespace)
+            && para.char_offsets.len() == para.text.chars().count()
+            && tac_table_line_idx.is_some_and(|line| {
+                line > 0
+                    && crate::renderer::layout::control_line_seg_index(para, ctrl_idx) == Some(line)
+            });
         let pre_table_end_line = if !is_visible_para_float
             && signed_vertical_offset > 0
             && !para.text.is_empty()
@@ -4652,16 +4663,18 @@ impl TypesetEngine {
             total_lines
         } else if table.common.treat_as_char
             && total_lines > 1
-            && para.text.chars().any(|c| c.is_alphanumeric())
+            && (has_owned_tac_prefix
+                || para.text.chars().any(|ch| {
+                    !ch.is_whitespace()
+                        && ch > '\u{001F}'
+                        && ch != '\u{FFFC}'
+                        && !('\u{E000}'..='\u{F8FF}').contains(&ch)
+                        && (ch as u32) < 0xF0000
+                }))
         {
-            // 전폭 TAC 표가 자동 줄바꿈으로 자기 줄(line index N)에 놓인 경우(\n 없음):
-            // 한컴은 LINE_SEG 순서대로 line0=텍스트 → lineN=표 로 렌더한다.
-            // control_text_positions() 는 char_offsets 가 비면 무용하므로, 표 줄의 높이
-            // (표 본체 + outer margin top/bottom)와 일치하는 LINE_SEG 인덱스로 판정한다.
-            // PUA 필러/공백만 있는 문단(예: 복학원서.hwp pi=16 — 한컴이 표 폭만큼 필러로
-            // 줄바꿈시킨 케이스)은 is_alphanumeric() 가 false 라 제외 → compute_tac_leading
-            // 경로 유지. (Task #853, Task #842 결함 #2 의 PUA 필러 판정과 정합)
-            self.tac_table_line_index(para, table, fmt).unwrap_or(0)
+            // Keep the legacy text-host route when source positions are absent;
+            // mapped hosts use row ownership rather than glyph visibility.
+            tac_table_line_idx.unwrap_or(0)
         } else {
             0
         };

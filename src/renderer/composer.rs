@@ -801,6 +801,19 @@ pub(crate) fn stored_tac_lines(para: &Paragraph) -> Option<Vec<StoredTacLine>> {
         {
             return None;
         }
+        // Ordinary prefix rows own their text/empty-line boxes and indentation.
+        // A table-only placement cannot replace those rows with an anonymous
+        // offset. Let the common composed paragraph route emit and measure them.
+        // Carriers whose lh repeats the object maximum still need this band's
+        // th-based physical-space contract.
+        if whitespace_carrier
+            && owner > 0
+            && para.line_segs[..owner]
+                .iter()
+                .all(|prefix| prefix.line_height == prefix.text_height)
+        {
+            return None;
+        }
         // 빈 컨트롤 캐리어도 표 앞에 짧은 저장 줄을 가질 수 있다.
         // 표 높이가 반복된 line_height 대신 실제 text_height와 다음 원점을
         // 대조하여 빈 줄의 물리 점유를 보존한다.
@@ -1333,8 +1346,10 @@ fn compose_lines(para: &Paragraph) -> Vec<ComposedLine> {
                 );
                 prev.runs.append(&mut extra_runs);
                 prev.has_line_break = true;
-            } else if !pre_text.is_empty() {
-                // 이전 줄이 없거나 [#6300] 저장 줄 경계를 유지할 때 새 ComposedLine
+            } else if !pre_text.is_empty() || keep_stored_boundary {
+                // A terminating break owns its stored line box even with no
+                // visible glyphs. Measurement and placement consume this same
+                // row before the following inline object.
                 let pre_runs = split_row_runs(
                     &pre_text,
                     text_start,
