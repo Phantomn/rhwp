@@ -65,30 +65,6 @@ impl<'a> TacFlowQuery<'a> {
             return None;
         }
 
-        // Reflow publishes the table's owning source line, including when its
-        // line height holds only the body and placement adds the outer margins.
-        // A height coincidence cannot replace that ownership or drop prefix text
-        // (#7491). Use the shared stream-to-line projection when the formatted
-        // rows preserve the source ladder; legacy height matching remains below.
-        if fmt.line_heights.len() == para.line_segs.len() {
-            if let Some(line) = para
-                .controls
-                .iter()
-                .enumerate()
-                .find_map(|(index, control)| match control {
-                    crate::model::control::Control::Table(candidate)
-                        if std::ptr::eq(candidate.as_ref(), table) =>
-                    {
-                        crate::renderer::layout::control_line_seg_index(para, index)
-                            .filter(|&line| line > 0)
-                    }
-                    _ => None,
-                })
-            {
-                return Some(line);
-            }
-        }
-
         let om_top = hwpunit_to_px(table.outer_margin_top as i32, self.dpi);
         let om_bot = hwpunit_to_px(table.outer_margin_bottom as i32, self.dpi);
         let table_body_h = hwpunit_to_px(table.common.height as i32, self.dpi);

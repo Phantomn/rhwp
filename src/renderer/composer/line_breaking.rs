@@ -2935,7 +2935,14 @@ fn inline_control_requires_own_line(
         .iter()
         .zip(positions)
         .filter_map(|(control, position)| {
-            let (width, height) = inline_control_size_hwp(control)?;
+            let (mut width, mut height) = inline_control_size_hwp(control)?;
+            // A stored TAC row occupies the body plus its outside margins.
+            // Publish that same box here so typesetting can identify the object
+            // row without reinterpreting unrelated saved stream boundaries.
+            if let Control::Table(table) = control {
+                width += i32::from(table.outer_margin_left) + i32::from(table.outer_margin_right);
+                height += i32::from(table.outer_margin_top) + i32::from(table.outer_margin_bottom);
+            }
             (position > 0 && position <= text_len).then_some((position, width, height))
         });
     let (position, control_width, height) = candidates.next()?;
