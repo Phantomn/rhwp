@@ -85,3 +85,10 @@ HWP/HWPX/PDF 파일은 사용하지 않았다. `createEmpty`와 공개 native �
 원 code head에 오늘할일을 새로 만들면 현재 base의 같은 파일과 add/add 충돌이 발생했다. 작업지시자가 current-base bridge 뒤 문서 trailing을 원 PR에 직접 push하도록 승인했다. 현재 base `1f25503cc45d13c1b3cd44514e373af8888f419c`를 두 번째 parent로 갖는 bridge `a167009bbb219ad5b5381343fce39b24735433be`는 자동 병합으로 충돌 없이 생성했고 수동 source/test/workflow 보정은 없다. 앞 절의 로컬 검증은 원 code head의 결과이며 새 base 통합 자체의 전체 회귀 결과로 승격하지 않는다. 새 PR head CI/fast-pass 및 mergeability를 별도로 확인해야 한다. 이 뒤 trailing commit은 이 archive review와 오늘할일만 포함한다.
 
 Push 전 최종 merge simulation은 충돌 없이 통과했고, 실제 merge tree의 두 변경 문서 상대 링크와 최신 base의 오늘할일 기존 기록 보존을 확인했다. 원 head부터의 변경 파일에서 LFS 추적 대상은 0개이며 `git lfs status`도 신규 push object를 표시하지 않았다. 일반 dry-run의 LFS lock 권한 오류는 Git ref 권한과 분리해 판독했고, `GIT_LFS_SKIP_PUSH=1` dry-run으로 원 contributor branch의 fast-forward 갱신 가능성을 확인했다. 다른 pre-push hook은 유지한다. 실제 push 뒤의 원격 SHA·CI 상태는 별도 확인한다.
+
+## Merge 후 확정 기록 — 2026-10-05
+
+- 원 PR #7509는 final head `e4af1bd2c2ba3201b22ed05cd59a6e9164576285`를 고정하여 정상 merge 방식으로 병합했다. Merge SHA: `fc36d71452a1aedae5f1f2b05737efe60a00f37f`. 최신 upstream/devel 포함을 확인했다.
+- [후행 CI 37273295997](https://github.com/edwardkim/rhwp/actions/runs/37273295997)는 success다. preflight는 candidate `2487de3bdbdd897cc7f612e8be78ae917f91e48b`의 green Build & Test와 `current-base-merge-tree-match`를 확인하고 fast-pass를 수용했다. Heavy worker skip과 final Build & Test success를 확인했다. CodeQL·Render Diff·Adapter·Proptest 최신 head workflow도 success다. 이것을 새 전체 회귀 실행으로 해석하지 않는다.
+- 문서 처리: archive review와 오늘할일은 원 PR에 이미 포함됐다. 이번 확정 SHA/CI 결과만 별도 문서 후속 기록 PR으로 반영한다. source/test/workflow/asset 수정은 없다.
+- #7444는 부분 해결이므로 OPEN 유지 대상이다. 원 PR 및 이슈에는 실제 merge SHA·검증 요약·잔여 범위 안내를 남긴다. Contributor fork branch와 공유 `target/pr-review`는 보존하고 이번 작업의 local branch/ref/log만 정리한다.
