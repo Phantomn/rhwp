@@ -185,6 +185,19 @@ pub fn para_relative_float_table_lead(table: &crate::model::table::Table, dpi: f
     hwpunit_to_px(offset, dpi)
 }
 
+fn reflow_nested_table_has_outer_frame(
+    para: &Paragraph,
+    table: &crate::model::table::Table,
+) -> bool {
+    crate::renderer::para_has_no_stored_line_segs(para)
+        && !table.common.treat_as_char
+        && table.common.text_wrap == TextWrap::TopAndBottom
+        && matches!(
+            table.common.horz_rel_to,
+            HorzRelTo::Para | HorzRelTo::Column
+        )
+}
+
 fn has_initial_tac_shape_host(paragraphs: &[Paragraph]) -> bool {
     paragraphs.first().is_some_and(|para| {
         para.text.trim().is_empty()
@@ -5193,16 +5206,9 @@ impl LayoutEngine {
         area: &LayoutRect,
         width: f64,
         flow_top: f64,
-        owns_outer_top: bool,
+        opens_outer_frame: bool,
     ) -> Option<(f64, f64)> {
-        (crate::renderer::para_has_no_stored_line_segs(para)
-            && !table.common.treat_as_char
-            && matches!(table.common.text_wrap, TextWrap::TopAndBottom)
-            && matches!(
-                table.common.horz_rel_to,
-                HorzRelTo::Para | HorzRelTo::Column
-            ))
-        .then(|| {
+        reflow_nested_table_has_outer_frame(para, table).then(|| {
             let x = self.compute_table_x_position(
                 table,
                 width,
@@ -5218,7 +5224,7 @@ impl LayoutEngine {
             (
                 x,
                 flow_top
-                    + if owns_outer_top {
+                    + if opens_outer_frame {
                         hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
                     } else {
                         0.0
@@ -19480,8 +19486,14 @@ impl LayoutEngine {
             }
         }
         let style = styles.para_styles.get(para.para_shape_id as usize);
-        if start == run_start {
+        let reopens_outer_frame = reflow_nested_table_has_outer_frame(para, child);
+        if start == run_start || reopens_outer_frame {
             physical += hwpunit_to_px(child.outer_margin_top as i32, self.dpi);
+        }
+        if end == run_end || reopens_outer_frame {
+            physical += hwpunit_to_px(child.outer_margin_bottom as i32, self.dpi);
+        }
+        if start == run_start {
             if pi > 0 {
                 physical += style.map(|style| style.spacing_before).unwrap_or(0.0);
             }
@@ -19490,7 +19502,6 @@ impl LayoutEngine {
             }
         }
         if end == run_end {
-            physical += hwpunit_to_px(child.outer_margin_bottom as i32, self.dpi);
             if pi + 1 < cell.paragraphs.len() {
                 physical += style.map(|style| style.spacing_after).unwrap_or(0.0);
             }
@@ -19511,6 +19522,25 @@ impl LayoutEngine {
             }
         }
         Some((physical - selected.iter().map(|unit| unit.height).sum::<f64>()).max(0.0))
+    }
+
+    /// Recursive reflow projects source units, rather than a stored physical
+    /// row frame. Its outer overlay frame must therefore be reserved explicitly.
+    /// Atomic nested rows retain their existing physical-frame ledger.
+    pub(crate) fn reflow_recursive_overlay_frame(
+        &self,
+        table: &crate::model::table::Table,
+        styles: &ResolvedStyleSet,
+    ) -> bool {
+        crate::renderer::float_placement::paragraph_following_overlay_rowbreak_frame(table)
+            && table.cells.iter().any(|cell| {
+                self.cell_units(cell, table, styles).iter().any(|unit| {
+                    cell.paragraphs
+                        .get(unit.para_idx)
+                        .is_some_and(crate::renderer::para_has_no_stored_line_segs)
+                        && (unit.nested_table_fragment.is_some() || unit.mixed_nested_recursive)
+                })
+            })
     }
 
     /// [Task #1809] 종전 is_hwpx_source 조기 0 반환 제거 — 컷 이월 조각의 flow

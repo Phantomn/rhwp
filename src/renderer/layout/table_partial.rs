@@ -3793,7 +3793,7 @@ impl LayoutEngine {
                                                             &ctrl_area,
                                                             nested_w,
                                                             nested_y,
-                                                            owns_nested_start,
+                                                            true,
                                                         )
                                                         .map(|(_, y)| y)
                                                     }),
@@ -4499,6 +4499,10 @@ impl LayoutEngine {
         };
         let y_start = if let Some(top) = resolved_table_top {
             top
+        } else if self.reflow_recursive_overlay_frame(table, styles) {
+            y_start
+                + effective_vertical_offset
+                + hwpunit_to_px(table.outer_margin_top as i32, self.dpi)
         } else if is_para_flow_table {
             let prev_table_end = col_node
                 .children

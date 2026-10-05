@@ -107,6 +107,18 @@ impl TypesetEngine {
                 ),
                 self.dpi,
             );
+        let (host_before_overhead, fragment_outer_bottom_overhead) = if prepared
+            .layout_engine
+            .reflow_recursive_overlay_frame(table, input.source.styles)
+        {
+            (
+                host_before_overhead + hwpunit_to_px(table.outer_margin_top as i32, self.dpi),
+                fragment_outer_bottom_overhead
+                    + hwpunit_to_px(table.outer_margin_bottom as i32, self.dpi),
+            )
+        } else {
+            (host_before_overhead, fragment_outer_bottom_overhead)
+        };
         let fragment_outer_bottom_overhead = closed_source_frame_placement
             .map_or(fragment_outer_bottom_overhead, |placement| {
                 placement.occupied_bottom - placement.table_top - total_rows_h

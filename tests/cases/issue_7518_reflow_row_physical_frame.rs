@@ -969,6 +969,7 @@ fn independently_regenerated_reflow_context_preserves_units_and_following_rows()
         if name == "nested-split" {
             assert_eq!(child_count, 20, "no child replay");
         } else {
+            assert_recursive_child_page_owners(&pages);
             for i in 0..65 {
                 let expected = format!("UNIT {i:03}");
                 assert_eq!(
@@ -1003,22 +1004,57 @@ fn assert_recursive_reflow_child(input: &str, expected_final_child_rows: usize) 
         .join("tests/fixtures/pr7518_review_page_budget/valid_orientation")
         .join(input);
     let pages = rendered_pages(&input);
+    assert_recursive_child_page_owners(&pages);
+    let source = rhwp::parser::parse_hwp(&std::fs::read(&input).unwrap()).unwrap();
+    let source_outer = source_table(&source.sections[0].paragraphs[3]);
+    let source_owner = source_outer
+        .cells
+        .iter()
+        .find(|cell| cell.row == 5 && cell.col == 1)
+        .unwrap();
+    let source_child = source_table(source_owner.paragraphs.last().unwrap());
+    let normalize = |text: &str| text.split_whitespace().collect::<String>();
+    let expected_following: std::collections::BTreeMap<_, _> = source_outer
+        .cells
+        .iter()
+        .filter(|cell| cell.row == 7)
+        .map(|cell| {
+            (
+                u64::from(cell.col),
+                normalize(
+                    &cell
+                        .paragraphs
+                        .iter()
+                        .map(|p| p.text.as_str())
+                        .collect::<String>(),
+                ),
+            )
+        })
+        .collect();
     let mut first = true;
     let mut fragments = 0;
     let mut source_units = std::collections::BTreeSet::new();
     let mut final_child_rows = 0;
-    let mut following_rows = 0;
+    let mut following_content = std::collections::BTreeMap::<u64, String>::new();
     for page in &pages {
         let all = nodes(page);
         let column = all.iter().find(|n| n["type"] == "Column").unwrap();
         for owner in outer(page)["children"].as_array().unwrap() {
-            if owner["type"] != "Cell" || owner["col"] != 1 {
+            if owner["type"] != "Cell" {
                 continue;
             }
             if owner["row"] == 7 {
-                following_rows += 1;
+                let text: String = cell_owned_nodes(owner)
+                    .into_iter()
+                    .filter(|node| node["type"] == "TextRun")
+                    .filter_map(|node| node["text"].as_str())
+                    .collect();
+                following_content
+                    .entry(owner["col"].as_u64().unwrap())
+                    .or_default()
+                    .push_str(&normalize(&text));
             }
-            if owner["row"] != 5 {
+            if owner["row"] != 5 || owner["col"] != 1 {
                 continue;
             }
             assert!(
@@ -1027,9 +1063,15 @@ fn assert_recursive_reflow_child(input: &str, expected_final_child_rows: usize) 
             );
             for child in nodes(owner).into_iter().filter(|n| n["type"] == "Table") {
                 fragments += 1;
-                // The first child fragment owns its Para lead and outer top.
-                // Recursive continuation owns neither of those again.
-                let lead = if first { (1203.0 + 283.0) / 75.0 } else { 0.0 };
+                // The PDF repeats the declared outer top at each recursive
+                // fragment. Only the paragraph offset belongs to its first.
+                let lead = (f64::from(source_child.outer_margin_top)
+                    + if first {
+                        f64::from(source_child.common.vertical_offset)
+                    } else {
+                        0.0
+                    })
+                    / 75.0;
                 assert!(
                     (coord(child, "y") - coord(owner, "y") - 141.0 / 75.0 - lead).abs() < 0.2,
                     "recursive paint added the paragraph offset twice"
@@ -1078,7 +1120,47 @@ fn assert_recursive_reflow_child(input: &str, expected_final_child_rows: usize) 
         "every child paragraph must survive once"
     );
     assert_eq!(final_child_rows, expected_final_child_rows);
-    assert_eq!(following_rows, 1, "the final outer row must survive once");
+    assert_eq!(
+        following_content, expected_following,
+        "following row content must survive exactly once across its physical fragments"
+    );
+}
+
+fn assert_recursive_child_page_owners(pages: &[Value]) {
+    // Exact-input Hancom 2020 PDFs in valid_orientation and valid_generated:
+    // p4 owns 000..017, p5 018..036, p6 037..055, p7 056..064.
+    // p8 contains the following outer row, not another child unit/blank page.
+    assert_eq!(pages.len(), 8);
+    for (index, page) in pages.iter().enumerate() {
+        let actual: Vec<_> = nodes(page)
+            .into_iter()
+            .filter(|node| node["type"] == "TextRun")
+            .filter_map(|node| node["text"].as_str())
+            .filter(|text| text.starts_with("UNIT "))
+            .map(str::to_owned)
+            .collect();
+        let range = match index {
+            3 => 0..18,
+            4 => 18..37,
+            5 => 37..56,
+            6 => 56..65,
+            _ => 0..0,
+        };
+        let expected: Vec<_> = range.map(|unit| format!("UNIT {unit:03}")).collect();
+        assert_eq!(
+            actual,
+            expected,
+            "Hancom child owners on page {}",
+            index + 1
+        );
+    }
+    let last = pages.last().unwrap();
+    assert!(cell_owned_nodes(cell(outer(last), 7, 1))
+        .into_iter()
+        .any(|node| node["type"] == "TextRun"
+            && node["text"]
+                .as_str()
+                .is_some_and(|text| !text.trim().is_empty())));
 }
 
 #[test]

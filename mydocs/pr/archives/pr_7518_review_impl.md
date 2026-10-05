@@ -899,3 +899,50 @@ WASM 33·34쪽의 첫 래스터 실행은 30초 navigation timeout으로 실패�
 ![남은 auto p8 차이](../assets/pr7518_test_oracle_audit_20261005/native_auto-audit_review_008.png)
 
 ![33쪽 fresh-build WASM 비교](../assets/pr7518_test_oracle_audit_20261005/wasm_regulatory_review_033.png)
+
+
+### 남은 재귀 분할 실패 3건의 수정 — 2026-10-05
+
+사용자가 남은 실패를 모두 해결하도록 지시했다. `valid_orientation`과
+`valid_generated`의 원본 HWP·독립 한컴 2020 PDF는 그대로 사용한다. 새 재귀
+테스트의 기대값은 구현 높이가 아니라 PDF의 쪽별 UNIT 소속(4쪽 000–017,
+5쪽 018–036, 6쪽 037–055, 7쪽 056–064)과 8쪽의 후속 행 본문이다.
+
+원인은 내용의 시작·끝 유닛을 물리 조각의 시작·끝으로 사용한 것이었다.
+`cell_units_uncached`의 auto-row / mixed recursive producer는 첫 유닛에만
+child 위 바깥여백·Para 오프셋, 마지막 유닛에만 아래 바깥여백을 넣는다.
+이 내용 원장은 유지하고 `reflow_recursive_run_extra`가 실제 child RowCut마다
+다시 열리는 바깥 위·아래 여백을 추가 예약한다. Para 오프셋과 문단 간격은
+해당 source edge에서만 유지한다. `reflow_nested_table_has_outer_frame`의 같은
+조건을 `reflow_nested_table_origin`의 실제 원점과 물리 예약이 소비한다.
+재귀 paint의 `resolved_table_top`은 그 원점으로 확정하며, 그 뒤의 별도
+outer-top 가산은 기존 resolved-origin guard가 막는다.
+
+실제 호출 연결은 `nested_table_fragment` / `mixed_nested_recursive` producer →
+`reflow_recursive_run_extra` → `row_cut_mixed_nested_reserve` →
+`advance_row_cut_with_mixed_nested_reserve`의 예산 재시도 →
+`row_cut_content_height`의 동일 child RowCut →
+`layout_partial_table_resolved`의 재귀 child cursor다. parent의 문단 추종
+`InFrontOfText` 프레임은 `reflow_recursive_overlay_frame`의 동일 source-unit
+판정으로 fragment budget의 위·아래 여백과 실제 parent 원점을 함께 예약한다.
+고정 overlay·글 뒤 배경·TAC는 이 overlay 프레임의 비적용 경로다.
+
+선언 높이가 있는 중첩 행을 통째로 소비하는 atomic 경로는 기존 물리 원장을
+유지한다. 첫 시도의 광범위한 overlay 여백 적용은 `nested-split`의 p4 세 번째
+행을 p5로 밀어 p6의 빈 셀을 본문 셀로 바꿨으므로 채택하지 않았다. 재귀
+내용 원장과 atomic 물리 원장의 차이를 실제 소비 지점에서 구분한 뒤 기존
+원본·nested-split·terminal·그림 opening 대조 검사가 모두 통과했다. 이 수정은
+기존 atomic 경로의 한컴 픽셀 차이까지 새로 해결했다고 주장하지 않는다.
+
+`following_rows == 1`은 정상 분할을 내용 중복으로 오인하므로, 원본 바깥
+행 7의 각 열별 내용을 실제 조각들에서 합쳐 원문과 대조하도록 바꿨다.
+쪽 수 8은 유지하고 UNIT의 정확한 쪽 소속, continuation 바깥 위여백,
+각 페이지의 owner/child 물리 끝, 마지막 쪽의 후속 본문 존재를 강화했다.
+공백 줄과 빈 물리 셀을 삭제하거나 빈 마지막 쪽을 검사에서 건너뛰지 않았다.
+
+수정한 동일 검사 binary를 source `2869859ee`의 해시 고정 CLI로 직접 실행하면
+18 PASS / 의도한 3 FAIL, 수정 CLI에서는 **21 PASS / 0 FAIL**이다.
+2308 geometry 검사는 **5 PASS / 0 FAIL / 기존 1 ignored**다. 최초 후보의
+Native auto/mixed 전쪽 최저 실루엣은 모두 96.81315%이며 최종 source의
+Native/fresh WASM 전쪽·기존 영향 페이지·전체 회귀·lint 증적은 아래에 이어 기록한다.
+진단 경로: `output/pr-review/pr7518-20261004/nested-fix-20261005/`.

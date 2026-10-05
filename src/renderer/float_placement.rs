@@ -499,6 +499,18 @@ pub(crate) fn column_rowbreak_fragment_opens_outer_top(
                         })))))
 }
 
+/// A paragraph-following front overlay still owns a physical RowBreak frame.
+/// Its text wrapping policy does not remove the frame margins when its source
+/// cells continue on another page. Fixed overlays and behind-text backgrounds
+/// keep their separate placement contract.
+pub(crate) fn paragraph_following_overlay_rowbreak_frame(table: &Table) -> bool {
+    !table.common.treat_as_char
+        && table.common.flow_with_text
+        && table.common.vert_rel_to == VertRelTo::Para
+        && table.common.text_wrap == TextWrap::InFrontOfText
+        && table.page_break == TablePageBreak::RowBreak
+}
+
 pub(crate) fn column_rowbreak_caption_outer_spacing_px(
     fragment_opens_outer_margin: bool,
     para: &Paragraph,
