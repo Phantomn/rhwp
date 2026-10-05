@@ -65,19 +65,46 @@ fn serialize_section_inner(section: &Section, version: Option<u32>) -> Vec<u8> {
     // 시퀀스를 바꾸지 않기 위함.
     let has_real_page_def =
         section.section_def.page_def.width > 0 && section.section_def.page_def.height > 0;
+    // The layout model uses one column when the section has no body ColumnDef.
+    // Publish that definition when rebuilding an edited section: Hancom opens
+    // a secd-only HWP with default paper margins instead of the PAGE_DEF values
+    // (#7491, independent one-column save/print contrast). Raw reuse above still
+    // preserves an unmodified original; exporting never mutates the model.
+    let needs_default_column = !section.paragraphs.iter().any(|p| {
+        p.controls
+            .iter()
+            .any(|c| matches!(c, Control::ColumnDef(_)))
+    });
     let first_para_with_secd = section.paragraphs.first().and_then(|p| {
-        if !has_real_page_def
-            || p.controls
-                .iter()
-                .any(|c| matches!(c, Control::SectionDef(_)))
-        {
+        let needs_secd = !p
+            .controls
+            .iter()
+            .any(|c| matches!(c, Control::SectionDef(_)));
+        if !has_real_page_def || (!needs_secd && !needs_default_column) {
             None
         } else {
             let mut clone = p.clone();
-            clone.controls.insert(
-                0,
-                Control::SectionDef(Box::new(section.section_def.clone())),
-            );
+            if needs_secd {
+                clone.controls.insert(
+                    0,
+                    Control::SectionDef(Box::new(section.section_def.clone())),
+                );
+            }
+            if needs_default_column {
+                let leading_defs = clone
+                    .controls
+                    .iter()
+                    .take_while(|c| matches!(c, Control::SectionDef(_) | Control::ColumnDef(_)))
+                    .count();
+                clone.controls.insert(
+                    leading_defs,
+                    Control::ColumnDef(crate::model::page::ColumnDef {
+                        column_count: 1,
+                        same_width: true,
+                        ..Default::default()
+                    }),
+                );
+            }
             // [#4680] 정의 제어문자가 글자보다 앞에 놓이도록 자리를 비운다 —
             // 간격이 없으면 `serialize_para_text` 가 텍스트 뒤에 몰아 쓰고, 그런 문서는
             // 한글이 열다 멎는다. 어댑터와 같은 문단 좌표 계약을 적용한다.
