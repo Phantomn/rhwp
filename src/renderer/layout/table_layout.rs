@@ -4924,9 +4924,10 @@ impl LayoutEngine {
         table: &crate::model::table::Table,
         row: usize,
     ) -> bool {
-        self.render_normalization
-            .borrow()
-            .table_text_reflowed(table)
+        // Original NO_LS cells already use reflow, even when normalization
+        // did not invalidate a saved table. Their complete rows paint the
+        // measured frame too; reserving only content units drops that frame.
+        self.row_uses_reflow_physical_frame(table, row)
             && self.whole_fragment_row_uses_measured_height(table, row)
     }
 
@@ -4965,6 +4966,10 @@ impl LayoutEngine {
                         && crate::renderer::cell_vpos_ladder_is_intact(&cell.paragraphs)
                 });
         !row_has_nested
+            // Complete reflow rows own their measured physical frame, including
+            // the intentional empty line after a nested table. Interior cuts
+            // remain owned by the selected units. Reservation uses this owner too.
+            || self.row_uses_reflow_physical_frame(table, row)
             || stored_nested_row
             || (self.profile.get().hwp5_stored_pagination_layout()
                 && matches!(
@@ -10142,8 +10147,20 @@ impl LayoutEngine {
                                     })
                         })
                 });
-            if canonical_stored_frame_profile
-                && (stored_inline_child_frame
+            // Reflow has no saved viewport to project through the legacy
+            // scalar estimator. Keep the actual child units/cuts, so the
+            // physical fragment query and paint share the same child frame.
+            let reflow_child = cell
+                .paragraphs
+                .iter()
+                .all(crate::renderer::para_has_no_stored_line_segs)
+                || self
+                    .render_normalization
+                    .borrow()
+                    .table_text_reflowed(table);
+            if (canonical_stored_frame_profile || reflow_child)
+                && (reflow_child
+                    || stored_inline_child_frame
                     || stored_page_frame_boundaries >= 2
                     || has_authoritative_frame_boundary
                     || preserve_single_multi_page_boundary
@@ -19680,7 +19697,25 @@ impl LayoutEngine {
             } else {
                 &[]
             };
-            physical += self.row_cut_content_height(child, row, start_cut, end_cut, styles);
+            let content = self.row_cut_content_height(child, row, start_cut, end_cut, styles);
+            physical += if start_cut.is_empty()
+                && end_cut.is_empty()
+                && self.reflowed_fragment_row_uses_measured_height(child, row)
+            {
+                // A complete child row paints the same resolved frame as an
+                // ordinary table. Its source units alone omit physical space.
+                let rows = self.resolve_row_heights(
+                    child,
+                    usize::from(child.col_count),
+                    usize::from(child.row_count),
+                    None,
+                    styles,
+                    true,
+                );
+                content.max(rows[row])
+            } else {
+                content
+            };
             if row + 1 < cut.end_row {
                 physical += hwpunit_to_px(child.cell_spacing as i32, self.dpi);
             }

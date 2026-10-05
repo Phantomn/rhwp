@@ -3157,13 +3157,15 @@ pub(crate) fn is_para_topbottom_float(common: &CommonObjAttr) -> bool {
         && matches!(common.vert_rel_to, VertRelTo::Para)
 }
 
-/// With no stored line anchor, an empty block host places its sole flow table
+/// With no line box, an empty block host places its sole flow table
 /// inside the before/after space already reserved by table formatting. Text and
 /// whitespace hosts retain their own line boxes; negative/absolute positions
 /// and saved frames have different origins.
 pub(crate) fn reflow_empty_table_host(para: &Paragraph, table: &Table) -> bool {
     para.text.is_empty()
-        && super::para_has_no_stored_line_segs(para)
+        // An implementation-tagged LineSeg still describes a computed line.
+        // Lack of a trustworthy saved anchor does not erase that line box.
+        && para.line_segs.is_empty()
         && matches!(para.controls.as_slice(), [Control::Table(_)])
         && is_para_topbottom_float(&table.common)
         && matches!(table.common.vert_align, VertAlign::Top)

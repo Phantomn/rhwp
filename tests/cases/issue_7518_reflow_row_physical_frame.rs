@@ -67,6 +67,119 @@ fn original_pages() -> Vec<Value> {
     rendered_pages(&Path::new(env!("CARGO_MANIFEST_DIR")).join(SAMPLE))
 }
 
+// Original NO_LS cells have no saved frame to invalidate. Complete-row
+// reservation still has to own the measured frame painted around their lines.
+#[test]
+fn original_no_ls_rows_fit_the_body_and_preserve_the_following_blank_line() {
+    let input = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("samples/issue1891/80168_regulatory_analysis.hwpx");
+    let source = rhwp::parse_document(&std::fs::read(&input).unwrap()).unwrap();
+    let table = source_table(&source.sections[0].paragraphs[1232]);
+    assert!(table
+        .cells
+        .iter()
+        .all(|cell| cell.paragraphs.iter().all(|para| {
+            para.line_segs.is_empty() || para.line_segs.iter().all(|seg| seg.tag & 0x8000_0000 != 0)
+        })));
+    let pages = rendered_pages(&input);
+    let mut left_cell_text = std::collections::BTreeMap::<u64, String>::new();
+    let mut saw_following_line = false;
+    for page in &pages {
+        let all = nodes(page);
+        let Some(column) = all.iter().find(|n| n["type"] == "Column") else {
+            continue;
+        };
+        for owner in all
+            .iter()
+            .filter(|n| n["type"] == "Table" && n["pi"] == 1232)
+        {
+            assert!(
+                bottom(owner) <= bottom(column) + 0.2,
+                "complete NO_LS rows exceed the body: owner {}/{}",
+                bottom(owner),
+                bottom(column)
+            );
+            for cell in owner["children"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|n| n["type"] == "Cell" && n["col"] == 0)
+            {
+                left_cell_text
+                    .entry(cell["row"].as_u64().unwrap())
+                    .or_default()
+                    .push_str(
+                        &nodes(cell)
+                            .into_iter()
+                            .filter(|n| n["type"] == "TextRun")
+                            .map(|n| n["text"].as_str().unwrap())
+                            .collect::<String>(),
+                    );
+            }
+            if let Some(line) = all
+                .iter()
+                .find(|n| n["type"] == "TextLine" && n["pi"] == 1233)
+            {
+                assert!(
+                    coord(line, "y") >= bottom(owner) - 0.2,
+                    "following intentional blank line must remain after the final table"
+                );
+                saw_following_line = true;
+            }
+        }
+    }
+    let expected: std::collections::BTreeMap<_, _> = table
+        .cells
+        .iter()
+        .filter(|cell| cell.col == 0)
+        .map(|cell| {
+            (
+                u64::from(cell.row),
+                cell.paragraphs
+                    .iter()
+                    .map(|p| p.text.as_str())
+                    .collect::<String>(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        left_cell_text, expected,
+        "every original row label exactly once"
+    );
+    assert!(saw_following_line, "following blank paragraph is preserved");
+}
+
+// The independent Hancom 2024 p22 uses Palatino Linotype for U+00B7:
+// the dot closes line two of the original paragraph; line three begins "울".
+// The original HFT one-dot leader remains covered separately by issue_5906.
+#[test]
+fn regulatory_22_legacy_latin_dot_preserves_the_source_word_boundary() {
+    let input = Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/76076_regulatory_analysis.hwp");
+    let source = rhwp::parse_document(&std::fs::read(&input).unwrap()).unwrap();
+    assert!(source.sections[0].paragraphs[180].text.contains("덮개·울"));
+    let page = &rendered_pages(&input)[21];
+    let lines: Vec<_> = nodes(page)
+        .into_iter()
+        .filter(|node| node["type"] == "TextLine" && node["pi"] == 180)
+        .map(|line| {
+            nodes(line)
+                .into_iter()
+                .filter(|node| node["type"] == "TextRun")
+                .map(|node| node["text"].as_str().unwrap())
+                .collect::<String>()
+        })
+        .collect();
+    assert_eq!(lines.len(), 3);
+    assert!(
+        lines[1].ends_with("덮개·"),
+        "dot belongs to its source word: {lines:?}"
+    );
+    assert!(
+        lines[2].starts_with("울"),
+        "independent PDF line membership: {lines:?}"
+    );
+}
+
 fn regulatory_page39() -> (rhwp::model::document::Document, Value) {
     let input = Path::new(env!("CARGO_MANIFEST_DIR")).join("samples/76076_regulatory_analysis.hwp");
     let source = rhwp::parser::parse_hwp(&std::fs::read(&input).unwrap()).unwrap();

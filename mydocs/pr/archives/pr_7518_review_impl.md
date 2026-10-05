@@ -964,3 +964,49 @@ prepare 후 재실행으로 해소했으며 조판 결함 재현으로 세지 �
 같은 열린 프레임을 사용하며 뒤 opening 분기에서 다시 가산하지 않는다.
 이 변경 뒤에도 #7518 21/21 PASS다. 중간에 중단한 lint 로그를 보존하고
 다음 source SHA에서 최종 필수 검증을 처음부터 실행한다.
+
+
+### 전체 실패 검사와 독립 기대값 재검토 — 2026-10-05
+
+`191b18d4f` / base `df7d0076a`의 전체 nextest는 10,351건 중
+10,344 PASS / 7 FAIL / 기존 50 skipped였다. fail-fast를 끄고 마지막
+거대 문서 검사까지 실행했다. 공개 CI가 실제 보고한 독립 실패 2개
+(2308 원점, 76076 text-overlap)와 이 새 로컬 실패 7개를 구분한다.
+원본 source/PDF·baseline·90% gate는 변경하지 않는다. 사용자가 명시한
+이번 PR의 85% 시각 수용 예외도 raw gate 결과와 분리한다.
+
+| 실패 | 원인과 수정 범위 | 독립 기대값·반례 |
+| --- | --- | --- |
+| 5929 두 검사 / 7379 한 검사 | `reflow_empty_table_host`가 구현 태그의 줄 상자를 저장 앵커 부재로 지웠다. 실제 줄 상자 부재는 `line_segs.is_empty()`로 확인한다. | 5929의 합성 줄도 빈 그림 host의 줄 공간을 소유한다. 7379의 증명되지 않은 picture frame은 기존 측정 흐름 원점을 유지한다. |
+| body-overflow partition 12 | 원본 NO_LS 셀의 완전한 행에서 컷 내용 높이만 예약하고 실제 측정 프레임을 그렸다. `row_uses_reflow_physical_frame` / `whole_fragment_row_uses_measured_height`의 같은 소유 판정을 prepare의 예약과 partial paint가 소비한다. | 80168의 남은 예산 84.6px에서 컷 20.3px 네 행은 fit하지만 실제 23.28px 네 행은 fit하지 않는다. 실제 본문·셀 끝과 후속 빈 문단의 순서를 검사한다. |
+| spec5128 세 검사 | 69쪽 핀은 과거 rhwp의 결과이며 독립 한컴 정답지가 아니다. 현재 공식 한컴 PDF는 71쪽이다. 이번 오류 검사는 HWP→HWPX 왕복 보존 계약으로 다시 구성했다. | source/round-trip 쪽 수 동등성, 각 구역의 마지막 본문 문단, 모든 페이지의 kind/문단/개체/행·줄·유닛 컷을 대조한다. source가 70쪽인 것을 한컴 71쪽과 일치한다고 주장하지 않는다. |
+
+spec의 69→70 변화는 최신 #5585의 bottom-caption 표 바깥 아래 여백
+26.4533px를 흐름에서 계상하면서 table64 뒤 문단이 그만큼 전진한 결과다.
+이 독립 source margin을 다시 삭제해 역사적 쪽 수를 복구하지 않는다.
+공식 PDF와의 전체 조판 일치는 별도 미검증이며 왕복 보존 통과와 구분한다.
+
+완전한 재조판 중첩 셀에서는 기존 scalar projection의 child 높이가 실제
+child의 원장·물리 상자와 달랐다. `nested_table_mixed_fragment_heights`는
+NO_LS/실제 재조판 child의 canonical 유닛을 유지하고,
+`reflow_recursive_run_extra`가 온전한 child 행에서 paint와 같은
+`resolve_row_heights` 결과를 소비한다. 시작·끝 내용 컷에는 기존 컷 원장을
+사용한다. 마지막 child 뒤 빈 문단도 유지하며 parent 원점을 clamp하거나
+뒤 문단을 임의로 밀지 않는다. 처음 추가한 회귀의 후속 문단 검사가 이
+차이를 검출했으며, 잘못된 `all(line_segs.is_empty())` 원본 가정은 구현 태그의
+무효 저장 줄까지 포함하는 실제 parser 계약으로 교정했다. 이 사전 가정
+실패와 중간 0건 실행은 결함 검출/통과 증거에서 제외한다.
+
+최신 base의 22쪽 strict-width 줄 나누기에서는 가운뎃점을 한글/기호 슬롯으로
+재면서 실제 글꼴 출력을 다르게 골랐다. source U+00B7의 한컴 PDF는
+PalatinoLinotype Bold/Roman, 15pt에서 3.75pt(0.25em) 전진폭이다.
+기존 legacy-Latin 슬롯 조건 아래에서 composer와 char-width가 공통
+`is_latin_slot_punct`를 사용하게 한다. source 단어 `덮개·`의 줄 소속과
+다음 줄 `울`을 검사한다. 원본 HFT U+2024 리더(#5906)는 별개 문자·슬롯이며
+전각/전체 행 보존 검사를 정상 대조군으로 유지한다. 원 문자를 U+2024로
+오인한 초기 진단은 채택하지 않았다.
+
+로컬 원 증적은 `output/pr-review/pr7518-20261004/nested-fix-20261005/`에
+보존한다. 변경 전 전체 로그는 `full-release-test.log`, 수정 후 최종 lint·전체
+회귀·Skia·fresh WASM 로그와 실행 SHA/명령/exit는 `final-checks/`에 기록한다.
+최종 source 검증 완료 뒤 아래에 실제 수치와 공개 PNG를 연결한다.

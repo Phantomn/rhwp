@@ -1372,8 +1372,7 @@ pub(crate) fn char_width_decision<'a>(
     let c = chars[i];
     // [#7418] 영문 슬롯으로 재는 구두점 — 글꼴·폭 표·자간·장평만 영문 슬롯 값이고, 배치가
     // 얹는 여분(양쪽 정렬 등)은 run 의 값 그대로다.
-    let latin = c
-        .is_ascii_punctuation()
+    let latin = crate::renderer::composer::is_latin_slot_punct(c)
         .then_some(style.ascii_punct_latin.as_deref())
         .flatten();
     let ratio = latin.map_or(ratio, |l| if l.ratio > 0.0 { l.ratio } else { 1.0 });
