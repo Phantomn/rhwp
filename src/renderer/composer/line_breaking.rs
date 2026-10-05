@@ -395,8 +395,9 @@ fn tokenize_paragraph_with_regenerated_space_metric(
 
     let mut tokens = Vec::new();
     let mut i = 0;
-    let metric_scope =
-        ParagraphMetricScope::new(text_chars, styles).with_space_metric(space_metric);
+    let metric_scope = ParagraphMetricScope::new(text_chars, styles)
+        .with_reflow_slots(text_chars)
+        .with_space_metric(space_metric);
     let mut current_lang: usize = 0;
 
     while i < text_len {
@@ -887,14 +888,23 @@ fn prepare_paragraph_projection(
     styles: &ResolvedStyleSet,
     space_metric: SpaceMetric,
     inline_controls: &[FlowInlineControl],
+    composed: Option<&ComposedParagraph>,
 ) -> Option<PreparedParagraphProjection> {
     if text_chars.is_empty() {
         return None;
     }
     let mut current_lang = 0usize;
     let mut base_positions = Vec::with_capacity(text_chars.len().saturating_add(1));
-    let metric_scope =
-        ParagraphMetricScope::new(text_chars, styles).with_space_metric(space_metric);
+    let metric_scope = ParagraphMetricScope::new(text_chars, styles)
+        .with_reflow_slots(text_chars)
+        .with_space_metric(space_metric);
+    let metric_scope = if let Some(composed) = composed {
+        ParagraphMetricScope::new(text_chars, styles)
+            .with_composed_slots(text_chars, composed)
+            .with_space_metric(space_metric)
+    } else {
+        metric_scope
+    };
     let mut kerning_scalar_styles = Vec::with_capacity(text_chars.len());
     let mut shaping_scalar_styles = Vec::with_capacity(text_chars.len());
     let mut hard_boundaries = vec![false; text_chars.len().saturating_add(1)];
@@ -931,6 +941,7 @@ fn prepare_paragraph_projection(
         } else {
             1.0
         };
+        let language_index = metric_scope.scalar_slot(styles, char_shape_id, language_index, index);
         let slot = crate::renderer::kerning::ExactFontSlot::new(char_shape_id, language_index);
         kerning_scalar_styles.push(crate::renderer::kerning::KerningParagraphScalarStyle {
             slot,
@@ -1000,8 +1011,14 @@ fn prepare_paragraph_kerning(
         return None;
     }
     let context = styles.kerning_measurement_context.as_ref()?.clone();
-    let projection =
-        prepare_paragraph_projection(para, text_chars, styles, space_metric, inline_controls)?;
+    let projection = prepare_paragraph_projection(
+        para,
+        text_chars,
+        styles,
+        space_metric,
+        inline_controls,
+        None,
+    )?;
     if !projection
         .kerning_scalar_styles
         .iter()
@@ -1074,6 +1091,7 @@ pub(super) fn compose_horizontal_shaping_handoff(
         styles,
         SpaceMetric::Stored,
         &inline_controls,
+        Some(composed),
     )?;
     let kerning_measurement = kerning_context.paragraph_measurement(
         &para.text,
@@ -2950,7 +2968,9 @@ fn inline_control_requires_own_line(
     };
     let prefix: String = text_chars[line.start_idx..position].iter().collect();
     let prefix_width = to_hwp(measure_token_width(
-        &ParagraphMetricScope::new(text_chars, styles).with_space_metric(space_metric),
+        &ParagraphMetricScope::new(text_chars, styles)
+            .with_reflow_slots(text_chars)
+            .with_space_metric(space_metric),
         &prefix,
         line.start_idx,
         &para.char_offsets,

@@ -1007,8 +1007,8 @@ NO_LS만으로 저장 계약을 바꾸지 않는다. 실제 source/부분 컷의
 최신 base의 22쪽 strict-width 줄 나누기에서는 가운뎃점을 한글/기호 슬롯으로
 재면서 실제 글꼴 출력을 다르게 골랐다. source U+00B7의 한컴 PDF는
 PalatinoLinotype Bold/Roman, 15pt에서 3.75pt(0.25em) 전진폭이다.
-기존 legacy-Latin 슬롯 조건 아래에서 composer와 char-width가 공통
-`is_latin_slot_punct`를 사용하게 한다. source 단어 `덮개·`의 줄 소속과
+기존 legacy-Latin 슬롯 조건 아래에서 재조판 composer의
+`char_lang_slot`이 영문 슬롯을 결정하고 측정·배치가 그 run을 소비한다. source 단어 `덮개·`의 줄 소속과
 다음 줄 `울`을 검사한다. U+2018/U+2019도 같은 source PDF의 영문
 슬롯이며, 12.96pt에서 약 3.59pt 전진폭이다. 다음 문단의 `사고` / `하다가` /
 `회전날` 줄 소속을 독립 PDF와 대조한다. 원본 HFT U+2024 리더(#5906)는 별개 문자·슬롯이며
@@ -1019,3 +1019,24 @@ PalatinoLinotype Bold/Roman, 15pt에서 3.75pt(0.25em) 전진폭이다.
 보존한다. 변경 전 전체 로그는 `full-release-test.log`, 수정 후 최종 lint·전체
 회귀·Skia·fresh WASM 로그와 실행 SHA/명령/exit는 `final-checks/`에 기록한다.
 최종 source 검증 완료 뒤 아래에 실제 수치와 공개 PNG를 연결한다.
+
+
+`646aa19ed`의 전수 실행은 10,353건 중 10,351 PASS / 2 FAIL / 기존 50 skipped였다.
+앞서 발견한 7건은 모두 통과했으며, 새 실패 2건을 추가로 검토했다.
+6797의 누락 LineSeg와 합성 LineSeg의 y 동등성은 줄 상자 존재까지 같은 것으로
+가정했다. 같은 합성 줄 상자에서 좌표만 원본값/1,000,000으로 바꾸는 대조로
+저장 앵커의 무효성을 검사하고, 누락 경로에는 앞 float 뒤 배치·본문 경계를
+직접 검사한다. 표본·줄 높이·좌표 허용치는 완화하지 않았다.
+7092 후보는 저장 `휴먼명조` run의 표시는 그대로 두고 U+00B7의 폭만
+영문 슬롯 0.25em으로 덮어쓰는 경로 불일치도 드러냈다. 별도 폭 덮어쓰기는
+삭제했고, 실제 재조판의 `ParagraphMetricScope`와 composed run이 같은
+`reflow_punctuation_slot` 결과를 소비한다. 저장 run은 그대로 두고 shaping
+projection도 composed run의 실제 슬롯을 읽는다. 빈 run과 비적용 글꼴은 보존한다.
+
+독립 PDF를 실제 glyph 단위로 재측정하자 7092의 종전 기대값 자체도 잘못됐다.
+80168의 8/12/22/24쪽 U+00B7 네 개는 2022·2024 PDF 모두 실제 Palatino
+Roman/Bold 15pt, 0.25em이다. 휴먼명조 font dictionary의 폭 1.001em을 그
+glyph의 사용 증거로 삼을 수 없다. 업데이트한 기존 검사에서는 실제 표시
+face와 0.25em을 검사하고, 같은 PDF의 Haansoft Batang 0.3331em·맑은 고딕
+0.2181em을 정상 대조군으로 추가한다. HFT 자체 메트릭 검사는 유지하며
+baseline·golden·래칫은 변경하지 않는다.
