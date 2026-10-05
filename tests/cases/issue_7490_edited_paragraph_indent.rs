@@ -36,7 +36,7 @@ fn hanging_indent_moves_following_lines_of_typed_paragraph() {
         "내어쓰기는 첫 줄을 옮기지 않는다: {hanging:?}"
     );
     assert!(
-        hanging[1] - flat[1] > 5.0,
+        ((hanging[1] - flat[1]) - 20.0).abs() < 0.5,
         "내어쓰기는 둘째 줄부터 오른쪽으로 민다 — 없음 {flat:?}, 내어쓰기 {hanging:?}"
     );
 }
@@ -46,7 +46,7 @@ fn first_line_indent_moves_first_line_of_typed_paragraph() {
     let flat = typed_line_starts(0);
     let indented = typed_line_starts(3000);
     assert!(
-        indented[0] - flat[0] > 5.0,
+        ((indented[0] - flat[0]) - 20.0).abs() < 0.5,
         "들여쓰기는 첫 줄을 오른쪽으로 민다 — 없음 {flat:?}, 들여쓰기 {indented:?}"
     );
     assert!(
@@ -240,6 +240,14 @@ fn applying_indent_in_cell_marks_first_line() {
     doc.apply_para_format_in_cell_native(0, para, control, 0, 0, r#"{"indent":3000}"#)
         .expect("apply cell indent");
 
+    let tree = doc.build_page_render_tree(0).expect("cell tree");
+    let mut starts = Vec::new();
+    collect_cell_line_starts(&tree.root, &mut starts);
+    assert!(
+        starts.len() >= 2 && ((starts[0] - starts[1]) - 20.0).abs() < 0.5,
+        "3000 raw units = 1500 HWPUNIT = 20px, final cell placement: {starts:?}"
+    );
+
     let Control::Table(table) = &doc.document().sections[0].paragraphs[para].controls[control]
     else {
         panic!("표가 아니다");
@@ -253,6 +261,76 @@ fn applying_indent_in_cell_marks_first_line() {
         bits.len() >= 2 && bits[0] && !bits[1..].iter().any(|&bit| bit),
         "셀 문단의 들여쓰기는 첫 줄에만 적용된다: {bits:?}"
     );
+}
+
+/// 정상 대조군: 실제 폭 변경 API로 표를 작게 만들면 앞 글자와 같은 줄에 남는다.
+#[test]
+fn edited_tac_table_that_fits_stays_on_the_text_line() {
+    let mut doc = open("samples/issue6190/center_align_first_line_indent.hwp");
+    let Control::Table(table) = &doc.document().sections[0].paragraphs[7].controls[0] else {
+        panic!("table");
+    };
+    let count = usize::from(table.col_count);
+    doc.set_table_column_widths_native(0, 7, 0, vec![12000 / count as u32; count])
+        .expect("resize through API");
+    doc.insert_text_native(0, 7, 0, "가")
+        .expect("insert prefix");
+    assert_eq!(
+        doc.document().sections[0].paragraphs[7].line_segs.len(),
+        1,
+        "fitting table must not gain a line"
+    );
+    let tree = doc.build_page_render_tree(0).expect("tree");
+    let table = find_owned_table(&tree.root, 7).expect("owned table");
+    assert!(
+        table.bbox.x > 98.3 && table.bbox.x + table.bbox.width < 699.2,
+        "same-line table is after its prefix and inside body: {:?}",
+        table.bbox
+    );
+}
+
+#[test]
+fn edited_tac_table_after_explicit_break_has_its_own_line() {
+    let mut doc = open("samples/issue6190/center_align_first_line_indent.hwp");
+    doc.insert_text_native(0, 7, 0, "가\n")
+        .expect("insert prefix and break");
+    let tree = doc.build_page_render_tree(0).expect("tree");
+    let table = find_owned_table(&tree.root, 7).expect("owned table");
+    assert!(
+        (table.bbox.x - 98.2933).abs() < 0.5 && table.bbox.x + table.bbox.width < 700.2,
+        "explicit break starts table at its original body origin: {:?}",
+        table.bbox
+    );
+}
+
+fn find_owned_table(node: &RenderNode, para: usize) -> Option<&RenderNode> {
+    if matches!(&node.node_type, RenderNodeType::Table(table) if table.para_index == Some(para) && table.cell_context.is_none())
+    {
+        return Some(node);
+    }
+    node.children
+        .iter()
+        .find_map(|child| find_owned_table(child, para))
+}
+
+fn collect_cell_line_starts(node: &RenderNode, out: &mut Vec<f64>) {
+    fn first_cell_run(node: &RenderNode) -> Option<f64> {
+        if let RenderNodeType::TextRun(run) = &node.node_type {
+            if run.cell_context.is_some() && !run.text.trim().is_empty() {
+                return Some(node.bbox.x);
+            }
+        }
+        node.children.iter().find_map(first_cell_run)
+    }
+    if matches!(&node.node_type, RenderNodeType::TextLine(_)) {
+        if let Some(x) = first_cell_run(node) {
+            out.push(x);
+        }
+        return;
+    }
+    for child in &node.children {
+        collect_cell_line_starts(child, out);
+    }
 }
 
 fn open(sample: &str) -> HwpDocument {

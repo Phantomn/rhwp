@@ -3085,13 +3085,25 @@ fn mark_indented_lines(
     para_style: Option<&ResolvedParaStyle>,
     stored: &[LineSeg],
 ) {
+    stamp_indentation(
+        lines,
+        first_line_index,
+        reflow_indentation_pattern(para_style, stored),
+    );
+}
+
+/// 재조판이 발행할 줄별 들여쓰기 기록. 개체의 줄 폭 판정도 같은 기록을 소비한다.
+fn reflow_indentation_pattern(
+    para_style: Option<&ResolvedParaStyle>,
+    stored: &[LineSeg],
+) -> (bool, bool) {
     let indent = para_style.map_or(0.0, |style| style.indent);
     let indented = |line: &LineSeg| line.tag & LineSeg::TAG_INDENTATION != 0;
     let hancom_record = !stored.is_empty()
         && stored
             .iter()
             .all(|line| line.tag & LineSeg::TAG_IMPLEMENTATION_PROPERTY == 0);
-    let pattern = if hancom_record
+    if hancom_record
         && (indent > 0.0 || (indent < 0.0 && stored.len() > 1))
         && !stored.iter().any(indented)
     {
@@ -3100,8 +3112,7 @@ fn mark_indented_lines(
         (false, hancom_record && stored.iter().skip(1).any(indented))
     } else {
         (indent > 0.0, indent < 0.0)
-    };
-    stamp_indentation(lines, first_line_index, pattern);
+    }
 }
 
 /// [#7490] 문단 모양이 바뀌어 들여쓰기가 달라졌으면 저장 줄의 bit 20 을 새 들여쓰기로
@@ -4586,14 +4597,27 @@ fn reflow_line_segs_impl(
             None,
         );
     }
-    let forced_inline_line = split_stale_cell_reflow
+    // TAC 표의 호스트를 편집하면 이전 줄 경계는 더 이상 권위가 없다.
+    // 표 앞의 실제 텍스트와 표가 남은 폭에 함께 들어가는지 판정하고, 실패하면
+    // 표 앵커에서 물리 줄을 발행한다. 배치도 그 줄을 소유 줄로 사용한다 (#7491).
+    // 기존 셀 분할 경로와 달리 저장본에서 들여쓰지 않은 본문 표 호스트는 새로
+    // 발행할 bit20 기록과 같은 폭을 사용한다 (#6190 편집 후 한컴 PDF).
+    let edited_tac_table = supports_tac_table_band_frame_controls(para);
+    let table_indent_px = if edited_tac_table
+        && reflow_indentation_pattern(para_style, &original_line_segs) == (false, false)
+    {
+        0.0
+    } else {
+        indent_px
+    };
+    let forced_inline_line = (split_stale_cell_reflow || edited_tac_table)
         .then(|| {
             inline_control_requires_own_line(
                 para,
                 &text_chars,
                 &line_breaks,
                 available_width_px,
-                indent_px,
+                table_indent_px,
                 reflow_is_first_line,
                 styles,
                 reflow_space_metric,
